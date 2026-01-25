@@ -33,10 +33,24 @@ type Document = {
   project_description: string
 }
 
+const CATEGORIES = [
+  { key: 'FULL_WRAP', label: 'Full Vehicle Wrap' },
+  { key: 'PARTIAL_WRAP', label: 'Partial Wrap' },
+  { key: 'COMMERCIAL_WRAP', label: 'Commercial/Fleet Wrap' },
+  { key: 'COLOR_CHANGE', label: 'Color Change Wrap' },
+  { key: 'PPF', label: 'Paint Protection Film' },
+  { key: 'TINT', label: 'Window Tint' },
+  { key: 'SIGNAGE', label: 'Signage' },
+  { key: 'APPAREL', label: 'Apparel/Merchandise' }
+]
+
 export default function CustomerDetail({ customer, documents }: { customer: Customer, documents: Document[] }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showQuoteModal, setShowQuoteModal] = useState(false)
+  const [quoteCategory, setQuoteCategory] = useState('')
+  const [quoteDescription, setQuoteDescription] = useState('')
   const [form, setForm] = useState({
     first_name: customer.first_name || '',
     last_name: customer.last_name || '',
@@ -65,20 +79,26 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
   }
 
   const handleCreateQuote = async () => {
+    if (!quoteCategory) return
+    
+    setSaving(true)
     const { data, error } = await supabase
       .from('documents')
       .insert([{
         doc_type: 'quote',
         status: 'draft',
+        category: quoteCategory,
         customer_id: customer.id,
         customer_name: customer.display_name || `${customer.first_name} ${customer.last_name}`,
         customer_email: customer.email,
         customer_phone: customer.phone,
-        company_name: customer.company
+        company_name: customer.company,
+        project_description: quoteDescription
       }])
       .select()
       .single()
 
+    setSaving(false)
     if (!error && data) {
       router.push(`/documents/${data.id}`)
     }
@@ -102,7 +122,7 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button
-            onClick={handleCreateQuote}
+            onClick={() => setShowQuoteModal(true)}
             style={{
               padding: '12px 20px',
               background: '#d71cd1',
@@ -355,6 +375,115 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
           </div>
         </div>
       </div>
+
+      {/* New Quote Modal */}
+      {showQuoteModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            padding: '32px',
+            width: '100%',
+            maxWidth: '500px'
+          }}>
+            <h2 style={{ color: '#f1f5f9', fontSize: '20px', marginBottom: '24px' }}>New Quote for {customer.display_name || customer.first_name}</h2>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ color: '#94a3b8', fontSize: '14px', display: 'block', marginBottom: '8px' }}>Category *</label>
+              <select
+                value={quoteCategory}
+                onChange={(e) => setQuoteCategory(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: '#282a30',
+                  border: '1px solid #3f4451',
+                  borderRadius: '8px',
+                  color: '#f1f5f9',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="">Select a category...</option>
+                {CATEGORIES.map((cat) => (
+                  <option key={cat.key} value={cat.key}>{cat.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ color: '#94a3b8', fontSize: '14px', display: 'block', marginBottom: '8px' }}>Project Description</label>
+              <textarea
+                value={quoteDescription}
+                onChange={(e) => setQuoteDescription(e.target.value)}
+                rows={3}
+                placeholder="e.g., Full wrap on 2024 Ford F-150"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: '#282a30',
+                  border: '1px solid #3f4451',
+                  borderRadius: '8px',
+                  color: '#f1f5f9',
+                  fontSize: '14px',
+                  boxSizing: 'border-box',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQuoteModal(false)
+                  setQuoteCategory('')
+                  setQuoteDescription('')
+                }}
+                style={{
+                  padding: '12px 20px',
+                  background: 'transparent',
+                  border: '1px solid #3f4451',
+                  borderRadius: '8px',
+                  color: '#94a3b8',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateQuote}
+                disabled={saving || !quoteCategory}
+                style={{
+                  padding: '12px 20px',
+                  background: '#d71cd1',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  opacity: saving || !quoteCategory ? 0.7 : 1
+                }}
+              >
+                {saving ? 'Creating...' : 'Create Quote'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
