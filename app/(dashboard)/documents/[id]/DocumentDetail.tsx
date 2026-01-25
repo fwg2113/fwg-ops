@@ -96,6 +96,8 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
   const router = useRouter()
   const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
   const [saving, setSaving] = useState(false)
+  const [docStatus, setDocStatus] = useState(doc.status)
+  const [docType, setDocType] = useState(doc.doc_type)
   const [newItem, setNewItem] = useState({ 
     line_type_key: '', 
     description: '', 
@@ -174,6 +176,53 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
       .eq('id', doc.id)
   }
 
+  const handleStatusChange = async (newStatus: string) => {
+    await supabase
+      .from('documents')
+      .update({ status: newStatus })
+      .eq('id', doc.id)
+    setDocStatus(newStatus)
+  }
+
+  const handleConvertToInvoice = async () => {
+    setSaving(true)
+    await supabase
+      .from('documents')
+      .update({ 
+        doc_type: 'invoice',
+        status: 'pending'
+      })
+      .eq('id', doc.id)
+    setDocType('invoice')
+    setDocStatus('pending')
+    setSaving(false)
+  }
+
+  const handleMarkPaid = async () => {
+    setSaving(true)
+    await supabase
+      .from('documents')
+      .update({ 
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+        amount_paid: total,
+        balance_due: 0
+      })
+      .eq('id', doc.id)
+    setDocStatus('paid')
+    setSaving(false)
+  }
+
+  const handleSendToProduction = async () => {
+    setSaving(true)
+    await supabase
+      .from('documents')
+      .update({ in_production: true })
+      .eq('id', doc.id)
+    setSaving(false)
+    router.push('/production')
+  }
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
@@ -186,7 +235,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             ← Back to Documents
           </button>
           <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>
-            {doc.doc_type === 'quote' ? 'Quote' : 'Invoice'} #{doc.doc_number}
+            {docType === 'quote' ? 'Quote' : 'Invoice'} #{doc.doc_number}
           </h1>
           <p style={{ color: '#94a3b8' }}>{doc.customer_name || 'No customer'}</p>
         </div>
@@ -203,16 +252,27 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
               {doc.category.replace(/_/g, ' ')}
             </span>
           )}
-          <span style={{
-            padding: '8px 16px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '500',
-            background: doc.doc_type === 'quote' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-            color: doc.doc_type === 'quote' ? '#3b82f6' : '#22c55e'
-          }}>
-            {doc.status}
-          </span>
+          <select
+            value={docStatus}
+            onChange={(e) => handleStatusChange(e.target.value)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              background: '#282a30',
+              border: '1px solid #3f4451',
+              color: '#f1f5f9',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="viewed">Viewed</option>
+            <option value="approved">Approved</option>
+            {docType === 'invoice' && <option value="pending">Pending</option>}
+            {docType === 'invoice' && <option value="paid">Paid</option>}
+          </select>
         </div>
       </div>
 
@@ -410,22 +470,96 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
               <span style={{ color: '#d71cd1', fontSize: '24px', fontWeight: '700' }}>${total.toFixed(2)}</span>
             </div>
 
-            <button
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: '#d71cd1',
-                border: 'none',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                marginBottom: '12px'
-              }}
-            >
-              Send to Customer
-            </button>
+            {docType === 'quote' && (
+              <>
+                <button
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    background: '#d71cd1',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    marginBottom: '12px'
+                  }}
+                >
+                  Send to Customer
+                </button>
+                
+                {(docStatus === 'approved' || docStatus === 'sent' || docStatus === 'viewed') && (
+                  <button
+                    onClick={handleConvertToInvoice}
+                    disabled={saving}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: '#22c55e',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      marginBottom: '12px',
+                      opacity: saving ? 0.7 : 1
+                    }}
+                  >
+                    Convert to Invoice
+                  </button>
+                )}
+              </>
+            )}
+
+            {docType === 'invoice' && (
+              <>
+                {docStatus !== 'paid' && (
+                  <button
+                    onClick={handleMarkPaid}
+                    disabled={saving}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: '#22c55e',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      marginBottom: '12px',
+                      opacity: saving ? 0.7 : 1
+                    }}
+                  >
+                    Mark as Paid
+                  </button>
+                )}
+                
+                {docStatus === 'paid' && (
+                  <button
+                    onClick={handleSendToProduction}
+                    disabled={saving}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: '#8b5cf6',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      marginBottom: '12px',
+                      opacity: saving ? 0.7 : 1
+                    }}
+                  >
+                    Send to Production
+                  </button>
+                )}
+              </>
+            )}
             
             <button
               style={{
