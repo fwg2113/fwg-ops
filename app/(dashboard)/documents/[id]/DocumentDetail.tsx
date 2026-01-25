@@ -562,6 +562,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             )}
             
             <button
+              onClick={() => window.open(`/api/pdf?id=${doc.id}`, '_blank')}
               style={{
                 width: '100%',
                 padding: '14px',
