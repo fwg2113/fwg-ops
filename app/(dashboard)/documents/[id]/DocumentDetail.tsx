@@ -212,6 +212,33 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     setDocStatus('paid')
     setSaving(false)
   }
+  const handleCreatePaymentLink = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch('/api/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: doc.id,
+          amount: total
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.url) {
+        // Copy to clipboard and open
+        await navigator.clipboard.writeText(data.url)
+        alert('Payment link copied to clipboard!')
+        window.open(data.url, '_blank')
+      } else {
+        alert('Error creating payment link: ' + (data.error || 'Unknown error'))
+      }
+    } catch (error) {
+      alert('Error creating payment link')
+    }
+    setSaving(false)
+  }
 
   const handleSendToProduction = async () => {
     setSaving(true)
@@ -516,6 +543,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             {docType === 'invoice' && (
               <>
                 {docStatus !== 'paid' && (
+                  <>
                   <button
                     onClick={handleMarkPaid}
                     disabled={saving}
@@ -535,6 +563,27 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                   >
                     Mark as Paid
                   </button>
+                  
+                  <button
+                    onClick={handleCreatePaymentLink}
+                    disabled={saving}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: '#6366f1',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      marginBottom: '12px',
+                      opacity: saving ? 0.7 : 1
+                    }}
+                  >
+                    Create Payment Link
+                  </button>
+                  </>
                 )}
                 
                 {docStatus === 'paid' && (
