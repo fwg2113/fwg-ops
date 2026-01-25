@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
-
 type Customer = {
   id: string
   first_name: string
@@ -20,9 +19,19 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
   const perPage = 50
   const totalPages = Math.ceil(totalCount / perPage)
   const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    company: ''
+  })
 
   useEffect(() => {
-    if (page === 1) return // First page is already loaded
+    if (page === 1 && !search) return
     
     const fetchPage = async () => {
       setLoading(true)
@@ -38,15 +47,30 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
     
     fetchPage()
   }, [page])
-  const [showModal, setShowModal] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    company: ''
-  })
+
+  const handleSearch = async () => {
+    setLoading(true)
+    setPage(1)
+    
+    if (!search.trim()) {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (data) setCustomers(data)
+    } else {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .or(`display_name.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%,company.ilike.%${search}%`)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (data) setCustomers(data)
+    }
+    
+    setLoading(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,21 +100,53 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
           <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>Customers</h1>
           <p style={{ color: '#94a3b8' }}>{totalCount.toLocaleString()} total</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          style={{
-            background: '#d71cd1',
-            color: 'white',
-            border: 'none',
-            padding: '12px 20px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}
-        >
-          + Add Customer
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Search customers..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            style={{
+              padding: '12px 16px',
+              background: '#282a30',
+              border: '1px solid #3f4451',
+              borderRadius: '8px',
+              color: '#f1f5f9',
+              fontSize: '14px',
+              width: '250px'
+            }}
+          />
+          <button 
+            onClick={handleSearch}
+            style={{
+              padding: '12px 20px',
+              background: '#282a30',
+              border: '1px solid #3f4451',
+              borderRadius: '8px',
+              color: '#f1f5f9',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}
+          >
+            Search
+          </button>
+          <button 
+            onClick={() => setShowModal(true)}
+            style={{
+              background: '#d71cd1',
+              color: 'white',
+              border: 'none',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            + Add Customer
+          </button>
+        </div>
       </div>
 
       {/* Customer Table */}
@@ -109,7 +165,13 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
             </tr>
           </thead>
           <tbody>
-            {customers.length > 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                  Loading...
+                </td>
+              </tr>
+            ) : customers.length > 0 ? (
               customers.map((customer) => (
                 <tr key={customer.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
                   <td style={{ padding: '16px', color: '#f1f5f9', fontSize: '14px' }}>
@@ -129,7 +191,7 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
             ) : (
               <tr>
                 <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                  No customers yet
+                  No customers found
                 </td>
               </tr>
             )}
@@ -138,7 +200,7 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {totalPages > 1 && !search && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '24px' }}>
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}

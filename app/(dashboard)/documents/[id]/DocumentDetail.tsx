@@ -14,6 +14,7 @@ type Document = {
   customer_phone: string
   company_name: string
   project_description: string
+  category: string
   subtotal: number
   discount_amount: number
   tax_amount: number
@@ -24,6 +25,7 @@ type Document = {
 
 type LineItem = {
   id: string
+  line_type_key: string
   description: string
   quantity: number
   unit_price: number
@@ -31,11 +33,75 @@ type LineItem = {
   sort_order: number
 }
 
+const LINE_TYPES: Record<string, { key: string; label: string }[]> = {
+  FULL_WRAP: [
+    { key: 'FULL_WRAP', label: 'Full Vehicle Wrap' },
+    { key: 'DESIGN_FEE', label: 'Design Fee' },
+    { key: 'REMOVAL', label: 'Old Wrap Removal' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ],
+  PARTIAL_WRAP: [
+    { key: 'PARTIAL_WRAP', label: 'Partial Wrap' },
+    { key: 'HOOD_WRAP', label: 'Hood Wrap' },
+    { key: 'ROOF_WRAP', label: 'Roof Wrap' },
+    { key: 'CHROME_DELETE', label: 'Chrome Delete' },
+    { key: 'DESIGN_FEE', label: 'Design Fee' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ],
+  COMMERCIAL_WRAP: [
+    { key: 'FULL_WRAP', label: 'Full Vehicle Wrap' },
+    { key: 'PARTIAL_WRAP', label: 'Partial Wrap' },
+    { key: 'LETTERING', label: 'Lettering' },
+    { key: 'DESIGN_FEE', label: 'Design Fee' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ],
+  COLOR_CHANGE: [
+    { key: 'COLOR_CHANGE', label: 'Color Change Wrap' },
+    { key: 'REMOVAL', label: 'Old Wrap Removal' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ],
+  PPF: [
+    { key: 'PPF_FULL', label: 'Full Front PPF' },
+    { key: 'PPF_PARTIAL', label: 'Partial PPF' },
+    { key: 'PPF_TRACK_PACK', label: 'Track Pack' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ],
+  TINT: [
+    { key: 'TINT_FULL', label: 'Full Vehicle Tint' },
+    { key: 'TINT_FRONT', label: 'Front Two Windows' },
+    { key: 'TINT_WINDSHIELD', label: 'Windshield Strip' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ],
+  SIGNAGE: [
+    { key: 'BANNER', label: 'Banner' },
+    { key: 'YARD_SIGN', label: 'Yard Sign' },
+    { key: 'WINDOW_PERF', label: 'Window Perf' },
+    { key: 'WALL_GRAPHIC', label: 'Wall Graphic' },
+    { key: 'DESIGN_FEE', label: 'Design Fee' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ],
+  APPAREL: [
+    { key: 'SCREEN_PRINT', label: 'Screen Print' },
+    { key: 'HEAT_TRANSFER', label: 'Heat Transfer' },
+    { key: 'EMBROIDERY', label: 'Embroidery' },
+    { key: 'CUSTOM', label: 'Custom Item' }
+  ]
+}
+
+const DEFAULT_LINE_TYPES = [
+  { key: 'CUSTOM', label: 'Custom Item' }
+]
+
 export default function DocumentDetail({ document: doc, initialLineItems }: { document: Document, initialLineItems: LineItem[] }) {
   const router = useRouter()
   const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
   const [saving, setSaving] = useState(false)
-  const [newItem, setNewItem] = useState({ description: '', quantity: 1, unit_price: 0 })
+  const [newItem, setNewItem] = useState({ 
+    line_type_key: '', 
+    description: '', 
+    quantity: 1, 
+    unit_price: 0
+  })
 
   const calculateTotals = (items: LineItem[]) => {
     return items.reduce((sum, item) => sum + (item.line_total || 0), 0)
@@ -44,18 +110,30 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
   const subtotal = calculateTotals(lineItems)
   const total = subtotal - (doc.discount_amount || 0) + (doc.tax_amount || 0)
 
+  const lineTypeOptions = LINE_TYPES[doc.category] || DEFAULT_LINE_TYPES
+
+  const getLineTypeLabel = (key: string) => {
+    for (const category of Object.values(LINE_TYPES)) {
+      const found = category.find(t => t.key === key)
+      if (found) return found.label
+    }
+    return key
+  }
+
   const handleAddLineItem = async () => {
-    if (!newItem.description) return
+    if (!newItem.line_type_key && !newItem.description) return
     setSaving(true)
 
-    const line_total = newItem.quantity * newItem.unit_price
+    const quantity = newItem.quantity || 1
+    const line_total = quantity * newItem.unit_price
 
     const { data, error } = await supabase
       .from('line_items')
       .insert([{
         document_id: doc.id,
-        description: newItem.description,
-        quantity: newItem.quantity,
+        line_type_key: newItem.line_type_key,
+        description: newItem.description || getLineTypeLabel(newItem.line_type_key),
+        quantity: quantity,
         unit_price: newItem.unit_price,
         line_total: line_total,
         sort_order: lineItems.length
@@ -65,9 +143,8 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
 
     if (!error && data) {
       setLineItems([...lineItems, data])
-      setNewItem({ description: '', quantity: 1, unit_price: 0 })
+      setNewItem({ line_type_key: '', description: '', quantity: 1, unit_price: 0 })
       
-      // Update document total
       const newSubtotal = subtotal + line_total
       await supabase
         .from('documents')
@@ -90,7 +167,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     const newItems = lineItems.filter(i => i.id !== itemId)
     setLineItems(newItems)
 
-    // Update document total
     const newSubtotal = calculateTotals(newItems)
     await supabase
       .from('documents')
@@ -114,7 +190,19 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
           </h1>
           <p style={{ color: '#94a3b8' }}>{doc.customer_name || 'No customer'}</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {doc.category && (
+            <span style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              background: 'rgba(215, 28, 209, 0.1)',
+              color: '#d71cd1'
+            }}>
+              {doc.category.replace(/_/g, ' ')}
+            </span>
+          )}
           <span style={{
             padding: '8px 16px',
             borderRadius: '8px',
@@ -167,6 +255,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#64748b', fontSize: '12px' }}>Type</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#64748b', fontSize: '12px' }}>Description</th>
                   <th style={{ padding: '12px', textAlign: 'right', color: '#64748b', fontSize: '12px', width: '80px' }}>Qty</th>
                   <th style={{ padding: '12px', textAlign: 'right', color: '#64748b', fontSize: '12px', width: '100px' }}>Price</th>
@@ -177,6 +266,9 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
               <tbody>
                 {lineItems.map((item) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                    <td style={{ padding: '12px', color: '#d71cd1', fontSize: '13px' }}>
+                      {getLineTypeLabel(item.line_type_key)}
+                    </td>
                     <td style={{ padding: '12px', color: '#f1f5f9', fontSize: '14px' }}>{item.description}</td>
                     <td style={{ padding: '12px', color: '#94a3b8', fontSize: '14px', textAlign: 'right' }}>{item.quantity}</td>
                     <td style={{ padding: '12px', color: '#94a3b8', fontSize: '14px', textAlign: 'right' }}>${item.unit_price?.toFixed(2)}</td>
@@ -192,11 +284,31 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                   </tr>
                 ))}
                 {/* Add New Item Row */}
-                <tr>
+                <tr style={{ background: 'rgba(148, 163, 184, 0.03)' }}>
+                  <td style={{ padding: '12px' }}>
+                    <select
+                      value={newItem.line_type_key}
+                      onChange={(e) => setNewItem({ ...newItem, line_type_key: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        background: '#282a30',
+                        border: '1px solid #3f4451',
+                        borderRadius: '6px',
+                        color: '#f1f5f9',
+                        fontSize: '13px'
+                      }}
+                    >
+                      <option value="">Select type...</option>
+                      {lineTypeOptions.map(opt => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td style={{ padding: '12px' }}>
                     <input
                       type="text"
-                      placeholder="Item description"
+                      placeholder="Description (optional)"
                       value={newItem.description}
                       onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
                       style={{
@@ -251,7 +363,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                   <td style={{ padding: '12px', textAlign: 'center' }}>
                     <button
                       onClick={handleAddLineItem}
-                      disabled={saving || !newItem.description}
+                      disabled={saving || (!newItem.line_type_key && !newItem.description)}
                       style={{
                         background: '#d71cd1',
                         border: 'none',
@@ -261,7 +373,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                         width: '28px',
                         height: '28px',
                         borderRadius: '6px',
-                        opacity: saving || !newItem.description ? 0.5 : 1
+                        opacity: saving || (!newItem.line_type_key && !newItem.description) ? 0.5 : 1
                       }}
                     >
                       +
