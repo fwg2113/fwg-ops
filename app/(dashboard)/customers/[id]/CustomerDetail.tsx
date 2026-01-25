@@ -49,8 +49,12 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showQuoteModal, setShowQuoteModal] = useState(false)
+  const [showSmsModal, setShowSmsModal] = useState(false)
   const [quoteCategory, setQuoteCategory] = useState('')
   const [quoteDescription, setQuoteDescription] = useState('')
+  const [smsMessage, setSmsMessage] = useState('')
+  const [smsSending, setSmsSending] = useState(false)
+  const [smsStatus, setSmsStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [form, setForm] = useState({
     first_name: customer.first_name || '',
     last_name: customer.last_name || '',
@@ -104,6 +108,49 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
     }
   }
 
+  const handleSendSms = async () => {
+    if (!smsMessage.trim() || !customer.phone) return
+    
+    setSmsSending(true)
+    setSmsStatus('idle')
+
+    try {
+      const response = await fetch('/api/sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: customer.phone,
+          message: smsMessage
+        })
+      })
+
+      if (response.ok) {
+        // Save message to database
+        await supabase.from('messages').insert([{
+          direction: 'outbound',
+          channel: 'sms',
+          customer_phone: customer.phone,
+          customer_name: customer.display_name || `${customer.first_name} ${customer.last_name}`,
+          message_body: smsMessage,
+          status: 'sent'
+        }])
+        
+        setSmsStatus('success')
+        setSmsMessage('')
+        setTimeout(() => {
+          setShowSmsModal(false)
+          setSmsStatus('idle')
+        }, 1500)
+      } else {
+        setSmsStatus('error')
+      }
+    } catch (error) {
+      setSmsStatus('error')
+    }
+    
+    setSmsSending(false)
+  }
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
@@ -121,6 +168,23 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
           <p style={{ color: '#94a3b8' }}>Customer #{customer.customer_number}</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
+          {customer.phone && (
+            <button
+              onClick={() => setShowSmsModal(true)}
+              style={{
+                padding: '12px 20px',
+                background: '#3b82f6',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Send SMS
+            </button>
+          )}
           <button
             onClick={() => setShowQuoteModal(true)}
             style={{
@@ -481,6 +545,110 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
                 {saving ? 'Creating...' : 'Create Quote'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMS Modal */}
+      {showSmsModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            padding: '32px',
+            width: '100%',
+            maxWidth: '500px'
+          }}>
+            <h2 style={{ color: '#f1f5f9', fontSize: '20px', marginBottom: '8px' }}>Send SMS</h2>
+            <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px' }}>To: {customer.phone}</p>
+            
+            {smsStatus === 'success' ? (
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <div style={{ color: '#22c55e', fontSize: '48px', marginBottom: '12px' }}>✓</div>
+                <p style={{ color: '#22c55e', fontSize: '16px' }}>Message sent!</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: '24px' }}>
+                  <textarea
+                    value={smsMessage}
+                    onChange={(e) => setSmsMessage(e.target.value)}
+                    rows={4}
+                    placeholder="Type your message..."
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: '#282a30',
+                      border: '1px solid #3f4451',
+                      borderRadius: '8px',
+                      color: '#f1f5f9',
+                      fontSize: '14px',
+                      boxSizing: 'border-box',
+                      resize: 'vertical'
+                    }}
+                  />
+                  <p style={{ color: '#64748b', fontSize: '12px', marginTop: '8px' }}>
+                    {smsMessage.length}/160 characters
+                  </p>
+                </div>
+
+                {smsStatus === 'error' && (
+                  <p style={{ color: '#ef4444', fontSize: '14px', marginBottom: '16px' }}>
+                    Failed to send message. Please try again.
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSmsModal(false)
+                      setSmsMessage('')
+                      setSmsStatus('idle')
+                    }}
+                    style={{
+                      padding: '12px 20px',
+                      background: 'transparent',
+                      border: '1px solid #3f4451',
+                      borderRadius: '8px',
+                      color: '#94a3b8',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendSms}
+                    disabled={smsSending || !smsMessage.trim()}
+                    style={{
+                      padding: '12px 20px',
+                      background: '#3b82f6',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      opacity: smsSending || !smsMessage.trim() ? 0.7 : 1
+                    }}
+                  >
+                    {smsSending ? 'Sending...' : 'Send SMS'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
