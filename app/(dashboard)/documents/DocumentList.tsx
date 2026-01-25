@@ -31,6 +31,7 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
   const [saving, setSaving] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [projectDescription, setProjectDescription] = useState('')
+  const [category, setCategory] = useState('')
 
   const handleCreateQuote = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,7 +49,8 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
         customer_email: customer?.email || '',
         customer_phone: customer?.phone || '',
         company_name: customer?.company || '',
-        project_description: projectDescription
+        project_description: projectDescription,
+        category: category
       }])
       .select()
       .single()
@@ -201,6 +203,34 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
                       {customer.company ? ` (${customer.company})` : ''}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ color: '#94a3b8', fontSize: '14px', display: 'block', marginBottom: '8px' }}>Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#282a30',
+                    border: '1px solid #3f4451',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">Select a category...</option>
+                  <option value="FULL_WRAP">Full Vehicle Wrap</option>
+                  <option value="PARTIAL_WRAP">Partial Wrap</option>
+                  <option value="COMMERCIAL_WRAP">Commercial/Fleet Wrap</option>
+                  <option value="COLOR_CHANGE">Color Change Wrap</option>
+                  <option value="PPF">Paint Protection Film</option>
+                  <option value="TINT">Window Tint</option>
+                  <option value="SIGNAGE">Signage</option>
+                  <option value="APPAREL">Apparel/Merchandise</option>
                 </select>
               </div>
 

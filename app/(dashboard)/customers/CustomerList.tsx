@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+
 
 type Customer = {
   id: string
@@ -13,8 +14,30 @@ type Customer = {
   company: string
 }
 
-export default function CustomerList({ initialCustomers }: { initialCustomers: Customer[] }) {
+export default function CustomerList({ initialCustomers, totalCount }: { initialCustomers: Customer[], totalCount: number }) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
+  const [page, setPage] = useState(1)
+  const perPage = 50
+  const totalPages = Math.ceil(totalCount / perPage)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (page === 1) return // First page is already loaded
+    
+    const fetchPage = async () => {
+      setLoading(true)
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range((page - 1) * perPage, page * perPage - 1)
+      
+      if (data) setCustomers(data)
+      setLoading(false)
+    }
+    
+    fetchPage()
+  }, [page])
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
@@ -51,7 +74,7 @@ export default function CustomerList({ initialCustomers }: { initialCustomers: C
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>Customers</h1>
-          <p style={{ color: '#94a3b8' }}>{customers.length} total</p>
+          <p style={{ color: '#94a3b8' }}>{totalCount.toLocaleString()} total</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
@@ -113,6 +136,43 @@ export default function CustomerList({ initialCustomers }: { initialCustomers: C
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '24px' }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            style={{
+              padding: '8px 16px',
+              background: '#1d1d1d',
+              border: '1px solid #3f4451',
+              borderRadius: '6px',
+              color: page === 1 ? '#64748b' : '#f1f5f9',
+              cursor: page === 1 ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Previous
+          </button>
+          <span style={{ color: '#94a3b8', fontSize: '14px' }}>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            style={{
+              padding: '8px 16px',
+              background: '#1d1d1d',
+              border: '1px solid #3f4451',
+              borderRadius: '6px',
+              color: page === totalPages ? '#64748b' : '#f1f5f9',
+              cursor: page === totalPages ? 'not-allowed' : 'pointer'
+            }}
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {/* Add Customer Modal */}
       {showModal && (
