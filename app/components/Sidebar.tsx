@@ -18,6 +18,7 @@ export default function Sidebar() {
   const pathname = usePathname()
 
   const handleLogout = () => {
+    document.cookie = 'fwg_auth=; path=/; max-age=0'
     localStorage.removeItem('fwg_user')
     window.location.href = '/login'
   }
@@ -105,5 +106,4 @@ export default function Sidebar() {
       </div>
     </div>
   )
-}// deploy test
-// confirmed
+}

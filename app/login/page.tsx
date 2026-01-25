@@ -11,8 +11,9 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
 
-    // For now, simple hardcoded check - we'll add real auth later
     if (email === 'joe@fwg.com' && password === 'fwg2024') {
+      // Set cookie for middleware
+      document.cookie = `fwg_auth=${btoa(email)}; path=/; max-age=${60 * 60 * 24 * 30}` // 30 days
       localStorage.setItem('fwg_user', JSON.stringify({ email, name: 'Joe', role: 'super_admin' }))
       window.location.href = '/'
     } else {
