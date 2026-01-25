@@ -12,5 +12,9 @@ export default async function CustomersPage() {
     .from('customers')
     .select('*', { count: 'exact', head: true })
 
+  const { data: documents } = await supabase
+    .from('documents')
+    .select('id, customer_id')
+
   return <CustomerList initialCustomers={customers || []} totalCount={count || 0} />
 }

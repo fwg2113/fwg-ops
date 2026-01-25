@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
 type Customer = {
@@ -14,6 +15,7 @@ type Customer = {
 }
 
 export default function CustomerList({ initialCustomers, totalCount }: { initialCustomers: Customer[], totalCount: number }) {
+  const router = useRouter()
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [page, setPage] = useState(1)
   const perPage = 50
@@ -173,7 +175,11 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
               </tr>
             ) : customers.length > 0 ? (
               customers.map((customer) => (
-                <tr key={customer.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                <tr 
+                  key={customer.id} 
+                  onClick={() => router.push(`/customers/${customer.id}`)}
+                  style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)', cursor: 'pointer' }}
+                >
                   <td style={{ padding: '16px', color: '#f1f5f9', fontSize: '14px' }}>
                     {customer.display_name || `${customer.first_name} ${customer.last_name}`}
                   </td>
