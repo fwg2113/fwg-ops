@@ -212,6 +212,38 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     setDocStatus('paid')
     setSaving(false)
   }
+
+  const handleSendToCustomer = async () => {
+    if (!doc.customer_email) {
+      alert('No email address on file for this customer')
+      return
+    }
+    
+    setSaving(true)
+    try {
+      const response = await fetch('/api/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: doc.id,
+          to: doc.customer_email,
+          subject: `${docType === 'quote' ? 'Quote' : 'Invoice'} #${doc.doc_number} from Frederick Wraps`
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setDocStatus('sent')
+        alert('Document sent to customer!')
+      } else {
+        alert('Error sending: ' + (data.error || 'Unknown error'))
+      }
+    } catch (error) {
+      alert('Error sending document')
+    }
+    setSaving(false)
+  }
   const handleCreatePaymentLink = async () => {
     setSaving(true)
     try {
@@ -500,6 +532,8 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             {docType === 'quote' && (
               <>
                 <button
+                  onClick={handleSendToCustomer}
+                  disabled={saving || !doc.customer_email}
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -510,10 +544,11 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                     fontSize: '16px',
                     fontWeight: '600',
                     cursor: 'pointer',
-                    marginBottom: '12px'
+                    marginBottom: '12px',
+                    opacity: saving || !doc.customer_email ? 0.7 : 1
                   }}
                 >
-                  Send to Customer
+                  {doc.customer_email ? 'Send to Customer' : 'No Email on File'}
                 </button>
                 
                 {(docStatus === 'approved' || docStatus === 'sent' || docStatus === 'viewed') && (
