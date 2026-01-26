@@ -1,7 +1,5 @@
 'use client'
 
-'use client'
-
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
@@ -182,7 +180,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
       const updatedAttachments = [...attachments, ...newAttachments]
       setAttachments(updatedAttachments)
 
-      // Save to database
       await supabase
         .from('documents')
         .update({ attachments: updatedAttachments })
@@ -257,14 +254,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
       .from('documents')
       .update({ subtotal: newSubtotal, total: newSubtotal })
       .eq('id', doc.id)
-  }
-
-  const handleStatusChange = async (newStatus: string) => {
-    await supabase
-      .from('documents')
-      .update({ status: newStatus })
-      .eq('id', doc.id)
-    setDocStatus(newStatus)
   }
 
   const handleConvertToInvoice = async () => {
@@ -415,7 +404,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
 
   return (
     <div style={{ padding: '24px' }}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -435,7 +423,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             </span>
           </div>
           <p style={{ color: '#94a3b8', margin: 0 }}>
-            {doc.customer_name} {doc.company_name && `• ${doc.company_name}`}
+            {doc.customer_name} {doc.company_name && `- ${doc.company_name}`}
           </p>
         </div>
         <button
@@ -454,9 +442,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px' }}>
-        {/* Main Content */}
         <div>
-          {/* Customer Info */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Customer Information</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -479,7 +465,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             </div>
           </div>
 
-          {/* Project Info */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Project Details</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -498,7 +483,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             </div>
           </div>
 
-          {/* Attachments */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: 0 }}>Attachments</h3>
@@ -588,7 +572,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             )}
           </div>
 
-          {/* Line Items */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Line Items</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -621,12 +604,11 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                           fontSize: '16px'
                         }}
                       >
-                        ×
+                        x
                       </button>
                     </td>
                   </tr>
                 ))}
-                {/* Add new line item row */}
                 <tr style={{ background: 'rgba(215, 28, 209, 0.05)' }}>
                   <td style={{ padding: '12px' }}>
                     <select
@@ -729,7 +711,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
           </div>
         </div>
 
-        {/* Sidebar */}
         <div>
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', position: 'sticky', top: '24px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '20px' }}>Summary</h3>
@@ -804,45 +785,45 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
               <>
                 {docStatus !== 'paid' && (
                   <>
-                  <button
-                    onClick={handleMarkPaid}
-                    disabled={saving}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      background: '#22c55e',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: 'white',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      marginBottom: '12px',
-                      opacity: saving ? 0.7 : 1
-                    }}
-                  >
-                    Mark as Paid
-                  </button>
-                  
-                  <button
-                    onClick={handleCreatePaymentLink}
-                    disabled={saving}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      background: '#6366f1',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: 'white',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      marginBottom: '12px',
-                      opacity: saving ? 0.7 : 1
-                    }}
-                  >
-                    Create Payment Link
-                  </button>
+                    <button
+                      onClick={handleMarkPaid}
+                      disabled={saving}
+                      style={{
+                        width: '100%',
+                        padding: '14px',
+                        background: '#22c55e',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        marginBottom: '12px',
+                        opacity: saving ? 0.7 : 1
+                      }}
+                    >
+                      Mark as Paid
+                    </button>
+                    
+                    <button
+                      onClick={handleCreatePaymentLink}
+                      disabled={saving}
+                      style={{
+                        width: '100%',
+                        padding: '14px',
+                        background: '#6366f1',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        marginBottom: '12px',
+                        opacity: saving ? 0.7 : 1
+                      }}
+                    >
+                      Create Payment Link
+                    </button>
                   </>
                 )}
                 
