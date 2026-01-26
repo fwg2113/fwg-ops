@@ -5,7 +5,13 @@ export async function GET() {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI
 
   if (!clientId || !redirectUri) {
-    return NextResponse.json({ error: 'Google Calendar not configured' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Google Calendar not configured',
+      debug: {
+        hasClientId: !!clientId,
+        hasRedirectUri: !!redirectUri
+      }
+    }, { status: 500 })
   }
 
   const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar')
