@@ -321,10 +321,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     const newAttachments: Attachment[] = []
 
     for (const file of Array.from(files)) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`File ${file.name} is too large. Maximum size is 5MB.`)
-        continue
-      }
+      
 
       const formData = new FormData()
       formData.append('file', file)
