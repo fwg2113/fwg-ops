@@ -36,11 +36,13 @@ type Tab = 'categories' | 'materials' | 'buckets' | 'integrations'
 export default function SettingsView({ 
   initialCategories, 
   initialMaterials,
-  initialBuckets 
+  initialBuckets,
+  calendarConnected 
 }: { 
   initialCategories: Category[]
   initialMaterials: Material[]
   initialBuckets: Bucket[]
+  calendarConnected: boolean
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories] = useState<Category[]>(initialCategories)
@@ -321,21 +323,34 @@ export default function SettingsView({
                 <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Google Calendar</h3>
                 <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Sync appointments with your Google Calendar</p>
               </div>
-              <button
-                onClick={() => window.location.href = '/api/calendar/auth'}
-                style={{
-                  padding: '8px 16px',
-                  background: '#3b82f6',
-                  border: 'none',
+              {calendarConnected ? (
+                <span style={{
+                  padding: '6px 12px',
                   borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '13px',
+                  fontSize: '12px',
                   fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Connect Google Calendar
-              </button>
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  color: '#22c55e'
+                }}>
+                  Connected
+                </span>
+              ) : (
+                <button
+                  onClick={() => window.location.href = '/api/calendar/auth'}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#3b82f6',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Connect Google Calendar
+                </button>
+              )}
             </div>
           </div>
 
