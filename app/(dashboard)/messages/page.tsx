@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { supabase } from '../../lib/supabase'
 import MessageList from './MessageList'
 
@@ -14,5 +15,9 @@ export default async function MessagesPage() {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  return <MessageList initialMessages={messages || []} initialCalls={calls || []} />
+  return (
+    <Suspense fallback={<div style={{ color: '#94a3b8', padding: '40px', textAlign: 'center' }}>Loading messages...</div>}>
+      <MessageList initialMessages={messages || []} initialCalls={calls || []} />
+    </Suspense>
+  )
 }
