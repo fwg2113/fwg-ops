@@ -1,8 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+
+type Attachment = {
+  url: string
+  key: string
+  filename: string
+  contentType: string
+  size: number
+  uploadedAt: string
+}
 
 type Document = {
   id: string
@@ -21,6 +30,7 @@ type Document = {
   total: number
   notes: string
   created_at: string
+  attachments?: Attachment[]
 }
 
 type LineItem = {
@@ -94,8 +104,11 @@ const DEFAULT_LINE_TYPES = [
 
 export default function DocumentDetail({ document: doc, initialLineItems }: { document: Document, initialLineItems: LineItem[] }) {
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
+  const [attachments, setAttachments] = useState<Attachment[]>(doc.attachments || [])
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [docStatus, setDocStatus] = useState(doc.status)
   const [docType, setDocType] = useState(doc.doc_type)
   const [newItem, setNewItem] = useState({ 
@@ -120,6 +133,74 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
       if (found) return found.label
     }
     return key
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setUploading(true)
+    const newAttachments: Attachment[] = []
+
+    for (const file of Array.from(files)) {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('documentId', doc.id)
+
+      try {
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          newAttachments.push({
+            url: data.url,
+            key: data.key,
+            filename: data.filename,
+            contentType: data.contentType,
+            size: data.size,
+            uploadedAt: new Date().toISOString()
+          })
+        }
+      } catch (error) {
+        console.error('Upload failed:', error)
+      }
+    }
+
+    if (newAttachments.length > 0) {
+      const updatedAttachments = [...attachments, ...newAttachments]
+      setAttachments(updatedAttachments)
+
+      // Save to database
+      await supabase
+        .from('documents')
+        .update({ attachments: updatedAttachments })
+        .eq('id', doc.id)
+    }
+
+    setUploading(false)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDeleteAttachment = async (key: string) => {
+    const updatedAttachments = attachments.filter(a => a.key !== key)
+    setAttachments(updatedAttachments)
+
+    await supabase
+      .from('documents')
+      .update({ attachments: updatedAttachments })
+      .eq('id', doc.id)
   }
 
   const handleAddLineItem = async () => {
@@ -237,13 +318,14 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
         setDocStatus('sent')
         alert('Document sent to customer!')
       } else {
-        alert('Error sending: ' + (data.error || 'Unknown error'))
+        alert('Failed to send: ' + data.error)
       }
     } catch (error) {
-      alert('Error sending document')
+      alert('Failed to send document')
     }
     setSaving(false)
   }
+
   const handleCreatePaymentLink = async () => {
     setSaving(true)
     try {
@@ -252,64 +334,57 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId: doc.id,
-          amount: total
+          amount: total,
+          customerEmail: doc.customer_email,
+          description: `Invoice #${doc.doc_number} - ${doc.project_description || 'Frederick Wraps'}`
         })
       })
       
       const data = await response.json()
       
       if (data.url) {
-        // Copy to clipboard and open
         await navigator.clipboard.writeText(data.url)
         alert('Payment link copied to clipboard!')
-        window.open(data.url, '_blank')
       } else {
-        alert('Error creating payment link: ' + (data.error || 'Unknown error'))
+        alert('Failed to create payment link')
       }
     } catch (error) {
-      alert('Error creating payment link')
+      alert('Failed to create payment link')
     }
     setSaving(false)
   }
 
   const handleScheduleEvent = async () => {
-    const dateStr = prompt('Enter appointment date and time (e.g., 2026-01-27 10:00 AM):')
+    const dateStr = prompt('Enter appointment date (YYYY-MM-DD):')
     if (!dateStr) return
+    
+    const timeStr = prompt('Enter start time (HH:MM, 24hr format):')
+    if (!timeStr) return
 
     setSaving(true)
     try {
-      // Parse the date
-      const date = new Date(dateStr)
-      if (isNaN(date.getTime())) {
-        alert('Invalid date format. Please try again.')
-        setSaving(false)
-        return
-      }
-
-      const endDate = new Date(date.getTime() + 2 * 60 * 60 * 1000) // 2 hours later
-
       const response = await fetch('/api/calendar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: `${docType === 'quote' ? 'Quote' : 'Invoice'} #${doc.doc_number} - ${doc.customer_name}`,
-          description: doc.project_description || '',
-          startTime: date.toISOString(),
-          endTime: endDate.toISOString(),
-          customerName: doc.customer_name,
-          customerPhone: doc.customer_phone
+          documentId: doc.id,
+          date: dateStr,
+          time: timeStr,
+          duration: 120,
+          title: `${doc.customer_name} - ${doc.project_description || doc.category}`,
+          description: `Document #${doc.doc_number}\nTotal: $${total.toFixed(2)}`
         })
       })
-
+      
       const data = await response.json()
-
+      
       if (data.success) {
-        alert('Event added to Google Calendar!')
+        alert('Event scheduled!')
       } else {
-        alert('Error: ' + (data.error || 'Failed to create event'))
+        alert('Failed to schedule: ' + data.error)
       }
     } catch (error) {
-      alert('Error scheduling event')
+      alert('Failed to schedule event')
     }
     setSaving(false)
   }
@@ -320,91 +395,193 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
       .from('documents')
       .update({ in_production: true })
       .eq('id', doc.id)
+    alert('Sent to production!')
     setSaving(false)
-    router.push('/production')
+  }
+
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'draft': return '#64748b'
+      case 'sent': return '#3b82f6'
+      case 'viewed': return '#8b5cf6'
+      case 'approved': return '#22c55e'
+      case 'pending': return '#f59e0b'
+      case 'paid': return '#22c55e'
+      default: return '#64748b'
+    }
   }
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ padding: '24px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
-          <button 
-            onClick={() => router.push('/documents')}
-            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '8px', padding: 0, fontSize: '14px' }}
-          >
-            ← Back to Documents
-          </button>
-          <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>
-            {docType === 'quote' ? 'Quote' : 'Invoice'} #{doc.doc_number}
-          </h1>
-          <p style={{ color: '#94a3b8' }}>{doc.customer_name || 'No customer'}</p>
-        </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          {doc.category && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <h1 style={{ color: '#f1f5f9', fontSize: '28px', margin: 0 }}>
+              {docType === 'quote' ? 'Quote' : 'Invoice'} #{doc.doc_number}
+            </h1>
             <span style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              fontSize: '14px',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
               fontWeight: '500',
-              background: 'rgba(215, 28, 209, 0.1)',
-              color: '#d71cd1'
+              background: `${statusColor(docStatus)}20`,
+              color: statusColor(docStatus),
+              textTransform: 'capitalize'
             }}>
-              {doc.category.replace(/_/g, ' ')}
+              {docStatus}
             </span>
-          )}
-          <select
-            value={docStatus}
-            onChange={(e) => handleStatusChange(e.target.value)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '500',
-              background: '#282a30',
-              border: '1px solid #3f4451',
-              color: '#f1f5f9',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="draft">Draft</option>
-            <option value="sent">Sent</option>
-            <option value="viewed">Viewed</option>
-            <option value="approved">Approved</option>
-            {docType === 'invoice' && <option value="pending">Pending</option>}
-            {docType === 'invoice' && <option value="paid">Paid</option>}
-          </select>
+          </div>
+          <p style={{ color: '#94a3b8', margin: 0 }}>
+            {doc.customer_name} {doc.company_name && `• ${doc.company_name}`}
+          </p>
         </div>
+        <button
+          onClick={() => router.push('/documents')}
+          style={{
+            padding: '8px 16px',
+            background: 'transparent',
+            border: '1px solid #3f4451',
+            borderRadius: '8px',
+            color: '#94a3b8',
+            cursor: 'pointer'
+          }}
+        >
+          Back to Documents
+        </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px' }}>
         {/* Main Content */}
         <div>
           {/* Customer Info */}
-          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Customer Information</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
-                <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Name</p>
-                <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{doc.customer_name || '-'}</p>
+                <label style={{ color: '#94a3b8', fontSize: '12px' }}>Name</label>
+                <p style={{ color: '#f1f5f9', margin: '4px 0 0' }}>{doc.customer_name}</p>
               </div>
               <div>
-                <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Company</p>
-                <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{doc.company_name || '-'}</p>
+                <label style={{ color: '#94a3b8', fontSize: '12px' }}>Company</label>
+                <p style={{ color: '#f1f5f9', margin: '4px 0 0' }}>{doc.company_name || '-'}</p>
               </div>
               <div>
-                <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Email</p>
-                <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{doc.customer_email || '-'}</p>
+                <label style={{ color: '#94a3b8', fontSize: '12px' }}>Email</label>
+                <p style={{ color: '#f1f5f9', margin: '4px 0 0' }}>{doc.customer_email || '-'}</p>
               </div>
               <div>
-                <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Phone</p>
-                <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{doc.customer_phone || '-'}</p>
+                <label style={{ color: '#94a3b8', fontSize: '12px' }}>Phone</label>
+                <p style={{ color: '#f1f5f9', margin: '4px 0 0' }}>{doc.customer_phone || '-'}</p>
               </div>
             </div>
-            {doc.project_description && (
-              <div style={{ marginTop: '16px' }}>
-                <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Project</p>
-                <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{doc.project_description}</p>
+          </div>
+
+          {/* Project Info */}
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Project Details</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={{ color: '#94a3b8', fontSize: '12px' }}>Category</label>
+                <p style={{ color: '#f1f5f9', margin: '4px 0 0' }}>{doc.category?.replace(/_/g, ' ') || '-'}</p>
+              </div>
+              <div>
+                <label style={{ color: '#94a3b8', fontSize: '12px' }}>Created</label>
+                <p style={{ color: '#f1f5f9', margin: '4px 0 0' }}>{new Date(doc.created_at).toLocaleDateString()}</p>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ color: '#94a3b8', fontSize: '12px' }}>Description</label>
+                <p style={{ color: '#f1f5f9', margin: '4px 0 0' }}>{doc.project_description || '-'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Attachments */}
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: 0 }}>Attachments</h3>
+              <label style={{
+                padding: '8px 16px',
+                background: '#d71cd1',
+                border: 'none',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '14px',
+                cursor: 'pointer',
+                opacity: uploading ? 0.7 : 1
+              }}>
+                {uploading ? 'Uploading...' : 'Upload Files'}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
+            
+            {attachments.length === 0 ? (
+              <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>No attachments yet</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.key}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px',
+                      background: '#282a30',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14,2 14,8 20,8" />
+                      </svg>
+                      <div style={{ minWidth: 0 }}>
+                        
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: '#f1f5f9',
+                            fontSize: '14px',
+                            textDecoration: 'none',
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {attachment.filename}
+                        </a>
+                        <span style={{ color: '#64748b', fontSize: '12px' }}>
+                          {formatFileSize(attachment.size)}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteAttachment(attachment.key)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        padding: '4px'
+                      }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="3,6 5,6 21,6" />
+                        <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -412,40 +589,43 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
           {/* Line Items */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Line Items</h3>
-            
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', color: '#64748b', fontSize: '12px' }}>Type</th>
-                  <th style={{ padding: '12px', textAlign: 'left', color: '#64748b', fontSize: '12px' }}>Description</th>
-                  <th style={{ padding: '12px', textAlign: 'right', color: '#64748b', fontSize: '12px', width: '80px' }}>Qty</th>
-                  <th style={{ padding: '12px', textAlign: 'right', color: '#64748b', fontSize: '12px', width: '100px' }}>Price</th>
-                  <th style={{ padding: '12px', textAlign: 'right', color: '#64748b', fontSize: '12px', width: '100px' }}>Total</th>
-                  <th style={{ padding: '12px', width: '50px' }}></th>
+                  <th style={{ textAlign: 'left', padding: '12px', color: '#94a3b8', fontWeight: '500', fontSize: '12px' }}>Type</th>
+                  <th style={{ textAlign: 'left', padding: '12px', color: '#94a3b8', fontWeight: '500', fontSize: '12px' }}>Description</th>
+                  <th style={{ textAlign: 'right', padding: '12px', color: '#94a3b8', fontWeight: '500', fontSize: '12px' }}>Qty</th>
+                  <th style={{ textAlign: 'right', padding: '12px', color: '#94a3b8', fontWeight: '500', fontSize: '12px' }}>Unit Price</th>
+                  <th style={{ textAlign: 'right', padding: '12px', color: '#94a3b8', fontWeight: '500', fontSize: '12px' }}>Total</th>
+                  <th style={{ width: '50px' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {lineItems.map((item) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
-                    <td style={{ padding: '12px', color: '#d71cd1', fontSize: '13px' }}>
-                      {getLineTypeLabel(item.line_type_key)}
-                    </td>
+                    <td style={{ padding: '12px', color: '#94a3b8', fontSize: '14px' }}>{getLineTypeLabel(item.line_type_key)}</td>
                     <td style={{ padding: '12px', color: '#f1f5f9', fontSize: '14px' }}>{item.description}</td>
-                    <td style={{ padding: '12px', color: '#94a3b8', fontSize: '14px', textAlign: 'right' }}>{item.quantity}</td>
-                    <td style={{ padding: '12px', color: '#94a3b8', fontSize: '14px', textAlign: 'right' }}>${item.unit_price?.toFixed(2)}</td>
-                    <td style={{ padding: '12px', color: '#f1f5f9', fontSize: '14px', textAlign: 'right' }}>${item.line_total?.toFixed(2)}</td>
+                    <td style={{ padding: '12px', color: '#f1f5f9', fontSize: '14px', textAlign: 'right' }}>{item.quantity}</td>
+                    <td style={{ padding: '12px', color: '#f1f5f9', fontSize: '14px', textAlign: 'right' }}>${item.unit_price.toFixed(2)}</td>
+                    <td style={{ padding: '12px', color: '#f1f5f9', fontSize: '14px', textAlign: 'right' }}>${item.line_total.toFixed(2)}</td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <button
                         onClick={() => handleDeleteLineItem(item.id)}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          fontSize: '16px'
+                        }}
                       >
                         ×
                       </button>
                     </td>
                   </tr>
                 ))}
-                {/* Add New Item Row */}
-                <tr style={{ background: 'rgba(148, 163, 184, 0.03)' }}>
+                {/* Add new line item row */}
+                <tr style={{ background: 'rgba(215, 28, 209, 0.05)' }}>
                   <td style={{ padding: '12px' }}>
                     <select
                       value={newItem.line_type_key}
@@ -457,19 +637,19 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                         border: '1px solid #3f4451',
                         borderRadius: '6px',
                         color: '#f1f5f9',
-                        fontSize: '13px'
+                        fontSize: '14px'
                       }}
                     >
                       <option value="">Select type...</option>
-                      {lineTypeOptions.map(opt => (
-                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      {lineTypeOptions.map(type => (
+                        <option key={type.key} value={type.key}>{type.label}</option>
                       ))}
                     </select>
                   </td>
                   <td style={{ padding: '12px' }}>
                     <input
                       type="text"
-                      placeholder="Description (optional)"
+                      placeholder="Description"
                       value={newItem.description}
                       onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
                       style={{
@@ -486,6 +666,7 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                   <td style={{ padding: '12px' }}>
                     <input
                       type="number"
+                      min="1"
                       value={newItem.quantity}
                       onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
                       style={{
