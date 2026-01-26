@@ -8,5 +8,11 @@ export default async function MessagesPage() {
     .order('created_at', { ascending: false })
     .limit(500)
 
-  return <MessageList initialMessages={messages || []} />
+  const { data: calls } = await supabase
+    .from('calls')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  return <MessageList initialMessages={messages || []} initialCalls={calls || []} />
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { supabase } from '../../lib/supabase'
 
 type Category = {
   id: string
@@ -31,30 +32,111 @@ type Bucket = {
   sort_order: number
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations'
+type CallSetting = {
+  id: string
+  phone: string
+  name: string
+  enabled: boolean
+  ring_order: number
+}
+
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls'
 
 export default function SettingsView({ 
   initialCategories, 
   initialMaterials,
   initialBuckets,
-  calendarConnected 
+  calendarConnected,
+  initialCallSettings
 }: { 
   initialCategories: Category[]
   initialMaterials: Material[]
   initialBuckets: Bucket[]
   calendarConnected: boolean
+  initialCallSettings: CallSetting[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories] = useState<Category[]>(initialCategories)
   const [materials] = useState<Material[]>(initialMaterials)
   const [buckets] = useState<Bucket[]>(initialBuckets)
+  const [callSettings, setCallSettings] = useState<CallSetting[]>(initialCallSettings)
+  const [showAddPhone, setShowAddPhone] = useState(false)
+  const [newPhone, setNewPhone] = useState({ name: '', phone: '' })
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'categories', label: 'Categories' },
     { key: 'materials', label: 'Materials' },
     { key: 'buckets', label: 'Pipeline Buckets' },
+    { key: 'calls', label: 'Call Forwarding' },
     { key: 'integrations', label: 'Integrations' }
   ]
+
+  const formatPhone = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, '')
+    if (cleaned.length === 10) {
+      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+    } else if (cleaned.length === 11 && cleaned[0] === '1') {
+      return `(${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`
+    }
+    return phone
+  }
+
+  const togglePhoneEnabled = async (id: string, enabled: boolean) => {
+    await supabase
+      .from('call_settings')
+      .update({ enabled })
+      .eq('id', id)
+    
+    setCallSettings(callSettings.map(c => 
+      c.id === id ? { ...c, enabled } : c
+    ))
+  }
+
+  const addTeamPhone = async () => {
+    if (!newPhone.name.trim() || !newPhone.phone.trim()) {
+      alert('Please enter both name and phone')
+      return
+    }
+    
+    const cleanPhone = newPhone.phone.replace(/\D/g, '')
+    if (cleanPhone.length < 10) {
+      alert('Please enter a valid phone number')
+      return
+    }
+    
+    const phoneFormatted = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`
+    
+    const { data, error } = await supabase
+      .from('call_settings')
+      .insert({
+        name: newPhone.name.trim(),
+        phone: phoneFormatted,
+        enabled: true,
+        ring_order: callSettings.length + 1
+      })
+      .select()
+      .single()
+    
+    if (error) {
+      alert('Error adding phone: ' + error.message)
+      return
+    }
+    
+    setCallSettings([...callSettings, data])
+    setNewPhone({ name: '', phone: '' })
+    setShowAddPhone(false)
+  }
+
+  const removeTeamPhone = async (id: string) => {
+    if (!confirm('Remove this phone from call forwarding?')) return
+    
+    await supabase
+      .from('call_settings')
+      .delete()
+      .eq('id', id)
+    
+    setCallSettings(callSettings.filter(c => c.id !== id))
+  }
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif' }}>
@@ -254,6 +336,208 @@ export default function SettingsView({
               <p style={{ color: '#64748b', padding: '20px' }}>No buckets configured</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Call Forwarding Tab */}
+      {activeTab === 'calls' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Team Phone Numbers</h3>
+                <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Incoming calls will ring all enabled phones simultaneously</p>
+              </div>
+              <button 
+                onClick={() => setShowAddPhone(true)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#d71cd1',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                + Add Phone
+              </button>
+            </div>
+            <div style={{ padding: '12px' }}>
+              {callSettings.length > 0 ? callSettings.map((setting) => (
+                <div
+                  key={setting.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    background: '#282a30',
+                    borderRadius: '8px',
+                    marginBottom: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: setting.enabled ? '#d71cd1' : '#64748b',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '14px',
+                      fontWeight: 600
+                    }}>
+                      {setting.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: '500', margin: '0 0 2px 0' }}>
+                        {setting.name}
+                      </p>
+                      <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+                        {formatPhone(setting.phone)}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <label style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      cursor: 'pointer'
+                    }}>
+                      <span style={{ color: '#64748b', fontSize: '13px' }}>
+                        {setting.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      <div
+                        onClick={() => togglePhoneEnabled(setting.id, !setting.enabled)}
+                        style={{
+                          width: '44px',
+                          height: '24px',
+                          background: setting.enabled ? '#d71cd1' : '#4b5563',
+                          borderRadius: '12px',
+                          position: 'relative',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s'
+                        }}
+                      >
+                        <div style={{
+                          width: '18px',
+                          height: '18px',
+                          background: 'white',
+                          borderRadius: '50%',
+                          position: 'absolute',
+                          top: '3px',
+                          left: setting.enabled ? '23px' : '3px',
+                          transition: 'left 0.2s'
+                        }} />
+                      </div>
+                    </label>
+                    <button
+                      onClick={() => removeTeamPhone(setting.id)}
+                      style={{
+                        padding: '6px 10px',
+                        background: 'transparent',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: '6px',
+                        color: '#ef4444',
+                        fontSize: '12px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <p style={{ color: '#64748b', padding: '20px', textAlign: 'center' }}>No team phones configured</p>
+              )}
+            </div>
+          </div>
+
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 12px 0' }}>How Call Forwarding Works</h3>
+            <ul style={{ color: '#94a3b8', fontSize: '14px', margin: 0, paddingLeft: '20px', lineHeight: '1.8' }}>
+              <li>When someone calls your Twilio number, all enabled phones ring simultaneously</li>
+              <li>First person to answer gets the call, others stop ringing</li>
+              <li>Your business number shows as the caller ID (save it as "FWG" in your contacts)</li>
+              <li>If no one answers within 25 seconds, caller goes to voicemail</li>
+              <li>All calls are logged in the dashboard with caller info and duration</li>
+            </ul>
+          </div>
+
+          {/* Add Phone Modal */}
+          {showAddPhone && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000
+            }}>
+              <div style={{
+                background: '#1d1d1d',
+                borderRadius: '16px',
+                width: '400px',
+                overflow: 'hidden'
+              }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Team Phone</h3>
+                  <button onClick={() => setShowAddPhone(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Team Member Name</label>
+                    <input
+                      type="text"
+                      value={newPhone.name}
+                      onChange={(e) => setNewPhone({ ...newPhone, name: e.target.value })}
+                      placeholder="e.g. John Smith"
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Phone Number</label>
+                    <input
+                      type="tel"
+                      value={newPhone.phone}
+                      onChange={(e) => setNewPhone({ ...newPhone, phone: e.target.value })}
+                      placeholder="(240) 555-1234"
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={() => setShowAddPhone(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button onClick={addTeamPhone} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>Add Phone</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

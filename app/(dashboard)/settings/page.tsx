@@ -23,6 +23,11 @@ export default async function SettingsPage() {
     .eq('key', 'google_calendar_tokens')
     .single()
 
+  const { data: callSettings } = await supabase
+    .from('call_settings')
+    .select('*')
+    .order('ring_order', { ascending: true })
+
   const calendarConnected = !!calendarSettings?.value
 
   return (
@@ -31,6 +36,7 @@ export default async function SettingsPage() {
       initialMaterials={materials || []}
       initialBuckets={buckets || []}
       calendarConnected={calendarConnected}
+      initialCallSettings={callSettings || []}
     />
   )
 }

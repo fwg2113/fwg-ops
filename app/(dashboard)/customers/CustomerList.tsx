@@ -21,6 +21,7 @@ type Customer = {
   lifetime_value: number
   created_at: string
   project_files_json: string
+  drive_folder_url: string
 }
 
 type Document = {
@@ -54,6 +55,14 @@ type Attachment = {
   contentType: string
   size: number
   uploadedAt: string
+}
+
+type CustomerPhone = {
+  id: string
+  customer_id: string
+  phone: string
+  contact_name: string | null
+  is_primary: boolean
 }
 
 // Icons
@@ -171,6 +180,17 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
   // Lightbox
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [lightboxFilename, setLightboxFilename] = useState<string>('')
+
+  // Linked contacts
+  const [linkedContacts, setLinkedContacts] = useState<CustomerPhone[]>([])
+  const [showAddContactModal, setShowAddContactModal] = useState(false)
+  const [newContactForm, setNewContactForm] = useState({ phone: '', contact_name: '' })
+
+  // Duplicates
+  const [showDuplicatesModal, setShowDuplicatesModal] = useState(false)
+  const [duplicateGroups, setDuplicateGroups] = useState<Array<{ key: string, type: 'phone' | 'email', customers: Customer[] }>>([])
+  const [selectedPrimary, setSelectedPrimary] = useState<Record<string, string>>({})
+  const [merging, setMerging] = useState(false)
   
   // Forms
   const [saving, setSaving] = useState(false)
@@ -259,6 +279,15 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
       .select('*')
       .or(`customer_email.eq.${customer?.email},customer_phone.eq.${customer?.phone}`)
       .order('created_at', { ascending: false })
+    
+    // Fetch linked phone numbers
+    const { data: phones } = await supabase
+      .from('customer_phones')
+      .select('*')
+      .eq('customer_id', customerId)
+      .order('is_primary', { ascending: false })
+    
+    setLinkedContacts(phones || [])
     
     setCustomerDetail({
       customer: customer || {} as Customer,
@@ -587,6 +616,85 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
             />
           </div>
           {loading && <SpinnerIcon />}
+          <button
+            onClick={async () => {
+              // Find duplicates
+              const { data: allCustomers } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('archived', false)
+              
+              if (!allCustomers) return
+              
+              const phoneGroups: Record<string, Customer[]> = {}
+              const emailGroups: Record<string, Customer[]> = {}
+              
+              allCustomers.forEach((c: Customer) => {
+                if (c.phone) {
+                  const cleanPhone = c.phone.replace(/\D/g, '')
+                  if (cleanPhone.length >= 10) {
+                    const key = cleanPhone.slice(-10)
+                    if (!phoneGroups[key]) phoneGroups[key] = []
+                    phoneGroups[key].push(c)
+                  }
+                }
+                if (c.email) {
+                  const key = c.email.toLowerCase().trim()
+                  if (!emailGroups[key]) emailGroups[key] = []
+                  emailGroups[key].push(c)
+                }
+              })
+              
+              const groups: Array<{ key: string, type: 'phone' | 'email', customers: Customer[] }> = []
+              
+              Object.entries(phoneGroups).forEach(([key, customers]) => {
+                if (customers.length > 1) {
+                  groups.push({ key, type: 'phone', customers })
+                }
+              })
+              
+              Object.entries(emailGroups).forEach(([key, customers]) => {
+                if (customers.length > 1) {
+                  // Don't add if already in phone groups
+                  const phoneIds = groups.flatMap(g => g.customers.map(c => c.id))
+                  const newCustomers = customers.filter(c => !phoneIds.includes(c.id))
+                  if (newCustomers.length > 1) {
+                    groups.push({ key, type: 'email', customers })
+                  }
+                }
+              })
+              
+              if (groups.length === 0) {
+                alert('No duplicate customers found!')
+                return
+              }
+              
+              // Pre-select the customer with highest lifetime value as primary
+              const defaults: Record<string, string> = {}
+              groups.forEach(g => {
+                const sorted = [...g.customers].sort((a, b) => (b.lifetime_value || 0) - (a.lifetime_value || 0))
+                defaults[g.key] = sorted[0].id
+              })
+              
+              setSelectedPrimary(defaults)
+              setDuplicateGroups(groups)
+              setShowDuplicatesModal(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 16px',
+              background: 'transparent',
+              border: '1px solid rgba(148, 163, 184, 0.3)',
+              borderRadius: '10px',
+              color: '#94a3b8',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}
+          >
+            Find Duplicates
+          </button>
           <button
             onClick={() => setShowAddModal(true)}
             style={{
@@ -1049,6 +1157,130 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
                     </div>
                   )}
 
+                  {/* Linked Contacts Section */}
+                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                        Linked Phone Numbers ({linkedContacts.length})
+                      </div>
+                      <button
+                        onClick={() => {
+                          setNewContactForm({ phone: '', contact_name: '' })
+                          setShowAddContactModal(true)
+                        }}
+                        style={{
+                          padding: '4px 10px',
+                          background: 'transparent',
+                          border: '1px solid rgba(148, 163, 184, 0.3)',
+                          borderRadius: '6px',
+                          color: '#94a3b8',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        Add
+                      </button>
+                    </div>
+                    {linkedContacts.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {linkedContacts.map((contact) => (
+                          <div
+                            key={contact.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 12px',
+                              background: '#1d1d1d',
+                              borderRadius: '8px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                background: contact.is_primary ? '#d71cd1' : '#282a30',
+                                color: contact.is_primary ? 'white' : '#94a3b8',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}>
+                                <PhoneIcon />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '13px', color: '#f1f5f9', fontWeight: 500 }}>
+                                  {formatPhone(contact.phone)}
+                                  {contact.is_primary && (
+                                    <span style={{
+                                      marginLeft: '8px',
+                                      fontSize: '10px',
+                                      padding: '2px 6px',
+                                      background: '#d71cd120',
+                                      color: '#d71cd1',
+                                      borderRadius: '4px'
+                                    }}>Primary</span>
+                                  )}
+                                </div>
+                                {contact.contact_name && (
+                                  <div style={{ fontSize: '12px', color: '#64748b' }}>{contact.contact_name}</div>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                onClick={() => window.open(`/messages?phone=${contact.phone}`, '_blank')}
+                                style={{
+                                  padding: '6px 10px',
+                                  background: 'transparent',
+                                  border: '1px solid rgba(148, 163, 184, 0.2)',
+                                  borderRadius: '6px',
+                                  color: '#94a3b8',
+                                  fontSize: '11px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Message
+                              </button>
+                              {!contact.is_primary && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm('Remove this phone number?')) {
+                                      await supabase.from('customer_phones').delete().eq('id', contact.id)
+                                      setLinkedContacts(linkedContacts.filter(c => c.id !== contact.id))
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '6px 10px',
+                                    background: 'transparent',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    borderRadius: '6px',
+                                    color: '#ef4444',
+                                    fontSize: '11px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '16px' }}>
+                        No additional phone numbers linked
+                      </div>
+                    )}
+                  </div>
+
                   <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(148, 163, 184, 0.2)' }}>
                     <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '12px' }}>Files & Assets</div>
                     {renderAttachments()}
@@ -1076,6 +1308,55 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
                     Close
                   </button>
                   <div style={{ display: 'flex', gap: '8px' }}>
+                    {customerDetail.customer.drive_folder_url ? (
+                      <a
+                        href={customerDetail.customer.drive_folder_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '10px 16px',
+                          background: 'transparent',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        Drive Folder
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const url = prompt('Paste the Google Drive folder URL:')
+                          if (url && url.includes('drive.google.com')) {
+                            supabase.from('customers').update({ drive_folder_url: url }).eq('id', customerDetail.customer.id).then(() => {
+                              setCustomerDetail({...customerDetail, customer: {...customerDetail.customer, drive_folder_url: url}})
+                            })
+                          } else if (url) { alert('Please enter a valid Google Drive URL') }
+                        }}
+                        style={{
+                          padding: '10px 16px',
+                          background: 'transparent',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '8px',
+                          color: '#64748b',
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        Link Drive
+                      </button>
+                    )}
                     <button
                       onClick={createQuoteForCustomer}
                       style={{
@@ -1330,6 +1611,409 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
                 <button type="submit" disabled={saving} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : 'Save Changes'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Contact Modal */}
+      {showAddContactModal && customerDetail && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            width: '400px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '20px',
+              borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600, margin: 0 }}>
+                Add Phone Number
+              </h3>
+              <button
+                onClick={() => setShowAddContactModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '20px' }}
+              >×</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>Phone Number *</label>
+                <input
+                  type="tel"
+                  value={newContactForm.phone}
+                  onChange={(e) => setNewContactForm({ ...newContactForm, phone: e.target.value })}
+                  placeholder="(555) 123-4567"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>Contact Name (optional)</label>
+                <input
+                  type="text"
+                  value={newContactForm.contact_name}
+                  onChange={(e) => setNewContactForm({ ...newContactForm, contact_name: e.target.value })}
+                  placeholder="e.g. Bryan, Casey, Front Desk..."
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+                <p style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+                  Helps identify who from {customerDetail.customer.display_name} is contacting
+                </p>
+              </div>
+            </div>
+            <div style={{
+              padding: '16px 20px',
+              borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                onClick={() => setShowAddContactModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  background: 'transparent',
+                  border: '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '8px',
+                  color: '#94a3b8',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >Cancel</button>
+              <button
+                onClick={async () => {
+                  if (!newContactForm.phone.trim()) {
+                    alert('Please enter a phone number')
+                    return
+                  }
+                  const cleanPhone = newContactForm.phone.replace(/\D/g, '')
+                  if (cleanPhone.length < 10) {
+                    alert('Please enter a valid phone number')
+                    return
+                  }
+                  try {
+                    const { data, error } = await supabase
+                      .from('customer_phones')
+                      .insert({
+                        customer_id: customerDetail.customer.id,
+                        phone: cleanPhone,
+                        contact_name: newContactForm.contact_name || null,
+                        is_primary: false
+                      })
+                      .select()
+                      .single()
+                    
+                    if (error) {
+                      if (error.code === '23505') {
+                        alert('This phone number is already linked to a customer')
+                      } else {
+                        alert('Error: ' + error.message)
+                      }
+                      return
+                    }
+                    
+                    setLinkedContacts([...linkedContacts, data])
+                    setShowAddContactModal(false)
+                  } catch (err: any) {
+                    alert('Error adding contact: ' + err.message)
+                  }
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#d71cd1',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >Add Phone</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicates Modal */}
+      {showDuplicatesModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            width: '700px',
+            maxHeight: '80vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{
+              padding: '20px',
+              borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <h3 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>
+                  Merge Duplicate Customers
+                </h3>
+                <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
+                  Found {duplicateGroups.length} group{duplicateGroups.length !== 1 ? 's' : ''} of duplicates. Select which profile to keep.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDuplicatesModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}
+              >×</button>
+            </div>
+            
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              {duplicateGroups.map((group, gIdx) => (
+                <div key={group.key} style={{
+                  background: '#111111',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: '#64748b', 
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span style={{
+                      padding: '2px 8px',
+                      background: group.type === 'phone' ? '#3b82f620' : '#8b5cf620',
+                      color: group.type === 'phone' ? '#3b82f6' : '#8b5cf6',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 500
+                    }}>
+                      {group.type === 'phone' ? 'Same Phone' : 'Same Email'}
+                    </span>
+                    {group.type === 'phone' ? formatPhone(group.key) : group.key}
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {group.customers.map((customer) => (
+                      <div
+                        key={customer.id}
+                        onClick={() => setSelectedPrimary({ ...selectedPrimary, [group.key]: customer.id })}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px',
+                          background: selectedPrimary[group.key] === customer.id ? 'rgba(215, 28, 209, 0.1)' : '#1d1d1d',
+                          border: selectedPrimary[group.key] === customer.id ? '2px solid #d71cd1' : '2px solid transparent',
+                          borderRadius: '8px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: selectedPrimary[group.key] === customer.id ? '#d71cd1' : '#282a30',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '13px',
+                            fontWeight: 600
+                          }}>
+                            {getInitials(customer.display_name)}
+                          </div>
+                          <div>
+                            <div style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 500 }}>
+                              {customer.display_name}
+                            </div>
+                            <div style={{ color: '#64748b', fontSize: '12px' }}>
+                              {[customer.company, customer.email, formatPhone(customer.phone)].filter(Boolean).join(' • ')}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
+                            ${(customer.lifetime_value || 0).toLocaleString()}
+                          </div>
+                          {selectedPrimary[group.key] === customer.id && (
+                            <div style={{ 
+                              color: '#d71cd1', 
+                              fontSize: '11px', 
+                              fontWeight: 500,
+                              marginTop: '2px'
+                            }}>
+                              KEEP THIS ONE
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div style={{
+              padding: '16px 20px',
+              borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                Duplicates will be merged into selected profiles. This cannot be undone.
+              </p>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setShowDuplicatesModal(false)}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'transparent',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#94a3b8',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >Cancel</button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Merge ${duplicateGroups.length} duplicate group(s)? This cannot be undone.`)) return
+                    
+                    setMerging(true)
+                    
+                    for (const group of duplicateGroups) {
+                      const primaryId = selectedPrimary[group.key]
+                      const primary = group.customers.find(c => c.id === primaryId)
+                      const duplicates = group.customers.filter(c => c.id !== primaryId)
+                      
+                      if (!primary) continue
+                      
+                      // Combine lifetime values
+                      const totalLTV = group.customers.reduce((sum, c) => sum + (c.lifetime_value || 0), 0)
+                      
+                      // Combine notes
+                      const allNotes = group.customers
+                        .filter(c => c.notes)
+                        .map(c => c.id === primaryId ? c.notes : `[Merged from ${c.display_name}]: ${c.notes}`)
+                        .join('\n\n')
+                      
+                      // Update primary with combined data
+                      await supabase
+                        .from('customers')
+                        .update({
+                          lifetime_value: totalLTV,
+                          notes: allNotes || primary.notes
+                        })
+                        .eq('id', primaryId)
+                      
+                      // Move linked phones to primary
+                      for (const dup of duplicates) {
+                        await supabase
+                          .from('customer_phones')
+                          .update({ customer_id: primaryId })
+                          .eq('customer_id', dup.id)
+                      }
+                      
+                      // Update documents to point to primary
+                      for (const dup of duplicates) {
+                        if (dup.email) {
+                          await supabase
+                            .from('documents')
+                            .update({ customer_email: primary.email })
+                            .eq('customer_email', dup.email)
+                        }
+                        if (dup.phone) {
+                          await supabase
+                            .from('documents')
+                            .update({ customer_phone: primary.phone })
+                            .eq('customer_phone', dup.phone)
+                        }
+                      }
+                      
+                      // Archive duplicates (soft delete)
+                      for (const dup of duplicates) {
+                        await supabase
+                          .from('customers')
+                          .update({ archived: true, notes: `[MERGED INTO ${primary.display_name}]\n\n${dup.notes || ''}` })
+                          .eq('id', dup.id)
+                      }
+                    }
+                    
+                    // Refresh customers list
+                    const { data } = await supabase
+                      .from('customers')
+                      .select('*')
+                      .eq('archived', false)
+                      .order('created_at', { ascending: false })
+                      .limit(100)
+                    
+                    if (data) setCustomers(data)
+                    
+                    setMerging(false)
+                    setShowDuplicatesModal(false)
+                    alert('Duplicates merged successfully!')
+                  }}
+                  disabled={merging}
+                  style={{
+                    padding: '10px 20px',
+                    background: merging ? '#64748b' : '#d71cd1',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: merging ? 'not-allowed' : 'pointer'
+                  }}
+                >{merging ? 'Merging...' : 'Merge All Duplicates'}</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
