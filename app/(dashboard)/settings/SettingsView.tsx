@@ -269,10 +269,10 @@ export default function SettingsView({
                 borderRadius: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
-                background: 'rgba(245, 158, 11, 0.1)',
-                color: '#f59e0b'
+                background: 'rgba(34, 197, 94, 0.1)',
+                color: '#22c55e'
               }}>
-                Not Configured
+                Connected
               </span>
             </div>
           </div>
@@ -288,10 +288,29 @@ export default function SettingsView({
                 borderRadius: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
-                background: 'rgba(245, 158, 11, 0.1)',
-                color: '#f59e0b'
+                background: 'rgba(34, 197, 94, 0.1)',
+                color: '#22c55e'
               }}>
-                Not Configured
+                Connected
+              </span>
+            </div>
+          </div>
+
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Resend Email</h3>
+                <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Send quotes and invoices via email</p>
+              </div>
+              <span style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                background: 'rgba(34, 197, 94, 0.1)',
+                color: '#22c55e'
+              }}>
+                Connected
               </span>
             </div>
           </div>
@@ -302,16 +321,21 @@ export default function SettingsView({
                 <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Google Calendar</h3>
                 <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Sync appointments with your Google Calendar</p>
               </div>
-              <span style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                background: 'rgba(245, 158, 11, 0.1)',
-                color: '#f59e0b'
-              }}>
-                Not Configured
-              </span>
+              <button
+                onClick={() => window.location.href = '/api/calendar/auth'}
+                style={{
+                  padding: '8px 16px',
+                  background: '#3b82f6',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Connect Google Calendar
+              </button>
             </div>
           </div>
 
