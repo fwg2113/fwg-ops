@@ -14,7 +14,6 @@ export async function POST(request: Request) {
 
     const duration = parseInt(dialCallDuration) || 0
     
-    // If there was any duration, the call was answered - end cleanly
     if (duration > 0 || dialCallStatus === 'completed' || dialCallStatus === 'answered') {
       await supabase
         .from('calls')
@@ -24,28 +23,23 @@ export async function POST(request: Request) {
         })
         .eq('call_sid', callSid)
 
-      return new NextResponse(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`, {
+      return new NextResponse("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>", {
         headers: { 'Content-Type': 'text/xml' }
       })
     }
 
-    // No answer - go to voicemail
     await supabase
       .from('calls')
       .update({ status: 'missed' })
       .eq('call_sid', callSid)
 
     const from = url.searchParams.get('from')
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice">No one is available. Please leave a message after the beep.</Say>
-  <Record maxLength="120" action="/api/voice/voicemail?callSid=${callSid}&from=${encodeURIComponent(from || '')}" />
-</Response>`
+    const twiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"alice\">No one is available. Please leave a message after the beep.</Say><Record maxLength=\"120\" action=\"/api/voice/voicemail?callSid=" + callSid + "&from=" + encodeURIComponent(from || "") + "\" /></Response>"
 
     return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })
   } catch (error) {
     console.error('Complete webhook error:', error)
-    return new NextResponse(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`, {
+    return new NextResponse("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>", {
       headers: { 'Content-Type': 'text/xml' }
     })
   }
