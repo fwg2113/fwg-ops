@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${to}" timeout="25" action="${actionUrl}">
+  <Dial callerId="${to}" timeout="15" action="${actionUrl}">
     ${numbers}
   </Dial>
 </Response>`
