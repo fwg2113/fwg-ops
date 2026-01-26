@@ -316,8 +316,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
         priority: newTask.priority,
         due_date: newTask.due_date || null,
         status: 'TO_DO',
-        type: 'manual',
-        created_at: new Date().toISOString()
+        auto_generated: false
       })
       .select()
       .single()
@@ -939,7 +938,9 @@ function ActionItemRow({
       onMouseLeave={() => setIsHovered(false)}
       style={{
         background: '#1d1d1d',
-        border: `1px solid ${isHovered ? '#d71cd1' : 'rgba(148, 163, 184, 0.2)'}`,
+        borderTop: `1px solid ${isHovered ? '#d71cd1' : 'rgba(148, 163, 184, 0.2)'}`,
+        borderRight: `1px solid ${isHovered ? '#d71cd1' : 'rgba(148, 163, 184, 0.2)'}`,
+        borderBottom: `1px solid ${isHovered ? '#d71cd1' : 'rgba(148, 163, 184, 0.2)'}`,
         borderLeft: isPinned ? '3px solid #eab308' : `1px solid ${isHovered ? '#d71cd1' : 'rgba(148, 163, 184, 0.2)'}`,
         borderRadius: '10px',
         padding: '16px 20px',
