@@ -5,13 +5,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const error = searchParams.get('error')
+  
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://fwg-ops.vercel.app'
 
   if (error) {
-    return NextResponse.redirect('/settings?error=calendar_denied')
+    return NextResponse.redirect(`${baseUrl}/settings?error=calendar_denied`)
   }
 
   if (!code) {
-    return NextResponse.redirect('/settings?error=no_code')
+    return NextResponse.redirect(`${baseUrl}/settings?error=no_code`)
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
 
     if (tokens.error) {
       console.error('Token error:', tokens)
-      return NextResponse.redirect('/settings?error=token_failed')
+      return NextResponse.redirect(`${baseUrl}/settings?error=token_failed`)
     }
 
     // Store tokens in database
@@ -49,9 +51,9 @@ export async function GET(request: Request) {
       })
     }, { onConflict: 'key' })
 
-    return NextResponse.redirect('/settings?success=calendar_connected')
+    return NextResponse.redirect(`${baseUrl}/settings?success=calendar_connected`)
   } catch (err) {
     console.error('Calendar auth error:', err)
-    return NextResponse.redirect('/settings?error=auth_failed')
+    return NextResponse.redirect(`${baseUrl}/settings?error=auth_failed`)
   }
 }
