@@ -1,6 +1,9 @@
 import { supabase } from '../../lib/supabase'
 import SettingsView from './SettingsView'
 
+export const revalidate = 0
+export const dynamic = 'force-dynamic'
+
 export default async function SettingsPage() {
   const { data: categories } = await supabase
     .from('categories')
