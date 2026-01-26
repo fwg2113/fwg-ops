@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '../../../lib/supabase'
 
 // Handle incoming calls - forward to team phones
 export async function POST(request: Request) {
