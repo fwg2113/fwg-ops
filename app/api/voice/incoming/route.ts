@@ -39,16 +39,15 @@ export async function POST(request: Request) {
     
     console.log('Insert error:', insertError)
 
-    // Build simple dial
+    // Build dial with action URL
     const numbers = teamPhones.map(p => `<Number>${p.phone}</Number>`).join('\n    ')
+    const actionUrl = `/api/voice/complete?callSid=${callSid}&from=${encodeURIComponent(from)}`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${to}" timeout="25">
+  <Dial callerId="${to}" timeout="25" action="${actionUrl}">
     ${numbers}
   </Dial>
-  <Say>No one is available. Please leave a message after the beep.</Say>
-  <Record maxLength="60" />
 </Response>`
 
     console.log('TwiML:', twiml)
