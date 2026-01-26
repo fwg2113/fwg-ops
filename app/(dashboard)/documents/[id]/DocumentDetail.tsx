@@ -272,6 +272,48 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     setSaving(false)
   }
 
+  const handleScheduleEvent = async () => {
+    const dateStr = prompt('Enter appointment date and time (e.g., 2026-01-27 10:00 AM):')
+    if (!dateStr) return
+
+    setSaving(true)
+    try {
+      // Parse the date
+      const date = new Date(dateStr)
+      if (isNaN(date.getTime())) {
+        alert('Invalid date format. Please try again.')
+        setSaving(false)
+        return
+      }
+
+      const endDate = new Date(date.getTime() + 2 * 60 * 60 * 1000) // 2 hours later
+
+      const response = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${docType === 'quote' ? 'Quote' : 'Invoice'} #${doc.doc_number} - ${doc.customer_name}`,
+          description: doc.project_description || '',
+          startTime: date.toISOString(),
+          endTime: endDate.toISOString(),
+          customerName: doc.customer_name,
+          customerPhone: doc.customer_phone
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert('Event added to Google Calendar!')
+      } else {
+        alert('Error: ' + (data.error || 'Failed to create event'))
+      }
+    } catch (error) {
+      alert('Error scheduling event')
+    }
+    setSaving(false)
+  }
+
   const handleSendToProduction = async () => {
     setSaving(true)
     await supabase
@@ -645,6 +687,26 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
               </>
             )}
             
+            <button
+              onClick={handleScheduleEvent}
+              disabled={saving}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: '#8b5cf6',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                marginBottom: '12px',
+                opacity: saving ? 0.7 : 1
+              }}
+            >
+              Schedule Event
+            </button>
+
             <button
               onClick={() => window.open(`/api/pdf?id=${doc.id}`, '_blank')}
               style={{
