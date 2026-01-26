@@ -14,6 +14,7 @@ export async function POST(request: Request) {
 
     const duration = parseInt(dialCallDuration) || 0
     
+    // If there was any duration, the call was answered - end cleanly
     if (duration > 0 || dialCallStatus === 'completed' || dialCallStatus === 'answered') {
       await supabase
         .from('calls')
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
       })
     }
 
+    // No answer - go to voicemail
     await supabase
       .from('calls')
       .update({ status: 'missed' })
