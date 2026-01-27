@@ -1,0 +1,351 @@
+/**
+ * ============================================================================
+ * FWG OPERATIONS DASHBOARD - Submissions.gs
+ * Frederick Wraps & Graphics - Submission Management
+ * ============================================================================
+ * 
+ * Handles:
+ * - Creating new submissions (from estimator)
+ * - Updating submission status
+ * - Linking submissions to quotes
+ * - Auto-generating tasks for new submissions
+ * 
+ * ============================================================================
+ */
+
+/**
+ * Create a new submission (called from estimator via doPost)
+ * @param {Object} data - Submission data from estimator
+ * @returns {Object} - Result with submission_id
+ */
+function createSubmission(data) {
+  try {
+    Logger.log('=== Creating New Submission ===');
+    Logger.log('Data received: ' + JSON.stringify(data));
+    
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.submissions);
+    
+    // Generate submission ID
+    const submissionId = generateId('SUB', 'SUBMISSION_COUNTER');
+    Logger.log('Generated ID: ' + submissionId);
+    
+    // Format phone
+    const formattedPhone = formatPhone(data.phone || data.customer_phone);
+    
+    // Build row data (must match column order in Submissions sheet)
+    const rowData = [
+      submissionId,                                    // submission_id
+      now(),                                           // created_at
+      SUBMISSION_STATUS.NEW,                           // status
+      data.source || 'estimator',                      // source
+      data.customer_name || data.name || '',           // customer_name
+      data.customer_email || data.email || '',         // customer_email
+      formattedPhone,                                  // customer_phone
+      data.preferred_contact || '',                    // preferred_contact
+      data.company_name || data.company || '',         // company_name
+      data.website || '',                              // website
+      data.vehicle_category || '',                     // vehicle_category
+      data.vehicle_year || '',                         // vehicle_year
+      data.vehicle_make || '',                         // vehicle_make
+      data.vehicle_model || '',                        // vehicle_model
+      data.vehicle_count || 1,                         // vehicle_count
+      data.project_type || '',                         // project_type
+      data.design_scenario || '',                      // design_scenario
+      data.price_range_min || data.price_min || '',    // price_range_min
+      data.price_range_max || data.price_max || '',    // price_range_max
+      data.design_fee_min || '',                       // design_fee_min
+      data.design_fee_max || '',                       // design_fee_max
+      data.has_uploads ? true : false,                 // has_uploads
+      data.upload_urls || '',                          // upload_urls (JSON array)
+      data.notes || '',                                // notes
+      data.vision_description || data.vision || '',    // vision_description
+      data.timeline || '',                             // timeline
+      data.budget_range || data.budget || '',          // budget_range
+      '',                                              // assigned_to
+      '',                                              // last_contact_at
+      '',                                              // next_followup_at
+      '',                                              // quote_id
+      ''                                               // converted_at
+    ];
+    
+    // Append row
+    sheet.appendRow(rowData);
+    Logger.log('✓ Submission row added');
+    
+    // Auto-create or link customer record
+    try {
+      const customerResult = findOrCreateCustomer({
+        first_name: (data.customer_name || data.name || '').split(' ')[0] || '',
+        last_name: (data.customer_name || data.name || '').split(' ').slice(1).join(' ') || '',
+        email: data.customer_email || data.email || '',
+        phone: data.phone || data.customer_phone || '',
+        company: data.company_name || data.company || ''
+      });
+      if (customerResult.ok) {
+        Logger.log('✓ Customer ' + (customerResult.existing ? 'linked' : 'created') + ': ' + customerResult.customer_id);
+      }
+    } catch (custError) {
+      Logger.log('Warning: Could not create/link customer: ' + custError.toString());
+    }
+    
+    // Auto-create task for new submission
+    createTaskForSubmission(submissionId, data.customer_name || data.name || 'Unknown');
+    
+    // Send notification
+    sendNewSubmissionNotification(submissionId, data);
+    
+    return {
+      ok: true,
+      submission_id: submissionId,
+      message: 'Submission created successfully'
+    };
+    
+  } catch (error) {
+    Logger.log('✗ Error creating submission: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create an auto-task for a new submission
+ */
+function createTaskForSubmission(submissionId, customerName) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.tasks);
+    
+    const taskId = generateId('TASK', 'TASK_COUNTER');
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 1); // Due tomorrow
+    
+    const rowData = [
+      taskId,                                          // task_id
+      now(),                                           // created_at
+      'NEW_SUBMISSION',                                // type
+      'TODO',                                          // status (matches TaskStatuses config)
+      'Review new submission: ' + customerName,        // title
+      'New submission received. Review and follow up.',// description
+      submissionId,                                    // submission_id
+      '',                                              // quote_id
+      '',                                              // invoice_id
+      '',                                              // assigned_to
+      Utilities.formatDate(dueDate, CONFIG.timezone, 'yyyy-MM-dd'), // due_date
+      '',                                              // completed_at
+      'High',                                          // priority
+      true,                                            // auto_generated
+      ''                                               // notes
+    ];
+    
+    sheet.appendRow(rowData);
+    Logger.log('✓ Task created for submission: ' + taskId);
+    
+  } catch (error) {
+    Logger.log('Warning: Could not create task: ' + error.toString());
+  }
+}
+
+/**
+ * Send notification for new submission
+ */
+function sendNewSubmissionNotification(submissionId, data) {
+  try {
+    const customerName = data.customer_name || data.name || 'Unknown';
+    const vehicleCategory = data.vehicle_category || 'Unknown vehicle';
+    const projectType = data.project_type || 'Unknown project';
+    const priceMin = data.price_range_min || data.price_min || '?';
+    const priceMax = data.price_range_max || data.price_max || '?';
+    
+    // SMS notification
+    const smsBody = `🚐 NEW FWG SUBMISSION\n` +
+      `${customerName}\n` +
+      `${vehicleCategory} - ${projectType}\n` +
+      `$${priceMin} - $${priceMax}\n` +
+      `ID: ${submissionId}`;
+    
+    sendSMS(CONFIG.notificationPhone, smsBody);
+    Logger.log('✓ SMS notification sent');
+    
+    // Email notification
+    const emailSubject = `New FWG Submission: ${customerName} - ${vehicleCategory}`;
+    const emailBody = `
+New submission received from the FWG Estimator:
+
+CUSTOMER INFO
+─────────────
+Name: ${customerName}
+Company: ${data.company_name || data.company || 'N/A'}
+Email: ${data.customer_email || data.email || 'N/A'}
+Phone: ${formatPhone(data.phone || data.customer_phone) || 'N/A'}
+Preferred Contact: ${data.preferred_contact || 'N/A'}
+
+VEHICLE & PROJECT
+─────────────────
+Vehicle Type: ${vehicleCategory}
+Vehicle: ${data.vehicle_year || ''} ${data.vehicle_make || ''} ${data.vehicle_model || ''}
+Vehicle Count: ${data.vehicle_count || 1}
+
+Project Type: ${projectType}
+Design Scenario: ${data.design_scenario || 'N/A'}
+
+PRICING
+───────
+Estimated Range: $${priceMin} - $${priceMax}
+Design Fee Range: $${data.design_fee_min || 0} - $${data.design_fee_max || 0}
+
+ADDITIONAL INFO
+───────────────
+Timeline: ${data.timeline || 'N/A'}
+Budget: ${data.budget_range || data.budget || 'N/A'}
+Vision: ${data.vision_description || data.vision || 'N/A'}
+
+─────────────────
+Submission ID: ${submissionId}
+Received: ${now()}
+    `;
+    
+    MailApp.sendEmail(CONFIG.notificationEmail, emailSubject, emailBody);
+    Logger.log('✓ Email notification sent');
+    
+  } catch (error) {
+    Logger.log('Warning: Notification failed: ' + error.toString());
+  }
+}
+
+/**
+ * Update a submission field
+ * @param {string} submissionId - Submission ID
+ * @param {string} field - Field name (column header)
+ * @param {*} value - New value
+ */
+function updateSubmissionField(submissionId, field, value) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.submissions);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const fieldCol = headers.indexOf(field);
+    if (fieldCol === -1) {
+      return { ok: false, error: 'Field not found: ' + field };
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === submissionId) {
+        sheet.getRange(i + 1, fieldCol + 1).setValue(value);
+        Logger.log('Updated ' + field + ' for submission ' + submissionId);
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Submission not found' };
+    
+  } catch (error) {
+    Logger.log('updateSubmissionField error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Archive old submissions (run monthly via trigger)
+ */
+function archiveOldSubmissions() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.submissions);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const statusCol = headers.indexOf('status');
+    const createdCol = headers.indexOf('created_at');
+    
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    
+    let archivedCount = 0;
+    
+    for (let i = 1; i < data.length; i++) {
+      const status = data[i][statusCol];
+      const created = new Date(data[i][createdCol]);
+      
+      // Archive if older than 60 days and status is Lost or already processed
+      if (created < sixtyDaysAgo && (status === SUBMISSION_STATUS.LOST || status === SUBMISSION_STATUS.WON)) {
+        sheet.getRange(i + 1, statusCol + 1).setValue(SUBMISSION_STATUS.ARCHIVED);
+        archivedCount++;
+      }
+    }
+    
+    Logger.log('Archived ' + archivedCount + ' old submissions');
+    return { ok: true, archived: archivedCount };
+    
+  } catch (error) {
+    Logger.log('archiveOldSubmissions error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+
+// ============================================================================
+// TEST FUNCTIONS
+// ============================================================================
+
+/**
+ * Test creating a submission
+ */
+function TEST_createSubmission() {
+  const testData = {
+    source: 'test',
+    customer_name: 'TEST - John Smith',
+    customer_email: 'test@example.com',
+    customer_phone: '2405551234',
+    preferred_contact: 'Text Message',
+    company_name: 'Smith Plumbing LLC',
+    website: 'www.smithplumbing.com',
+    vehicle_category: 'CARGO_VAN_LG',
+    vehicle_year: '2024',
+    vehicle_make: 'Ford',
+    vehicle_model: 'Transit',
+    vehicle_count: 2,
+    project_type: 'FULL_WRAP',
+    design_scenario: 'LOGO_VISION',
+    price_range_min: 5000,
+    price_range_max: 8000,
+    design_fee_min: 400,
+    design_fee_max: 800,
+    has_uploads: false,
+    notes: 'This is a test submission - DELETE ME',
+    vision_description: 'Want company branding on both vans',
+    timeline: '2-3 weeks',
+    budget_range: '$10,000-15,000 total'
+  };
+  
+  Logger.log('=== TEST: Create Submission ===');
+  const result = createSubmission(testData);
+  Logger.log('Result: ' + JSON.stringify(result, null, 2));
+  
+  if (result.ok) {
+    Logger.log('');
+    Logger.log('✓ SUCCESS! Check the Submissions sheet for the new row.');
+    Logger.log('✓ Check Tasks sheet for auto-generated task.');
+    Logger.log('✓ Check your phone/email for notification.');
+    Logger.log('');
+    Logger.log('⚠️ Remember to DELETE the test row when done!');
+  }
+  
+  return result;
+}
+
+/**
+ * Test getting submissions
+ */
+function TEST_getSubmissions() {
+  Logger.log('=== TEST: Get Submissions ===');
+  const result = getSubmissions();
+  Logger.log('Found ' + (result.submissions ? result.submissions.length : 0) + ' submissions');
+  
+  if (result.submissions && result.submissions.length > 0) {
+    Logger.log('First submission: ' + JSON.stringify(result.submissions[0], null, 2));
+  }
+  
+  return result;
+}

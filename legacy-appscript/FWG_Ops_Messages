@@ -1,0 +1,686 @@
+/**
+ * ============================================================================
+ * FWG OPERATIONS DASHBOARD - Messages.gs
+ * Frederick Wraps & Graphics - SMS & Communication
+ * ============================================================================
+ * 
+ * Handles:
+ * - Sending SMS via Twilio
+ * - Receiving inbound SMS via webhook
+ * - Logging all messages
+ * - Marking messages as read/archived
+ * 
+ * ============================================================================
+ */
+
+/**
+ * Send SMS via Twilio
+ * @param {string} to - Phone number to send to (will be formatted)
+ * @param {string} body - Message body
+ * @returns {Object} - Result with message SID
+ */
+function sendSMS(to, body) {
+  try {
+    // Format phone number
+    let toNumber = String(to).replace(/\D/g, '');
+    if (toNumber.length === 10) {
+      toNumber = '+1' + toNumber;
+    } else if (toNumber.length === 11 && toNumber.startsWith('1')) {
+      toNumber = '+' + toNumber;
+    } else if (!toNumber.startsWith('+')) {
+      toNumber = '+' + toNumber;
+    }
+    
+    Logger.log('Sending SMS to: ' + toNumber);
+    
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${CONFIG.twilio.accountSid}/Messages.json`;
+    
+    const payload = {
+      'To': toNumber,
+      'From': CONFIG.twilio.phoneNumber,
+      'Body': body
+    };
+    
+    // Add messaging service if configured
+    if (CONFIG.twilio.messagingServiceSid) {
+      payload['MessagingServiceSid'] = CONFIG.twilio.messagingServiceSid;
+    }
+    
+    const options = {
+      'method': 'post',
+      'headers': {
+        'Authorization': 'Basic ' + Utilities.base64Encode(CONFIG.twilio.accountSid + ':' + CONFIG.twilio.authToken)
+      },
+      'payload': payload,
+      'muteHttpExceptions': true
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const responseCode = response.getResponseCode();
+    const responseBody = JSON.parse(response.getContentText());
+    
+    if (responseCode >= 200 && responseCode < 300) {
+      Logger.log('✓ SMS sent. SID: ' + responseBody.sid);
+      
+      // Log the outbound message
+      logMessage({
+        direction: 'outbound',
+        channel: 'sms',
+        phone: toNumber,
+        body: body,
+        messageSid: responseBody.sid,
+        status: responseBody.status
+      });
+      
+      return { ok: true, sid: responseBody.sid };
+    } else {
+      Logger.log('✗ SMS failed: ' + responseBody.message);
+      return { ok: false, error: responseBody.message };
+    }
+    
+  } catch (error) {
+    Logger.log('sendSMS error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Handle incoming SMS from Twilio webhook
+ * @param {Object} e - Event object from doPost
+ * @returns {string} - TwiML response
+ */
+function handleIncomingSMS(e) {
+  // DEBUG
+  const debugSheet = SpreadsheetApp.openById('1Pyh1w6Gsx7pkZd9uRwB4YhGQfb0VWHzIE_qzcSO39lw').getSheetByName('Messages');
+  debugSheet.appendRow(['DEBUG-SMS', new Date().toISOString(), 'handleIncomingSMS called', JSON.stringify(e.parameter || {}).substring(0, 300)]);
+  
+  try {
+    // Parse Twilio webhook data
+    const params = e.parameter;
+    const from = params.From || '';
+    const body = params.Body || '';
+    const messageSid = params.MessageSid || '';
+    
+    Logger.log('=== Incoming SMS ===');
+    Logger.log('From: ' + from);
+    Logger.log('Body: ' + body);
+    Logger.log('SID: ' + messageSid);
+    
+    // Look up customer by phone
+    const customerInfo = findCustomerByPhone(from);
+    
+    // Log the message
+    logMessage({
+      direction: 'inbound',
+      channel: 'sms',
+      phone: from,
+      customerName: customerInfo ? customerInfo.name : '',
+      body: body,
+      messageSid: messageSid,
+      status: 'received',
+      submissionId: customerInfo ? customerInfo.submissionId : '',
+      quoteId: customerInfo ? customerInfo.quoteId : '',
+      invoiceId: customerInfo ? customerInfo.invoiceId : ''
+    });
+    
+    // Notify owner of new message
+    sendInboundNotification(from, body, customerInfo);
+    
+    // Return empty TwiML (no auto-reply)
+    return '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+    
+  } catch (error) {
+    Logger.log('handleIncomingSMS error: ' + error.toString());
+    return '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+  }
+}
+
+/**
+ * Log a message to the Messages sheet
+ */
+function logMessage(data) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.messages);
+    
+    const messageId = generateId('MSG', 'MESSAGE_COUNTER');
+    
+    const rowData = [
+      messageId,                                       // message_id
+      now(),                                           // timestamp
+      data.direction || 'unknown',                     // direction
+      data.channel || 'sms',                           // channel
+      data.phone || '',                                // customer_phone
+      data.customerEmail || '',                        // customer_email
+      data.customerName || '',                         // customer_name
+      data.submissionId || '',                         // submission_id
+      data.quoteId || '',                              // quote_id
+      data.invoiceId || '',                            // invoice_id
+      data.body || '',                                 // message_body
+      data.messageSid || '',                           // message_sid
+      data.status || '',                               // status
+      data.direction === 'inbound' ? false : true,     // read (inbound starts unread)
+      false                                            // archived
+    ];
+    
+    sheet.appendRow(rowData);
+    Logger.log('✓ Message logged: ' + messageId);
+    
+    return { ok: true, messageId: messageId };
+    
+  } catch (error) {
+    Logger.log('logMessage error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Find customer info by phone number
+ * Searches submissions, quotes, and invoices
+ */
+function findCustomerByPhone(phone) {
+  try {
+    // Normalize phone for comparison
+    const normalizedPhone = String(phone).replace(/\D/g, '').slice(-10);
+    
+    // Check submissions
+    const submissions = sheetToObjects(CONFIG.sheets.submissions);
+    for (const sub of submissions) {
+      const subPhone = String(sub.customer_phone || '').replace(/\D/g, '').slice(-10);
+      if (subPhone === normalizedPhone) {
+        return {
+          name: sub.customer_name,
+          submissionId: sub.submission_id,
+          quoteId: sub.quote_id || '',
+          invoiceId: ''
+        };
+      }
+    }
+    
+    // Check quotes
+    const quotes = sheetToObjects(CONFIG.sheets.quotes);
+    for (const quote of quotes) {
+      const quotePhone = String(quote.customer_phone || '').replace(/\D/g, '').slice(-10);
+      if (quotePhone === normalizedPhone) {
+        return {
+          name: quote.customer_name,
+          submissionId: quote.submission_id || '',
+          quoteId: quote.quote_id,
+          invoiceId: quote.invoice_id || ''
+        };
+      }
+    }
+    
+    // Check invoices
+    const invoices = sheetToObjects(CONFIG.sheets.invoices);
+    for (const inv of invoices) {
+      const invPhone = String(inv.customer_phone || '').replace(/\D/g, '').slice(-10);
+      if (invPhone === normalizedPhone) {
+        return {
+          name: inv.customer_name,
+          submissionId: inv.submission_id || '',
+          quoteId: inv.quote_id || '',
+          invoiceId: inv.invoice_id
+        };
+      }
+    }
+    
+    return null;
+    
+  } catch (error) {
+    Logger.log('findCustomerByPhone error: ' + error.toString());
+    return null;
+  }
+}
+
+/**
+ * Send notification for inbound message
+ */
+function sendInboundNotification(from, body, customerInfo) {
+  try {
+    const customerName = customerInfo ? customerInfo.name : 'Unknown';
+    const formattedFrom = formatPhone(from);
+    
+    // SMS to owner
+    const notifyBody = `💬 FWG MSG from ${customerName}\n${formattedFrom}\n\n${body.substring(0, 100)}${body.length > 100 ? '...' : ''}`;
+    
+    // Don't send SMS notification to the notification phone if it's the same as the sender
+    const normalizedFrom = String(from).replace(/\D/g, '').slice(-10);
+    const normalizedNotify = String(CONFIG.notificationPhone).replace(/\D/g, '').slice(-10);
+    
+    if (normalizedFrom !== normalizedNotify) {
+      // Use a simple fetch to avoid recursion
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${CONFIG.twilio.accountSid}/Messages.json`;
+      const options = {
+        'method': 'post',
+        'headers': {
+          'Authorization': 'Basic ' + Utilities.base64Encode(CONFIG.twilio.accountSid + ':' + CONFIG.twilio.authToken)
+        },
+        'payload': {
+          'To': CONFIG.notificationPhone,
+          'From': CONFIG.twilio.phoneNumber,
+          'Body': notifyBody
+        },
+        'muteHttpExceptions': true
+      };
+      UrlFetchApp.fetch(url, options);
+    }
+    
+  } catch (error) {
+    Logger.log('sendInboundNotification error: ' + error.toString());
+  }
+}
+
+/**
+ * Get messages for a specific customer (by phone)
+ */
+function getMessagesByPhone(phone) {
+  try {
+    const normalizedPhone = String(phone).replace(/\D/g, '').slice(-10);
+    const messages = sheetToObjects(CONFIG.sheets.messages);
+    
+    const filtered = messages.filter(m => {
+      const msgPhone = String(m.customer_phone || '').replace(/\D/g, '').slice(-10);
+      return msgPhone === normalizedPhone;
+    });
+    
+    // Sort by timestamp descending
+    filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Sanitize for frontend
+    const sanitized = filtered.map(m => ({
+      message_id: String(m.message_id || ''),
+      timestamp: String(m.timestamp || ''),
+      direction: String(m.direction || ''),
+      channel: String(m.channel || ''),
+      customer_phone: String(m.customer_phone || ''),
+      customer_email: String(m.customer_email || ''),
+      customer_name: String(m.customer_name || ''),
+      submission_id: String(m.submission_id || ''),
+      quote_id: String(m.quote_id || ''),
+      invoice_id: String(m.invoice_id || ''),
+      message_body: String(m.message_body || ''),
+      message_sid: String(m.message_sid || ''),
+      status: String(m.status || ''),
+      read: m.read === true || m.read === 'TRUE',
+      archived: m.archived === true || m.archived === 'TRUE'
+    }));
+    
+    return { ok: true, messages: sanitized };
+    
+  } catch (error) {
+    Logger.log('getMessagesByPhone error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all unread inbound messages
+ */
+function getUnreadMessages() {
+  try {
+    const messages = sheetToObjects(CONFIG.sheets.messages);
+    
+    const unread = messages.filter(m => 
+      m.direction === 'inbound' && 
+      (m.read === false || m.read === 'FALSE' || m.read === '')
+    );
+    
+    // Sort by timestamp descending
+    unread.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return { ok: true, messages: unread };
+    
+  } catch (error) {
+    Logger.log('getUnreadMessages error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Mark a message as read
+ */
+function markMessageAsRead(messageId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.messages);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const readCol = headers.indexOf('read') + 1;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === messageId) {
+        sheet.getRange(i + 1, readCol).setValue(true);
+        Logger.log('Marked message as read: ' + messageId);
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Message not found' };
+    
+  } catch (error) {
+    Logger.log('markMessageAsRead error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Archive all messages in a conversation (by phone number)
+ */
+function archiveConversation(phone) {
+  try {
+    const normalizedPhone = String(phone).replace(/\D/g, '').slice(-10);
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.messages);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const phoneCol = headers.indexOf('customer_phone');
+    const archivedCol = headers.indexOf('archived') + 1;
+    
+    let archivedCount = 0;
+    for (let i = 1; i < data.length; i++) {
+      const rowPhone = String(data[i][phoneCol] || '').replace(/\D/g, '').slice(-10);
+      if (rowPhone === normalizedPhone) {
+        sheet.getRange(i + 1, archivedCol).setValue(true);
+        archivedCount++;
+      }
+    }
+    
+    Logger.log('Archived ' + archivedCount + ' messages for phone: ' + phone);
+    return { ok: true, archivedCount: archivedCount };
+    
+  } catch (error) {
+    Logger.log('archiveConversation error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Archive a message
+ */
+function archiveMessage(messageId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.messages);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const archivedCol = headers.indexOf('archived') + 1;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === messageId) {
+        sheet.getRange(i + 1, archivedCol).setValue(true);
+        Logger.log('Archived message: ' + messageId);
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Message not found' };
+    
+  } catch (error) {
+    Logger.log('archiveMessage error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Send message from dashboard (to customer)
+ * @param {string} to - Phone number
+ * @param {string} body - Message body
+ * @param {Object} context - Optional context (submissionId, quoteId, invoiceId)
+ */
+function sendMessageToCustomer(to, body, context) {
+  try {
+    // Send the SMS
+    const result = sendSMS(to, body);
+    
+    if (result.ok) {
+      // Update last_contact_at on submission if provided
+      if (context && context.submissionId) {
+        updateSubmissionField(context.submissionId, 'last_contact_at', now());
+      }
+    }
+    
+    return result;
+    
+  } catch (error) {
+    Logger.log('sendMessageToCustomer error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get conversations grouped by phone number
+ */
+function getConversations() {
+  Logger.log('getConversations called');
+  try {
+    Logger.log('About to call sheetToObjects for messages');
+    const messages = sheetToObjects(CONFIG.sheets.messages);
+    Logger.log('Got messages: ' + messages.length);
+    const activeMessages = messages.filter(m => m.archived !== true && m.archived !== 'TRUE');
+    const conversationMap = {};
+    
+    activeMessages.forEach(msg => {
+      const phone = normalizePhone(msg.customer_phone);
+      if (!phone) return;
+      
+      if (!conversationMap[phone]) {
+        conversationMap[phone] = {
+          phone: msg.customer_phone,
+          name: msg.customer_name || '',
+          submissionId: msg.submission_id || '',
+          quoteId: msg.quote_id || '',
+          invoiceId: msg.invoice_id || '',
+          lastMessage: '',
+          lastMessageTime: null,
+          hasUnread: false,
+          messageCount: 0
+        };
+      }
+      
+      const conv = conversationMap[phone];
+      conv.messageCount++;
+      if (msg.customer_name && !conv.name) conv.name = msg.customer_name;
+      if (msg.submission_id && !conv.submissionId) conv.submissionId = msg.submission_id;
+      if (msg.quote_id && !conv.quoteId) conv.quoteId = msg.quote_id;
+      if (msg.invoice_id && !conv.invoiceId) conv.invoiceId = msg.invoice_id;
+      
+      const msgTime = new Date(msg.timestamp);
+      if (!conv.lastMessageTime || msgTime > new Date(conv.lastMessageTime)) {
+        conv.lastMessageTime = msg.timestamp;
+        conv.lastMessage = truncateMessage(msg.message_body, 50);
+      }
+      
+      if (msg.direction === 'inbound' && (msg.read === false || msg.read === 'FALSE' || msg.read === '')) {
+        conv.hasUnread = true;
+      }
+    });
+    
+    const conversations = Object.values(conversationMap);
+    conversations.sort((a, b) => {
+      if (!a.lastMessageTime) return 1;
+      if (!b.lastMessageTime) return -1;
+      return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
+    });
+    
+    const submissions = sheetToObjects(CONFIG.sheets.submissions);
+    conversations.forEach(conv => {
+      if (!conv.name) {
+        const matchingSub = submissions.find(s => normalizePhone(s.customer_phone) === normalizePhone(conv.phone));
+        if (matchingSub) {
+          conv.name = matchingSub.customer_name;
+          conv.submissionId = matchingSub.submission_id;
+        }
+      }
+    });
+    
+    // Sanitize data for frontend (convert all values to safe types)
+    const sanitizedConversations = conversations.map(conv => ({
+      phone: String(conv.phone || ''),
+      name: String(conv.name || ''),
+      submissionId: String(conv.submissionId || ''),
+      quoteId: String(conv.quoteId || ''),
+      invoiceId: String(conv.invoiceId || ''),
+      lastMessage: String(conv.lastMessage || ''),
+      lastMessageTime: conv.lastMessageTime ? String(conv.lastMessageTime) : '',
+      hasUnread: conv.hasUnread === true,
+      messageCount: Number(conv.messageCount) || 0
+    }));
+    
+    return { ok: true, conversations: sanitizedConversations };
+  } catch (error) {
+    Logger.log('getConversations error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+function normalizePhone(phone) {
+  if (!phone) return '';
+  return String(phone).replace(/\D/g, '').slice(-10);
+}
+
+function truncateMessage(text, maxLength) {
+  if (!text) return '';
+  text = String(text);
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+}
+
+function markConversationAsRead(phone) {
+  try {
+    const normalizedPhone = normalizePhone(phone);
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.messages);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const phoneCol = headers.indexOf('customer_phone');
+    const directionCol = headers.indexOf('direction');
+    const readCol = headers.indexOf('read') + 1;
+    let updatedCount = 0;
+    
+    for (let i = 1; i < data.length; i++) {
+      const rowPhone = normalizePhone(data[i][phoneCol]);
+      const direction = data[i][directionCol];
+      const isRead = data[i][readCol - 1];
+      
+      if (rowPhone === normalizedPhone && direction === 'inbound' && 
+          (isRead === false || isRead === 'FALSE' || isRead === '')) {
+        sheet.getRange(i + 1, readCol).setValue(true);
+        updatedCount++;
+      }
+    }
+    
+    Logger.log('Marked ' + updatedCount + ' messages as read for phone: ' + phone);
+    return { ok: true, updated: updatedCount };
+  } catch (error) {
+    Logger.log('markConversationAsRead error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// TEST FUNCTIONS
+// ============================================================================
+
+/**
+ * Test sending SMS
+ */
+function TEST_sendSMS() {
+  Logger.log('=== TEST: Send SMS ===');
+  
+  const testPhone = CONFIG.notificationPhone; // Send to Joe's phone
+  const testBody = '🧪 TEST from FWG Dashboard\n\nThis is a test message. If you received this, SMS is working!\n\nTime: ' + now();
+  
+  const result = sendSMS(testPhone, testBody);
+  Logger.log('Result: ' + JSON.stringify(result, null, 2));
+  
+  if (result.ok) {
+    Logger.log('');
+    Logger.log('✓ SUCCESS! Check your phone for the test message.');
+    Logger.log('✓ Check the Messages sheet for the logged outbound message.');
+  }
+  
+  return result;
+}
+
+/**
+ * Test message logging
+ */
+function TEST_logMessage() {
+  Logger.log('=== TEST: Log Message ===');
+  
+  const result = logMessage({
+    direction: 'inbound',
+    channel: 'sms',
+    phone: '+12405551234',
+    customerName: 'TEST Customer',
+    body: 'This is a test inbound message - DELETE ME',
+    messageSid: 'TEST_SID_' + Date.now(),
+    status: 'received'
+  });
+  
+  Logger.log('Result: ' + JSON.stringify(result, null, 2));
+  
+  if (result.ok) {
+    Logger.log('');
+    Logger.log('✓ SUCCESS! Check the Messages sheet for the test row.');
+    Logger.log('⚠️ Remember to DELETE the test row when done!');
+  }
+  
+  return result;
+}
+
+/**
+ * Test getting unread messages
+ */
+function TEST_getUnreadMessages() {
+  Logger.log('=== TEST: Get Unread Messages ===');
+  
+  const result = getUnreadMessages();
+  Logger.log('Found ' + (result.messages ? result.messages.length : 0) + ' unread messages');
+  
+  if (result.messages && result.messages.length > 0) {
+    Logger.log('First unread: ' + JSON.stringify(result.messages[0], null, 2));
+  }
+  
+  return result;
+}
+
+function TEST_getConversations() {
+  Logger.log('=== Testing getConversations ===');
+  
+  // First, check if we can access the Messages sheet
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName(CONFIG.sheets.messages);
+    
+    if (!sheet) {
+      Logger.log('ERROR: Messages sheet not found');
+      return;
+    }
+    
+    Logger.log('✓ Messages sheet found');
+    
+    const data = sheet.getDataRange().getValues();
+    Logger.log('Total rows (including header): ' + data.length);
+    Logger.log('Headers: ' + JSON.stringify(data[0]));
+    
+    if (data.length > 1) {
+      Logger.log('First data row: ' + JSON.stringify(data[1]));
+    }
+    
+  } catch (e) {
+    Logger.log('ERROR accessing sheet: ' + e.toString());
+    return;
+  }
+  
+  // Now test the actual function
+  Logger.log('');
+  Logger.log('=== Calling getConversations() ===');
+  const result = getConversations();
+  Logger.log('Result: ' + JSON.stringify(result, null, 2));
+}

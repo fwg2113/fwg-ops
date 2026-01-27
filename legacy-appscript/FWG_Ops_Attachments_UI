@@ -1,0 +1,403 @@
+<!-- ============================================================================
+     FWG OPERATIONS - ATTACHMENTS UI MODULE
+     Simple file upload to Google Drive
+     ============================================================================ -->
+
+<style>
+  .attachments-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  
+  .att-thumb {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark);
+    transition: all 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .att-thumb:hover {
+    border-color: var(--fwg-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  
+  .att-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .att-thumb-file {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    text-align: center;
+  }
+  
+  .att-thumb-file svg {
+    width: 28px;
+    height: 28px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  
+  .att-thumb-file .att-ext {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+  
+  .att-thumb-file .att-name {
+    font-size: 9px;
+    color: var(--text-muted);
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .att-delete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.9);
+    border: none;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  
+  .att-thumb:hover .att-delete { display: flex; }
+  .att-delete:hover { background: #dc2626; }
+  
+  .att-add-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    border: 2px dashed var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+    position: relative;
+  }
+  
+  .att-add-btn:hover {
+    border-color: var(--fwg-primary);
+    color: var(--fwg-primary);
+    background: var(--fwg-primary-soft);
+  }
+  
+  .att-add-btn svg { width: 24px; height: 24px; }
+  .att-add-btn span { font-size: 10px; font-weight: 500; }
+  .att-add-btn input[type="file"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  
+  /* LIGHTBOX */
+  .att-lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  
+  .att-lightbox-content {
+    max-width: 90vw;
+    max-height: 90vh;
+    position: relative;
+  }
+  
+  .att-lightbox-content img {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 8px;
+  }
+  
+  .att-lightbox-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+  }
+  
+  .att-lightbox-info {
+    text-align: center;
+    margin-top: 16px;
+    color: white;
+  }
+  
+  .att-lightbox-filename { font-size: 14px; margin-bottom: 12px; }
+  
+  .att-lightbox-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+  
+  .att-lightbox-actions a {
+    color: var(--fwg-primary);
+    text-decoration: none;
+  }
+  
+  .project-files-section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    margin-bottom: 20px;
+  }
+  
+  .project-files-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    font-weight: 600;
+  }
+  
+  .project-files-body { padding: 20px; }
+  
+  .project-files-empty {
+    text-align: center;
+    padding: 30px;
+    color: var(--text-muted);
+  }
+</style>
+
+<script>
+var FWGAttachments = (function() {
+  
+  var MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  
+  // Handle file selection
+  function handleFileSelect(event, context, onComplete) {
+    var files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    var file = files[0];
+    
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      showToast('File too large. Maximum size is 5MB.', 'error');
+      event.target.value = '';
+      return;
+    }
+    
+    showToast('Uploading ' + file.name + '...', 'info');
+    
+    // Read file as base64
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var base64 = e.target.result.split(',')[1]; // Remove data:...;base64, prefix
+      
+      var fileData = {
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64: base64
+      };
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            showToast(result.message, 'success');
+            if (onComplete) onComplete([result.attachment]);
+          } else {
+            showToast('Error: ' + result.error, 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          showToast('Upload failed: ' + error, 'error');
+        })
+        .uploadFile(context, fileData);
+    };
+    
+    reader.onerror = function() {
+      showToast('Error reading file', 'error');
+    };
+    
+    reader.readAsDataURL(file);
+    event.target.value = ''; // Reset input
+  }
+  
+  // Render attachment grid
+  function renderAttachmentGrid(attachments, context, options) {
+    options = options || {};
+    var showAdd = options.showAdd !== false;
+    var contextJson = JSON.stringify(context).replace(/"/g, '&quot;');
+    var callbackFn = options.onUpdateFn || '';
+    
+    var html = '<div class="attachments-grid">';
+    
+    if (attachments && attachments.length > 0) {
+      for (var i = 0; i < attachments.length; i++) {
+        html += renderAttachmentThumb(attachments[i], context);
+      }
+    }
+    
+    if (showAdd) {
+      html += '<label class="att-add-btn">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
+        '<span>Add File</span>' +
+        '<input type="file" onchange="FWGAttachments.handleFileSelect(event, ' + contextJson + ', function(atts) { ' + callbackFn + ' })">' +
+        '</label>';
+    }
+    
+    html += '</div>';
+    return html;
+  }
+  
+  // Render single thumbnail
+  function renderAttachmentThumb(att, context) {
+    var isImage = (att.mime_type && att.mime_type.indexOf('image/') === 0) ||
+                  /\.(jpg|jpeg|png|gif|webp)$/i.test(att.file_name);
+    var contextJson = JSON.stringify(context).replace(/"/g, '&quot;');
+    
+    if (isImage && att.thumbnail_url) {
+      var fullUrl = 'https://drive.google.com/thumbnail?id=' + att.file_id + '&sz=w800';
+      return '<div class="att-thumb" onclick="FWGAttachments.openLightbox(\'' + fullUrl + '\', \'' + esc(att.file_name) + '\', \'' + att.download_url + '\', \'' + att.drive_view_url + '\')">' +
+        '<img src="' + att.thumbnail_url + '" alt="' + esc(att.file_name) + '">' +
+        '<button class="att-delete" onclick="event.stopPropagation(); FWGAttachments.removeAttachment(' + contextJson + ', \'' + att.file_id + '\')">&times;</button>' +
+        '</div>';
+    } else {
+      var ext = att.file_name ? att.file_name.split('.').pop().toUpperCase() : 'FILE';
+      var shortName = att.file_name && att.file_name.length > 12 ? att.file_name.substring(0, 10) + '...' : att.file_name;
+      
+      return '<div class="att-thumb" onclick="window.open(\'' + att.drive_view_url + '\', \'_blank\')">' +
+        '<div class="att-thumb-file">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>' +
+        '<span class="att-ext">' + ext + '</span>' +
+        '<span class="att-name">' + esc(shortName) + '</span>' +
+        '</div>' +
+        '<button class="att-delete" onclick="event.stopPropagation(); FWGAttachments.removeAttachment(' + contextJson + ', \'' + att.file_id + '\')">&times;</button>' +
+        '</div>';
+    }
+  }
+  
+  // Project files section
+  function renderProjectFilesSection(attachments, context, containerId) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    
+    var refreshFn = 'FWGAttachments.refreshProjectFiles(\'' + containerId + '\', ' + JSON.stringify(context) + ')';
+    
+    if (!attachments || attachments.length === 0) {
+      container.innerHTML = renderAttachmentGrid([], context, { showAdd: true, onUpdateFn: refreshFn });
+    } else {
+      container.innerHTML = renderAttachmentGrid(attachments, context, { showAdd: true, onUpdateFn: refreshFn });
+    }
+  }
+  
+  function refreshProjectFiles(containerId, context) {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          renderProjectFilesSection(result.attachments, context, containerId);
+        }
+      })
+      .getAttachments(context);
+  }
+  
+  // Lightbox
+  function openLightbox(imgUrl, fileName, downloadUrl, driveUrl) {
+    var html = '<div class="att-lightbox" onclick="FWGAttachments.closeLightbox()">' +
+      '<div class="att-lightbox-content" onclick="event.stopPropagation()">' +
+      '<button class="att-lightbox-close" onclick="FWGAttachments.closeLightbox()">&times;</button>' +
+      '<img src="' + imgUrl + '">' +
+      '<div class="att-lightbox-info">' +
+      '<div class="att-lightbox-filename">' + esc(fileName) + '</div>' +
+      '<div class="att-lightbox-actions">' +
+      '<a href="' + driveUrl + '" target="_blank">Open in Drive</a>' +
+      '<a href="' + downloadUrl + '" target="_blank">Download</a>' +
+      '</div></div></div></div>';
+    
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  
+  function closeLightbox() {
+    var lb = document.querySelector('.att-lightbox');
+    if (lb) lb.remove();
+  }
+  
+  // Remove attachment
+  function removeAttachment(context, fileId) {
+    if (!confirm('Remove this attachment?')) return;
+    
+    showToast('Removing...', 'info');
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Removed', 'success');
+          location.reload();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .removeAttachment(context, fileId);
+  }
+  
+  function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  
+  return {
+    handleFileSelect: handleFileSelect,
+    renderAttachmentGrid: renderAttachmentGrid,
+    renderProjectFilesSection: renderProjectFilesSection,
+    refreshProjectFiles: refreshProjectFiles,
+    openLightbox: openLightbox,
+    closeLightbox: closeLightbox,
+    removeAttachment: removeAttachment
+  };
+  
+})();
+
+console.log('FWGAttachments loaded');
+</script>

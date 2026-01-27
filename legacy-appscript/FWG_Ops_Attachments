@@ -1,0 +1,875 @@
+/**
+ * ============================================================================
+ * FWG OPERATIONS - ATTACHMENTS MODULE
+ * Google Picker-based file attachment system
+ * ============================================================================
+ * 
+ * This module handles file attachments using Google Picker API.
+ * Files are uploaded directly to Google Drive (not through Apps Script),
+ * then organized into folders and metadata is stored in sheets.
+ * 
+ * Supported contexts:
+ * - quote_line_item: Attachments on individual quote line items
+ * - quote_project_files: Project-level files on quotes
+ * - invoice_line_item: Attachments on individual invoice line items
+ * - invoice_project_files: Project-level files on invoices
+ * - customer_files: Customer profile attachments
+ * 
+ * ============================================================================
+ */
+
+// ============================================================================
+// CONFIGURATION - UPDATE THESE VALUES
+// ============================================================================
+
+const PICKER_CONFIG = {
+  // Get these from Google Cloud Console (see setup instructions)
+  CLIENT_ID: '864034714214-mu6opnfnev16aip3fhsig968umniv4ea.apps.googleusercontent.com',  // OAuth Client ID
+  API_KEY: 'AIzaSyC-rSFurxV0DKvdEAFJ3vtRWsQnNkGZZmk',  // API Key (restricted to Picker API)
+  
+  // Root folder name in Google Drive
+  ROOT_FOLDER_NAME: 'FWG_Operations'
+};
+
+// ============================================================================
+// FOLDER MANAGEMENT
+// ============================================================================
+
+/**
+ * Get or create the root FWG_Operations folder
+ * @returns {string} Folder ID
+ */
+function ensureRootFolder() {
+  const folderName = PICKER_CONFIG.ROOT_FOLDER_NAME;
+  const folders = DriveApp.getFoldersByName(folderName);
+  
+  if (folders.hasNext()) {
+    return folders.next().getId();
+  }
+  
+  const newFolder = DriveApp.createFolder(folderName);
+  Logger.log('✓ Created root folder: ' + folderName);
+  return newFolder.getId();
+}
+
+/**
+ * Get or create an entity folder (Quotes, Invoices, Customers)
+ * @param {string} entityType - 'Quotes', 'Invoices', or 'Customers'
+ * @param {string} entityId - The specific ID (Q-260116-001, INV-260116-001, CUST-001)
+ * @returns {string} Folder ID
+ */
+function ensureEntityFolder(entityType, entityId) {
+  const rootFolderId = ensureRootFolder();
+  const rootFolder = DriveApp.getFolderById(rootFolderId);
+  
+  // Get or create entity type folder (e.g., "Quotes")
+  let typeFolder;
+  const typeFolders = rootFolder.getFoldersByName(entityType);
+  if (typeFolders.hasNext()) {
+    typeFolder = typeFolders.next();
+  } else {
+    typeFolder = rootFolder.createFolder(entityType);
+    Logger.log('✓ Created type folder: ' + entityType);
+  }
+  
+  // Get or create specific entity folder (e.g., "Q-260116-001")
+  let entityFolder;
+  const entityFolders = typeFolder.getFoldersByName(entityId);
+  if (entityFolders.hasNext()) {
+    entityFolder = entityFolders.next();
+  } else {
+    entityFolder = typeFolder.createFolder(entityId);
+    Logger.log('✓ Created entity folder: ' + entityId);
+  }
+  
+  return entityFolder.getId();
+}
+
+/**
+ * Get or create a subfolder within an entity folder
+ * @param {string} parentFolderId - Parent folder ID
+ * @param {string} subName - 'line_items' or 'project_files'
+ * @returns {string} Folder ID
+ */
+function ensureSubFolder(parentFolderId, subName) {
+  const parentFolder = DriveApp.getFolderById(parentFolderId);
+  const subFolders = parentFolder.getFoldersByName(subName);
+  
+  if (subFolders.hasNext()) {
+    return subFolders.next().getId();
+  }
+  
+  const newFolder = parentFolder.createFolder(subName);
+  Logger.log('✓ Created subfolder: ' + subName);
+  return newFolder.getId();
+}
+
+/**
+ * Move a file to a specific folder (removes from other parents)
+ * @param {string} fileId - Google Drive file ID
+ * @param {string} targetFolderId - Target folder ID
+ */
+function moveFileToFolder(fileId, targetFolderId) {
+  try {
+    const file = DriveApp.getFileById(fileId);
+    const targetFolder = DriveApp.getFolderById(targetFolderId);
+    
+    // Add to target folder
+    targetFolder.addFile(file);
+    
+    // Remove from other parents (except target)
+    const parents = file.getParents();
+    while (parents.hasNext()) {
+      const parent = parents.next();
+      if (parent.getId() !== targetFolderId) {
+        parent.removeFile(file);
+      }
+    }
+    
+    Logger.log('✓ Moved file ' + file.getName() + ' to folder');
+  } catch (error) {
+    Logger.log('moveFileToFolder error: ' + error.toString());
+    throw error;
+  }
+}
+
+/**
+ * Determine target folder based on context
+ * @param {Object} context - {type, quoteId, invoiceId, customerId, lineItemId}
+ * @returns {string} Target folder ID
+ */
+function getTargetFolderForContext(context) {
+  let entityType, entityId, subFolder;
+  
+  switch (context.type) {
+    case 'quote_line_item':
+      entityType = 'Quotes';
+      entityId = context.quoteId;
+      subFolder = 'line_items';
+      break;
+      
+    case 'quote_project_files':
+      entityType = 'Quotes';
+      entityId = context.quoteId;
+      subFolder = 'project_files';
+      break;
+      
+    case 'invoice_line_item':
+      entityType = 'Invoices';
+      entityId = context.invoiceId;
+      subFolder = 'line_items';
+      break;
+      
+    case 'invoice_project_files':
+      entityType = 'Invoices';
+      entityId = context.invoiceId;
+      subFolder = 'project_files';
+      break;
+      
+    case 'customer_files':
+      entityType = 'Customers';
+      entityId = context.customerId;
+      subFolder = null;  // No subfolder for customers
+      break;
+      
+    default:
+      throw new Error('Unknown context type: ' + context.type);
+  }
+  
+  const entityFolderId = ensureEntityFolder(entityType, entityId);
+  
+  if (subFolder) {
+    return ensureSubFolder(entityFolderId, subFolder);
+  }
+  
+  return entityFolderId;
+}
+
+
+// ============================================================================
+// DRIVE LINK REGISTRATION
+// ============================================================================
+
+/**
+ * Register a file from a Google Drive link
+ * Extracts file ID, gets metadata, moves to correct folder, stores reference
+ * @param {Object} context - Upload context
+ * @param {string} driveUrl - Google Drive share URL
+ * @returns {Object} Result with attachment record
+ */
+function registerDriveLink(context, driveUrl) {
+  try {
+    Logger.log('=== Registering Drive Link ===');
+    Logger.log('Context: ' + JSON.stringify(context));
+    Logger.log('URL: ' + driveUrl);
+    
+    // Extract file ID from various URL formats
+    const fileId = extractFileIdFromUrl(driveUrl);
+    if (!fileId) {
+      return { ok: false, error: 'Could not extract file ID from URL. Please use a Google Drive share link.' };
+    }
+    
+    Logger.log('Extracted file ID: ' + fileId);
+    
+    // Get file from Drive
+    let file;
+    try {
+      file = DriveApp.getFileById(fileId);
+    } catch (e) {
+      return { ok: false, error: 'Could not access file. Make sure the link is valid and you have access to it.' };
+    }
+    
+    // Get target folder and move file
+    const targetFolderId = getTargetFolderForContext(context);
+    moveFileToFolder(fileId, targetFolderId);
+    
+    // Build attachment record
+    const mimeType = file.getMimeType();
+    const fileName = file.getName();
+    const isImage = mimeType.indexOf('image/') === 0 || 
+                    /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+    const userEmail = Session.getActiveUser().getEmail() || 'unknown';
+    
+    const attachment = {
+      file_id: fileId,
+      file_name: fileName,
+      mime_type: mimeType,
+      size_bytes: file.getSize(),
+      drive_view_url: 'https://drive.google.com/file/d/' + fileId + '/view',
+      download_url: 'https://drive.google.com/uc?export=download&id=' + fileId,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: userEmail
+    };
+    
+    if (isImage) {
+      attachment.thumbnail_url = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+    }
+    
+    // Store attachment
+    const storeResult = storeAttachments(context, [attachment]);
+    if (!storeResult.ok) {
+      return storeResult;
+    }
+    
+    Logger.log('✓ File registered: ' + fileName);
+    return { 
+      ok: true, 
+      attachment: attachment,
+      message: 'File attached: ' + fileName
+    };
+    
+  } catch (error) {
+    Logger.log('registerDriveLink error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Upload a file directly from base64 data
+ * @param {Object} context - Upload context
+ * @param {Object} fileData - {name, mimeType, base64}
+ * @returns {Object} Result with attachment record
+ */
+function uploadFile(context, fileData) {
+  try {
+    Logger.log('=== Uploading File ===');
+    Logger.log('Context: ' + JSON.stringify(context));
+    Logger.log('File: ' + fileData.name + ' (' + fileData.mimeType + ')');
+    
+    // Decode base64
+    var decoded = Utilities.base64Decode(fileData.base64);
+    var blob = Utilities.newBlob(decoded, fileData.mimeType, fileData.name);
+    
+    // Get target folder
+    var targetFolderId = getTargetFolderForContext(context);
+    var folder = DriveApp.getFolderById(targetFolderId);
+    
+    // Create file in Drive
+    var file = folder.createFile(blob);
+    var fileId = file.getId();
+    
+    // Build attachment record
+    var mimeType = file.getMimeType();
+    var fileName = file.getName();
+    var isImage = mimeType.indexOf('image/') === 0;
+    var userEmail = Session.getActiveUser().getEmail() || 'unknown';
+    
+    var attachment = {
+      file_id: fileId,
+      file_name: fileName,
+      mime_type: mimeType,
+      size_bytes: file.getSize(),
+      drive_view_url: 'https://drive.google.com/file/d/' + fileId + '/view',
+      download_url: 'https://drive.google.com/uc?export=download&id=' + fileId,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: userEmail
+    };
+    
+    if (isImage) {
+      attachment.thumbnail_url = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+    }
+    
+    // Store attachment
+    var storeResult = storeAttachments(context, [attachment]);
+    if (!storeResult.ok) {
+      return storeResult;
+    }
+    
+    Logger.log('✓ File uploaded: ' + fileName);
+    return { 
+      ok: true, 
+      attachment: attachment,
+      message: 'File uploaded: ' + fileName
+    };
+    
+  } catch (error) {
+    Logger.log('uploadFile error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Extract Google Drive file ID from various URL formats
+ * Supports:
+ * - https://drive.google.com/file/d/FILE_ID/view
+ * - https://drive.google.com/open?id=FILE_ID
+ * - https://docs.google.com/document/d/FILE_ID/edit
+ * - https://drive.google.com/uc?id=FILE_ID
+ * - Just the file ID itself
+ */
+function extractFileIdFromUrl(url) {
+  if (!url) return null;
+  
+  url = url.trim();
+  
+  // If it's already just an ID (no slashes or dots suggesting URL)
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(url)) {
+    return url;
+  }
+  
+  // Pattern: /d/FILE_ID/ or /d/FILE_ID (end of string)
+  let match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  
+  // Pattern: id=FILE_ID
+  match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  
+  // Pattern: /folders/FILE_ID
+  match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  
+  return null;
+}
+
+
+// ============================================================================
+// FILE REGISTRATION
+// ============================================================================
+
+/**
+ * Register files picked/uploaded via Google Picker
+ * Moves files to correct folder and stores metadata
+ * @param {Object} context - Upload context
+ * @param {Array} pickedFiles - Array of {id, name, mimeType, sizeBytes} from Picker
+ * @returns {Object} Result with attachment records
+ */
+function registerPickedFiles(context, pickedFiles) {
+  try {
+    Logger.log('=== Registering Picked Files ===');
+    Logger.log('Context: ' + JSON.stringify(context));
+    Logger.log('Files: ' + JSON.stringify(pickedFiles));
+    
+    const targetFolderId = getTargetFolderForContext(context);
+    const attachments = [];
+    const userEmail = Session.getActiveUser().getEmail() || 'unknown';
+    
+    for (const picked of pickedFiles) {
+      // Move file to correct folder
+      moveFileToFolder(picked.id, targetFolderId);
+      
+      // Get file metadata from Drive
+      const file = DriveApp.getFileById(picked.id);
+      const mimeType = file.getMimeType();
+      const isImage = mimeType.startsWith('image/') || 
+                      /\.(jpg|jpeg|png|gif|webp)$/i.test(picked.name);
+      
+      // Build attachment record
+      const attachment = {
+        file_id: picked.id,
+        file_name: picked.name,
+        mime_type: mimeType,
+        size_bytes: picked.sizeBytes || file.getSize(),
+        drive_view_url: 'https://drive.google.com/file/d/' + picked.id + '/view',
+        download_url: 'https://drive.google.com/uc?export=download&id=' + picked.id,
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: userEmail
+      };
+      
+      // Add thumbnail URL for images
+      if (isImage) {
+        attachment.thumbnail_url = 'https://drive.google.com/thumbnail?id=' + picked.id + '&sz=w300';
+      }
+      
+      attachments.push(attachment);
+    }
+    
+    // Store attachments in the appropriate record
+    const storeResult = storeAttachments(context, attachments);
+    
+    if (!storeResult.ok) {
+      return storeResult;
+    }
+    
+    return { 
+      ok: true, 
+      attachments: attachments,
+      message: attachments.length + ' file(s) attached successfully'
+    };
+    
+  } catch (error) {
+    Logger.log('registerPickedFiles error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Store attachment metadata in the appropriate sheet/record
+ * @param {Object} context - Upload context
+ * @param {Array} newAttachments - New attachment records to add
+ * @returns {Object} Result
+ */
+function storeAttachments(context, newAttachments) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    let sheet, idColumn, attachmentsColumn, recordId;
+    
+    switch (context.type) {
+      case 'quote_line_item':
+        sheet = ss.getSheetByName(CONFIG.sheets.quoteLineItems);
+        idColumn = 'line_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.lineItemId;
+        break;
+        
+      case 'quote_project_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.quotes);
+        idColumn = 'quote_id';
+        attachmentsColumn = 'project_files_json';
+        recordId = context.quoteId;
+        break;
+        
+      case 'invoice_line_item':
+        sheet = ss.getSheetByName(CONFIG.sheets.invoiceLineItems);
+        idColumn = 'line_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.lineItemId;
+        break;
+        
+      case 'invoice_project_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.invoices);
+        idColumn = 'invoice_id';
+        attachmentsColumn = 'project_files_json';
+        recordId = context.invoiceId;
+        break;
+        
+      case 'customer_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.customers || 'Customers');
+        idColumn = 'customer_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.customerId;
+        break;
+        
+      default:
+        return { ok: false, error: 'Unknown context type: ' + context.type };
+    }
+    
+    // Find headers and columns
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idColIndex = headers.indexOf(idColumn);
+    let attColIndex = headers.indexOf(attachmentsColumn);
+    
+    if (idColIndex === -1) {
+      return { ok: false, error: 'ID column not found: ' + idColumn };
+    }
+    
+    // If attachments column doesn't exist, add it
+    if (attColIndex === -1) {
+      attColIndex = headers.length;
+      sheet.getRange(1, attColIndex + 1).setValue(attachmentsColumn);
+      Logger.log('✓ Added column: ' + attachmentsColumn);
+    }
+    
+    // Find the record row
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][idColIndex] === recordId) {
+        rowIndex = i;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { ok: false, error: 'Record not found: ' + recordId };
+    }
+    
+    // Get existing attachments
+    let existingAttachments = [];
+    const existingJson = data[rowIndex][attColIndex];
+    if (existingJson) {
+      try {
+        existingAttachments = JSON.parse(existingJson);
+        if (!Array.isArray(existingAttachments)) {
+          existingAttachments = [];
+        }
+      } catch (e) {
+        Logger.log('Warning: Could not parse existing attachments JSON');
+        existingAttachments = [];
+      }
+    }
+    
+    // Merge new attachments
+    const allAttachments = existingAttachments.concat(newAttachments);
+    
+    // Save back to sheet
+    sheet.getRange(rowIndex + 1, attColIndex + 1).setValue(JSON.stringify(allAttachments));
+    
+    Logger.log('✓ Stored ' + newAttachments.length + ' attachments for ' + recordId);
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('storeAttachments error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+
+// ============================================================================
+// ATTACHMENT REMOVAL
+// ============================================================================
+
+/**
+ * Remove an attachment reference (does not delete from Drive)
+ * @param {Object} context - Context identifying the record
+ * @param {string} fileId - Google Drive file ID to remove
+ * @returns {Object} Result
+ */
+function removeAttachment(context, fileId) {
+  try {
+    Logger.log('=== Removing Attachment ===');
+    Logger.log('Context: ' + JSON.stringify(context));
+    Logger.log('File ID: ' + fileId);
+    
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    let sheet, idColumn, attachmentsColumn, recordId;
+    
+    switch (context.type) {
+      case 'quote_line_item':
+        sheet = ss.getSheetByName(CONFIG.sheets.quoteLineItems);
+        idColumn = 'line_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.lineItemId;
+        break;
+        
+      case 'quote_project_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.quotes);
+        idColumn = 'quote_id';
+        attachmentsColumn = 'project_files_json';
+        recordId = context.quoteId;
+        break;
+        
+      case 'invoice_line_item':
+        sheet = ss.getSheetByName(CONFIG.sheets.invoiceLineItems);
+        idColumn = 'line_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.lineItemId;
+        break;
+        
+      case 'invoice_project_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.invoices);
+        idColumn = 'invoice_id';
+        attachmentsColumn = 'project_files_json';
+        recordId = context.invoiceId;
+        break;
+        
+      case 'customer_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.customers || 'Customers');
+        idColumn = 'customer_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.customerId;
+        break;
+        
+      default:
+        return { ok: false, error: 'Unknown context type: ' + context.type };
+    }
+    
+    // Find headers and columns
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idColIndex = headers.indexOf(idColumn);
+    const attColIndex = headers.indexOf(attachmentsColumn);
+    
+    if (idColIndex === -1 || attColIndex === -1) {
+      return { ok: false, error: 'Required columns not found' };
+    }
+    
+    // Find the record row
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][idColIndex] === recordId) {
+        rowIndex = i;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { ok: false, error: 'Record not found: ' + recordId };
+    }
+    
+    // Get and filter attachments
+    let attachments = [];
+    const existingJson = data[rowIndex][attColIndex];
+    if (existingJson) {
+      try {
+        attachments = JSON.parse(existingJson);
+      } catch (e) {
+        attachments = [];
+      }
+    }
+    
+    const originalCount = attachments.length;
+    attachments = attachments.filter(att => att.file_id !== fileId);
+    
+    if (attachments.length === originalCount) {
+      return { ok: false, error: 'Attachment not found' };
+    }
+    
+    // Save back to sheet
+    sheet.getRange(rowIndex + 1, attColIndex + 1).setValue(
+      attachments.length > 0 ? JSON.stringify(attachments) : ''
+    );
+    
+    Logger.log('✓ Removed attachment ' + fileId + ' from ' + recordId);
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('removeAttachment error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete an attachment from Drive AND remove reference
+ * @param {Object} context - Context identifying the record
+ * @param {string} fileId - Google Drive file ID to delete
+ * @returns {Object} Result
+ */
+function deleteAttachmentPermanently(context, fileId) {
+  try {
+    // First remove the reference
+    const removeResult = removeAttachment(context, fileId);
+    if (!removeResult.ok) {
+      return removeResult;
+    }
+    
+    // Then trash the file in Drive
+    try {
+      const file = DriveApp.getFileById(fileId);
+      file.setTrashed(true);
+      Logger.log('✓ Trashed file in Drive: ' + fileId);
+    } catch (e) {
+      Logger.log('Warning: Could not trash file (may already be deleted): ' + e.toString());
+    }
+    
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('deleteAttachmentPermanently error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Get all attachments for a specific context
+ * @param {Object} context - Context identifying the record
+ * @returns {Object} Result with attachments array
+ */
+function getAttachments(context) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    let sheet, idColumn, attachmentsColumn, recordId;
+    
+    switch (context.type) {
+      case 'quote_line_item':
+        sheet = ss.getSheetByName(CONFIG.sheets.quoteLineItems);
+        idColumn = 'line_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.lineItemId;
+        break;
+        
+      case 'quote_project_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.quotes);
+        idColumn = 'quote_id';
+        attachmentsColumn = 'project_files_json';
+        recordId = context.quoteId;
+        break;
+        
+      case 'invoice_line_item':
+        sheet = ss.getSheetByName(CONFIG.sheets.invoiceLineItems);
+        idColumn = 'line_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.lineItemId;
+        break;
+        
+      case 'invoice_project_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.invoices);
+        idColumn = 'invoice_id';
+        attachmentsColumn = 'project_files_json';
+        recordId = context.invoiceId;
+        break;
+        
+      case 'customer_files':
+        sheet = ss.getSheetByName(CONFIG.sheets.customers || 'Customers');
+        idColumn = 'customer_id';
+        attachmentsColumn = 'attachments_json';
+        recordId = context.customerId;
+        break;
+        
+      default:
+        return { ok: false, error: 'Unknown context type: ' + context.type };
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const idColIndex = headers.indexOf(idColumn);
+    const attColIndex = headers.indexOf(attachmentsColumn);
+    
+    if (idColIndex === -1) {
+      return { ok: false, error: 'ID column not found' };
+    }
+    
+    if (attColIndex === -1) {
+      return { ok: true, attachments: [] };
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][idColIndex] === recordId) {
+        const json = data[i][attColIndex];
+        if (json) {
+          try {
+            return { ok: true, attachments: JSON.parse(json) };
+          } catch (e) {
+            return { ok: true, attachments: [] };
+          }
+        }
+        return { ok: true, attachments: [] };
+      }
+    }
+    
+    return { ok: false, error: 'Record not found' };
+    
+  } catch (error) {
+    Logger.log('getAttachments error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+
+// ============================================================================
+// TEST FUNCTIONS
+// ============================================================================
+
+/**
+ * Test folder creation
+ */
+function TEST_folderStructure() {
+  Logger.log('=== Testing Folder Structure ===');
+  
+  const rootId = ensureRootFolder();
+  Logger.log('Root folder ID: ' + rootId);
+  
+  const quoteFolder = ensureEntityFolder('Quotes', 'TEST-001');
+  Logger.log('Quote folder ID: ' + quoteFolder);
+  
+  const lineItemsFolder = ensureSubFolder(quoteFolder, 'line_items');
+  Logger.log('Line items subfolder ID: ' + lineItemsFolder);
+  
+  const projectFilesFolder = ensureSubFolder(quoteFolder, 'project_files');
+  Logger.log('Project files subfolder ID: ' + projectFilesFolder);
+  
+  Logger.log('✓ Folder structure test complete');
+}
+
+/**
+ * Test picker config
+ */
+function TEST_pickerConfig() {
+  Logger.log('=== Testing Picker Config ===');
+  
+  const context = {
+    type: 'quote_line_item',
+    quoteId: 'TEST-001',
+    lineItemId: 'LI-001'
+  };
+  
+  const config = getPickerConfig(context);
+  Logger.log('Config: ' + JSON.stringify(config, null, 2));
+  
+  if (config.ok) {
+    Logger.log('✓ OAuth token obtained (length: ' + config.oauthToken.length + ')');
+    Logger.log('✓ Target folder: ' + config.targetFolderId);
+  } else {
+    Logger.log('✗ Error: ' + config.error);
+  }
+}
+
+/**
+ * Test upload only - just uploads file to root folder without storing reference
+ */
+function testUploadOnly(fileData) {
+  try {
+    Logger.log('=== Test Upload ===');
+    Logger.log('File: ' + fileData.name);
+    
+    // Decode base64
+    var decoded = Utilities.base64Decode(fileData.base64);
+    var blob = Utilities.newBlob(decoded, fileData.mimeType, fileData.name);
+    
+    // Get root folder
+    var rootFolderId = ensureRootFolder();
+    var folder = DriveApp.getFolderById(rootFolderId);
+    
+    // Create file in Drive
+    var file = folder.createFile(blob);
+    var fileId = file.getId();
+    
+    var mimeType = file.getMimeType();
+    var isImage = mimeType.indexOf('image/') === 0;
+    
+    var attachment = {
+      file_id: fileId,
+      file_name: file.getName(),
+      mime_type: mimeType,
+      size_bytes: file.getSize(),
+      drive_view_url: 'https://drive.google.com/file/d/' + fileId + '/view',
+      download_url: 'https://drive.google.com/uc?export=download&id=' + fileId
+    };
+    
+    if (isImage) {
+      attachment.thumbnail_url = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+    }
+    
+    Logger.log('✓ Test upload successful: ' + file.getName());
+    return { ok: true, attachment: attachment };
+    
+  } catch (error) {
+    Logger.log('testUploadOnly error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}

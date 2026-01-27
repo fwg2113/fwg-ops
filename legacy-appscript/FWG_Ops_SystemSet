@@ -1,0 +1,2598 @@
+<!-- ============================================================================
+     SYSTEM SETTINGS VIEW
+     Manage categories, packages, templates, and appearance
+     ============================================================================ -->
+
+<style>
+  /* Settings Layout */
+  .settings-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+  
+  .settings-header {
+    margin-bottom: 24px;
+  }
+  
+  .settings-header h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .settings-header p {
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  
+  /* Tabs */
+  .settings-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0;
+    overflow-x: auto;
+  }
+  
+  .settings-tab {
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  
+  .settings-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+  }
+  
+  .settings-tab.active {
+    color: var(--fwg-primary);
+    border-bottom-color: var(--fwg-primary);
+  }
+  
+  /* Tab Content */
+  .tab-content {
+    display: none;
+  }
+  
+  .tab-content.active {
+    display: block;
+  }
+  
+  /* Settings Cards */
+  .settings-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  
+  .settings-card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-elevated);
+  }
+  
+  .settings-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  /* Settings List Items */
+  .settings-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .settings-list-item:last-child {
+    border-bottom: none;
+  }
+  
+  .settings-list-item-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+  }
+  
+  .settings-list-item-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  
+  .settings-list-item-info {
+    flex: 1;
+  }
+  
+  .settings-list-item-name {
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+  
+  .settings-list-item-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  
+  .settings-list-item-actions {
+    display: flex;
+    gap: 4px;
+  }
+  
+  .settings-item-list {
+    padding: 0 20px 20px;
+  }
+  
+  .btn-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+  
+  .btn-icon:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  
+  .btn-icon-danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--accent-red);
+  }
+  
+  .btn-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  
+  .badge-success {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--accent-green);
+  }
+  
+  .badge-secondary {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+  }
+  
+  .settings-card-body {
+    padding: 20px;
+  }
+  
+  /* Item List */
+  .settings-item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .settings-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: all 0.15s ease;
+  }
+  
+  .settings-item:hover {
+    border-color: var(--fwg-primary);
+  }
+  
+  .settings-item-color {
+    width: 8px;
+    height: 32px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  
+  .settings-item-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .settings-item-name {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  
+  .settings-item-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  
+  .settings-item-actions {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .settings-item-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+  
+  .settings-item-btn:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  
+  .settings-item-btn.delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+  }
+  
+  .settings-item-badge {
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  
+  .settings-item-badge.active {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--accent-green);
+  }
+  
+  .settings-item-badge.inactive {
+    background: rgba(100, 116, 139, 0.2);
+    color: var(--text-muted);
+  }
+  
+  /* Add Button */
+  .add-item-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px;
+    margin-top: 12px;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .add-item-btn:hover {
+    border-color: var(--fwg-primary);
+    color: var(--fwg-primary);
+    background: var(--fwg-primary-soft);
+  }
+  
+  /* Appearance Tab */
+  .theme-presets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  
+  .theme-preset {
+    padding: 16px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .theme-preset:hover {
+    border-color: var(--fwg-primary);
+  }
+  
+  .theme-preset.active {
+    border-color: var(--fwg-primary);
+    background: var(--fwg-primary-soft);
+  }
+  
+  .theme-preset-preview {
+    height: 60px;
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+    display: flex;
+    overflow: hidden;
+  }
+  
+  .theme-preset-preview > div {
+    flex: 1;
+  }
+  
+  .theme-preset-name {
+    font-weight: 600;
+    font-size: 14px;
+    text-align: center;
+  }
+  
+  /* Color Editor */
+  .color-editor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  
+  .color-editor-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+  }
+  
+  .color-editor-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .color-editor-swatch input[type="color"] {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    width: 60px;
+    height: 60px;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .color-editor-info {
+    flex: 1;
+  }
+  
+  .color-editor-label {
+    font-weight: 500;
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+  
+  .color-editor-var {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+  
+  .color-editor-hex {
+    width: 80px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: monospace;
+    text-transform: uppercase;
+  }
+  
+  /* Modal Form */
+  .modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .modal-form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  
+  @media (max-width: 500px) {
+    .modal-form-row {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  .modal-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .modal-form-group.full-width {
+    grid-column: 1 / -1;
+  }
+  
+  .modal-form-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  
+  .modal-form-input,
+  .modal-form-select {
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+  
+  .modal-form-input:focus,
+  .modal-form-select:focus {
+    outline: none;
+    border-color: var(--fwg-primary);
+  }
+  
+  .modal-form-color {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .modal-form-color input[type="color"] {
+    width: 50px;
+    height: 38px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: transparent;
+  }
+  
+  .modal-form-color input[type="text"] {
+    flex: 1;
+  }
+  
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+  }
+  
+  /* Modal Styles */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  
+  .modal {
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    width: 100%;
+    max-width: 550px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .modal-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  .modal-close {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .modal-close:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  
+  .modal-body {
+    padding: 20px;
+    overflow-y: auto;
+  }
+  
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 14px 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.2s ease;
+  }
+  
+  .toast.success {
+    border-color: var(--accent-green);
+  }
+  
+  .toast.error {
+    border-color: var(--accent-red);
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+</style>
+
+<div id="settings-content">
+  <div class="loading"><div class="spinner"></div>Loading settings...</div>
+</div>
+
+<script>
+  // Settings state
+  let settingsData = { categories: [], packages: [], templates: [] };
+  let themeColors = {};
+  let activeTab = 'categories';
+  
+  // Theme presets
+  const THEME_PRESETS = {
+    miami_vice: {
+      name: 'Miami Vice',
+      colors: {
+        '--bg-dark': '#0f0f14',
+        '--bg-surface': '#1a1a24',
+        '--bg-elevated': '#252532',
+        '--border-color': '#2a2a3a',
+        '--text-primary': '#ffffff',
+        '--text-secondary': '#a0a0b0',
+        '--text-muted': '#6b6b7b',
+        '--fwg-primary': '#f97316',
+        '--fwg-primary-soft': 'rgba(249, 115, 22, 0.1)',
+        '--accent-green': '#22c55e',
+        '--accent-red': '#ef4444',
+        '--accent-blue': '#3b82f6',
+        '--accent-purple': '#a855f7',
+        '--accent-cyan': '#06b6d4',
+        '--accent-pink': '#ec4899'
+      }
+    },
+    midnight: {
+      name: 'Midnight Blue',
+      colors: {
+        '--bg-dark': '#0a0a12',
+        '--bg-surface': '#12121f',
+        '--bg-elevated': '#1a1a2e',
+        '--border-color': '#252540',
+        '--text-primary': '#e8e8f0',
+        '--text-secondary': '#8888a0',
+        '--text-muted': '#5a5a70',
+        '--fwg-primary': '#3b82f6',
+        '--fwg-primary-soft': 'rgba(59, 130, 246, 0.1)',
+        '--accent-green': '#10b981',
+        '--accent-red': '#f43f5e',
+        '--accent-blue': '#3b82f6',
+        '--accent-purple': '#8b5cf6',
+        '--accent-cyan': '#22d3ee',
+        '--accent-pink': '#f472b6'
+      }
+    },
+    forest: {
+      name: 'Forest',
+      colors: {
+        '--bg-dark': '#0a100e',
+        '--bg-surface': '#121a16',
+        '--bg-elevated': '#1a2620',
+        '--border-color': '#2a3a30',
+        '--text-primary': '#e8f0ec',
+        '--text-secondary': '#88a090',
+        '--text-muted': '#5a7060',
+        '--fwg-primary': '#22c55e',
+        '--fwg-primary-soft': 'rgba(34, 197, 94, 0.1)',
+        '--accent-green': '#22c55e',
+        '--accent-red': '#ef4444',
+        '--accent-blue': '#38bdf8',
+        '--accent-purple': '#a78bfa',
+        '--accent-cyan': '#2dd4bf',
+        '--accent-pink': '#f472b6'
+      }
+    },
+    sunset: {
+      name: 'Sunset',
+      colors: {
+        '--bg-dark': '#14100a',
+        '--bg-surface': '#1f1812',
+        '--bg-elevated': '#2a201a',
+        '--border-color': '#3a302a',
+        '--text-primary': '#f5f0e8',
+        '--text-secondary': '#b0a090',
+        '--text-muted': '#706050',
+        '--fwg-primary': '#f59e0b',
+        '--fwg-primary-soft': 'rgba(245, 158, 11, 0.1)',
+        '--accent-green': '#84cc16',
+        '--accent-red': '#ef4444',
+        '--accent-blue': '#0ea5e9',
+        '--accent-purple': '#d946ef',
+        '--accent-cyan': '#14b8a6',
+        '--accent-pink': '#fb7185'
+      }
+    },
+    light: {
+      name: 'Light Mode',
+      colors: {
+        '--bg-dark': '#f8f9fa',
+        '--bg-surface': '#ffffff',
+        '--bg-elevated': '#f1f3f4',
+        '--border-color': '#e0e0e0',
+        '--text-primary': '#1a1a1a',
+        '--text-secondary': '#5f6368',
+        '--text-muted': '#9aa0a6',
+        '--fwg-primary': '#f97316',
+        '--fwg-primary-soft': 'rgba(249, 115, 22, 0.1)',
+        '--accent-green': '#16a34a',
+        '--accent-red': '#dc2626',
+        '--accent-blue': '#2563eb',
+        '--accent-purple': '#9333ea',
+        '--accent-cyan': '#0891b2',
+        '--accent-pink': '#db2777'
+      }
+    }
+  };
+  
+  /**
+   * Load settings on page load
+   */
+  function loadSettings() {
+    // Load task system config in parallel
+    google.script.run
+      .withSuccessHandler(function(config) {
+        if (config.ok) {
+          window.taskSystemConfig = config;
+          console.log('Task system config loaded:', config);
+          // Re-render if we're on a task tab
+          if (['task-statuses', 'priorities', 'workflows', 'invoice-statuses', 'automations'].includes(activeTab)) {
+            renderSettings();
+          }
+        }
+      })
+      .withFailureHandler(function(err) {
+        console.error('Failed to load task system config:', err);
+      })
+      .getTaskSystemConfig();
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          settingsData = result;
+          renderSettings();
+        } else {
+          document.getElementById('settings-content').innerHTML = 
+            '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Error</div><div class="empty-state-text">' + result.error + '</div></div>';
+        }
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('settings-content').innerHTML = 
+          '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Error</div><div class="empty-state-text">' + error + '</div></div>';
+      })
+      .getAllSystemSettings();
+  }
+  
+  /**
+   * Render settings UI
+   */
+  function renderSettings() {
+    const html = `
+      <div class="settings-container">
+        <div class="settings-header">
+          <h2>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:24px;height:24px;">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+            </svg>
+            System Settings
+          </h2>
+          <p>Manage categories, packages, templates, and appearance</p>
+        </div>
+        
+        <div class="settings-tabs">
+          <button class="settings-tab ${activeTab === 'categories' ? 'active' : ''}" onclick="switchTab('categories')">Categories</button>
+          <button class="settings-tab ${activeTab === 'packages' ? 'active' : ''}" onclick="switchTab('packages')">Packages</button>
+          <button class="settings-tab ${activeTab === 'templates' ? 'active' : ''}" onclick="switchTab('templates')">Templates</button>
+          <button class="settings-tab ${activeTab === 'appearance' ? 'active' : ''}" onclick="switchTab('appearance')">Appearance</button>
+          <button class="settings-tab ${activeTab === 'task-statuses' ? 'active' : ''}" onclick="switchTab('task-statuses')">Task Statuses</button>
+          <button class="settings-tab ${activeTab === 'priorities' ? 'active' : ''}" onclick="switchTab('priorities')">Priorities</button>
+          <button class="settings-tab ${activeTab === 'workflows' ? 'active' : ''}" onclick="switchTab('workflows')">Workflows</button>
+          <button class="settings-tab ${activeTab === 'invoice-statuses' ? 'active' : ''}" onclick="switchTab('invoice-statuses')">Invoice Statuses</button>
+          <button class="settings-tab ${activeTab === 'automations' ? 'active' : ''}" onclick="switchTab('automations')">Automations</button>
+        </div>
+        
+        <!-- Categories Tab -->
+        <div id="tab-categories" class="tab-content ${activeTab === 'categories' ? 'active' : ''}">
+          ${renderCategoriesTab()}
+        </div>
+        
+        <!-- Packages Tab -->
+        <div id="tab-packages" class="tab-content ${activeTab === 'packages' ? 'active' : ''}">
+          ${renderPackagesTab()}
+        </div>
+        
+        <!-- Templates Tab -->
+        <div id="tab-templates" class="tab-content ${activeTab === 'templates' ? 'active' : ''}">
+          ${renderTemplatesTab()}
+        </div>
+        
+        <!-- Appearance Tab -->
+        <div id="tab-appearance" class="tab-content ${activeTab === 'appearance' ? 'active' : ''}">
+          ${renderAppearanceTab()}
+        </div>
+        
+        <!-- Task Statuses Tab -->
+        <div id="tab-task-statuses" class="tab-content ${activeTab === 'task-statuses' ? 'active' : ''}">
+          ${renderTaskStatusesTab()}
+        </div>
+        
+        <!-- Priorities Tab -->
+        <div id="tab-priorities" class="tab-content ${activeTab === 'priorities' ? 'active' : ''}">
+          ${renderPrioritiesTab()}
+        </div>
+        
+        <!-- Workflows Tab -->
+        <div id="tab-workflows" class="tab-content ${activeTab === 'workflows' ? 'active' : ''}">
+          ${renderWorkflowsTab()}
+        </div>
+        
+        <!-- Invoice Statuses Tab -->
+        <div id="tab-invoice-statuses" class="tab-content ${activeTab === 'invoice-statuses' ? 'active' : ''}">
+          ${renderInvoiceStatusesTab()}
+        </div>
+        
+        <!-- Automations Tab -->
+        <div id="tab-automations" class="tab-content ${activeTab === 'automations' ? 'active' : ''}">
+          ${renderAutomationsTab()}
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('settings-content').innerHTML = html;
+  }
+  
+  /**
+   * Switch tabs
+   */
+  function switchTab(tab) {
+    activeTab = tab;
+    renderSettings();
+  }
+  
+  /**
+   * Render Categories tab
+   */
+  function renderCategoriesTab() {
+    const categories = settingsData.categories || [];
+    
+    const itemsHtml = categories.map(cat => `
+      <div class="settings-item">
+        <div class="settings-item-color" style="background: ${cat.calendar_color || '#64748b'};"></div>
+        <div class="settings-item-info">
+          <div class="settings-item-name">${cat.label || cat.category_key}</div>
+          <div class="settings-item-meta">${cat.category_key} • Template: ${cat.line_template || 'DEFAULT'}</div>
+        </div>
+        <span class="settings-item-badge ${cat.active === true || cat.active === 'TRUE' ? 'active' : 'inactive'}">
+          ${cat.active === true || cat.active === 'TRUE' ? 'Active' : 'Inactive'}
+        </span>
+        <div class="settings-item-actions">
+          <button class="settings-item-btn" onclick="editCategory('${cat.category_key}')" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="settings-item-btn delete" onclick="confirmDeleteCategory('${cat.category_key}')" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            Categories
+          </div>
+          <span style="color: var(--text-muted); font-size: 13px;">${categories.length} total</span>
+        </div>
+        <div class="settings-card-body">
+          <div class="settings-item-list">
+            ${itemsHtml || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No categories yet</div>'}
+          </div>
+          <button class="add-item-btn" onclick="openCategoryModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            Add Category
+          </button>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Render Packages tab
+   */
+  function renderPackagesTab() {
+    const packages = settingsData.packages || [];
+    const categories = settingsData.categories || [];
+    
+    // Group packages by category
+    const grouped = {};
+    packages.forEach(pkg => {
+      const catKey = pkg.category_key || 'OTHER';
+      if (!grouped[catKey]) grouped[catKey] = [];
+      grouped[catKey].push(pkg);
+    });
+    
+    const sectionsHtml = Object.entries(grouped).map(([catKey, pkgs]) => {
+      const cat = categories.find(c => c.category_key === catKey);
+      const catLabel = cat?.label || catKey;
+      const catColor = cat?.calendar_color || '#64748b';
+      
+      const pkgItemsHtml = pkgs.map(pkg => `
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <div class="settings-item-name">${pkg.label}</div>
+            <div class="settings-item-meta">$${Number(pkg.base_price || 0).toLocaleString()} • ${pkg.sqft_estimate ? pkg.sqft_estimate + ' sq ft' : 'Flat rate'}</div>
+          </div>
+          <span class="settings-item-badge ${pkg.active === true || pkg.active === 'TRUE' ? 'active' : 'inactive'}">
+            ${pkg.active === true || pkg.active === 'TRUE' ? 'Active' : 'Inactive'}
+          </span>
+          <div class="settings-item-actions">
+            <button class="settings-item-btn" onclick="editPackage('${pkg.package_key}')" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+            <button class="settings-item-btn delete" onclick="confirmDeletePackage('${pkg.package_key}')" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          </div>
+        </div>
+      `).join('');
+      
+      return `
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <div class="settings-card-title">
+              <div style="width:12px;height:12px;border-radius:3px;background:${catColor};"></div>
+              ${catLabel}
+            </div>
+            <span style="color: var(--text-muted); font-size: 13px;">${pkgs.length} packages</span>
+          </div>
+          <div class="settings-card-body">
+            <div class="settings-item-list">
+              ${pkgItemsHtml}
+            </div>
+            <button class="add-item-btn" onclick="openPackageModal('${catKey}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+              Add Package
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    return sectionsHtml || `
+      <div class="settings-card">
+        <div class="settings-card-body">
+          <div style="text-align:center;color:var(--text-muted);padding:40px;">
+            <p>No packages yet</p>
+            <button class="add-item-btn" style="margin-top:16px;display:inline-flex;" onclick="openPackageModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+              Add First Package
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Render Templates tab
+   */
+  function renderTemplatesTab() {
+    const templates = settingsData.templates || [];
+    
+    const itemsHtml = templates.map(tmpl => {
+      const cols = [];
+      for (let i = 1; i <= 6; i++) {
+        if (tmpl[`column_${i}_label`]) {
+          cols.push(tmpl[`column_${i}_label`]);
+        }
+      }
+      
+      return `
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <div class="settings-item-name">${tmpl.template_key}</div>
+            <div class="settings-item-meta">Columns: ${cols.join(' → ')}</div>
+          </div>
+          <div class="settings-item-actions">
+            <button class="settings-item-btn" onclick="editTemplate('${tmpl.template_key}')" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+            Line Item Templates
+          </div>
+          <span style="color: var(--text-muted); font-size: 13px;">${templates.length} templates</span>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Templates define which columns appear for each category type. Each category is assigned a template.
+          </p>
+          <div class="settings-item-list">
+            ${itemsHtml || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No templates yet</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Render Appearance tab
+   */
+  function renderAppearanceTab() {
+    // Get current colors from computed styles
+    const root = document.documentElement;
+    const currentColors = {};
+    const colorVars = ['--bg-dark', '--bg-surface', '--bg-elevated', '--border-color', '--text-primary', '--text-secondary', '--text-muted', '--fwg-primary', '--accent-green', '--accent-red', '--accent-blue', '--accent-purple', '--accent-cyan', '--accent-pink'];
+    
+    colorVars.forEach(v => {
+      currentColors[v] = getComputedStyle(root).getPropertyValue(v).trim();
+    });
+    
+    // Presets
+    const presetsHtml = Object.entries(THEME_PRESETS).map(([key, preset]) => {
+      const colors = preset.colors;
+      return `
+        <div class="theme-preset" onclick="applyPreset('${key}')">
+          <div class="theme-preset-preview">
+            <div style="background: ${colors['--bg-dark']};"></div>
+            <div style="background: ${colors['--bg-surface']};"></div>
+            <div style="background: ${colors['--fwg-primary']};"></div>
+            <div style="background: ${colors['--accent-green']};"></div>
+          </div>
+          <div class="theme-preset-name">${preset.name}</div>
+        </div>
+      `;
+    }).join('');
+    
+    // Color editors
+    const colorLabels = {
+      '--bg-dark': 'Background (Dark)',
+      '--bg-surface': 'Surface',
+      '--bg-elevated': 'Elevated',
+      '--border-color': 'Borders',
+      '--text-primary': 'Text Primary',
+      '--text-secondary': 'Text Secondary',
+      '--text-muted': 'Text Muted',
+      '--fwg-primary': 'Primary Accent',
+      '--accent-green': 'Success / Green',
+      '--accent-red': 'Error / Red',
+      '--accent-blue': 'Info / Blue',
+      '--accent-purple': 'Purple',
+      '--accent-cyan': 'Cyan',
+      '--accent-pink': 'Pink'
+    };
+    
+    const colorEditorsHtml = colorVars.map(v => `
+      <div class="color-editor-item">
+        <div class="color-editor-swatch" style="background: ${currentColors[v]};">
+          <input type="color" value="${rgbToHex(currentColors[v])}" onchange="updateColor('${v}', this.value)">
+        </div>
+        <div class="color-editor-info">
+          <div class="color-editor-label">${colorLabels[v]}</div>
+          <div class="color-editor-var">${v}</div>
+        </div>
+        <input type="text" class="color-editor-hex" value="${rgbToHex(currentColors[v])}" onchange="updateColor('${v}', this.value)">
+      </div>
+    `).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path></svg>
+            Theme Presets
+          </div>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Click a preset to instantly apply it. Your customizations will be saved.
+          </p>
+          <div class="theme-presets">
+            ${presetsHtml}
+          </div>
+        </div>
+      </div>
+      
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+            Custom Colors
+          </div>
+          <button class="btn btn-secondary" onclick="resetToDefault()" style="font-size:12px;padding:6px 12px;">Reset to Default</button>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Fine-tune individual colors. Changes apply immediately.
+          </p>
+          <div class="color-editor-grid">
+            ${colorEditorsHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Apply theme preset
+   */
+  function applyPreset(presetKey) {
+    const preset = THEME_PRESETS[presetKey];
+    if (!preset) return;
+    
+    Object.entries(preset.colors).forEach(([varName, value]) => {
+      document.documentElement.style.setProperty(varName, value);
+    });
+    
+    showToast('Theme applied: ' + preset.name, 'success');
+    
+    // Re-render to update color pickers
+    setTimeout(() => renderSettings(), 100);
+    
+    // TODO: Save to HELPERS sheet
+  }
+  
+  /**
+   * Update individual color
+   */
+  function updateColor(varName, value) {
+    // Ensure hex format
+    if (!value.startsWith('#')) {
+      value = '#' + value;
+    }
+    
+    document.documentElement.style.setProperty(varName, value);
+    
+    // Re-render to update other inputs
+    setTimeout(() => renderSettings(), 100);
+    
+    // TODO: Save to HELPERS sheet
+  }
+  
+  // =========================================================================
+  // TASK SYSTEM TABS
+  // =========================================================================
+  
+  /**
+   * Render Task Statuses tab
+   */
+  function renderTaskStatusesTab() {
+    const statuses = window.taskSystemConfig?.taskStatuses || [];
+    
+    const itemsHtml = statuses.map(s => `
+      <div class="settings-list-item">
+        <div class="settings-list-item-main">
+          <div class="settings-list-item-color" style="background: ${s.color || '#64748b'};"></div>
+          <div class="settings-list-item-info">
+            <div class="settings-list-item-name">${s.label}</div>
+            <div class="settings-list-item-meta">${s.status_key}${s.is_complete ? ' • Marks as complete' : ''}</div>
+          </div>
+        </div>
+        <div class="settings-list-item-actions">
+          <button class="btn-icon" onclick="editTaskStatus('${s.status_key}')" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="btn-icon btn-icon-danger" onclick="confirmDeleteTaskStatus('${s.status_key}')" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            Task Statuses
+          </div>
+          <button class="btn btn-primary" onclick="showAddTaskStatusModal()" style="font-size:12px;padding:6px 12px;">+ Add Status</button>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Define the statuses that tasks can move through. Mark which statuses indicate completion.
+          </p>
+          <div class="settings-item-list">
+            ${itemsHtml || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No task statuses yet</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Render Priorities tab
+   */
+  function renderPrioritiesTab() {
+    const priorities = window.taskSystemConfig?.taskPriorities || [];
+    
+    const itemsHtml = priorities.map(p => `
+      <div class="settings-list-item">
+        <div class="settings-list-item-main">
+          <div class="settings-list-item-color" style="background: ${p.color || '#64748b'};"></div>
+          <div class="settings-list-item-info">
+            <div class="settings-list-item-name">${p.label}</div>
+            <div class="settings-list-item-meta">${p.priority_key} • Sort: ${p.sort_order}</div>
+          </div>
+        </div>
+        <div class="settings-list-item-actions">
+          <button class="btn-icon" onclick="editTaskPriority('${p.priority_key}')" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="btn-icon btn-icon-danger" onclick="confirmDeleteTaskPriority('${p.priority_key}')" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+            Task Priorities
+          </div>
+          <button class="btn btn-primary" onclick="showAddTaskPriorityModal()" style="font-size:12px;padding:6px 12px;">+ Add Priority</button>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Define urgency levels for tasks. Higher sort order = higher priority display.
+          </p>
+          <div class="settings-item-list">
+            ${itemsHtml || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No priorities yet</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Render Workflows (Project Templates) tab
+   */
+  function renderWorkflowsTab() {
+    const templates = window.taskSystemConfig?.projectTemplates || [];
+    const categories = window.settingsData?.categories || [];
+    
+    const itemsHtml = templates.map(t => {
+      const category = categories.find(c => c.key === t.category_key);
+      const taskCount = t.tasks?.length || 0;
+      
+      return `
+        <div class="settings-list-item workflow-item">
+          <div class="settings-list-item-main" onclick="toggleWorkflowExpand('${t.template_key}')" style="cursor:pointer;">
+            <div class="settings-list-item-color" style="background: ${category?.color || '#64748b'};"></div>
+            <div class="settings-list-item-info">
+              <div class="settings-list-item-name">${t.label}</div>
+              <div class="settings-list-item-meta">${t.category_key} • ${taskCount} tasks</div>
+            </div>
+            <svg class="workflow-expand-icon" id="workflow-icon-${t.template_key}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+          <div class="settings-list-item-actions">
+            <button class="btn-icon" onclick="event.stopPropagation();editWorkflow('${t.template_key}')" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+            <button class="btn-icon btn-icon-danger" onclick="event.stopPropagation();confirmDeleteWorkflow('${t.template_key}')" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          </div>
+        </div>
+        <div class="workflow-tasks-container" id="workflow-tasks-${t.template_key}" style="display:none;margin-left:32px;border-left:2px solid var(--border-color);padding-left:12px;">
+          ${renderWorkflowTasks(t)}
+        </div>
+      `;
+    }).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Project Workflows
+          </div>
+          <button class="btn btn-primary" onclick="showAddWorkflowModal()" style="font-size:12px;padding:6px 12px;">+ Add Workflow</button>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Define task sequences for each project category. Click a workflow to expand and manage its tasks.
+          </p>
+          <div class="settings-item-list">
+            ${itemsHtml || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No workflows yet</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Render tasks within a workflow
+   */
+  function renderWorkflowTasks(template) {
+    const tasks = template.tasks || [];
+    const priorities = window.taskSystemConfig?.taskPriorities || [];
+    
+    if (tasks.length === 0) {
+      return `<div style="color:var(--text-muted);padding:8px 0;font-size:13px;">No tasks in this workflow</div>
+        <div style="padding-top:8px;">
+          <button class="btn btn-secondary" onclick="showAddWorkflowTaskModal('${template.template_key}')" style="font-size:12px;padding:4px 10px;">+ Add Task</button>
+        </div>`;
+    }
+    
+    return tasks.map((task, index) => {
+      const priority = priorities.find(p => p.priority_key === task.default_priority);
+      return `
+        <div class="workflow-task-item" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-color);">
+          <span style="color:var(--text-muted);font-size:12px;width:20px;">${index + 1}.</span>
+          <span style="flex:1;font-size:13px;">${task.label}</span>
+          <span class="badge" style="background:${priority?.color || '#64748b'}20;color:${priority?.color || '#64748b'};font-size:11px;">${priority?.label || task.default_priority}</span>
+          <button class="btn-icon" onclick="editWorkflowTask('${template.template_key}', '${task.task_key}')" title="Edit" style="width:24px;height:24px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="btn-icon btn-icon-danger" onclick="confirmDeleteWorkflowTask('${template.template_key}', '${task.task_key}')" title="Delete" style="width:24px;height:24px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      `;
+    }).join('') + `
+      <div style="padding-top:8px;">
+        <button class="btn btn-secondary" onclick="showAddWorkflowTaskModal('${template.template_key}')" style="font-size:12px;padding:4px 10px;">+ Add Task</button>
+      </div>
+    `;
+  }
+  
+  /**
+   * Toggle workflow expansion
+   */
+  function toggleWorkflowExpand(templateKey) {
+    const container = document.getElementById('workflow-tasks-' + templateKey);
+    const icon = document.getElementById('workflow-icon-' + templateKey);
+    
+    if (container.style.display === 'none') {
+      container.style.display = 'block';
+      icon.style.transform = 'rotate(180deg)';
+    } else {
+      container.style.display = 'none';
+      icon.style.transform = 'rotate(0deg)';
+    }
+  }
+  
+  /**
+   * Render Invoice Statuses tab
+   */
+  function renderInvoiceStatusesTab() {
+    const statuses = window.taskSystemConfig?.invoiceStatuses || [];
+    
+    const itemsHtml = statuses.map(s => `
+      <div class="settings-list-item">
+        <div class="settings-list-item-main">
+          <div class="settings-list-item-color" style="background: ${s.color || '#64748b'};"></div>
+          <div class="settings-list-item-info">
+            <div class="settings-list-item-name">${s.label}</div>
+            <div class="settings-list-item-meta">${s.status_key} • Sort: ${s.sort_order}</div>
+          </div>
+        </div>
+        <div class="settings-list-item-actions">
+          <button class="btn-icon" onclick="editInvoiceStatus('${s.status_key}')" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="btn-icon btn-icon-danger" onclick="confirmDeleteInvoiceStatus('${s.status_key}')" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            Invoice Statuses
+          </div>
+          <button class="btn btn-primary" onclick="showAddInvoiceStatusModal()" style="font-size:12px;padding:6px 12px;">+ Add Status</button>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Define the lifecycle statuses for invoices. These can be used in automations.
+          </p>
+          <div class="settings-item-list">
+            ${itemsHtml || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No invoice statuses yet</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Render Automations tab
+   */
+  function renderAutomationsTab() {
+    const automations = window.taskSystemConfig?.automations || [];
+    
+    const triggerLabels = {
+      'all_tasks_complete': 'When all tasks are complete',
+      'any_task_in_progress': 'When any task starts'
+    };
+    
+    const itemsHtml = automations.map(a => `
+      <div class="settings-list-item">
+        <div class="settings-list-item-main">
+          <div class="settings-list-item-info" style="flex:1;">
+            <div class="settings-list-item-name" style="display:flex;align-items:center;gap:8px;">
+              ${a.label}
+              <span class="badge ${a.active ? 'badge-success' : 'badge-secondary'}" style="font-size:10px;">${a.active ? 'Active' : 'Inactive'}</span>
+            </div>
+            <div class="settings-list-item-meta">${triggerLabels[a.trigger_type] || a.trigger_type} → Set ${a.target_field} to "${a.new_value}"</div>
+          </div>
+        </div>
+        <div class="settings-list-item-actions">
+          <button class="btn-icon" onclick="toggleAutomation('${a.automation_key}')" title="${a.active ? 'Disable' : 'Enable'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="${a.active ? 'M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10' : 'M5 12h14M12 5l7 7-7 7'}"></path></svg>
+          </button>
+          <button class="btn-icon" onclick="editAutomation('${a.automation_key}')" title="Edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="btn-icon btn-icon-danger" onclick="confirmDeleteAutomation('${a.automation_key}')" title="Delete">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+    
+    return `
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div class="settings-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            Automations
+          </div>
+          <button class="btn btn-primary" onclick="showAddAutomationModal()" style="font-size:12px;padding:6px 12px;">+ Add Automation</button>
+        </div>
+        <div class="settings-card-body">
+          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+            Automate status updates based on task completion. Toggle automations on/off as needed.
+          </p>
+          <div class="settings-item-list">
+            ${itemsHtml || '<div style="text-align:center;color:var(--text-muted);padding:20px;">No automations yet</div>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Reset to default theme
+   */
+  function resetToDefault() {
+    applyPreset('miami_vice');
+  }
+  
+  /**
+   * Convert RGB/hex to hex
+   */
+  function rgbToHex(color) {
+    if (!color) return '#000000';
+    
+    // Already hex
+    if (color.startsWith('#')) {
+      return color.length === 4 
+        ? '#' + color[1] + color[1] + color[2] + color[2] + color[3] + color[3]
+        : color;
+    }
+    
+    // RGB format
+    const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const r = parseInt(match[1]).toString(16).padStart(2, '0');
+      const g = parseInt(match[2]).toString(16).padStart(2, '0');
+      const b = parseInt(match[3]).toString(16).padStart(2, '0');
+      return '#' + r + g + b;
+    }
+    
+    return '#000000';
+  }
+  
+  // ========================================================================
+  // CATEGORY CRUD
+  // ========================================================================
+  
+  function openCategoryModal(existingKey) {
+    const isEdit = !!existingKey;
+    const cat = isEdit ? settingsData.categories.find(c => c.category_key === existingKey) : {};
+    const templates = settingsData.templates || [];
+    
+    const templateOptions = templates.map(t => 
+      `<option value="${t.template_key}" ${cat.line_template === t.template_key ? 'selected' : ''}>${t.template_key}</option>`
+    ).join('');
+    
+    const modalHtml = `
+      <div class="modal-backdrop" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <div class="modal-title">${isEdit ? 'Edit' : 'Add'} Category</div>
+            <button class="modal-close" onclick="closeModal()">×</button>
+          </div>
+          <div class="modal-body">
+            <form class="modal-form" onsubmit="saveCategory(event)">
+              <input type="hidden" id="cat-original-key" value="${existingKey || ''}">
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Category Key</label>
+                  <input type="text" class="modal-form-input" id="cat-key" value="${cat.category_key || ''}" 
+                         placeholder="e.g. FULL_WRAP" required ${isEdit ? 'readonly style="opacity:0.6"' : ''}>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Display Label</label>
+                  <input type="text" class="modal-form-input" id="cat-label" value="${cat.label || ''}" placeholder="e.g. Full Wrap" required>
+                </div>
+              </div>
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Calendar Color</label>
+                  <div class="modal-form-color">
+                    <input type="color" id="cat-color" value="${cat.calendar_color || '#3b82f6'}">
+                    <input type="text" class="modal-form-input" id="cat-color-hex" value="${cat.calendar_color || '#3b82f6'}" 
+                           onchange="document.getElementById('cat-color').value = this.value">
+                  </div>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Template</label>
+                  <select class="modal-form-select" id="cat-template">
+                    ${templateOptions}
+                  </select>
+                </div>
+              </div>
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Default Rate</label>
+                  <input type="number" class="modal-form-input" id="cat-rate" value="${cat.default_rate || 0}" min="0" step="0.01">
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sort Order</label>
+                  <input type="number" class="modal-form-input" id="cat-sort" value="${cat.sort_order || 10}" min="0">
+                </div>
+              </div>
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Has Packages?</label>
+                  <select class="modal-form-select" id="cat-has-packages">
+                    <option value="FALSE" ${cat.has_packages !== true && cat.has_packages !== 'TRUE' ? 'selected' : ''}>No</option>
+                    <option value="TRUE" ${cat.has_packages === true || cat.has_packages === 'TRUE' ? 'selected' : ''}>Yes</option>
+                  </select>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Active</label>
+                  <select class="modal-form-select" id="cat-active">
+                    <option value="TRUE" ${cat.active !== false && cat.active !== 'FALSE' ? 'selected' : ''}>Yes</option>
+                    <option value="FALSE" ${cat.active === false || cat.active === 'FALSE' ? 'selected' : ''}>No</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">${isEdit ? 'Save Changes' : 'Add Category'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Sync color inputs
+    document.getElementById('cat-color').addEventListener('input', function() {
+      document.getElementById('cat-color-hex').value = this.value;
+    });
+  }
+  
+  function editCategory(key) {
+    openCategoryModal(key);
+  }
+  
+  function saveCategory(event) {
+    event.preventDefault();
+    
+    const categoryData = {
+      category_key: document.getElementById('cat-key').value.toUpperCase().replace(/\s+/g, '_'),
+      label: document.getElementById('cat-label').value,
+      calendar_color: document.getElementById('cat-color').value,
+      line_template: document.getElementById('cat-template').value,
+      default_rate: parseFloat(document.getElementById('cat-rate').value) || 0,
+      sort_order: parseInt(document.getElementById('cat-sort').value) || 10,
+      has_packages: document.getElementById('cat-has-packages').value,
+      active: document.getElementById('cat-active').value
+    };
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          closeModal();
+          showToast('Category saved!', 'success');
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        showToast('Error: ' + error, 'error');
+      })
+      .saveCategory(categoryData);
+  }
+  
+  function confirmDeleteCategory(key) {
+    if (!confirm('Delete category "' + key + '"? This cannot be undone.')) return;
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Category deleted', 'success');
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .deleteCategory(key);
+  }
+  
+  // ========================================================================
+  // PACKAGE CRUD
+  // ========================================================================
+  
+  function openPackageModal(categoryKey, existingKey) {
+    const isEdit = !!existingKey;
+    const pkg = isEdit ? settingsData.packages.find(p => p.package_key === existingKey) : { category_key: categoryKey };
+    const categories = settingsData.categories || [];
+    
+    const categoryOptions = categories.map(c => 
+      `<option value="${c.category_key}" ${pkg.category_key === c.category_key ? 'selected' : ''}>${c.label}</option>`
+    ).join('');
+    
+    const modalHtml = `
+      <div class="modal-backdrop" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <div class="modal-title">${isEdit ? 'Edit' : 'Add'} Package</div>
+            <button class="modal-close" onclick="closeModal()">×</button>
+          </div>
+          <div class="modal-body">
+            <form class="modal-form" onsubmit="savePackageForm(event)">
+              <input type="hidden" id="pkg-original-key" value="${existingKey || ''}">
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Package Key</label>
+                  <input type="text" class="modal-form-input" id="pkg-key" value="${pkg.package_key || ''}" 
+                         placeholder="e.g. PPF_PLUS" required ${isEdit ? 'readonly style="opacity:0.6"' : ''}>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Category</label>
+                  <select class="modal-form-select" id="pkg-category" required>
+                    ${categoryOptions}
+                  </select>
+                </div>
+              </div>
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Label</label>
+                  <input type="text" class="modal-form-input" id="pkg-label" value="${pkg.label || ''}" placeholder="e.g. PPF Plus" required>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Base Price</label>
+                  <input type="number" class="modal-form-input" id="pkg-price" value="${pkg.base_price || 0}" min="0" step="0.01" required>
+                </div>
+              </div>
+              
+              <div class="modal-form-group full-width">
+                <label class="modal-form-label">Description</label>
+                <input type="text" class="modal-form-input" id="pkg-desc" value="${pkg.description || ''}" placeholder="Brief description">
+              </div>
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sq Ft Estimate</label>
+                  <input type="number" class="modal-form-input" id="pkg-sqft" value="${pkg.sqft_estimate || ''}" min="0" placeholder="Optional">
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Rate per Sq Ft</label>
+                  <input type="number" class="modal-form-input" id="pkg-rate" value="${pkg.rate_per_sqft || ''}" min="0" step="0.01" placeholder="Optional">
+                </div>
+              </div>
+              
+              <div class="modal-form-group full-width">
+                <label class="modal-form-label">Coverage Areas (for PPF)</label>
+                <input type="text" class="modal-form-input" id="pkg-coverage" value="${pkg.coverage_areas || ''}" placeholder="e.g. Hood, Fenders, Bumper">
+              </div>
+              
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sort Order</label>
+                  <input type="number" class="modal-form-input" id="pkg-sort" value="${pkg.sort_order || 10}" min="0">
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Active</label>
+                  <select class="modal-form-select" id="pkg-active">
+                    <option value="TRUE" ${pkg.active !== false && pkg.active !== 'FALSE' ? 'selected' : ''}>Yes</option>
+                    <option value="FALSE" ${pkg.active === false || pkg.active === 'FALSE' ? 'selected' : ''}>No</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">${isEdit ? 'Save Changes' : 'Add Package'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  }
+  
+  function editPackage(key) {
+    openPackageModal(null, key);
+  }
+  
+  function savePackageForm(event) {
+    event.preventDefault();
+    
+    const packageData = {
+      package_key: document.getElementById('pkg-key').value.toUpperCase().replace(/\s+/g, '_'),
+      category_key: document.getElementById('pkg-category').value,
+      label: document.getElementById('pkg-label').value,
+      base_price: parseFloat(document.getElementById('pkg-price').value) || 0,
+      description: document.getElementById('pkg-desc').value,
+      sqft_estimate: parseFloat(document.getElementById('pkg-sqft').value) || '',
+      rate_per_sqft: parseFloat(document.getElementById('pkg-rate').value) || '',
+      coverage_areas: document.getElementById('pkg-coverage').value,
+      sort_order: parseInt(document.getElementById('pkg-sort').value) || 10,
+      active: document.getElementById('pkg-active').value
+    };
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          closeModal();
+          showToast('Package saved!', 'success');
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        showToast('Error: ' + error, 'error');
+      })
+      .savePackage(packageData);
+  }
+  
+  function confirmDeletePackage(key) {
+    if (!confirm('Delete package "' + key + '"? This cannot be undone.')) return;
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Package deleted', 'success');
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .deletePackage(key);
+  }
+  
+  // ========================================================================
+  // TEMPLATE EDITING (simplified - just view for now)
+  // ========================================================================
+  
+  function editTemplate(key) {
+    showToast('Template editing coming soon! Edit directly in Google Sheets for now.', 'info');
+  }
+  
+  // ========================================================================
+  // TASK SYSTEM MODALS & CRUD
+  // ========================================================================
+  
+  // ----- TASK STATUSES -----
+  
+  function showAddTaskStatusModal() {
+    showTaskStatusModal(null);
+  }
+  
+  function editTaskStatus(statusKey) {
+    const status = window.taskSystemConfig?.taskStatuses?.find(s => s.status_key === statusKey);
+    if (status) showTaskStatusModal(status);
+  }
+  
+  function showTaskStatusModal(existing) {
+    const isEdit = !!existing;
+    const title = isEdit ? 'Edit Task Status' : 'Add Task Status';
+    
+    const html = `
+      <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">${title}</div>
+            <button class="btn-icon" onclick="closeModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form">
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Status Key</label>
+                  <input type="text" class="modal-form-input" id="ts-key" value="${existing?.status_key || ''}" placeholder="e.g., IN_REVIEW" ${isEdit ? 'readonly style="opacity:0.6;"' : ''}>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Label</label>
+                  <input type="text" class="modal-form-input" id="ts-label" value="${existing?.label || ''}" placeholder="e.g., In Review">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Color</label>
+                  <div class="modal-form-color">
+                    <input type="color" id="ts-color" value="${existing?.color || '#64748b'}" onchange="document.getElementById('ts-color-hex').value=this.value">
+                    <input type="text" id="ts-color-hex" value="${existing?.color || '#64748b'}" onchange="document.getElementById('ts-color').value=this.value">
+                  </div>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sort Order</label>
+                  <input type="number" class="modal-form-input" id="ts-sort" value="${existing?.sort_order || 1}" min="1">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="ts-complete" ${existing?.is_complete ? 'checked' : ''}>
+                    Marks task as complete
+                  </label>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="ts-active" ${existing?.active !== false ? 'checked' : ''}>
+                    Active
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTaskStatusFromModal()">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  
+  function saveTaskStatusFromModal() {
+    const data = {
+      status_key: document.getElementById('ts-key').value.trim().toUpperCase().replace(/\s+/g, '_'),
+      label: document.getElementById('ts-label').value.trim(),
+      color: document.getElementById('ts-color').value,
+      sort_order: parseInt(document.getElementById('ts-sort').value) || 1,
+      is_complete: document.getElementById('ts-complete').checked,
+      active: document.getElementById('ts-active').checked
+    };
+    
+    if (!data.status_key || !data.label) {
+      showToast('Please fill in key and label', 'error');
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Task status saved!', 'success');
+          closeModal();
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err, 'error');
+      })
+      .saveTaskStatus(data);
+  }
+  
+  function confirmDeleteTaskStatus(statusKey) {
+    if (confirm('Delete task status "' + statusKey + '"? This cannot be undone.')) {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            showToast('Task status deleted', 'success');
+            loadSettings();
+          } else {
+            showToast('Error: ' + result.error, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err, 'error');
+        })
+        .deleteTaskStatus(statusKey);
+    }
+  }
+  
+  // ----- TASK PRIORITIES -----
+  
+  function showAddTaskPriorityModal() {
+    showTaskPriorityModal(null);
+  }
+  
+  function editTaskPriority(priorityKey) {
+    const priority = window.taskSystemConfig?.taskPriorities?.find(p => p.priority_key === priorityKey);
+    if (priority) showTaskPriorityModal(priority);
+  }
+  
+  function showTaskPriorityModal(existing) {
+    const isEdit = !!existing;
+    const title = isEdit ? 'Edit Priority' : 'Add Priority';
+    
+    const html = `
+      <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">${title}</div>
+            <button class="btn-icon" onclick="closeModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form">
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Priority Key</label>
+                  <input type="text" class="modal-form-input" id="tp-key" value="${existing?.priority_key || ''}" placeholder="e.g., CRITICAL" ${isEdit ? 'readonly style="opacity:0.6;"' : ''}>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Label</label>
+                  <input type="text" class="modal-form-input" id="tp-label" value="${existing?.label || ''}" placeholder="e.g., Critical">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Color</label>
+                  <div class="modal-form-color">
+                    <input type="color" id="tp-color" value="${existing?.color || '#64748b'}" onchange="document.getElementById('tp-color-hex').value=this.value">
+                    <input type="text" id="tp-color-hex" value="${existing?.color || '#64748b'}" onchange="document.getElementById('tp-color').value=this.value">
+                  </div>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sort Order</label>
+                  <input type="number" class="modal-form-input" id="tp-sort" value="${existing?.sort_order || 1}" min="1">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="tp-active" ${existing?.active !== false ? 'checked' : ''}>
+                    Active
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTaskPriorityFromModal()">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  
+  function saveTaskPriorityFromModal() {
+    const data = {
+      priority_key: document.getElementById('tp-key').value.trim().toUpperCase().replace(/\s+/g, '_'),
+      label: document.getElementById('tp-label').value.trim(),
+      color: document.getElementById('tp-color').value,
+      sort_order: parseInt(document.getElementById('tp-sort').value) || 1,
+      active: document.getElementById('tp-active').checked
+    };
+    
+    if (!data.priority_key || !data.label) {
+      showToast('Please fill in key and label', 'error');
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Priority saved!', 'success');
+          closeModal();
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err, 'error');
+      })
+      .saveTaskPriority(data);
+  }
+  
+  function confirmDeleteTaskPriority(priorityKey) {
+    if (confirm('Delete priority "' + priorityKey + '"? This cannot be undone.')) {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            showToast('Priority deleted', 'success');
+            loadSettings();
+          } else {
+            showToast('Error: ' + result.error, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err, 'error');
+        })
+        .deleteTaskPriority(priorityKey);
+    }
+  }
+  
+  // ----- WORKFLOWS (PROJECT TEMPLATES) -----
+  
+  function showAddWorkflowModal() {
+    showWorkflowModal(null);
+  }
+  
+  function editWorkflow(templateKey) {
+    const template = window.taskSystemConfig?.projectTemplates?.find(t => t.template_key === templateKey);
+    if (template) showWorkflowModal(template);
+  }
+  
+  function showWorkflowModal(existing) {
+    const isEdit = !!existing;
+    const title = isEdit ? 'Edit Workflow' : 'Add Workflow';
+    const categories = settingsData?.categories || [];
+    
+    const categoryOptions = categories.map(c => 
+      `<option value="${c.category_key}" ${existing?.category_key === c.category_key ? 'selected' : ''}>${c.label}</option>`
+    ).join('');
+    
+    const html = `
+      <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">${title}</div>
+            <button class="btn-icon" onclick="closeModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form">
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Template Key</label>
+                  <input type="text" class="modal-form-input" id="wf-key" value="${existing?.template_key || ''}" placeholder="e.g., CUSTOM_WORKFLOW" ${isEdit ? 'readonly style="opacity:0.6;"' : ''}>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Label</label>
+                  <input type="text" class="modal-form-input" id="wf-label" value="${existing?.label || ''}" placeholder="e.g., Custom Workflow">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Category</label>
+                  <select class="modal-form-select" id="wf-category">
+                    <option value="">-- Select Category --</option>
+                    ${categoryOptions}
+                  </select>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sort Order</label>
+                  <input type="number" class="modal-form-input" id="wf-sort" value="${existing?.sort_order || 1}" min="1">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group full-width">
+                  <label class="modal-form-label">Description</label>
+                  <input type="text" class="modal-form-input" id="wf-desc" value="${existing?.description || ''}" placeholder="Brief description">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="wf-active" ${existing?.active !== false ? 'checked' : ''}>
+                    Active
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveWorkflowFromModal()">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  
+  function saveWorkflowFromModal() {
+    const data = {
+      template_key: document.getElementById('wf-key').value.trim().toUpperCase().replace(/\s+/g, '_'),
+      label: document.getElementById('wf-label').value.trim(),
+      category_key: document.getElementById('wf-category').value,
+      description: document.getElementById('wf-desc').value.trim(),
+      sort_order: parseInt(document.getElementById('wf-sort').value) || 1,
+      active: document.getElementById('wf-active').checked
+    };
+    
+    if (!data.template_key || !data.label || !data.category_key) {
+      showToast('Please fill in key, label, and category', 'error');
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Workflow saved!', 'success');
+          closeModal();
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err, 'error');
+      })
+      .saveProjectTemplate(data);
+  }
+  
+  function confirmDeleteWorkflow(templateKey) {
+    if (confirm('Delete workflow "' + templateKey + '" and ALL its tasks? This cannot be undone.')) {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            showToast('Workflow deleted', 'success');
+            loadSettings();
+          } else {
+            showToast('Error: ' + result.error, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err, 'error');
+        })
+        .deleteProjectTemplate(templateKey);
+    }
+  }
+  
+  // ----- WORKFLOW TASKS -----
+  
+  function showAddWorkflowTaskModal(templateKey) {
+    showWorkflowTaskModal(templateKey, null);
+  }
+  
+  function editWorkflowTask(templateKey, taskKey) {
+    const template = window.taskSystemConfig?.projectTemplates?.find(t => t.template_key === templateKey);
+    const task = template?.tasks?.find(t => t.task_key === taskKey);
+    if (task) showWorkflowTaskModal(templateKey, task);
+  }
+  
+  function showWorkflowTaskModal(templateKey, existing) {
+    const isEdit = !!existing;
+    const title = isEdit ? 'Edit Task' : 'Add Task to Workflow';
+    const priorities = window.taskSystemConfig?.taskPriorities || [];
+    
+    const priorityOptions = priorities.map(p => 
+      `<option value="${p.priority_key}" ${existing?.default_priority === p.priority_key ? 'selected' : ''}>${p.label}</option>`
+    ).join('');
+    
+    const html = `
+      <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">${title}</div>
+            <button class="btn-icon" onclick="closeModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form">
+              <input type="hidden" id="wft-template" value="${templateKey}">
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Task Key</label>
+                  <input type="text" class="modal-form-input" id="wft-key" value="${existing?.task_key || ''}" placeholder="e.g., REVIEW_PROOF" ${isEdit ? 'readonly style="opacity:0.6;"' : ''}>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Label</label>
+                  <input type="text" class="modal-form-input" id="wft-label" value="${existing?.label || ''}" placeholder="e.g., Review Proof with Customer">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Default Priority</label>
+                  <select class="modal-form-select" id="wft-priority">
+                    ${priorityOptions}
+                  </select>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sort Order</label>
+                  <input type="number" class="modal-form-input" id="wft-sort" value="${existing?.sort_order || 1}" min="1">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="wft-active" ${existing?.active !== false ? 'checked' : ''}>
+                    Active
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveWorkflowTaskFromModal()">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  
+  function saveWorkflowTaskFromModal() {
+    const data = {
+      template_key: document.getElementById('wft-template').value,
+      task_key: document.getElementById('wft-key').value.trim().toUpperCase().replace(/\s+/g, '_'),
+      label: document.getElementById('wft-label').value.trim(),
+      default_priority: document.getElementById('wft-priority').value,
+      sort_order: parseInt(document.getElementById('wft-sort').value) || 1,
+      active: document.getElementById('wft-active').checked
+    };
+    
+    if (!data.task_key || !data.label) {
+      showToast('Please fill in key and label', 'error');
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Task saved!', 'success');
+          closeModal();
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err, 'error');
+      })
+      .saveTemplateTask(data);
+  }
+  
+  function confirmDeleteWorkflowTask(templateKey, taskKey) {
+    if (confirm('Delete task "' + taskKey + '"? This cannot be undone.')) {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            showToast('Task deleted', 'success');
+            loadSettings();
+          } else {
+            showToast('Error: ' + result.error, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err, 'error');
+        })
+        .deleteTemplateTask(templateKey, taskKey);
+    }
+  }
+  
+  // ----- INVOICE STATUSES -----
+  
+  function showAddInvoiceStatusModal() {
+    showInvoiceStatusModal(null);
+  }
+  
+  function editInvoiceStatus(statusKey) {
+    const status = window.taskSystemConfig?.invoiceStatuses?.find(s => s.status_key === statusKey);
+    if (status) showInvoiceStatusModal(status);
+  }
+  
+  function showInvoiceStatusModal(existing) {
+    const isEdit = !!existing;
+    const title = isEdit ? 'Edit Invoice Status' : 'Add Invoice Status';
+    
+    const html = `
+      <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">${title}</div>
+            <button class="btn-icon" onclick="closeModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form">
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Status Key</label>
+                  <input type="text" class="modal-form-input" id="is-key" value="${existing?.status_key || ''}" placeholder="e.g., AWAITING_APPROVAL" ${isEdit ? 'readonly style="opacity:0.6;"' : ''}>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Label</label>
+                  <input type="text" class="modal-form-input" id="is-label" value="${existing?.label || ''}" placeholder="e.g., Awaiting Approval">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Color</label>
+                  <div class="modal-form-color">
+                    <input type="color" id="is-color" value="${existing?.color || '#64748b'}" onchange="document.getElementById('is-color-hex').value=this.value">
+                    <input type="text" id="is-color-hex" value="${existing?.color || '#64748b'}" onchange="document.getElementById('is-color').value=this.value">
+                  </div>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Sort Order</label>
+                  <input type="number" class="modal-form-input" id="is-sort" value="${existing?.sort_order || 1}" min="1">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="is-active" ${existing?.active !== false ? 'checked' : ''}>
+                    Active
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveInvoiceStatusFromModal()">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  
+  function saveInvoiceStatusFromModal() {
+    const data = {
+      status_key: document.getElementById('is-key').value.trim().toUpperCase().replace(/\s+/g, '_'),
+      label: document.getElementById('is-label').value.trim(),
+      color: document.getElementById('is-color').value,
+      sort_order: parseInt(document.getElementById('is-sort').value) || 1,
+      active: document.getElementById('is-active').checked
+    };
+    
+    if (!data.status_key || !data.label) {
+      showToast('Please fill in key and label', 'error');
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Invoice status saved!', 'success');
+          closeModal();
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err, 'error');
+      })
+      .saveInvoiceStatus(data);
+  }
+  
+  function confirmDeleteInvoiceStatus(statusKey) {
+    if (confirm('Delete invoice status "' + statusKey + '"? This cannot be undone.')) {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            showToast('Invoice status deleted', 'success');
+            loadSettings();
+          } else {
+            showToast('Error: ' + result.error, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err, 'error');
+        })
+        .deleteInvoiceStatus(statusKey);
+    }
+  }
+  
+  // ----- AUTOMATIONS -----
+  
+  function showAddAutomationModal() {
+    showAutomationModal(null);
+  }
+  
+  function editAutomation(automationKey) {
+    const automation = window.taskSystemConfig?.automations?.find(a => a.automation_key === automationKey);
+    if (automation) showAutomationModal(automation);
+  }
+  
+  function showAutomationModal(existing) {
+    const isEdit = !!existing;
+    const title = isEdit ? 'Edit Automation' : 'Add Automation';
+    const invoiceStatuses = window.taskSystemConfig?.invoiceStatuses || [];
+    
+    const statusOptions = invoiceStatuses.map(s => 
+      `<option value="${s.label}" ${existing?.new_value === s.label ? 'selected' : ''}>${s.label}</option>`
+    ).join('');
+    
+    const html = `
+      <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">${title}</div>
+            <button class="btn-icon" onclick="closeModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form">
+              <div class="modal-form-row">
+                <div class="modal-form-group full-width">
+                  <label class="modal-form-label">Automation Key</label>
+                  <input type="text" class="modal-form-input" id="auto-key" value="${existing?.automation_key || ''}" placeholder="e.g., AUTO_MARK_READY" ${isEdit ? 'readonly style="opacity:0.6;"' : ''}>
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group full-width">
+                  <label class="modal-form-label">Label / Description</label>
+                  <input type="text" class="modal-form-input" id="auto-label" value="${existing?.label || ''}" placeholder="e.g., Mark invoice as Ready when all prep tasks done">
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Trigger</label>
+                  <select class="modal-form-select" id="auto-trigger">
+                    <option value="all_tasks_complete" ${existing?.trigger_type === 'all_tasks_complete' ? 'selected' : ''}>When all tasks are complete</option>
+                    <option value="any_task_in_progress" ${existing?.trigger_type === 'any_task_in_progress' ? 'selected' : ''}>When any task starts</option>
+                  </select>
+                </div>
+                <div class="modal-form-group">
+                  <label class="modal-form-label">Set Invoice Status To</label>
+                  <select class="modal-form-select" id="auto-value">
+                    ${statusOptions}
+                  </select>
+                </div>
+              </div>
+              <div class="modal-form-row">
+                <div class="modal-form-group">
+                  <label class="modal-form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="auto-active" ${existing?.active !== false ? 'checked' : ''}>
+                    Active
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveAutomationFromModal()">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+  }
+  
+  function saveAutomationFromModal() {
+    const data = {
+      automation_key: document.getElementById('auto-key').value.trim().toUpperCase().replace(/\s+/g, '_'),
+      label: document.getElementById('auto-label').value.trim(),
+      trigger_type: document.getElementById('auto-trigger').value,
+      trigger_value: '',
+      target_field: 'invoice_status',
+      new_value: document.getElementById('auto-value').value,
+      active: document.getElementById('auto-active').checked
+    };
+    
+    if (!data.automation_key || !data.label) {
+      showToast('Please fill in key and label', 'error');
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Automation saved!', 'success');
+          closeModal();
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err, 'error');
+      })
+      .saveAutomation(data);
+  }
+  
+  function toggleAutomation(automationKey) {
+    const automation = window.taskSystemConfig?.automations?.find(a => a.automation_key === automationKey);
+    if (!automation) return;
+    
+    const data = { ...automation, active: !automation.active };
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showToast('Automation ' + (data.active ? 'enabled' : 'disabled'), 'success');
+          loadSettings();
+        } else {
+          showToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err, 'error');
+      })
+      .saveAutomation(data);
+  }
+  
+  function confirmDeleteAutomation(automationKey) {
+    if (confirm('Delete automation "' + automationKey + '"? This cannot be undone.')) {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.ok) {
+            showToast('Automation deleted', 'success');
+            loadSettings();
+          } else {
+            showToast('Error: ' + result.error, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err, 'error');
+        })
+        .deleteAutomation(automationKey);
+    }
+  }
+  
+  // ========================================================================
+  // UTILITIES
+  // ========================================================================
+  
+  function closeModal() {
+    const modal = document.querySelector('.modal-backdrop');
+    if (modal) modal.remove();
+  }
+  
+  function showToast(message, type = 'info') {
+    // Remove existing toasts
+    document.querySelectorAll('.toast').forEach(t => t.remove());
+    
+    const icons = {
+      success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;color:var(--accent-green);"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+      error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;color:var(--accent-red);"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+      info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;color:var(--accent-blue);"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.innerHTML = icons[type] + '<span>' + message + '</span>';
+    document.body.appendChild(toast);
+    
+    setTimeout(() => toast.remove(), 4000);
+  }
+  
+  // Initialize
+  loadSettings();
+</script>

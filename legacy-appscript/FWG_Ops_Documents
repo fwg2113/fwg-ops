@@ -1,0 +1,2204 @@
+/**
+ * ============================================================================
+ * FWG OPERATIONS - FWG_Ops_Documents.gs
+ * Frederick Wraps & Graphics - Unified Document Management
+ * ============================================================================
+ * 
+ * This file handles ALL document operations (quotes AND invoices).
+ * Documents are distinguished by doc_type field, not separate tables.
+ * 
+ * Sheet: Documents
+ * Columns: doc_id, doc_type, status, created_at, updated_at, submission_id,
+ *          customer_name, customer_email, customer_phone, company_name, customer_id,
+ *          vehicle_description, project_description, subtotal, discount_amount,
+ *          discount_percent, discount_note, tax_amount, total, deposit_required,
+ *          deposit_paid, amount_paid, balance_due, valid_until, sent_at, viewed_at,
+ *          approved_at, paid_at, due_date, payment_method, payment_processor,
+ *          event_id, project_files_json, notes
+ * 
+ * Sheet: DocumentLineItems
+ * Columns: line_id, doc_id, sort_order, description, category, quantity,
+ *          unit_price, line_total, notes, attachments_json, custom_fields_json
+ * 
+ * ============================================================================
+ */
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const DOC_TYPE = {
+  QUOTE: 'quote',
+  INVOICE: 'invoice'
+};
+
+/**
+ * Sanitize objects for JSON (handles Dates, etc.)
+ */
+function sanitizeForJson(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj.toISOString();
+  if (Array.isArray(obj)) return obj.map(sanitizeForJson);
+  if (typeof obj === 'object') {
+    const clean = {};
+    for (const key in obj) {
+      clean[key] = sanitizeForJson(obj[key]);
+    }
+    return clean;
+  }
+  return obj;
+}
+
+const DOC_STATUS = {
+  // Quote statuses
+  DRAFT: 'Draft',
+  SENT: 'Sent',
+  VIEWED: 'Viewed',
+  APPROVED: 'Approved',
+  DECLINED: 'Declined',
+  EXPIRED: 'Expired',
+  // Invoice statuses (some shared)
+  PARTIAL: 'Partial',
+  PAID: 'Paid',
+  OVERDUE: 'Overdue',
+  VOID: 'Void'
+};
+
+// Valid statuses by document type
+const QUOTE_STATUSES = ['Draft', 'Sent', 'Viewed', 'Approved', 'Declined', 'Expired'];
+const INVOICE_STATUSES = ['Draft', 'Sent', 'Viewed', 'Partial', 'Paid', 'Overdue', 'Void'];
+
+// Bucket constants
+const BUCKET = {
+  READY_FOR_ACTION: 'READY_FOR_ACTION',
+  WAITING_ON_CUSTOMER: 'WAITING_ON_CUSTOMER',
+  COLD: 'COLD',
+  ARCHIVE_WON: 'ARCHIVE_WON',
+  ARCHIVE_LOST: 'ARCHIVE_LOST'
+};
+
+const ACTIVE_BUCKETS = [BUCKET.READY_FOR_ACTION, BUCKET.WAITING_ON_CUSTOMER, BUCKET.COLD];
+const ARCHIVE_BUCKETS = [BUCKET.ARCHIVE_WON, BUCKET.ARCHIVE_LOST];
+
+// ============================================================================
+// ID GENERATION
+// ============================================================================
+
+/**
+ * Generate next document ID (1001, 1002, etc.)
+ */
+function generateDocId() {
+  const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+  const sheet = ss.getSheetByName('HELPERS');
+  const data = sheet.getDataRange().getValues();
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === 'DOC_COUNTER') {
+      const currentVal = parseInt(data[i][1]) || 1000;
+      const newVal = currentVal + 1;
+      sheet.getRange(i + 1, 2).setValue(newVal);
+      return newVal.toString();
+    }
+  }
+  
+  // If counter doesn't exist, create it
+  sheet.appendRow(['DOC_COUNTER', 1001]);
+  return '1001';
+}
+
+/**
+ * Generate line item ID (docId-1, docId-2, etc.)
+ */
+function generateLineItemId(docId, existingItems) {
+  const maxIndex = existingItems.reduce((max, item) => {
+    const parts = String(item.line_id).split('-');
+    const idx = parseInt(parts[parts.length - 1]) || 0;
+    return Math.max(max, idx);
+  }, 0);
+  return `${docId}-${maxIndex + 1}`;
+}
+
+// ============================================================================
+// DOCUMENT CRUD
+// ============================================================================
+
+/**
+ * Get all documents with optional filtering
+ * @param {Object} filters - { doc_type, status, customer_name, unpaid }
+ */
+function getDocuments(filters) {
+  try {
+    let documents = sheetToObjects('Documents');
+    
+    if (filters) {
+      // Accept both docType (camelCase) and doc_type (snake_case)
+      const docTypeFilter = filters.docType || filters.doc_type;
+      if (docTypeFilter) {
+        documents = documents.filter(d => d.doc_type === docTypeFilter);
+      }
+      if (filters.status) {
+        documents = documents.filter(d => d.status === filters.status);
+      }
+      if (filters.customer_name) {
+        const search = filters.customer_name.toLowerCase();
+        documents = documents.filter(d => 
+          (d.customer_name || '').toLowerCase().includes(search)
+        );
+      }
+      if (filters.unpaid) {
+        documents = documents.filter(d => 
+          d.doc_type === DOC_TYPE.INVOICE &&
+          d.status !== DOC_STATUS.PAID &&
+          d.status !== DOC_STATUS.VOID
+        );
+      }
+      if (filters.submission_id) {
+        documents = documents.filter(d => d.submission_id === filters.submission_id);
+      }
+      if (filters.bucket) {
+        documents = documents.filter(d => d.bucket === filters.bucket);
+      }
+      if (filters.active_only) {
+        // Only show documents in active buckets (not archived)
+        documents = documents.filter(d => 
+          !d.bucket || ACTIVE_BUCKETS.includes(d.bucket)
+        );
+      }
+      if (filters.archived_only) {
+        documents = documents.filter(d => ARCHIVE_BUCKETS.includes(d.bucket));
+      }
+    }
+    
+    // Sort by created_at descending (newest first)
+    documents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    return { ok: true, documents: sanitizeForJson(documents) };
+    
+  } catch (error) {
+    Logger.log('getDocuments error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get quotes only (convenience wrapper)
+ */
+function getQuotes(filters) {
+  return getDocuments({ ...filters, doc_type: DOC_TYPE.QUOTE });
+}
+
+/**
+ * Get invoices only (convenience wrapper)
+ */
+function getInvoices(filters) {
+  return getDocuments({ ...filters, doc_type: DOC_TYPE.INVOICE });
+}
+
+/**
+ * Get a single document by ID with line items
+ */
+function getDocumentById(docId) {
+  try {
+    const documents = sheetToObjects('Documents');
+    const doc = documents.find(d => String(d.doc_id) === String(docId));
+    
+    if (!doc) {
+      return { ok: false, error: 'Document not found: ' + docId };
+    }
+    
+    // Parse project_files_json
+    if (doc.project_files_json) {
+      try {
+        const parsed = JSON.parse(doc.project_files_json);
+        doc.project_files = Array.isArray(parsed) ? parsed : 
+                           (parsed.files ? parsed.files : []);
+      } catch (e) {
+        doc.project_files = [];
+      }
+    } else {
+      doc.project_files = [];
+    }
+    
+    // Get line items
+    const lineItemsResult = getDocumentLineItems(docId);
+    doc.line_items = lineItemsResult.ok ? lineItemsResult.lineItems : [];
+    
+    // Get payments if invoice
+    if (doc.doc_type === DOC_TYPE.INVOICE) {
+      const paymentsResult = getDocumentPayments(docId);
+      doc.payments = paymentsResult.ok ? paymentsResult.payments : [];
+    }
+    
+    return { ok: true, document: sanitizeForJson(doc) };
+    
+  } catch (error) {
+    Logger.log('getDocumentById error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create a new document (quote or invoice)
+ */
+function createDocument(data) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('Documents');
+    
+    const docId = generateDocId();
+    const now = new Date().toISOString();
+    const docType = data.doc_type || DOC_TYPE.QUOTE;
+    
+    // If creating from a submission, fetch and merge submission data
+    let submissionData = null;
+    if (data.submission_id) {
+      try {
+        const subResult = getSubmissionById(data.submission_id);
+        if (subResult.ok) {
+          submissionData = subResult.submission;
+          Logger.log('Found submission: ' + submissionData.submission_id);
+        }
+      } catch (e) {
+        Logger.log('Warning: Could not fetch submission: ' + e.toString());
+      }
+    }
+    
+    // Merge submission data with any overrides (data takes precedence)
+    const mergedData = submissionData ? { ...submissionData, ...data } : data;
+    
+    // Build vehicle description from submission if not provided
+    let vehicleDescription = data.vehicle_description || '';
+    if (!vehicleDescription && submissionData) {
+      const parts = [
+        submissionData.vehicle_year,
+        submissionData.vehicle_make,
+        submissionData.vehicle_model
+      ].filter(Boolean);
+      if (parts.length > 0) {
+        vehicleDescription = parts.join(' ');
+      } else if (submissionData.vehicle_category) {
+        vehicleDescription = formatVehicleCategoryLabel(submissionData.vehicle_category);
+      }
+      if (Number(submissionData.vehicle_count) > 1) {
+        vehicleDescription += ' (x' + submissionData.vehicle_count + ')';
+      }
+    }
+    
+    // Build project description from submission if not provided
+    let projectDescription = data.project_description || '';
+    if (!projectDescription && submissionData) {
+      projectDescription = formatProjectTypeLabel(submissionData.project_type);
+      if (submissionData.design_scenario) {
+        projectDescription += ' - ' + formatDesignScenarioLabel(submissionData.design_scenario);
+      }
+    }
+    
+    // Calculate totals
+    const subtotal = Number(data.subtotal) || 0;
+    const discountAmount = Number(data.discount_amount) || 0;
+    const discountPercent = Number(data.discount_percent) || 0;
+    const taxAmount = Number(data.tax_amount) || 0;
+    const total = subtotal - discountAmount + taxAmount;
+    const depositRequired = Number(data.deposit_required) || 0;
+    const depositPaid = Number(data.deposit_paid) || 0;
+    const amountPaid = Number(data.amount_paid) || depositPaid;
+    const balanceDue = total - amountPaid;
+    
+    // Default valid_until for quotes (30 days)
+    let validUntil = data.valid_until || '';
+    if (docType === DOC_TYPE.QUOTE && !validUntil) {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 30);
+      validUntil = futureDate.toISOString().split('T')[0];
+    }
+    
+    // Default due_date for invoices (30 days)
+    let dueDate = data.due_date || '';
+    if (docType === DOC_TYPE.INVOICE && !dueDate) {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 30);
+      dueDate = futureDate.toISOString().split('T')[0];
+    }
+    
+    // Handle project files from submission
+    let projectFilesJson = '';
+    if (data.project_files_json) {
+      projectFilesJson = typeof data.project_files_json === 'string' 
+        ? data.project_files_json 
+        : JSON.stringify(data.project_files_json);
+    } else if (data.project_files && Array.isArray(data.project_files)) {
+      projectFilesJson = JSON.stringify(data.project_files);
+    }
+    
+    const rowData = [
+      docId,                                    // doc_id
+      docType,                                  // doc_type
+      data.status || DOC_STATUS.DRAFT,          // status
+      now,                                      // created_at
+      now,                                      // updated_at
+      data.submission_id || '',                 // submission_id
+      mergedData.customer_name || '',           // customer_name
+      mergedData.customer_email || '',          // customer_email
+      mergedData.customer_phone || '',          // customer_phone
+      mergedData.company_name || '',            // company_name
+      data.customer_id || '',                   // customer_id
+      vehicleDescription,                       // vehicle_description
+      projectDescription,                       // project_description
+      subtotal,                                 // subtotal
+      discountAmount,                           // discount_amount
+      discountPercent,                          // discount_percent
+      data.discount_note || '',                 // discount_note
+      taxAmount,                                // tax_amount
+      total,                                    // total
+      depositRequired,                          // deposit_required
+      depositPaid,                              // deposit_paid
+      amountPaid,                               // amount_paid
+      balanceDue,                               // balance_due
+      validUntil,                               // valid_until
+      '',                                       // sent_at
+      '',                                       // viewed_at
+      '',                                       // approved_at
+      '',                                       // paid_at
+      dueDate,                                  // due_date
+      '',                                       // payment_method
+      '',                                       // payment_processor
+      data.event_id || '',                      // event_id
+      projectFilesJson,                         // project_files_json
+      mergedData.vision_description || mergedData.notes || data.notes || '',  // notes
+      '',                                       // send_options_json
+      '',                                       // revision_history_json
+      BUCKET.READY_FOR_ACTION,                  // bucket (default to Ready for Action)
+      '',                                       // last_followup_at
+      0,                                        // followup_count
+      '',                                       // archive_reason
+      ''                                        // declined_at
+    ];
+    
+    sheet.appendRow(rowData);
+    Logger.log('✓ Document created: ' + docId + ' (' + docType + ')');
+    
+    // Add line items if provided
+    if (data.line_items && data.line_items.length > 0) {
+      saveDocumentLineItems(docId, data.line_items);
+    }
+    
+    // If created from submission, update submission status and link doc_id
+    if (data.submission_id && docType === DOC_TYPE.QUOTE) {
+      try {
+        updateSubmissionField(data.submission_id, 'status', 'Quoted');
+        updateSubmissionField(data.submission_id, 'quote_id', String(docId));
+        Logger.log('✓ Updated submission ' + data.submission_id + ' -> Quoted, linked to doc ' + docId);
+      } catch (e) {
+        Logger.log('Warning: Could not update submission: ' + e.toString());
+      }
+    }
+    
+    return {
+      ok: true,
+      doc_id: docId,
+      doc_type: docType,
+      message: (docType === DOC_TYPE.QUOTE ? 'Quote' : 'Invoice') + ' #' + docId + ' created'
+    };
+    
+  } catch (error) {
+    Logger.log('createDocument error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Update document fields
+ */
+function updateDocument(docId, updates) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('Documents');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // Find the document row
+    const docIdCol = headers.indexOf('doc_id');
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][docIdCol]) === String(docId)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { ok: false, error: 'Document not found: ' + docId };
+    }
+    
+    // Always update updated_at
+    updates.updated_at = new Date().toISOString();
+    
+    // Extract line_items before processing (not a column in Documents)
+    const lineItems = updates.line_items;
+    delete updates.line_items;
+    
+    // Recalculate balance_due if total is being updated
+    if (updates.total !== undefined) {
+      // Get current amount_paid from sheet
+      const amountPaidCol = headers.indexOf('amount_paid');
+      const currentAmountPaid = amountPaidCol !== -1 ? Number(data[rowIndex - 1][amountPaidCol]) || 0 : 0;
+      updates.balance_due = updates.total - currentAmountPaid;
+    }
+    
+    // Update each field in Documents sheet
+    for (const field in updates) {
+      const colIndex = headers.indexOf(field);
+      if (colIndex !== -1) {
+        let value = updates[field];
+        // Handle JSON fields
+        if (field === 'project_files_json' && typeof value !== 'string') {
+          value = JSON.stringify(value);
+        }
+        sheet.getRange(rowIndex, colIndex + 1).setValue(value);
+      }
+    }
+    
+    // Update line items if provided
+    if (lineItems && Array.isArray(lineItems)) {
+      updateDocumentLineItems(docId, lineItems);
+    }
+    
+    Logger.log('✓ Document updated: ' + docId);
+    return { ok: true, doc_id: docId };
+    
+  } catch (error) {
+    Logger.log('updateDocument error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Update line items for a document (delete existing, insert new)
+ */
+function updateDocumentLineItems(docId, lineItems) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('DocumentLineItems');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const docIdCol = headers.indexOf('doc_id');
+    
+    // Build column map
+    const colMap = {};
+    headers.forEach((h, i) => colMap[h] = i);
+    
+    // Delete existing line items for this document (from bottom to top to preserve indices)
+    const rowsToDelete = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][docIdCol]) === String(docId)) {
+        rowsToDelete.push(i + 1);
+      }
+    }
+    
+    // Delete from bottom to top
+    for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+      sheet.deleteRow(rowsToDelete[i]);
+    }
+    
+    // Insert new line items using header-based mapping
+    lineItems.forEach((item, index) => {
+      const lineId = item.line_id && !item.line_id.startsWith('new-') 
+        ? item.line_id 
+        : docId + '-' + (index + 1);
+      
+      // Build row based on headers
+      const newRow = headers.map(header => {
+        switch(header) {
+          case 'line_id': return lineId;
+          case 'doc_id': return docId;
+          case 'sort_order': return index + 1;
+          case 'description': return item.description || '';
+          case 'category': return item.category || 'Other';
+          case 'line_type': return item.line_type || '';
+          case 'package_key': return item.package_key || '';
+          case 'quantity': return Number(item.quantity) || 1;
+          case 'unit_price': return Number(item.unit_price) || 0;
+          case 'line_total': return Number(item.line_total) || (Number(item.quantity) || 1) * (Number(item.unit_price) || 0);
+          case 'notes': return item.notes || '';
+          case 'attachments_json': return item.attachments_json || '[]';
+          case 'custom_fields_json': return item.custom_fields_json || '';
+          default: return '';
+        }
+      });
+      
+      sheet.appendRow(newRow);
+    });
+    
+    Logger.log('Updated ' + lineItems.length + ' line items for doc ' + docId);
+    
+  } catch (error) {
+    Logger.log('updateDocumentLineItems error: ' + error.toString());
+  }
+}
+
+/**
+ * Delete a document and its line items
+ */
+function deleteDocument(docId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    
+    // Delete line items first
+    const lineSheet = ss.getSheetByName('DocumentLineItems');
+    const lineData = lineSheet.getDataRange().getValues();
+    const lineDocIdCol = lineData[0].indexOf('doc_id');
+    
+    for (let i = lineData.length - 1; i >= 1; i--) {
+      if (String(lineData[i][lineDocIdCol]) === String(docId)) {
+        lineSheet.deleteRow(i + 1);
+      }
+    }
+    
+    // Delete the document
+    const docSheet = ss.getSheetByName('Documents');
+    const docData = docSheet.getDataRange().getValues();
+    const docIdCol = docData[0].indexOf('doc_id');
+    
+    for (let i = 1; i < docData.length; i++) {
+      if (String(docData[i][docIdCol]) === String(docId)) {
+        docSheet.deleteRow(i + 1);
+        Logger.log('✓ Document deleted: ' + docId);
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Document not found: ' + docId };
+    
+  } catch (error) {
+    Logger.log('deleteDocument error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// QUOTE → INVOICE CONVERSION
+// ============================================================================
+
+/**
+ * Convert a quote to an invoice (just changes doc_type and status)
+ */
+function convertToInvoice(docId) {
+  try {
+    // Get current document
+    const result = getDocumentById(docId);
+    if (!result.ok) {
+      return result;
+    }
+    
+    const doc = result.document;
+    
+    if (doc.doc_type !== DOC_TYPE.QUOTE) {
+      return { ok: false, error: 'Document is already an invoice' };
+    }
+    
+    if (doc.status === DOC_STATUS.DECLINED || doc.status === DOC_STATUS.EXPIRED) {
+      return { ok: false, error: 'Cannot convert a declined or expired quote' };
+    }
+    
+    // Calculate due date (30 days from now)
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    
+    // Update the document
+    const updates = {
+      doc_type: DOC_TYPE.INVOICE,
+      status: DOC_STATUS.DRAFT,
+      due_date: dueDate.toISOString().split('T')[0],
+      // Move deposit_paid to amount_paid if not already
+      amount_paid: Number(doc.amount_paid) || Number(doc.deposit_paid) || 0
+    };
+    
+    // Recalculate balance
+    updates.balance_due = Number(doc.total) - updates.amount_paid;
+    
+    const updateResult = updateDocument(docId, updates);
+    
+    if (updateResult.ok) {
+      Logger.log('✓ Quote #' + docId + ' converted to Invoice');
+      return { 
+        ok: true, 
+        doc_id: docId,
+        message: 'Quote #' + docId + ' converted to Invoice #' + docId
+      };
+    }
+    
+    return updateResult;
+    
+  } catch (error) {
+    Logger.log('convertToInvoice error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// LINE ITEMS
+// ============================================================================
+
+/**
+ * Get line items for a document
+ */
+function getDocumentLineItems(docId) {
+  try {
+    const allLineItems = sheetToObjects('DocumentLineItems');
+    const lineItems = allLineItems
+      .filter(li => String(li.doc_id) === String(docId))
+      .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    
+    // Parse attachments and custom fields
+    lineItems.forEach(li => {
+      // Parse attachments_json
+      li.attachments = [];
+      if (li.attachments_json) {
+        try {
+          const parsed = JSON.parse(li.attachments_json);
+          if (Array.isArray(parsed)) {
+            li.attachments = parsed;
+          } else if (parsed && Array.isArray(parsed.attachments)) {
+            li.attachments = parsed.attachments;
+          }
+        } catch (e) {
+          Logger.log('Error parsing attachments_json: ' + e.toString());
+        }
+      }
+      
+      // Parse custom_fields_json and merge into line item
+      if (li.custom_fields_json) {
+        try {
+          const customFields = JSON.parse(li.custom_fields_json);
+          Object.assign(li, customFields);
+        } catch (e) {
+          Logger.log('Error parsing custom_fields_json: ' + e.toString());
+        }
+      }
+    });
+    
+    return { ok: true, lineItems: sanitizeForJson(lineItems) };
+    
+  } catch (error) {
+    Logger.log('getDocumentLineItems error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Save all line items for a document (replaces existing)
+ */
+function saveDocumentLineItems(docId, lineItems) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('DocumentLineItems');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const docIdCol = headers.indexOf('doc_id');
+    
+    // Delete existing line items for this document (in reverse order)
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][docIdCol]) === String(docId)) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+    
+    // Canonical fields that should NOT go into custom_fields_json
+    const canonicalFields = [
+      'line_id', 'doc_id', 'sort_order', 'description', 'category',
+      'quantity', 'unit_price', 'line_total', 'notes', 
+      'attachments_json', 'attachments', 'custom_fields_json'
+    ];
+    
+    // Add new line items
+    lineItems.forEach((item, index) => {
+      const lineId = item.line_id || `${docId}-${index + 1}`;
+      const qty = Number(item.quantity) || 1;
+      const unitPrice = Number(item.unit_price) || 0;
+      const lineTotal = qty * unitPrice;
+      
+      // Handle attachments
+      let attachmentsJson = '';
+      if (item.attachments_json) {
+        attachmentsJson = typeof item.attachments_json === 'string' 
+          ? item.attachments_json 
+          : JSON.stringify(item.attachments_json);
+      } else if (item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0) {
+        attachmentsJson = JSON.stringify(item.attachments);
+      }
+      
+      // Collect custom fields
+      const customFields = {};
+      for (const key in item) {
+        if (!canonicalFields.includes(key) && 
+            item[key] !== '' && 
+            item[key] !== null && 
+            item[key] !== undefined) {
+          customFields[key] = item[key];
+        }
+      }
+      const customFieldsJson = Object.keys(customFields).length > 0 
+        ? JSON.stringify(customFields) 
+        : '';
+      
+      const rowData = [
+        lineId,                          // line_id
+        docId,                           // doc_id
+        index + 1,                       // sort_order
+        item.description || '',          // description
+        item.category || 'OTHER',        // category
+        qty,                             // quantity
+        unitPrice,                       // unit_price
+        lineTotal,                       // line_total
+        item.notes || '',                // notes
+        attachmentsJson,                 // attachments_json
+        customFieldsJson                 // custom_fields_json
+      ];
+      
+      sheet.appendRow(rowData);
+    });
+    
+    Logger.log('✓ Saved ' + lineItems.length + ' line items for document ' + docId);
+    
+    // Recalculate totals
+    recalculateDocumentTotals(docId);
+    
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('saveDocumentLineItems error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Add a single line item
+ */
+function addDocumentLineItem(docId, itemData) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('DocumentLineItems');
+    
+    // Get existing items to determine sort order and line_id
+    const existingResult = getDocumentLineItems(docId);
+    const existingItems = existingResult.ok ? existingResult.lineItems : [];
+    
+    const lineId = generateLineItemId(docId, existingItems);
+    const sortOrder = existingItems.length + 1;
+    const qty = Number(itemData.quantity) || 1;
+    const unitPrice = Number(itemData.unit_price) || 0;
+    const lineTotal = qty * unitPrice;
+    
+    const rowData = [
+      lineId,
+      docId,
+      sortOrder,
+      itemData.description || '',
+      itemData.category || 'OTHER',
+      qty,
+      unitPrice,
+      lineTotal,
+      itemData.notes || '',
+      '',  // attachments_json
+      ''   // custom_fields_json
+    ];
+    
+    sheet.appendRow(rowData);
+    Logger.log('✓ Line item added: ' + lineId);
+    
+    // Recalculate totals
+    recalculateDocumentTotals(docId);
+    
+    return { ok: true, line_id: lineId };
+    
+  } catch (error) {
+    Logger.log('addDocumentLineItem error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a single line item
+ */
+function deleteDocumentLineItem(lineId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('DocumentLineItems');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const lineIdCol = headers.indexOf('line_id');
+    const docIdCol = headers.indexOf('doc_id');
+    
+    let docId = null;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][lineIdCol]) === String(lineId)) {
+        docId = data[i][docIdCol];
+        sheet.deleteRow(i + 1);
+        Logger.log('✓ Line item deleted: ' + lineId);
+        
+        // Recalculate totals
+        if (docId) {
+          recalculateDocumentTotals(docId);
+        }
+        
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Line item not found: ' + lineId };
+    
+  } catch (error) {
+    Logger.log('deleteDocumentLineItem error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// TOTALS CALCULATION
+// ============================================================================
+
+/**
+ * Recalculate document totals based on line items
+ */
+function recalculateDocumentTotals(docId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const docSheet = ss.getSheetByName('Documents');
+    const docData = docSheet.getDataRange().getValues();
+    const docHeaders = docData[0];
+    
+    // Find document row
+    const docIdCol = docHeaders.indexOf('doc_id');
+    let docRowIndex = -1;
+    let currentDoc = null;
+    
+    for (let i = 1; i < docData.length; i++) {
+      if (String(docData[i][docIdCol]) === String(docId)) {
+        docRowIndex = i + 1;
+        currentDoc = {};
+        docHeaders.forEach((h, idx) => currentDoc[h] = docData[i][idx]);
+        break;
+      }
+    }
+    
+    if (docRowIndex === -1) return;
+    
+    // Get line items and calculate subtotal
+    const lineItemsResult = getDocumentLineItems(docId);
+    const lineItems = lineItemsResult.ok ? lineItemsResult.lineItems : [];
+    
+    const subtotal = lineItems.reduce((sum, li) => {
+      return sum + (Number(li.line_total) || 0);
+    }, 0);
+    
+    // Get current discount and tax
+    const discountAmount = Number(currentDoc.discount_amount) || 0;
+    const discountPercent = Number(currentDoc.discount_percent) || 0;
+    const taxAmount = Number(currentDoc.tax_amount) || 0;
+    const amountPaid = Number(currentDoc.amount_paid) || 0;
+    
+    // Calculate final discount (could be percent-based)
+    let finalDiscount = discountAmount;
+    if (discountPercent > 0 && discountAmount === 0) {
+      finalDiscount = subtotal * (discountPercent / 100);
+    }
+    
+    const total = subtotal - finalDiscount + taxAmount;
+    const balanceDue = total - amountPaid;
+    
+    // Update document
+    const subtotalCol = docHeaders.indexOf('subtotal');
+    const totalCol = docHeaders.indexOf('total');
+    const balanceCol = docHeaders.indexOf('balance_due');
+    const updatedCol = docHeaders.indexOf('updated_at');
+    
+    if (subtotalCol !== -1) docSheet.getRange(docRowIndex, subtotalCol + 1).setValue(subtotal);
+    if (totalCol !== -1) docSheet.getRange(docRowIndex, totalCol + 1).setValue(total);
+    if (balanceCol !== -1) docSheet.getRange(docRowIndex, balanceCol + 1).setValue(balanceDue);
+    if (updatedCol !== -1) docSheet.getRange(docRowIndex, updatedCol + 1).setValue(new Date().toISOString());
+    
+    Logger.log('✓ Recalculated totals for document ' + docId + ': subtotal=' + subtotal + ', total=' + total);
+    
+  } catch (error) {
+    Logger.log('recalculateDocumentTotals error: ' + error.toString());
+  }
+}
+
+// ============================================================================
+// ATTACHMENTS (LINE ITEM LEVEL)
+// ============================================================================
+
+/**
+ * Save attachment reference to a line item (called after R2 upload)
+ */
+function saveAttachmentReference(lineItemId, attachment) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('DocumentLineItems');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const lineIdCol = headers.indexOf('line_id');
+    let attachCol = headers.indexOf('attachments_json');
+    
+    if (lineIdCol === -1) {
+      return { ok: false, error: 'line_id column not found' };
+    }
+    
+    // If attachments_json column doesn't exist, add it
+    if (attachCol === -1) {
+      attachCol = headers.length;
+      sheet.getRange(1, attachCol + 1).setValue('attachments_json');
+    }
+    
+    // Find the row
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][lineIdCol]) === String(lineItemId)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { ok: false, error: 'Line item not found: ' + lineItemId };
+    }
+    
+    // Get existing attachments
+    let attachments = [];
+    const existingJson = data[rowIndex - 1][attachCol];
+    if (existingJson && typeof existingJson === 'string' && existingJson.trim()) {
+      try {
+        const parsed = JSON.parse(existingJson);
+        if (Array.isArray(parsed)) {
+          attachments = parsed;
+        } else if (parsed && Array.isArray(parsed.attachments)) {
+          attachments = parsed.attachments;
+        }
+      } catch (e) {
+        Logger.log('Error parsing existing attachments: ' + e.toString());
+        attachments = [];
+      }
+    }
+    
+    // Add new attachment
+    attachments.push(attachment);
+    
+    // Save back as simple array
+    sheet.getRange(rowIndex, attachCol + 1).setValue(JSON.stringify(attachments));
+    
+    Logger.log('✓ Attachment saved to line item ' + lineItemId);
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('saveAttachmentReference error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Remove attachment reference from a line item
+ */
+function removeAttachmentReference(lineItemId, fileId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('DocumentLineItems');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const lineIdCol = headers.indexOf('line_id');
+    const attachCol = headers.indexOf('attachments_json');
+    
+    if (lineIdCol === -1 || attachCol === -1) {
+      return { ok: false, error: 'Required columns not found' };
+    }
+    
+    // Find the row
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][lineIdCol]) === String(lineItemId)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { ok: false, error: 'Line item not found: ' + lineItemId };
+    }
+    
+    // Get and filter attachments
+    let attachments = [];
+    const existingJson = data[rowIndex - 1][attachCol];
+    if (existingJson) {
+      try {
+        const parsed = JSON.parse(existingJson);
+        attachments = Array.isArray(parsed) ? parsed : (parsed.attachments || []);
+      } catch (e) {
+        attachments = [];
+      }
+    }
+    
+    // Remove the attachment
+    attachments = attachments.filter(a => a.file_id !== fileId);
+    
+    // Save back
+    sheet.getRange(rowIndex, attachCol + 1).setValue(JSON.stringify(attachments));
+    
+    Logger.log('✓ Attachment removed from line item ' + lineItemId);
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('removeAttachmentReference error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// PROJECT FILES (DOCUMENT LEVEL)
+// ============================================================================
+
+/**
+ * Save a project file to a document
+ */
+function saveProjectFile(docId, attachment) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('Documents');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const docIdCol = headers.indexOf('doc_id');
+    const filesCol = headers.indexOf('project_files_json');
+    
+    if (docIdCol === -1 || filesCol === -1) {
+      return { ok: false, error: 'Required columns not found' };
+    }
+    
+    // Find the row
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][docIdCol]) === String(docId)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { ok: false, error: 'Document not found: ' + docId };
+    }
+    
+    // Get existing files
+    let files = [];
+    const existingJson = data[rowIndex - 1][filesCol];
+    if (existingJson) {
+      try {
+        const parsed = JSON.parse(existingJson);
+        files = Array.isArray(parsed) ? parsed : (parsed.files || []);
+      } catch (e) {
+        files = [];
+      }
+    }
+    
+    // Add new file
+    files.push(attachment);
+    
+    // Save back
+    sheet.getRange(rowIndex, filesCol + 1).setValue(JSON.stringify(files));
+    
+    // Update timestamp
+    const updatedCol = headers.indexOf('updated_at');
+    if (updatedCol !== -1) {
+      sheet.getRange(rowIndex, updatedCol + 1).setValue(new Date().toISOString());
+    }
+    
+    Logger.log('✓ Project file saved to document ' + docId);
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('saveProjectFile error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Remove a project file from a document
+ */
+function removeProjectFile(docId, fileId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('Documents');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const docIdCol = headers.indexOf('doc_id');
+    const filesCol = headers.indexOf('project_files_json');
+    
+    if (docIdCol === -1 || filesCol === -1) {
+      return { ok: false, error: 'Required columns not found' };
+    }
+    
+    // Find the row
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][docIdCol]) === String(docId)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { ok: false, error: 'Document not found: ' + docId };
+    }
+    
+    // Get and filter files
+    let files = [];
+    const existingJson = data[rowIndex - 1][filesCol];
+    if (existingJson) {
+      try {
+        const parsed = JSON.parse(existingJson);
+        files = Array.isArray(parsed) ? parsed : (parsed.files || []);
+      } catch (e) {
+        files = [];
+      }
+    }
+    
+    // Remove the file
+    files = files.filter(f => f.file_id !== fileId);
+    
+    // Save back
+    sheet.getRange(rowIndex, filesCol + 1).setValue(JSON.stringify(files));
+    
+    Logger.log('✓ Project file removed from document ' + docId);
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('removeProjectFile error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// PAYMENTS
+// ============================================================================
+
+/**
+ * Get payments for a document
+ */
+function getDocumentPayments(docId) {
+  try {
+    const allPayments = sheetToObjects('Payments');
+    const payments = allPayments
+      .filter(p => String(p.invoice_id) === String(docId) || String(p.doc_id) === String(docId))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    return { ok: true, payments: sanitizeForJson(payments) };
+    
+  } catch (error) {
+    Logger.log('getDocumentPayments error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Record a payment on a document (invoice)
+ */
+function recordPayment(docId, paymentData) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    
+    // Get current document
+    const docResult = getDocumentById(docId);
+    if (!docResult.ok) {
+      return docResult;
+    }
+    
+    const doc = docResult.document;
+    
+    if (doc.doc_type !== DOC_TYPE.INVOICE) {
+      return { ok: false, error: 'Can only record payments on invoices' };
+    }
+    
+    const amount = Number(paymentData.amount) || 0;
+    if (amount <= 0) {
+      return { ok: false, error: 'Payment amount must be positive' };
+    }
+    
+    // Generate payment ID
+    const paymentId = 'PAY-' + docId + '-' + Date.now();
+    const now = new Date().toISOString();
+    
+    // Add payment record
+    const paymentSheet = ss.getSheetByName('Payments');
+    paymentSheet.appendRow([
+      paymentId,
+      now,
+      docId,  // doc_id (keeping invoice_id for backwards compatibility)
+      amount,
+      paymentData.payment_method || '',
+      paymentData.processor || '',
+      paymentData.processor_txn_id || '',
+      'Completed',
+      paymentData.notes || ''
+    ]);
+    
+    // Update document
+    const newAmountPaid = Number(doc.amount_paid) + amount;
+    const newBalanceDue = Number(doc.total) - newAmountPaid;
+    
+    let newStatus = doc.status;
+    if (newBalanceDue <= 0) {
+      newStatus = DOC_STATUS.PAID;
+    } else if (newAmountPaid > 0) {
+      newStatus = DOC_STATUS.PARTIAL;
+    }
+    
+    const updates = {
+      amount_paid: newAmountPaid,
+      balance_due: newBalanceDue,
+      status: newStatus,
+      payment_method: paymentData.payment_method || doc.payment_method,
+      payment_processor: paymentData.processor || doc.payment_processor
+    };
+    
+    if (newStatus === DOC_STATUS.PAID) {
+      updates.paid_at = now;
+    }
+    
+    updateDocument(docId, updates);
+    
+    Logger.log('✓ Payment recorded: ' + paymentId + ' ($' + amount + ')');
+    
+    return { 
+      ok: true, 
+      payment_id: paymentId,
+      amount_paid: newAmountPaid,
+      balance_due: newBalanceDue,
+      status: newStatus
+    };
+    
+  } catch (error) {
+    Logger.log('recordPayment error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Submit a revision request from customer
+ */
+function submitRevisionRequest(docId, message) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    
+    const docsSheet = ss.getSheetByName('Documents');
+    const docsData = docsSheet.getDataRange().getValues();
+    const docsHeaders = docsData[0];
+    const docIdCol = docsHeaders.indexOf('doc_id');
+    const statusCol = docsHeaders.indexOf('status');
+    const revisionCol = docsHeaders.indexOf('revision_history_json');
+    
+    let docRow = -1;
+    let customerPhone = '';
+    let customerName = '';
+    let existingRevisions = [];
+    
+    for (let i = 1; i < docsData.length; i++) {
+      if (String(docsData[i][docIdCol]) === String(docId)) {
+        docRow = i + 1;
+        customerPhone = docsData[i][docsHeaders.indexOf('customer_phone')] || '';
+        customerName = docsData[i][docsHeaders.indexOf('customer_name')] || '';
+        
+        // Parse existing revision history
+        const revisionJson = docsData[i][revisionCol];
+        if (revisionJson) {
+          try {
+            existingRevisions = JSON.parse(revisionJson);
+          } catch(e) {
+            existingRevisions = [];
+          }
+        }
+        break;
+      }
+    }
+    
+    if (docRow === -1) {
+      return { ok: false, error: 'Document not found' };
+    }
+    
+    // Update status to "Revision Requested"
+    docsSheet.getRange(docRow, statusCol + 1).setValue('Revision Requested');
+    
+    // Add new revision to history
+    existingRevisions.push({
+      timestamp: new Date().toISOString(),
+      from: 'customer',
+      name: customerName,
+      message: message
+    });
+    
+    // Save updated revision history
+    docsSheet.getRange(docRow, revisionCol + 1).setValue(JSON.stringify(existingRevisions));
+    
+    // Also save to Messages sheet for history
+    const messagesSheet = ss.getSheetByName('Messages');
+    const messageId = 'MSG-' + Date.now();
+    
+    messagesSheet.appendRow([
+      messageId,
+      new Date().toISOString(),
+      'inbound',
+      'web',
+      customerPhone,
+      '',
+      customerName,
+      '',
+      docId,
+      '',
+      'REVISION REQUEST: ' + message,
+      '',
+      'received',
+      'FALSE',
+      'FALSE'
+    ]);
+    
+    return { ok: true };
+  } catch (e) {
+    Logger.log('submitRevisionRequest error: ' + e.toString());
+    return { ok: false, error: e.toString() };
+  }
+}
+
+/**
+ * Add a reply to revision history (from FWG side)
+ */
+function addRevisionReply(docId, message, sendSms, includeLink) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    
+    const docsSheet = ss.getSheetByName('Documents');
+    const docsData = docsSheet.getDataRange().getValues();
+    const docsHeaders = docsData[0];
+    const docIdCol = docsHeaders.indexOf('doc_id');
+    const statusCol = docsHeaders.indexOf('status');
+    const revisionCol = docsHeaders.indexOf('revision_history_json');
+    const phoneCol = docsHeaders.indexOf('customer_phone');
+    
+    let docRow = -1;
+    let existingRevisions = [];
+    let customerPhone = '';
+    
+    for (let i = 1; i < docsData.length; i++) {
+      if (String(docsData[i][docIdCol]) === String(docId)) {
+        docRow = i + 1;
+        customerPhone = docsData[i][phoneCol] || '';
+        
+        const revisionJson = docsData[i][revisionCol];
+        if (revisionJson) {
+          try {
+            existingRevisions = JSON.parse(revisionJson);
+          } catch(e) {
+            existingRevisions = [];
+          }
+        }
+        break;
+      }
+    }
+    
+    if (docRow === -1) {
+      return { ok: false, error: 'Document not found' };
+    }
+    
+    // Add reply to history
+    existingRevisions.push({
+      timestamp: new Date().toISOString(),
+      from: 'fwg',
+      name: 'FWG',
+      message: message,
+      sentSms: sendSms || false
+    });
+    
+    // Save updated revision history
+    docsSheet.getRange(docRow, revisionCol + 1).setValue(JSON.stringify(existingRevisions));
+    
+    // Update status to "Sent" (design updated, awaiting customer response)
+    docsSheet.getRange(docRow, statusCol + 1).setValue('Sent');
+    
+    // Send SMS to customer if requested
+    if (sendSms && customerPhone) {
+      try {
+        let smsMessage = 'FWG: ' + message;
+        if (includeLink) {
+          smsMessage += ' ' + getDocumentUrl(docId);
+        }
+        sendSMSToCustomer(customerPhone, smsMessage);
+      } catch(e) {
+        Logger.log('SMS to customer failed: ' + e.toString());
+        return { ok: true, warning: 'Reply saved but SMS failed: ' + e.toString() };
+      }
+    }
+    
+    return { ok: true };
+  } catch (e) {
+    Logger.log('addRevisionReply error: ' + e.toString());
+    return { ok: false, error: e.toString() };
+  }
+}
+
+/**
+ * Get public URL for a document
+ */
+function getDocumentUrl(docId) {
+  const baseUrl = 'https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec';
+  return baseUrl + '?page=customer_document&id=' + docId;
+}
+
+/**
+ * Send SMS to customer (different from internal notification)
+ */
+function sendSMSToCustomer(toPhone, message) {
+  // Format phone number
+  let formatted = String(toPhone).replace(/\D/g, '');
+  if (formatted.length === 10) {
+    formatted = '+1' + formatted;
+  } else if (!formatted.startsWith('+')) {
+    formatted = '+' + formatted;
+  }
+  
+  sendSMS(formatted, message);
+}
+
+/**
+ * Decline a quote with optional reason
+ */
+function declineDocument(docId, reason) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('Documents');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const docIdCol = headers.indexOf('doc_id');
+    const statusCol = headers.indexOf('status');
+    const notesCol = headers.indexOf('notes');
+    
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][docIdCol]) === String(docId)) {
+        // Update status to Declined
+        sheet.getRange(i + 1, statusCol + 1).setValue('Declined');
+        
+        // Append decline reason to notes if provided
+        if (reason) {
+          const currentNotes = data[i][notesCol] || '';
+          const timestamp = new Date().toISOString().split('T')[0];
+          const newNotes = currentNotes + (currentNotes ? '\n\n' : '') + 
+            `[${timestamp}] DECLINED: ${reason}`;
+          sheet.getRange(i + 1, notesCol + 1).setValue(newNotes);
+        }
+        
+        Logger.log('✓ Document ' + docId + ' declined');
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Document not found' };
+    
+  } catch (error) {
+    Logger.log('declineDocument error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// STATUS UPDATES
+// ============================================================================
+
+/**
+ * Update document status with appropriate timestamp and auto-bucket assignment
+ */
+function updateDocumentStatus(docId, newStatus) {
+  try {
+    const updates = { status: newStatus };
+    const now = new Date().toISOString();
+    
+    // Set appropriate timestamp and auto-assign bucket based on status
+    switch (newStatus) {
+      case DOC_STATUS.SENT:
+        updates.sent_at = now;
+        updates.bucket = BUCKET.WAITING_ON_CUSTOMER;
+        break;
+      case DOC_STATUS.VIEWED:
+        updates.viewed_at = now;
+        // Stay in WAITING_ON_CUSTOMER - they've seen it but haven't acted
+        break;
+      case DOC_STATUS.APPROVED:
+        updates.approved_at = now;
+        updates.bucket = BUCKET.READY_FOR_ACTION;  // Our turn to act
+        break;
+      case DOC_STATUS.DECLINED:
+        updates.declined_at = now;
+        updates.bucket = BUCKET.READY_FOR_ACTION;  // Flag for follow-up or archive decision
+        break;
+      case DOC_STATUS.PAID:
+        updates.paid_at = now;
+        updates.bucket = BUCKET.ARCHIVE_WON;  // Auto-archive paid invoices
+        break;
+      case DOC_STATUS.VOID:
+        updates.bucket = BUCKET.ARCHIVE_LOST;
+        updates.archive_reason = 'Voided';
+        break;
+    }
+    
+    return updateDocument(docId, updates);
+    
+  } catch (error) {
+    Logger.log('updateDocumentStatus error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Mark document as sent
+ * @param {string} docId - Document ID
+ * @param {Object} sendOptions - Optional send options to store
+ */
+function markDocumentSent(docId, sendOptions) {
+  try {
+    const updates = {
+      status: DOC_STATUS.SENT,
+      sent_at: new Date().toISOString(),
+      bucket: BUCKET.WAITING_ON_CUSTOMER
+    };
+    
+    // Store send options if provided
+    if (sendOptions) {
+      updates.send_options_json = JSON.stringify(sendOptions);
+    }
+    
+    return updateDocument(docId, updates);
+    
+  } catch (error) {
+    Logger.log('markDocumentSent error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Mark document as viewed (called when customer opens link)
+ */
+function markDocumentViewed(docId) {
+  // Only update if not already viewed/approved/paid
+  const result = getDocumentById(docId);
+  if (!result.ok) return result;
+  
+  const doc = result.document;
+  if (doc.status === DOC_STATUS.SENT) {
+    return updateDocumentStatus(docId, DOC_STATUS.VIEWED);
+  }
+  
+  return { ok: true, message: 'Status unchanged' };
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Check if a status is valid for a document type
+ */
+function isValidStatus(docType, status) {
+  if (docType === DOC_TYPE.QUOTE) {
+    return QUOTE_STATUSES.includes(status);
+  } else if (docType === DOC_TYPE.INVOICE) {
+    return INVOICE_STATUSES.includes(status);
+  }
+  return false;
+}
+
+/**
+ * Get available statuses for a document type
+ */
+function getStatusOptions(docType) {
+  if (docType === DOC_TYPE.QUOTE) {
+    return QUOTE_STATUSES;
+  } else if (docType === DOC_TYPE.INVOICE) {
+    return INVOICE_STATUSES;
+  }
+  return [];
+}
+
+function TEST_createDocument() {
+  const result = createDocument({
+    doc_type: 'quote',
+    customer_name: 'Test Customer',
+    customer_email: 'test@test.com',
+    project_description: 'Test wrap project'
+  });
+  Logger.log(result);
+}
+
+// ============================================================================
+// HELPERS FOR SUBMISSION DATA
+// ============================================================================
+
+/**
+ * Format vehicle category label
+ */
+function formatVehicleCategoryLabel(key) {
+  const labels = {
+    'SEDAN_COUPE': 'Sedan/Coupe',
+    'SUV_CROSSOVER': 'SUV/Crossover',
+    'TRUCK_STD': 'Pickup Truck',
+    'TRUCK_EXT': 'Extended Cab Truck',
+    'TRUCK_CREW': 'Crew Cab Truck',
+    'CARGO_VAN_SM': 'Small Cargo Van',
+    'CARGO_VAN_LG': 'Large Cargo Van',
+    'SPRINTER': 'Sprinter Van',
+    'BOX_TRUCK': 'Box Truck',
+    'TRAILER': 'Trailer'
+  };
+  return labels[key] || key || '';
+}
+
+/**
+ * Format project type label
+ */
+function formatProjectTypeLabel(key) {
+  const labels = {
+    'FULL_WRAP': 'Full Wrap',
+    'PARTIAL_WRAP': 'Partial Wrap',
+    'LETTERING': 'Lettering & Graphics'
+  };
+  return labels[key] || key || '';
+}
+
+/**
+ * Format design scenario label
+ */
+function formatDesignScenarioLabel(key) {
+  const labels = {
+    'PRINT_READY': 'Print-Ready Design',
+    'LOGO_VISION': 'Has Logo + Vision',
+    'LOGO_ONLY': 'Logo Only',
+    'FROM_SCRATCH': 'Design from Scratch',
+    'TEMPLATE': 'Use Template'
+  };
+  return labels[key] || key || '';
+}
+
+/**
+ * Get submission by ID
+ */
+function getSubmissionById(submissionId) {
+  try {
+    const submissions = sheetToObjects('Submissions');
+    const submission = submissions.find(s => s.submission_id === submissionId);
+    
+    if (!submission) {
+      return { ok: false, error: 'Submission not found: ' + submissionId };
+    }
+    
+    return { ok: true, submission: submission };
+  } catch (error) {
+    Logger.log('getSubmissionById error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get list of unique customers from all documents
+ */
+function getCustomerList() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('Documents');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const nameCol = headers.indexOf('customer_name');
+    const emailCol = headers.indexOf('customer_email');
+    const phoneCol = headers.indexOf('customer_phone');
+    const companyCol = headers.indexOf('company_name');
+    
+    const customersMap = {};
+    
+    for (let i = 1; i < data.length; i++) {
+      const name = data[i][nameCol];
+      if (!name) continue;
+      
+      // Use name as key, keep most recent data
+      const key = String(name).toLowerCase().trim();
+      customersMap[key] = {
+        customer_name: name,
+        customer_email: data[i][emailCol] || '',
+        customer_phone: data[i][phoneCol] || '',
+        company_name: data[i][companyCol] || ''
+      };
+    }
+    
+    const customers = Object.values(customersMap).sort((a, b) => 
+      a.customer_name.localeCompare(b.customer_name)
+    );
+    
+    return { ok: true, customers: customers };
+    
+  } catch (error) {
+    Logger.log('getCustomerList error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get calendar events linked to a document
+ */
+function getDocumentCalendarEvents(docId) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('CalendarEvents');
+    if (!sheet) return { ok: true, events: [] };
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const events = [];
+    const invoiceIdCol = headers.indexOf('invoice_id');
+    
+    for (let i = 1; i < data.length; i++) {
+      const invoiceId = String(data[i][invoiceIdCol] || '');
+      if (invoiceId === String(docId)) {
+        const event = {};
+        headers.forEach((h, j) => {
+          event[h] = data[i][j];
+        });
+        
+        // Only include non-cancelled events
+        if (event.status !== 'Cancelled') {
+          events.push(event);
+        }
+      }
+    }
+    
+    return { ok: true, events: sanitizeForJson(events) };
+    
+  } catch (error) {
+    Logger.log('getDocumentCalendarEvents error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get calendar categories for schedule modal
+ */
+function getCalendarCategories() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('Categories');
+    if (!sheet) return { ok: true, categories: [] };
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const categories = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = {};
+      headers.forEach((h, j) => {
+        row[h] = data[i][j];
+      });
+      if (row.category_key && row.active !== false) {
+        categories.push({
+          category_key: row.category_key,
+          label: row.label || row.category_key,
+          calendar_color: row.calendar_color || '#d71cd1'
+        });
+      }
+    }
+    
+    return { ok: true, categories: categories };
+    
+  } catch (error) {
+    Logger.log('getCalendarCategories error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// BUCKET MANAGEMENT
+// ============================================================================
+
+/**
+ * Move document to a specific bucket
+ */
+function moveDocumentToBucket(docId, bucket, archiveReason) {
+  try {
+    const updates = { bucket: bucket };
+    
+    // If archiving as lost, require and store reason
+    if (bucket === BUCKET.ARCHIVE_LOST && archiveReason) {
+      updates.archive_reason = archiveReason;
+    }
+    
+    // Clear archive_reason if moving to non-archive bucket
+    if (ACTIVE_BUCKETS.includes(bucket)) {
+      updates.archive_reason = '';
+    }
+    
+    const result = updateDocument(docId, updates);
+    
+    if (result.ok) {
+      Logger.log('✔ Document ' + docId + ' moved to bucket: ' + bucket);
+    }
+    
+    return result;
+    
+  } catch (error) {
+    Logger.log('moveDocumentToBucket error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Archive document (convenience wrapper)
+ */
+function archiveDocument(docId, archiveType, reason) {
+  const bucket = archiveType === 'won' ? BUCKET.ARCHIVE_WON : BUCKET.ARCHIVE_LOST;
+  return moveDocumentToBucket(docId, bucket, reason);
+}
+
+/**
+ * Get bucket configuration from spec sheet
+ */
+function getBuckets() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('Buckets');
+    if (!sheet) {
+      // Return defaults if sheet doesn't exist
+      return {
+        ok: true,
+        buckets: [
+          { bucket_key: 'READY_FOR_ACTION', label: 'Ready for Action', color: '#f59e0b', is_active: true, is_archived: false },
+          { bucket_key: 'WAITING_ON_CUSTOMER', label: 'Waiting on Customer', color: '#3b82f6', is_active: true, is_archived: false },
+          { bucket_key: 'COLD', label: 'Cold', color: '#6b7280', is_active: true, is_archived: false },
+          { bucket_key: 'ARCHIVE_WON', label: 'Won', color: '#10b981', is_active: true, is_archived: true },
+          { bucket_key: 'ARCHIVE_LOST', label: 'Lost', color: '#ef4444', is_active: true, is_archived: true }
+        ]
+      };
+    }
+    
+    const buckets = sheetToObjects('Buckets', CONFIG.specSheetId);
+    return { ok: true, buckets: buckets.filter(b => b.active !== false) };
+    
+  } catch (error) {
+    Logger.log('getBuckets error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get archive reasons from spec sheet
+ */
+function getArchiveReasons() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('ArchiveReasons');
+    if (!sheet) {
+      return {
+        ok: true,
+        reasons: [
+          { reason_key: 'COMPETITOR', label: 'Went with competitor' },
+          { reason_key: 'BUDGET', label: 'Budget issues' },
+          { reason_key: 'NO_RESPONSE', label: 'No response' },
+          { reason_key: 'TIMING', label: 'Bad timing' },
+          { reason_key: 'OTHER', label: 'Other' }
+        ]
+      };
+    }
+    
+    const reasons = sheetToObjects('ArchiveReasons', CONFIG.specSheetId);
+    return { ok: true, reasons: reasons.filter(r => r.active !== false) };
+    
+  } catch (error) {
+    Logger.log('getArchiveReasons error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+// ============================================================================
+// FOLLOW-UP SYSTEM
+// ============================================================================
+
+/**
+ * Get follow-up templates from spec sheet
+ */
+function getFollowUpTemplates() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('FollowUpTemplates');
+    if (!sheet) {
+      return {
+        ok: true,
+        templates: [
+          { template_key: 'CHECKING_IN', label: 'Just Checking In', message_template: 'Hi {name}, just checking in on the quote we sent over. Let me know if you have any questions!' },
+          { template_key: 'READY_TO_PROCEED', label: 'Ready When You Are', message_template: 'Hi {name}, wanted to follow up on your quote. We\'re ready to get started whenever works for you.' },
+          { template_key: 'INCENTIVE', label: 'Limited Time Offer', message_template: 'Hi {name}, we\'d love to earn your business! Book within {expiry_days} days and receive {discount}% off.' }
+        ]
+      };
+    }
+    
+    const templates = sheetToObjects('FollowUpTemplates', CONFIG.specSheetId);
+    return { ok: true, templates: templates.filter(t => t.active !== false) };
+    
+  } catch (error) {
+    Logger.log('getFollowUpTemplates error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Send follow-up message to customer
+ * @param {string} docId - Document ID
+ * @param {Object} options - { templateKey, customMessage, incentive: { percent, expiresAt } }
+ */
+function sendFollowUp(docId, options) {
+  try {
+    // Get document details
+    const docResult = getDocumentById(docId);
+    if (!docResult.ok) return docResult;
+    
+    const doc = docResult.document;
+    
+    // Build the message
+    let message = options.customMessage || '';
+    
+    if (options.templateKey && !message) {
+      const templatesResult = getFollowUpTemplates();
+      if (templatesResult.ok) {
+        const template = templatesResult.templates.find(t => t.template_key === options.templateKey);
+        if (template) {
+          message = template.message_template
+            .replace('{name}', doc.customer_name?.split(' ')[0] || 'there')
+            .replace('{discount}', options.incentive?.percent || '10')
+            .replace('{expiry_days}', options.incentive?.expiryDays || '7');
+        }
+      }
+    }
+    
+    if (!message) {
+      return { ok: false, error: 'No message provided' };
+    }
+    
+    // Add document link
+    const webAppUrl = getWebAppUrl();
+    const docLink = webAppUrl + '?page=customer_document&id=' + docId;
+    message += '\n\nView your ' + (doc.doc_type === 'quote' ? 'quote' : 'invoice') + ': ' + docLink;
+    
+    // Send via SMS if phone available
+    let smsSent = false;
+    if (doc.customer_phone) {
+      try {
+        sendSMS(doc.customer_phone, message);
+        smsSent = true;
+      } catch (e) {
+        Logger.log('SMS send failed: ' + e.toString());
+      }
+    }
+    
+    // Update document with follow-up info
+    const now = new Date().toISOString();
+    const currentCount = Number(doc.followup_count) || 0;
+    
+    const updates = {
+      last_followup_at: now,
+      followup_count: currentCount + 1,
+      bucket: BUCKET.WAITING_ON_CUSTOMER  // Move back to waiting after follow-up
+    };
+    
+    // If incentive offered, apply the discount to the document
+    if (options.incentive) {
+      const subtotal = Number(doc.subtotal) || 0;
+      let discountPercent = Number(options.incentive.percent) || 0;
+      let discountAmount = 0;
+      
+      // Handle dollar amount vs percentage
+      if (options.incentive.type === 'dollar' && options.incentive.amount) {
+        discountAmount = Number(options.incentive.amount);
+        discountPercent = subtotal > 0 ? Math.round((discountAmount / subtotal) * 100 * 100) / 100 : 0;
+      } else {
+        discountAmount = Math.round(subtotal * discountPercent) / 100;
+      }
+      const taxAmount = Number(doc.tax_amount) || 0;
+      const newTotal = subtotal - discountAmount + taxAmount;
+      const amountPaid = Number(doc.amount_paid) || 0;
+      const newBalance = newTotal - amountPaid;
+      
+      // Apply discount fields
+      updates.discount_percent = discountPercent;
+      updates.discount_amount = discountAmount;
+      const discountText = options.incentive.type === 'dollar' 
+        ? '$' + discountAmount.toFixed(2) + ' off'
+        : discountPercent + '% off';
+      updates.discount_note = 'One Time Offer of ' + discountText + '. Valid until ' + options.incentive.expiresAt;
+      updates.total = newTotal;
+      updates.balance_due = newBalance;
+      
+      // Set valid_until to incentive expiry
+      if (options.incentive.expiresAt) {
+        updates.valid_until = options.incentive.expiresAt;
+      }
+      
+      // Also store in send_options_json for reference
+      let sendOptions = {};
+      try {
+        sendOptions = JSON.parse(doc.send_options_json || '{}');
+      } catch (e) {}
+      
+      sendOptions.lastIncentive = {
+        percent: options.incentive.percent,
+        expiresAt: options.incentive.expiresAt,
+        offeredAt: now
+      };
+      updates.send_options_json = JSON.stringify(sendOptions);
+    }
+    
+    // Update deposit if provided
+    if (options.depositRequired !== undefined) {
+      updates.deposit_required = options.depositRequired;
+    }
+    
+    // Actually update the document!
+    const updateResult = updateDocument(docId, updates);
+    Logger.log('updateDocument result: ' + JSON.stringify(updateResult));
+    
+    // Log the follow-up in Messages
+    logMessage({
+      direction: 'outbound',
+      channel: 'sms',
+      customer_phone: doc.customer_phone,
+      customer_name: doc.customer_name,
+      doc_id: docId,
+      message_body: message,
+      status: smsSent ? 'sent' : 'failed'
+    });
+    
+    Logger.log('✔ Follow-up sent for doc ' + docId + ' (count: ' + (currentCount + 1) + ')');
+    
+    return {
+      ok: true,
+      doc_id: docId,
+      followup_count: currentCount + 1,
+      sms_sent: smsSent,
+      message: 'Follow-up sent'
+    };
+    
+  } catch (error) {
+    Logger.log('sendFollowUp error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get documents needing follow-up (in WAITING_ON_CUSTOMER for X days)
+ */
+function getDocumentsNeedingFollowUp(daysThreshold) {
+  try {
+    const days = daysThreshold || 3;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    const docsResult = getDocuments({ active_only: true });
+    if (!docsResult.ok) return docsResult;
+    
+    const needsFollowUp = docsResult.documents.filter(doc => {
+      // Only check WAITING_ON_CUSTOMER bucket
+      if (doc.bucket !== BUCKET.WAITING_ON_CUSTOMER) return false;
+      
+      // Check last activity date (sent_at, last_followup_at, or viewed_at)
+      const lastActivity = new Date(doc.last_followup_at || doc.sent_at || doc.created_at);
+      return lastActivity < cutoffDate;
+    });
+    
+    return { ok: true, documents: needsFollowUp };
+    
+  } catch (error) {
+    Logger.log('getDocumentsNeedingFollowUp error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Auto-archive cold documents after 30 days
+ * Called by daily trigger
+ */
+function autoArchiveColdDocuments() {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 30);
+    
+    const docsResult = getDocuments({ bucket: BUCKET.COLD });
+    if (!docsResult.ok) return docsResult;
+    
+    let archivedCount = 0;
+    
+    docsResult.documents.forEach(doc => {
+      const lastActivity = new Date(doc.last_followup_at || doc.sent_at || doc.updated_at);
+      if (lastActivity < cutoffDate) {
+        archiveDocument(doc.doc_id, 'lost', 'Auto-archived after 30 days cold');
+        archivedCount++;
+      }
+    });
+    
+    Logger.log('✔ Auto-archived ' + archivedCount + ' cold documents');
+    return { ok: true, archived_count: archivedCount };
+    
+  } catch (error) {
+    Logger.log('autoArchiveColdDocuments error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Helper to get web app URL
+ */
+function getWebAppUrl() {
+  return 'https://script.google.com/macros/s/AKfycbyro9xpTQcfUKdH1522diqCYqjzMeQI5UBCOu36GBsztyR1OGqQZBdLLL855lAx1Ltx/exec';
+}
+/**
+ * Helper to log message to Messages sheet
+ */
+function logMessage(data) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.opsSheetId);
+    const sheet = ss.getSheetByName('Messages');
+    
+    const messageId = 'MSG-' + Date.now();
+    const now = new Date().toISOString();
+    
+    sheet.appendRow([
+      messageId,
+      now,
+      data.direction || 'outbound',
+      data.channel || 'sms',
+      data.customer_phone || '',
+      data.customer_email || '',
+      data.customer_name || '',
+      data.submission_id || '',
+      data.quote_id || '',
+      data.doc_id || '',
+      data.message_body || '',
+      data.message_sid || '',
+      data.status || 'sent',
+      'FALSE',  // read
+      'FALSE'   // archived
+    ]);
+    
+    return { ok: true, message_id: messageId };
+    
+  } catch (error) {
+    Logger.log('logMessage error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+function testRevisionRequest() {
+  const result = submitRevisionRequest('1003', 'Test revision request from backend');
+  Logger.log(result);
+}

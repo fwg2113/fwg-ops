@@ -1,0 +1,880 @@
+<!-- ============================================================================
+     SUBMISSION DETAIL MODAL
+     Displays full submission info with actions
+     ============================================================================ -->
+
+<style>
+  /* Button States */
+  .btn-saving, .btn-loading {
+    background: var(--accent-blue) !important;
+    border-color: var(--accent-blue) !important;
+    pointer-events: none;
+    opacity: 0.9;
+  }
+  
+  .btn-saved, .btn-success {
+    background: var(--accent-green) !important;
+    border-color: var(--accent-green) !important;
+  }
+  
+  .btn-error {
+    background: var(--accent-red) !important;
+    border-color: var(--accent-red) !important;
+  }
+
+  /* Modal Overlay */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+  }
+  
+  .modal-overlay.open {
+    opacity: 1;
+    visibility: visible;
+  }
+  
+  /* Modal Container */
+  .modal {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    width: 95%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.95) translateY(20px);
+    transition: transform 0.2s ease;
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .modal-overlay.open .modal {
+    transform: scale(1) translateY(0);
+  }
+  
+  /* Modal Header */
+  .modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  
+  .modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .modal-title-id {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 400;
+    font-family: monospace;
+  }
+  
+  .modal-close {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+  
+  .modal-close:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  
+  /* Modal Body */
+  .modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  
+  /* Detail Sections */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+  
+  @media (max-width: 768px) {
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  .detail-section {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+  
+  .detail-section.full-width {
+    grid-column: 1 / -1;
+  }
+  
+  .detail-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .detail-section-title svg {
+    width: 16px;
+    height: 16px;
+    color: #22d3ee;
+  }
+  
+  .contact-pill svg {
+    width: 14px;
+    height: 14px;
+    vertical-align: -2px;
+    margin-right: 4px;
+  }
+  
+  .btn svg {
+    width: 16px;
+    height: 16px;
+    vertical-align: -3px;
+    margin-right: 6px;
+  }
+  
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .detail-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  
+  .detail-row:first-of-type {
+    padding-top: 0;
+  }
+  
+  .detail-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  
+  .detail-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    text-align: right;
+    word-break: break-word;
+  }
+  
+  .detail-value a {
+    color: var(--fwg-primary);
+    text-decoration: none;
+  }
+  
+  .detail-value a:hover {
+    text-decoration: underline;
+  }
+  
+  .detail-value.large {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--accent-green);
+  }
+  
+  /* Status Dropdown */
+  .status-select {
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  
+  /* Notes Section */
+  .notes-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  
+  .notes-textarea:focus {
+    outline: none;
+    border-color: var(--fwg-primary);
+  }
+  
+  /* Action Buttons Row */
+  .detail-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  
+  /* Quick Message Section */
+  .quick-message-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .quick-message-row {
+    display: flex;
+    gap: 12px;
+  }
+  
+  .quick-message-input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+  
+  .quick-message-input:focus {
+    outline: none;
+    border-color: var(--fwg-primary);
+  }
+  
+  /* Contact Method Pills */
+  .contact-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .contact-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+  }
+  
+  .contact-pill:hover {
+    background: var(--border-hover);
+  }
+  
+  .contact-pill.preferred {
+    border-color: var(--fwg-primary);
+    background: var(--fwg-primary-soft);
+  }
+  
+  /* Timeline */
+  .timeline {
+    margin-top: 16px;
+  }
+  
+  .timeline-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+  
+  .timeline-item:last-child {
+    border-bottom: none;
+  }
+  
+  .timeline-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  
+  .timeline-content {
+    flex: 1;
+  }
+  
+  .timeline-title {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  
+  .timeline-time {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  
+  /* Modal Footer */
+  .modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    background: var(--bg-dark);
+  }
+  
+  .modal-footer-left {
+    display: flex;
+    gap: 12px;
+  }
+  
+  .modal-footer-right {
+    display: flex;
+    gap: 12px;
+  }
+  
+  /* Loading state */
+  .modal-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    color: var(--text-muted);
+  }
+</style>
+
+<!-- Modal Container -->
+<div class="modal-overlay" id="submission-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <span id="modal-customer-name">Loading...</span>
+        <span class="modal-title-id" id="modal-submission-id"></span>
+      </div>
+      <button class="modal-close" onclick="closeSubmissionModal()">×</button>
+    </div>
+    
+    <div class="modal-body" id="modal-body">
+      <div class="modal-loading">
+        <div class="spinner"></div>
+        Loading submission...
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <div class="modal-footer-left">
+        <button class="btn btn-secondary" onclick="closeSubmissionModal()">Close</button>
+      </div>
+      <div class="modal-footer-right">
+        <button class="btn btn-secondary" id="btn-create-quote" onclick="createQuoteFromSubmission()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>Create Quote
+        </button>
+        <button class="btn btn-primary" id="btn-save-submission" onclick="saveSubmissionChanges()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Current submission data
+  let currentSubmission = null;
+  
+  /**
+   * Open the submission detail modal
+   */
+  function openSubmissionModal(submissionId) {
+    const modal = document.getElementById('submission-modal');
+    modal.classList.add('open');
+    
+    // Reset body to loading state
+    document.getElementById('modal-body').innerHTML = '<div class="modal-loading"><div class="spinner"></div>Loading submission...</div>';
+    document.getElementById('modal-customer-name').textContent = 'Loading...';
+    document.getElementById('modal-submission-id').textContent = '';
+    
+    // Fetch submission data
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          currentSubmission = result.submission;
+          renderSubmissionDetail(result.submission);
+        } else {
+          document.getElementById('modal-body').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Error</div><div class="empty-state-text">' + result.error + '</div></div>';
+        }
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('modal-body').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Error</div><div class="empty-state-text">' + error + '</div></div>';
+      })
+      .getSubmission(submissionId);
+  }
+  
+  /**
+   * Close the modal
+   */
+  function closeSubmissionModal() {
+    const modal = document.getElementById('submission-modal');
+    modal.classList.remove('open');
+    currentSubmission = null;
+  }
+  
+  /**
+   * Render the submission detail
+   */
+  function renderSubmissionDetail(sub) {
+    document.getElementById('modal-customer-name').textContent = sub.customer_name || 'Unknown Customer';
+    document.getElementById('modal-submission-id').textContent = sub.submission_id;
+    
+    const priceRange = sub.price_range_min && sub.price_range_max 
+      ? `$${Number(sub.price_range_min).toLocaleString()} - $${Number(sub.price_range_max).toLocaleString()}`
+      : 'Not quoted';
+    
+    const designFeeRange = sub.design_fee_min && sub.design_fee_max
+      ? `$${Number(sub.design_fee_min).toLocaleString()} - $${Number(sub.design_fee_max).toLocaleString()}`
+      : 'N/A';
+    
+    const createdDate = sub.created_at ? new Date(sub.created_at).toLocaleString() : '-';
+    const lastContact = sub.last_contact_at ? new Date(sub.last_contact_at).toLocaleString() : 'Never';
+    
+    // Build status options
+    const statuses = ['New', 'In Progress', 'Quoted', 'Won', 'Lost', 'Archived'];
+    let statusOptions = statuses.map(s => 
+      `<option value="${s}" ${sub.status === s ? 'selected' : ''}>${s}</option>`
+    ).join('');
+    
+    // Determine preferred contact
+    const prefContact = (sub.preferred_contact || '').toLowerCase();
+    const isCallPref = prefContact.includes('call') || prefContact.includes('phone');
+    const isTextPref = prefContact.includes('text') || prefContact.includes('sms');
+    const isEmailPref = prefContact.includes('email');
+    
+    const html = `
+      <div class="detail-grid">
+        <!-- Customer Info -->
+        <div class="detail-section">
+          <div class="detail-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> Customer Info</div>
+          <div class="detail-row">
+            <span class="detail-label">Name</span>
+            <span class="detail-value">${sub.customer_name || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Company</span>
+            <span class="detail-value">${sub.company_name || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Phone</span>
+            <span class="detail-value">
+              <a href="tel:${sub.customer_phone}">${sub.customer_phone || '-'}</a>
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email</span>
+            <span class="detail-value">
+              <a href="mailto:${sub.customer_email}">${sub.customer_email || '-'}</a>
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Website</span>
+            <span class="detail-value">
+              ${sub.website ? `<a href="${sub.website.startsWith('http') ? sub.website : 'https://' + sub.website}" target="_blank">${sub.website}</a>` : '-'}
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Preferred Contact</span>
+            <span class="detail-value">
+              <div class="contact-pills">
+                <span class="contact-pill ${isCallPref ? 'preferred' : ''}" onclick="contactCustomer('call')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>Call</span>
+                <span class="contact-pill ${isTextPref ? 'preferred' : ''}" onclick="contactCustomer('text')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Text</span>
+                <span class="contact-pill ${isEmailPref ? 'preferred' : ''}" onclick="contactCustomer('email')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>Email</span>
+              </div>
+            </span>
+          </div>
+        </div>
+        
+        <!-- Vehicle & Project -->
+        <div class="detail-section">
+          <div class="detail-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg> Vehicle & Project</div>
+          <div class="detail-row">
+            <span class="detail-label">Vehicle Type</span>
+            <span class="detail-value">${formatVehicleCategory(sub.vehicle_category) || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Vehicle</span>
+            <span class="detail-value">${[sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Vehicle Count</span>
+            <span class="detail-value">${sub.vehicle_count || 1}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Project Type</span>
+            <span class="detail-value">${formatProjectType(sub.project_type) || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Design Scenario</span>
+            <span class="detail-value">${formatDesignScenario(sub.design_scenario) || '-'}</span>
+          </div>
+        </div>
+        
+        <!-- Pricing -->
+        <div class="detail-section">
+          <div class="detail-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg> Pricing</div>
+          <div class="detail-row">
+            <span class="detail-label">Estimated Range</span>
+            <span class="detail-value large">${priceRange}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Design Fee</span>
+            <span class="detail-value">${designFeeRange}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Customer Budget</span>
+            <span class="detail-value">${sub.budget_range || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Timeline</span>
+            <span class="detail-value">${sub.timeline || '-'}</span>
+          </div>
+        </div>
+        
+        <!-- Status & Tracking -->
+        <div class="detail-section">
+          <div class="detail-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg> Status</div>
+          <div class="detail-row">
+            <span class="detail-label">Status</span>
+            <span class="detail-value">
+              <select class="status-select" id="submission-status" onchange="markSubmissionDirty()">
+                ${statusOptions}
+              </select>
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Source</span>
+            <span class="detail-value">${sub.source || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Created</span>
+            <span class="detail-value">${createdDate}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Last Contact</span>
+            <span class="detail-value">${lastContact}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Assigned To</span>
+            <span class="detail-value">${sub.assigned_to || 'Unassigned'}</span>
+          </div>
+        </div>
+        
+        <!-- Vision & Notes -->
+        <div class="detail-section full-width">
+          <div class="detail-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> Vision & Notes</div>
+          ${sub.vision_description ? `
+            <div style="margin-bottom: 12px;">
+              <div class="detail-label" style="margin-bottom: 4px;">Customer's Vision</div>
+              <div style="background: var(--bg-elevated); padding: 12px; border-radius: var(--radius-sm); font-size: 14px;">
+                ${sub.vision_description}
+              </div>
+            </div>
+          ` : ''}
+          <div>
+            <div class="detail-label" style="margin-bottom: 4px;">Internal Notes</div>
+            <textarea class="notes-textarea" id="submission-notes" placeholder="Add notes about this submission..." onchange="markSubmissionDirty()">${sub.notes || ''}</textarea>
+          </div>
+        </div>
+        
+        <!-- Quick Message -->
+        <div class="detail-section full-width">
+          <div class="detail-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> Quick Message</div>
+          <div class="quick-message-row">
+            <input type="text" class="quick-message-input" id="quick-message" placeholder="Type a message to send via SMS...">
+            <button class="btn btn-secondary" id="btn-send-sms" onclick="sendQuickMessage()">Send SMS</button>
+          </div>
+          <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+            Message will be sent to ${sub.customer_phone || 'no phone on file'}
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('modal-body').innerHTML = html;
+  }
+  
+  /**
+   * Format vehicle category key to readable label
+   */
+  function formatVehicleCategory(key) {
+    const labels = {
+      'SEDAN_COUPE': 'Sedan / Coupe',
+      'SMALL_SUV': 'Small SUV / Crossover',
+      'LARGE_SUV': 'Large SUV',
+      'PICKUP_STD': 'Pickup Truck (Standard)',
+      'PICKUP_HD': 'Pickup Truck (HD/Long Bed)',
+      'CARGO_VAN_SM': 'Cargo Van (Small)',
+      'CARGO_VAN_LG': 'Cargo Van (Full Size)',
+      'BOX_TRUCK_SM': 'Box Truck (10-16ft)',
+      'BOX_TRUCK_LG': 'Box Truck (20-26ft)',
+      'TRAILER': 'Trailer'
+    };
+    return labels[key] || key;
+  }
+  
+  /**
+   * Format project type key to readable label
+   */
+  function formatProjectType(key) {
+    const labels = {
+      'FULL_WRAP': 'Full Wrap',
+      'PARTIAL_WRAP': 'Partial Wrap',
+      'LETTERING': 'Lettering & Graphics'
+    };
+    return labels[key] || key;
+  }
+  
+  /**
+   * Format design scenario key to readable label
+   */
+  function formatDesignScenario(key) {
+    const labels = {
+      'FLEET_MATCH': 'Fleet Match',
+      'PRINT_READY': 'Print-Ready Artwork',
+      'LOGO_VISION': 'Logo + Vision',
+      'LOGO_ONLY': 'Logo Only',
+      'FROM_SCRATCH': 'Start from Scratch'
+    };
+    return labels[key] || key;
+  }
+  
+  /**
+   * Mark submission as having unsaved changes
+   */
+  function markSubmissionDirty() {
+    const saveBtn = document.getElementById('btn-save-submission');
+    saveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>Save Changes*';
+    saveBtn.style.background = 'linear-gradient(135deg, var(--accent-yellow), #ca8a04)';
+  }
+  
+  /**
+   * Save submission changes
+   */
+  function saveSubmissionChanges() {
+    if (!currentSubmission) return;
+    
+    const newStatus = document.getElementById('submission-status').value;
+    const newNotes = document.getElementById('submission-notes').value;
+    
+    const saveBtn = document.getElementById('btn-save-submission');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+    
+    // Update status
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          // Update notes
+          google.script.run
+            .withSuccessHandler(function(result2) {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>Saved!';
+              saveBtn.style.background = 'linear-gradient(135deg, var(--accent-green), #16a34a)';
+              
+              // Reset button after delay
+              setTimeout(function() {
+                saveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>Save Changes';
+                saveBtn.style.background = '';
+              }, 2000);
+              
+              // Refresh submissions list
+              if (currentView === 'submissions') {
+                loadSubmissions();
+              } else if (currentView === 'overview') {
+                loadRecentSubmissions();
+              }
+            })
+            .withFailureHandler(function(error) {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>Error';
+              alert('Error saving notes: ' + error);
+            })
+            .updateSubmissionField(currentSubmission.submission_id, 'notes', newNotes);
+        } else {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>Error';
+          alert('Error saving status: ' + result.error);
+        }
+      })
+      .withFailureHandler(function(error) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>Error';
+        alert('Error: ' + error);
+      })
+      .updateSubmissionStatus(currentSubmission.submission_id, newStatus);
+  }
+  
+  /**
+   * Send quick SMS message
+   */
+  function sendQuickMessage() {
+    if (!currentSubmission || !currentSubmission.customer_phone) {
+      showToast('No phone number on file for this customer.', 'error');
+      return;
+    }
+    
+    const message = document.getElementById('quick-message').value.trim();
+    if (!message) {
+      showToast('Please enter a message.', 'error');
+      return;
+    }
+    
+    if (!confirm('Send this message to ' + currentSubmission.customer_phone + '?\n\n' + message)) {
+      return;
+    }
+    
+    const btn = document.getElementById('btn-send-sms');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Sending...';
+    btn.classList.add('btn-loading');
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          document.getElementById('quick-message').value = '';
+          btn.innerHTML = ' Sent!';
+          btn.classList.remove('btn-loading');
+          btn.classList.add('btn-success');
+          showToast('Message sent!', 'success');
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-success');
+          }, 2000);
+        } else {
+          btn.innerHTML = originalText;
+          btn.classList.remove('btn-loading');
+          showToast('Error sending message: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        btn.innerHTML = originalText;
+        btn.classList.remove('btn-loading');
+        showToast('Error: ' + error, 'error');
+      })
+      .sendMessageToCustomer(
+        currentSubmission.customer_phone, 
+        message, 
+        { submissionId: currentSubmission.submission_id }
+      );
+  }
+  
+  /**
+   * Contact customer via preferred method
+   */
+  function contactCustomer(method) {
+    if (!currentSubmission) return;
+    
+    if (method === 'call' && currentSubmission.customer_phone) {
+      window.open('tel:' + currentSubmission.customer_phone);
+    } else if (method === 'text' && currentSubmission.customer_phone) {
+      document.getElementById('quick-message').focus();
+    } else if (method === 'email' && currentSubmission.customer_email) {
+      window.open('mailto:' + currentSubmission.customer_email);
+    } else {
+      alert('Contact info not available for this method.');
+    }
+  }
+  
+  /**
+   * Create quote from this submission
+   */
+  function createQuoteFromSubmission() {
+    if (!currentSubmission) return;
+    
+    if (!confirm('Create a quote for ' + currentSubmission.customer_name + '?')) {
+      return;
+    }
+    
+    const btn = document.getElementById('btn-create-quote');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Creating...';
+    btn.classList.add('btn-loading');
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          btn.innerHTML = 'Created!';
+          btn.classList.remove('btn-loading');
+          btn.classList.add('btn-success');
+          showToast('Quote created!', 'success');
+          setTimeout(() => {
+            closeSubmissionModal();
+            viewQuote(result.doc_id);
+          }, 800);
+        } else {
+          btn.innerHTML = originalText;
+          btn.classList.remove('btn-loading');
+          showToast('Error creating quote: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        btn.innerHTML = originalText;
+        btn.classList.remove('btn-loading');
+        showToast('Error: ' + error, 'error');
+      })
+      .createDocument({ doc_type: 'quote', submission_id: currentSubmission.submission_id });
+  }
+  
+  // Close modal on overlay click
+  document.getElementById('submission-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+      closeSubmissionModal();
+    }
+  });
+  
+  // Close modal on Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeSubmissionModal();
+    }
+  });
+</script>

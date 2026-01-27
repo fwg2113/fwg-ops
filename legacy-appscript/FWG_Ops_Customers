@@ -1,0 +1,1367 @@
+<!-- ============================================================================
+     CUSTOMERS VIEW
+     Customer database with search, detail view, and history
+     ============================================================================ -->
+
+<style>
+  /* Spinner Animation */
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  .search-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Customer View Layout */
+  .customers-container {
+    padding: 0 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .customers-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .customers-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    max-width: 500px;
+  }
+  
+  .customers-search-input {
+    flex: 1;
+    padding: 10px 16px;
+    font-size: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+  
+  .customers-search-input:focus {
+    outline: none;
+    border-color: var(--fwg-primary);
+  }
+  
+  .customers-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  
+  .customers-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .customers-stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  
+  /* Customer List */
+  .customers-list {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  
+  .customers-list-header {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr 1fr 100px;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .customer-row {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1fr 1fr 100px;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    align-items: center;
+  }
+  
+  .customer-row:last-child {
+    border-bottom: none;
+  }
+  
+  .customer-row:hover {
+    background: var(--bg-elevated);
+  }
+  
+  .customer-name-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .customer-display-name {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  
+  .customer-company {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  
+  .customer-contact {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  
+  .customer-ltv {
+    font-weight: 600;
+    color: var(--accent-green);
+  }
+  
+  .customer-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  
+  .customer-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: var(--fwg-primary-soft);
+    color: var(--fwg-primary);
+    border-radius: 4px;
+  }
+  
+  /* Customer Detail Modal */
+  .customer-detail-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  
+  .customer-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--fwg-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  
+  .customer-detail-info {
+    flex: 1;
+  }
+  
+  .customer-detail-name {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  
+  .customer-detail-company {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  
+  .customer-detail-contacts {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .customer-detail-contact {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  
+  .customer-detail-contact svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+  }
+  
+  .customer-detail-contact a {
+    color: var(--fwg-primary);
+    text-decoration: none;
+  }
+  
+  .customer-detail-contact a:hover {
+    text-decoration: underline;
+  }
+  
+  .customer-detail-ltv {
+    text-align: right;
+  }
+  
+  .customer-detail-ltv-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  
+  .customer-detail-ltv-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent-green);
+  }
+  
+  /* History Tabs */
+  .customer-history-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+  }
+  
+  .customer-history-tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all 0.15s ease;
+  }
+  
+  .customer-history-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+  }
+  
+  .customer-history-tab.active {
+    color: var(--fwg-primary);
+    background: var(--fwg-primary-soft);
+  }
+  
+  .customer-history-tab .tab-count {
+    margin-left: 6px;
+    font-size: 11px;
+    padding: 2px 6px;
+    background: var(--bg-elevated);
+    border-radius: 10px;
+  }
+  
+  .customer-history-tab.active .tab-count {
+    background: var(--fwg-primary);
+    color: white;
+  }
+  
+  /* History Items */
+  .customer-history-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  .customer-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .customer-history-item:hover {
+    background: var(--bg-dark);
+  }
+  
+  .history-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .history-item-title {
+    font-weight: 500;
+    font-size: 13px;
+  }
+  
+  .history-item-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  
+  .history-item-status {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 4px;
+  }
+  
+  .history-item-amount {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  
+  /* Notes Section */
+  .customer-notes-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .customer-notes-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  
+  .customer-notes-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Customer Attachments */
+  .customer-attachments-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .customer-attachment-thumb {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+  }
+  
+  .customer-attachment-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .customer-attachment-thumb-file {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    text-align: center;
+  }
+  
+  .customer-attachment-thumb-file svg {
+    width: 24px;
+    height: 24px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  
+  .customer-attachment-thumb-file span {
+    font-size: 9px;
+    color: var(--text-muted);
+    word-break: break-all;
+    line-height: 1.2;
+  }
+  
+  .customer-attachment-delete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  
+  .customer-attachment-thumb:hover .customer-attachment-delete {
+    opacity: 1;
+  }
+  
+  .customer-attachments-empty {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 12px;
+    text-align: center;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    width: 100%;
+  }
+  
+  /* Empty State */
+  .customers-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  
+  .customers-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+  
+  /* Mobile */
+  @media (max-width: 768px) {
+    .customers-list-header {
+      display: none;
+    }
+    
+    .customer-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    
+    .customer-ltv {
+      font-size: 16px;
+    }
+  }
+</style>
+
+<div class="customers-container">
+  <div class="customers-header">
+    <div class="customers-search-bar">
+      <input type="text" class="customers-search-input" id="customer-search" placeholder="Search customers..." oninput="debounceCustomerSearch()">
+      <div id="customer-search-spinner" class="search-spinner" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;animation:spin 1s linear infinite;color:var(--fwg-primary);">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+        </svg>
+      </div>
+      <button class="btn btn-primary" onclick="openNewCustomerModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px;">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="16"></line>
+          <line x1="8" y1="12" x2="16" y2="12"></line>
+        </svg>
+        Add Customer
+      </button>
+    </div>
+    <div class="customers-stats">
+      <div class="customers-stat">
+        <span>Total:</span>
+        <span class="customers-stat-value" id="customers-total">0</span>
+      </div>
+      <div class="customers-stat">
+        <span>Lifetime Value:</span>
+        <span class="customers-stat-value" id="customers-ltv">$0</span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="customers-list">
+    <div class="customers-list-header">
+      <div>Customer</div>
+      <div>Email</div>
+      <div>Phone</div>
+      <div>Lifetime Value</div>
+      <div>Tags</div>
+    </div>
+    <div id="customers-list-body">
+      <div class="customers-empty">
+        <div class="customers-empty-icon">👥</div>
+        <div>Loading customers...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // =========================================================================
+  // CUSTOMERS VIEW
+  // =========================================================================
+  
+  let customersData = [];
+  let customerListSearchTimeout = null;
+  let currentCustomerHistoryTab = 'submissions';
+  let currentCustomerDetail = null;
+  
+  function initCustomersView() {
+    loadCustomers();
+  }
+  
+  function loadCustomers(search) {
+    const options = { limit: 1500 };
+    if (search) options.search = search;
+    
+    // Show spinner
+    const spinner = document.getElementById('customer-search-spinner');
+    if (spinner) spinner.style.display = 'flex';
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        // Hide spinner
+        const spinner = document.getElementById('customer-search-spinner');
+        if (spinner) spinner.style.display = 'none';
+        
+        if (result.ok) {
+          customersData = result.customers;
+          renderCustomersList();
+          updateCustomerStats();
+        } else {
+          showCustomerToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        // Hide spinner
+        const spinner = document.getElementById('customer-search-spinner');
+        if (spinner) spinner.style.display = 'none';
+        
+        showCustomerToast('Error: ' + error, 'error');
+      })
+      .getCustomers(options);
+  }
+  
+  function debounceCustomerSearch() {
+    clearTimeout(customerListSearchTimeout);
+    customerListSearchTimeout = setTimeout(function() {
+      const search = document.getElementById('customer-search').value.trim();
+      loadCustomers(search);
+    }, 300);
+  }
+  
+  function renderCustomersList() {
+    const container = document.getElementById('customers-list-body');
+    
+    if (customersData.length === 0) {
+      container.innerHTML = `
+        <div class="customers-empty">
+          <div class="customers-empty-icon">👥</div>
+          <div>No customers found</div>
+        </div>
+      `;
+      return;
+    }
+    
+    const html = customersData.map(c => {
+      const initials = getInitials(c.display_name);
+      const tags = c.tags ? c.tags.split(',').filter(t => t.trim()).slice(0, 3) : [];
+      const tagsHtml = tags.map(t => `<span class="customer-tag">${escapeHtml(t.trim())}</span>`).join('');
+      
+      return `
+        <div class="customer-row" onclick="viewCustomerDetail('${c.customer_id}')">
+          <div class="customer-name-cell">
+            <div class="customer-display-name">${escapeHtml(c.display_name)}</div>
+            ${c.company && c.company !== c.display_name ? `<div class="customer-company">${escapeHtml(c.company)}</div>` : ''}
+          </div>
+          <div class="customer-contact">${escapeHtml(c.email) || '-'}</div>
+          <div class="customer-contact">${formatPhone(c.phone) || '-'}</div>
+          <div class="customer-ltv">$${(c.lifetime_value || 0).toLocaleString()}</div>
+          <div class="customer-tags">${tagsHtml || '-'}</div>
+        </div>
+      `;
+    }).join('');
+    
+    container.innerHTML = html;
+  }
+  
+  function updateCustomerStats() {
+    const total = customersData.length;
+    const ltv = customersData.reduce((sum, c) => sum + (c.lifetime_value || 0), 0);
+    
+    document.getElementById('customers-total').textContent = total.toLocaleString();
+    document.getElementById('customers-ltv').textContent = '$' + ltv.toLocaleString();
+  }
+  
+  // =========================================================================
+  // CUSTOMER DETAIL
+  // =========================================================================
+  
+  function viewCustomerDetail(customerId) {
+    // Show loading modal immediately
+    const loadingHtml = `
+      <div class="modal-backdrop" id="customer-loading-modal">
+        <div class="modal" style="max-width:300px;text-align:center;" onclick="event.stopPropagation()">
+          <div class="modal-body" style="padding:40px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;margin-bottom:16px;animation:spin 1s linear infinite;color:var(--fwg-primary);">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+              <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+            </svg>
+            <div style="font-size:16px;font-weight:500;">Loading customer...</div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', loadingHtml);
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        // Remove loading modal
+        const loadingModal = document.getElementById('customer-loading-modal');
+        if (loadingModal) loadingModal.remove();
+        
+        if (result.ok) {
+          currentCustomerDetail = result;
+          showCustomerDetailModal(result);
+        } else {
+          showCustomerToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        // Remove loading modal
+        const loadingModal = document.getElementById('customer-loading-modal');
+        if (loadingModal) loadingModal.remove();
+        
+        showCustomerToast('Error: ' + error, 'error');
+      })
+      .getCustomerWithHistory(customerId);
+  }
+  
+  function showCustomerDetailModal(data) {
+    const c = data.customer;
+    const initials = getInitials(c.display_name);
+    
+    const modalHtml = `
+      <div class="modal-backdrop" onclick="closeCustomerModal()">
+        <div class="modal" style="max-width:700px;" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <div class="modal-title">Customer Details</div>
+            <button class="modal-close" onclick="closeCustomerModal()">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="customer-detail-header">
+              <div class="customer-avatar">${initials}</div>
+              <div class="customer-detail-info">
+                <div class="customer-detail-name">${escapeHtml(c.display_name)}</div>
+                ${c.company ? `<div class="customer-detail-company">${escapeHtml(c.company)}</div>` : ''}
+                <div class="customer-detail-contacts">
+                  ${c.email ? `
+                    <div class="customer-detail-contact">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                      <a href="mailto:${c.email}">${escapeHtml(c.email)}</a>
+                    </div>
+                  ` : ''}
+                  ${c.phone ? `
+                    <div class="customer-detail-contact">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                      <a href="tel:${c.phone}">${formatPhone(c.phone)}</a>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+              <div class="customer-detail-ltv">
+                <div class="customer-detail-ltv-label">Lifetime Value</div>
+                <div class="customer-detail-ltv-value">$${(c.lifetime_value || 0).toLocaleString()}</div>
+              </div>
+            </div>
+            
+            <div class="customer-history-tabs">
+              <button class="customer-history-tab active" onclick="switchCustomerHistoryTab('submissions', this)">
+                Submissions<span class="tab-count">${data.submissions.length}</span>
+              </button>
+              <button class="customer-history-tab" onclick="switchCustomerHistoryTab('quotes', this)">
+                Quotes<span class="tab-count">${data.quotes.length}</span>
+              </button>
+              <button class="customer-history-tab" onclick="switchCustomerHistoryTab('invoices', this)">
+                Invoices<span class="tab-count">${data.invoices.length}</span>
+              </button>
+            </div>
+            
+            <div class="customer-history-list" id="customer-history-list">
+              ${renderCustomerHistoryItems('submissions', data)}
+            </div>
+            
+            ${c.notes ? `
+              <div class="customer-notes-section">
+                <div class="customer-notes-label">Notes</div>
+                <div class="customer-notes-text">${escapeHtml(c.notes)}</div>
+              </div>
+            ` : ''}
+            
+            ${c.address ? `
+              <div class="customer-notes-section">
+                <div class="customer-notes-label">Address</div>
+                <div class="customer-notes-text">${escapeHtml(c.address)}${c.city ? ', ' + escapeHtml(c.city) : ''}${c.state ? ', ' + escapeHtml(c.state) : ''} ${escapeHtml(c.zip) || ''}</div>
+              </div>
+            ` : ''}
+            
+            <!-- Customer Attachments Section -->
+            <div class="customer-attachments-section" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-color);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <div class="customer-notes-label">FILES & ASSETS</div>
+                <button class="btn btn-sm btn-secondary" onclick="uploadCustomerFile('${c.customer_id}')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  Upload
+                </button>
+              </div>
+              <div id="customer-attachments-grid" class="customer-attachments-grid">
+                ${renderCustomerAttachments(c.project_files_json, c.customer_id)}
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer" style="justify-content:space-between;">
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary" onclick="closeCustomerModal()">Close</button>
+              ${c.drive_folder_url ? `<a href="${c.drive_folder_url}" target="_blank" class="btn btn-secondary" style="display:flex;align-items:center;gap:6px;text-decoration:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                Drive Folder
+              </a>` : `<button class="btn btn-secondary" onclick="linkDriveFolder('${c.customer_id}')" style="display:flex;align-items:center;gap:6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                Link Drive
+              </button>`}
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-secondary" onclick="createQuoteForCustomer('${c.customer_id}', '${escapeHtml(c.display_name)}', '${escapeHtml(c.email)}', '${c.phone}')" style="display:flex;align-items:center;gap:6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                New Quote
+              </button>
+              <button class="btn btn-secondary" onclick="createInvoiceForCustomer('${c.customer_id}', '${escapeHtml(c.display_name)}', '${escapeHtml(c.email)}', '${c.phone}')" style="display:flex;align-items:center;gap:6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                New Invoice
+              </button>
+              <button class="btn btn-primary" onclick="editCustomer('${c.customer_id}')">Edit Customer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    currentCustomerHistoryTab = 'submissions';
+  }
+  
+  function switchCustomerHistoryTab(tab, btn) {
+    currentCustomerHistoryTab = tab;
+    
+    // Update active tab
+    document.querySelectorAll('.customer-history-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    
+    // Render history items
+    const container = document.getElementById('customer-history-list');
+    container.innerHTML = renderCustomerHistoryItems(tab, currentCustomerDetail);
+  }
+  
+  function renderCustomerHistoryItems(tab, data) {
+    let items = [];
+    
+    if (tab === 'submissions') {
+      items = data.submissions.map(s => ({
+        id: s.submission_id,
+        title: s.project_type || 'Submission',
+        meta: formatDate(s.created_at),
+        status: s.status,
+        statusColor: getStatusColor(s.status),
+        amount: null,
+        onclick: `viewSubmission('${s.submission_id}')`
+      }));
+    } else if (tab === 'quotes') {
+      items = data.quotes.map(q => ({
+        id: q.quote_id,
+        title: q.title || 'Quote ' + q.quote_id,
+        meta: formatDate(q.created_at),
+        status: q.status,
+        statusColor: getStatusColor(q.status),
+        amount: q.total,
+        onclick: `viewQuote('${q.quote_id}')`
+      }));
+    } else if (tab === 'invoices') {
+      items = data.invoices.map(i => ({
+        id: i.invoice_id,
+        title: i.title || 'Invoice ' + i.invoice_id,
+        meta: formatDate(i.created_at),
+        status: i.status,
+        statusColor: getStatusColor(i.status),
+        amount: i.total,
+        onclick: `viewInvoice('${i.invoice_id}')`
+      }));
+    }
+    
+    if (items.length === 0) {
+      return `<div class="customers-empty" style="padding:30px;"><div>No ${tab} found</div></div>`;
+    }
+    
+    return items.map(item => `
+      <div class="customer-history-item" onclick="closeCustomerModal(); ${item.onclick}">
+        <div class="history-item-info">
+          <div class="history-item-title">${escapeHtml(item.title)}</div>
+          <div class="history-item-meta">${item.meta} • ${item.id}</div>
+        </div>
+        ${item.amount !== null ? `<div class="history-item-amount">$${item.amount.toLocaleString()}</div>` : ''}
+        <div class="history-item-status" style="background:${item.statusColor}20;color:${item.statusColor};">${item.status}</div>
+      </div>
+    `).join('');
+  }
+  
+  // =========================================================================
+  // NEW/EDIT CUSTOMER
+  // =========================================================================
+  
+  function openNewCustomerModal() {
+    const modalHtml = `
+      <div class="modal-backdrop" onclick="closeCustomerModal()">
+        <div class="modal" style="max-width:500px;" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <div class="modal-title">Add New Customer</div>
+            <button class="modal-close" onclick="closeCustomerModal()">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="new-customer-form" onsubmit="saveNewCustomer(event)">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">First Name</label>
+                  <input type="text" class="form-input" id="cust-first-name">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Last Name</label>
+                  <input type="text" class="form-input" id="cust-last-name">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Company</label>
+                <input type="text" class="form-input" id="cust-company">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="cust-email">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input type="tel" class="form-input" id="cust-phone">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Address</label>
+                <input type="text" class="form-input" id="cust-address">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">City</label>
+                  <input type="text" class="form-input" id="cust-city">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">State</label>
+                  <input type="text" class="form-input" id="cust-state">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">ZIP</label>
+                  <input type="text" class="form-input" id="cust-zip">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tags (comma-separated)</label>
+                <input type="text" class="form-input" id="cust-tags" placeholder="VIP, Commercial, Wrap">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-input" id="cust-notes" rows="3"></textarea>
+              </div>
+              <div class="modal-footer" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" onclick="closeCustomerModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Customer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  }
+  
+  function saveNewCustomer(event) {
+    event.preventDefault();
+    
+    const customerData = {
+      first_name: document.getElementById('cust-first-name').value.trim(),
+      last_name: document.getElementById('cust-last-name').value.trim(),
+      company: document.getElementById('cust-company').value.trim(),
+      email: document.getElementById('cust-email').value.trim(),
+      phone: document.getElementById('cust-phone').value.trim(),
+      address: document.getElementById('cust-address').value.trim(),
+      city: document.getElementById('cust-city').value.trim(),
+      state: document.getElementById('cust-state').value.trim(),
+      zip: document.getElementById('cust-zip').value.trim(),
+      tags: document.getElementById('cust-tags').value.trim(),
+      notes: document.getElementById('cust-notes').value.trim()
+    };
+    
+    if (!customerData.email && !customerData.phone && !customerData.first_name) {
+      showCustomerToast('Please enter at least a name, email, or phone', 'error');
+      return;
+    }
+    
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          closeCustomerModal();
+          showCustomerToast('Customer created!', 'success');
+          loadCustomers();
+        } else {
+          showCustomerToast('Error: ' + result.error, 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save Customer';
+        }
+      })
+      .withFailureHandler(function(error) {
+        showCustomerToast('Error: ' + error, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Customer';
+      })
+      .createCustomer(customerData);
+  }
+  
+  function editCustomer(customerId) {
+    const c = currentCustomerDetail.customer;
+    
+    // Close detail modal first
+    closeCustomerModal();
+    
+    const modalHtml = `
+      <div class="modal-backdrop" onclick="closeCustomerModal()">
+        <div class="modal" style="max-width:500px;" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <div class="modal-title">Edit Customer</div>
+            <button class="modal-close" onclick="closeCustomerModal()">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="edit-customer-form" onsubmit="saveEditedCustomer(event, '${c.customer_id}')">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">First Name</label>
+                  <input type="text" class="form-input" id="edit-first-name" value="${escapeHtml(c.first_name) || ''}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Last Name</label>
+                  <input type="text" class="form-input" id="edit-last-name" value="${escapeHtml(c.last_name) || ''}">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Company</label>
+                <input type="text" class="form-input" id="edit-company" value="${escapeHtml(c.company) || ''}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="edit-email" value="${escapeHtml(c.email) || ''}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input type="tel" class="form-input" id="edit-phone" value="${c.phone || ''}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Address</label>
+                <input type="text" class="form-input" id="edit-address" value="${escapeHtml(c.address) || ''}">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">City</label>
+                  <input type="text" class="form-input" id="edit-city" value="${escapeHtml(c.city) || ''}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">State</label>
+                  <input type="text" class="form-input" id="edit-state" value="${escapeHtml(c.state) || ''}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">ZIP</label>
+                  <input type="text" class="form-input" id="edit-zip" value="${escapeHtml(c.zip) || ''}">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tags (comma-separated)</label>
+                <input type="text" class="form-input" id="edit-tags" value="${escapeHtml(c.tags) || ''}" placeholder="VIP, Commercial, Wrap">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Drive Folder URL</label>
+                <input type="url" class="form-input" id="edit-drive-url" value="${escapeHtml(c.drive_folder_url) || ''}" placeholder="https://drive.google.com/...">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-input" id="edit-notes" rows="3">${escapeHtml(c.notes) || ''}</textarea>
+              </div>
+              <div class="modal-footer" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" onclick="closeCustomerModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  }
+  
+  function saveEditedCustomer(event, customerId) {
+    event.preventDefault();
+    
+    // Build display name
+    const firstName = document.getElementById('edit-first-name').value.trim();
+    const lastName = document.getElementById('edit-last-name').value.trim();
+    const company = document.getElementById('edit-company').value.trim();
+    
+    let displayName = company || '';
+    if (!displayName && (firstName || lastName)) {
+      displayName = (firstName + ' ' + lastName).trim();
+    }
+    
+    const updates = {
+      first_name: firstName,
+      last_name: lastName,
+      display_name: displayName,
+      company: company,
+      email: document.getElementById('edit-email').value.trim().toLowerCase(),
+      phone: document.getElementById('edit-phone').value.trim().replace(/\D/g, '').slice(-10),
+      address: document.getElementById('edit-address').value.trim(),
+      city: document.getElementById('edit-city').value.trim(),
+      state: document.getElementById('edit-state').value.trim(),
+      zip: document.getElementById('edit-zip').value.trim(),
+      tags: document.getElementById('edit-tags').value.trim(),
+      drive_folder_url: document.getElementById('edit-drive-url').value.trim(),
+      notes: document.getElementById('edit-notes').value.trim()
+    };
+    
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          closeCustomerModal();
+          showCustomerToast('Customer updated!', 'success');
+          loadCustomers(); // Refresh list
+        } else {
+          showCustomerToast('Error: ' + result.error, 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save Changes';
+        }
+      })
+      .withFailureHandler(function(error) {
+        showCustomerToast('Error: ' + error, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+      })
+      .updateCustomer(customerId, updates);
+  }
+  
+  // =========================================================================
+  // UTILITIES
+  // =========================================================================
+  
+  function closeCustomerModal() {
+    const modal = document.querySelector('.modal-backdrop');
+    if (modal) modal.remove();
+  }
+  
+  function getInitials(name) {
+    if (!name) return '?';
+    const parts = name.split(' ').filter(p => p);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+  
+  function formatPhone(phone) {
+    if (!phone) return '';
+    const digits = phone.toString().replace(/\D/g, '');
+    if (digits.length === 10) {
+      return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    }
+    return phone;
+  }
+  
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  
+  function getStatusColor(status) {
+    const colors = {
+      'New': '#3b82f6',
+      'In Progress': '#eab308',
+      'Quoted': '#8b5cf6',
+      'Won': '#22c55e',
+      'Lost': '#ef4444',
+      'Draft': '#64748b',
+      'Sent': '#3b82f6',
+      'Approved': '#22c55e',
+      'Declined': '#ef4444',
+      'Paid': '#22c55e',
+      'Partial': '#eab308',
+      'Void': '#64748b'
+    };
+    return colors[status] || '#64748b';
+  }
+  
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  
+  function showCustomerToast(message, type) {
+    if (typeof showToast === 'function') {
+      showToast(message, type);
+    } else {
+      console.log('[Toast]', type, message);
+    }
+  }
+  
+  // =========================================================================
+  // QUICK ACTIONS
+  // =========================================================================
+  
+  function createQuoteForCustomer(customerId, name, email, phone) {
+    // Close ALL modals first
+    document.querySelectorAll('.modal-backdrop').forEach(m => m.remove());
+    
+    // Create quote with pre-filled customer data
+    if (typeof openNewQuote === 'function') {
+      openNewQuote({ customer_name: name, customer_email: email, customer_phone: phone });
+    } else {
+      showCustomerToast('Quote builder not ready - try again', 'error');
+    }
+  }
+  
+  function createInvoiceForCustomer(customerId, name, email, phone) {
+    // Close ALL modals first
+    document.querySelectorAll('.modal-backdrop').forEach(m => m.remove());
+    
+    // Create invoice with pre-filled customer data
+    if (typeof openNewInvoice === 'function') {
+      openNewInvoice({ customer_name: name, customer_email: email, customer_phone: phone });
+    } else {
+      showCustomerToast('Invoice builder not ready - try again', 'error');
+    }
+  }
+
+  // =========================================================================
+  // CUSTOMER ATTACHMENTS
+  // =========================================================================
+  
+  const CUSTOMER_R2_WORKER_URL = 'https://fwg-upload.yellow-rain-80cf.workers.dev';
+  const CUSTOMER_R2_PUBLIC_URL = 'https://pub-2ae8eecf3c4d4b5f84b0dcf3aebb2ac9.r2.dev';
+  
+  function renderCustomerAttachments(projectFilesJson, customerId) {
+    let files = [];
+    try {
+      if (projectFilesJson) {
+        files = JSON.parse(projectFilesJson);
+      }
+    } catch (e) {
+      console.error('Error parsing customer attachments:', e);
+    }
+    
+    if (!files || files.length === 0) {
+      return '<div class="customer-attachments-empty">No files uploaded yet</div>';
+    }
+    
+    return files.map((file, index) => {
+      const name = file.name || file.filename || 'file';
+      const url = file.url || '';
+      const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name) || /\.(jpg|jpeg|png|gif|webp|svg)/i.test(url);
+      
+      if (isImage && url) {
+        return `
+          <div class="customer-attachment-thumb" onclick="openCustomerLightbox('${url}', '${escapeHtml(name)}')">
+            <img src="${url}" alt="${escapeHtml(name)}">
+            <button class="customer-attachment-delete" onclick="event.stopPropagation(); deleteCustomerFile('${customerId}', ${index})">&times;</button>
+          </div>
+        `;
+      } else if (url) {
+        return `
+          <div class="customer-attachment-thumb" onclick="window.open('${url}', '_blank')">
+            <div class="customer-attachment-thumb-file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              <span>${escapeHtml(name.length > 12 ? name.substring(0, 12) + '...' : name)}</span>
+            </div>
+            <button class="customer-attachment-delete" onclick="event.stopPropagation(); deleteCustomerFile('${customerId}', ${index})">&times;</button>
+          </div>
+        `;
+      }
+      return '';
+    }).join('');
+  }
+  
+  function uploadCustomerFile(customerId) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = 'image/*,.pdf,.ai,.eps,.svg,.dst,.emb';
+    
+    input.onchange = async function(e) {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+      
+      showCustomerToast('Uploading ' + files.length + ' file(s)...', 'info');
+      
+      for (const file of files) {
+        try {
+          // Build path matching DocumentDetail pattern
+          const timestamp = Date.now();
+          const random = Math.random().toString(36).substring(2, 8);
+          const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          const path = `customers/${customerId}/${timestamp}-${random}-${safeName}`;
+          
+          // Upload using FormData (same as DocumentDetail)
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('path', path);
+          
+          const response = await fetch(CUSTOMER_R2_WORKER_URL + '/upload', {
+            method: 'POST',
+            body: formData
+          });
+          
+          const result = await response.json();
+          console.log('R2 upload response:', result);
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Upload failed');
+          }
+          
+          // Save to customer record
+          const attachment = {
+            file_id: result.key,
+            name: file.name,
+            url: result.url,
+            type: file.type,
+            size: file.size,
+            uploaded_at: new Date().toISOString()
+          };
+          
+          google.script.run
+            .withSuccessHandler(function(saveResult) {
+              if (saveResult.ok) {
+                showCustomerToast('File uploaded!', 'success');
+                refreshCustomerAttachments(customerId);
+              } else {
+                showCustomerToast('Error saving: ' + saveResult.error, 'error');
+              }
+            })
+            .withFailureHandler(function(error) {
+              showCustomerToast('Error: ' + error, 'error');
+            })
+            .addCustomerAttachment(customerId, attachment);
+            
+        } catch (error) {
+          console.error('Upload error:', error);
+          showCustomerToast('Upload failed: ' + error.message, 'error');
+        }
+      }
+    };
+    
+    input.click();
+  }
+  
+  function deleteCustomerFile(customerId, fileIndex) {
+    if (!confirm('Delete this file?')) return;
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showCustomerToast('File deleted', 'success');
+          viewCustomerDetail(customerId);
+        } else {
+          showCustomerToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        showCustomerToast('Error: ' + error, 'error');
+      })
+      .deleteCustomerAttachment(customerId, fileIndex);
+  }
+
+  function refreshCustomerAttachments(customerId) {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          currentCustomerDetail = result;
+          const grid = document.getElementById('customer-attachments-grid');
+          if (grid) {
+            grid.innerHTML = renderCustomerAttachments(result.customer.project_files_json, customerId);
+          }
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('Error refreshing attachments:', error);
+      })
+      .getCustomerWithHistory(customerId);
+  }
+  
+  function openCustomerLightbox(url, name) {
+    const lightboxHtml = `
+      <div class="modal-backdrop" onclick="this.remove()" style="z-index:10000;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;">
+        <img src="${url}" alt="${escapeHtml(name)}" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;">
+        <button onclick="this.parentElement.remove()" style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.2);border:none;color:white;width:40px;height:40px;border-radius:50%;font-size:24px;cursor:pointer;">&times;</button>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', lightboxHtml);
+  }
+  
+  function linkDriveFolder(customerId) {
+    const url = prompt('Paste the Google Drive folder URL:');
+    if (!url) return;
+    
+    // Basic validation
+    if (!url.includes('drive.google.com')) {
+      showCustomerToast('Please enter a valid Google Drive URL', 'error');
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (result.ok) {
+          showCustomerToast('Drive folder linked!', 'success');
+          // Refresh the detail view
+          viewCustomerDetail(customerId);
+        } else {
+          showCustomerToast('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(error) {
+        showCustomerToast('Error: ' + error, 'error');
+      })
+      .updateCustomer(customerId, { drive_folder_url: url });
+  }
+</script>

@@ -1,0 +1,517 @@
+/**
+ * ============================================================================
+ * FWG SYSTEM SETTINGS - SHEET SETUP
+ * Run this once to create the new configuration sheets
+ * ============================================================================
+ */
+
+/**
+ * Main setup function - run this to create all new sheets
+ */
+function setupSystemSettingsSheets() {
+  const ss = SpreadsheetApp.openById('1RvRIcNDsYGvx2to302lzDs3nmFQXHETYNZzMWoyFnhE'); // FWG_Wraps_Spec
+  
+  createCategoriesSheet(ss);
+  createLineItemTemplatesSheet(ss);
+  createPackagesSheet(ss);
+  
+  Logger.log('✅ All System Settings sheets created successfully!');
+}
+
+/**
+ * Create Categories sheet with Joe's 13 categories
+ */
+function createCategoriesSheet(ss) {
+  // Check if sheet already exists
+  let sheet = ss.getSheetByName('Categories');
+  if (sheet) {
+    Logger.log('Categories sheet already exists - skipping');
+    return;
+  }
+  
+  sheet = ss.insertSheet('Categories');
+  
+  // Headers
+  const headers = [
+    'category_key',      // Unique identifier (no spaces, uppercase)
+    'label',             // Display name
+    'calendar_color',    // Hex color for calendar events
+    'line_template',     // Which line item template to use
+    'unit_label',        // Default unit (Sq Ft, Qty, Hours, etc.)
+    'has_packages',      // TRUE if this category has preset packages
+    'is_vehicle_based',  // TRUE if uses vehicle categories for pricing
+    'default_rate',      // Default rate per unit (optional)
+    'sort_order',        // Display order in dropdowns
+    'active',            // TRUE/FALSE
+    'notes'              // Internal notes
+  ];
+  
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  
+  // Joe's 13 categories with suggested colors
+  const categories = [
+    ['PPF', 'PPF', '#10B981', 'PPF', 'Sq Ft', true, true, 0, 1, true, 'Paint Protection Film'],
+    ['FULL_WRAP', 'Full Wrap', '#3B82F6', 'VEHICLE_WRAP', 'Sq Ft', true, true, 0, 2, true, 'Complete vehicle wrap'],
+    ['PARTIAL_WRAP', 'Partial Wrap', '#6366F1', 'VEHICLE_WRAP', 'Sq Ft', true, true, 0, 3, true, 'Partial vehicle coverage'],
+    ['VINYL_LETTERING', 'Vinyl Lettering', '#8B5CF6', 'DEFAULT', 'Qty', false, false, 0, 4, true, 'Cut vinyl letters'],
+    ['VINYL_GRAPHICS', 'Vinyl Graphics', '#A855F7', 'DEFAULT', 'Sq Ft', false, false, 0, 5, true, 'Custom vinyl graphics'],
+    ['VINYL_DECALS', 'Vinyl Fox Decals', '#D946EF', 'DEFAULT', 'Qty', false, false, 0, 6, true, 'Pre-made decals'],
+    ['DTF_TRANSFER', 'DTF Transfer', '#EC4899', 'APPAREL', 'Qty', false, false, 0, 7, true, 'Direct to film transfers'],
+    ['APPAREL', 'Apparel', '#F43F5E', 'APPAREL', 'Qty', false, false, 0, 8, true, 'Shirts, hats, etc.'],
+    ['SIGNAGE', 'Signage', '#F97316', 'SIGNAGE', 'Qty', false, false, 0, 9, true, 'Banners, signs, displays'],
+    ['STICKERS', 'Stickers', '#FBBF24', 'DEFAULT', 'Qty', false, false, 0, 10, true, 'Custom stickers'],
+    ['LABELS', 'Labels', '#A3E635', 'DEFAULT', 'Qty', false, false, 0, 11, true, 'Product labels'],
+    ['EMBROIDERY', 'Embroidery', '#22D3EE', 'EMBROIDERY', 'Qty', false, false, 0, 12, true, 'Embroidered items'],
+    ['DESIGN_FEE', 'Design Fee', '#64748B', 'DESIGN', 'Hours', false, false, 75, 13, true, 'Design services'],
+    ['OTHER', 'Other', '#94A3B8', 'DEFAULT', 'Qty', false, false, 0, 99, true, 'Miscellaneous items']
+  ];
+  
+  sheet.getRange(2, 1, categories.length, categories[0].length).setValues(categories);
+  
+  // Auto-resize columns
+  for (let i = 1; i <= headers.length; i++) {
+    sheet.autoResizeColumn(i);
+  }
+  
+  Logger.log('✅ Categories sheet created with ' + categories.length + ' categories');
+}
+
+/**
+ * Create LineItemTemplates sheet defining column configurations
+ */
+function createLineItemTemplatesSheet(ss) {
+  let sheet = ss.getSheetByName('LineItemTemplates');
+  if (sheet) {
+    Logger.log('LineItemTemplates sheet already exists - skipping');
+    return;
+  }
+  
+  sheet = ss.insertSheet('LineItemTemplates');
+  
+  // Headers
+  const headers = [
+    'template_key',      // Unique identifier
+    'label',             // Display name
+    'column_1_key',      // Internal key for column 1
+    'column_1_label',    // Display label for column 1
+    'column_1_type',     // text, number, select, textarea
+    'column_1_width',    // CSS width (px or %)
+    'column_2_key',
+    'column_2_label',
+    'column_2_type',
+    'column_2_width',
+    'column_3_key',
+    'column_3_label',
+    'column_3_type',
+    'column_3_width',
+    'column_4_key',
+    'column_4_label',
+    'column_4_type',
+    'column_4_width',
+    'column_5_key',
+    'column_5_label',
+    'column_5_type',
+    'column_5_width',
+    'column_6_key',
+    'column_6_label',
+    'column_6_type',
+    'column_6_width',
+    'has_package_dropdown',  // TRUE to show package selector
+    'notes'
+  ];
+  
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  
+  // Template definitions
+  const templates = [
+    // VEHICLE_WRAP: Package, Description, Material, Sq Ft, Rate, Total
+    ['VEHICLE_WRAP', 'Vehicle Wrap', 
+     'package', 'Package', 'select', '150px',
+     'description', 'Description', 'text', '200px',
+     'material', 'Material', 'select', '120px',
+     'sqft', 'Sq Ft', 'number', '80px',
+     'rate', 'Rate/SqFt', 'number', '90px',
+     'total', 'Total', 'calculated', '100px',
+     true, 'For Full Wrap and Partial Wrap'],
+    
+    // PPF: Package, Description, Coverage Area, Sq Ft, Rate, Total
+    ['PPF', 'PPF',
+     'package', 'Package', 'select', '150px',
+     'description', 'Description', 'text', '200px',
+     'coverage', 'Coverage Area', 'text', '120px',
+     'sqft', 'Sq Ft', 'number', '80px',
+     'rate', 'Rate/SqFt', 'number', '90px',
+     'total', 'Total', 'calculated', '100px',
+     true, 'For PPF installations'],
+    
+    // APPAREL: Description, Item Type, Size, Color, Qty, Unit Price, Total
+    ['APPAREL', 'Apparel',
+     'description', 'Description', 'text', '180px',
+     'item_type', 'Item', 'text', '100px',
+     'size', 'Size', 'select', '80px',
+     'color', 'Color', 'text', '80px',
+     'qty', 'Qty', 'number', '60px',
+     'unit_price', 'Unit Price', 'number', '90px',
+     false, 'For apparel and DTF'],
+    
+    // EMBROIDERY: Description, Size, Thread Colors, Stitch Count, Qty, Unit Price, Total
+    ['EMBROIDERY', 'Embroidery',
+     'description', 'Description', 'text', '180px',
+     'size', 'Size', 'text', '80px',
+     'thread_colors', 'Colors', 'number', '70px',
+     'stitch_count', 'Stitches', 'text', '80px',
+     'qty', 'Qty', 'number', '60px',
+     'unit_price', 'Unit Price', 'number', '90px',
+     false, 'For embroidery work'],
+    
+    // SIGNAGE: Description, Dimensions, Material, Qty, Unit Price, Total
+    ['SIGNAGE', 'Signage',
+     'description', 'Description', 'text', '200px',
+     'dimensions', 'Dimensions', 'text', '100px',
+     'material', 'Material', 'select', '120px',
+     'qty', 'Qty', 'number', '60px',
+     'unit_price', 'Unit Price', 'number', '90px',
+     'total', 'Total', 'calculated', '100px',
+     false, 'For signs and banners'],
+    
+    // DESIGN: Description, Hours, Rate/Hr, Total
+    ['DESIGN', 'Design Services',
+     'description', 'Description', 'text', '300px',
+     'hours', 'Hours', 'number', '80px',
+     'rate', 'Rate/Hr', 'number', '90px',
+     'total', 'Total', 'calculated', '100px',
+     '', '', '', '',
+     '', '', '', '',
+     false, 'For design fees'],
+    
+    // DEFAULT: Description, Qty, Unit Price, Total
+    ['DEFAULT', 'Default',
+     'description', 'Description', 'text', '350px',
+     'qty', 'Qty', 'number', '80px',
+     'unit_price', 'Unit Price', 'number', '100px',
+     'total', 'Total', 'calculated', '100px',
+     '', '', '', '',
+     '', '', '', '',
+     false, 'Simple line item format']
+  ];
+  
+  sheet.getRange(2, 1, templates.length, templates[0].length).setValues(templates);
+  
+  // Auto-resize columns
+  for (let i = 1; i <= headers.length; i++) {
+    sheet.autoResizeColumn(i);
+  }
+  
+  Logger.log('✅ LineItemTemplates sheet created with ' + templates.length + ' templates');
+}
+
+/**
+ * Create Packages sheet for PPF and Wrap presets
+ */
+function createPackagesSheet(ss) {
+  let sheet = ss.getSheetByName('Packages');
+  if (sheet) {
+    Logger.log('Packages sheet already exists - skipping');
+    return;
+  }
+  
+  sheet = ss.insertSheet('Packages');
+  
+  // Headers
+  const headers = [
+    'package_key',       // Unique identifier
+    'category_key',      // Links to Categories sheet (PPF, FULL_WRAP, PARTIAL_WRAP)
+    'vehicle_category',  // Optional: links to VehicleCategories (SEDAN_COUPE, etc.) or "ALL"
+    'label',             // Display name
+    'description',       // What's included
+    'coverage_areas',    // For PPF: "Hood, Fenders, Mirrors" etc.
+    'sqft_estimate',     // Pre-fill sqft value
+    'base_price',        // Starting price (can be overridden)
+    'rate_per_sqft',     // Calculated rate (price/sqft)
+    'sort_order',        // Display order
+    'active',            // TRUE/FALSE
+    'notes'              // Internal notes
+  ];
+  
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  
+  // Sample PPF packages (Joe will customize these)
+  const packages = [
+    // PPF Packages
+    ['PPF_ESSENTIALS', 'PPF', 'ALL', 'PPF Essentials', 'Partial front end protection', 'Hood, Fenders, Mirrors', 25, 899, 35.96, 1, true, 'Entry-level PPF package'],
+    ['PPF_PLUS', 'PPF', 'ALL', 'PPF Plus', 'Extended front end protection', 'Hood, Full Fenders, Bumper, Mirrors, Headlights', 45, 1599, 35.53, 2, true, 'Mid-tier PPF package'],
+    ['PPF_FULL_FRONT', 'PPF', 'ALL', 'Full Front End', 'Complete front end coverage', 'Hood, Full Fenders, Full Bumper, Mirrors, Headlights, A-Pillars', 65, 2299, 35.37, 3, true, 'Premium front protection'],
+    ['PPF_TRACK', 'PPF', 'ALL', 'Track Pack', 'High-impact area protection', 'Rocker Panels, Rear Fenders, Door Cups, Door Edges', 30, 999, 33.30, 4, true, 'For track/performance use'],
+    ['PPF_FULL_VEHICLE', 'PPF', 'ALL', 'Full Vehicle PPF', 'Complete vehicle coverage', 'All painted surfaces', 200, 5999, 30.00, 5, true, 'Ultimate protection'],
+    
+    // Full Wrap Packages (vehicle-specific examples)
+    ['WRAP_SEDAN_FULL', 'FULL_WRAP', 'SEDAN_COUPE', 'Sedan Full Wrap', 'Complete sedan coverage', 'All panels', 200, 3000, 15.00, 1, true, 'Standard sedan wrap'],
+    ['WRAP_SUV_SM_FULL', 'FULL_WRAP', 'SMALL_SUV', 'Small SUV Full Wrap', 'Complete small SUV coverage', 'All panels', 230, 3400, 14.78, 2, true, 'Small SUV/crossover'],
+    ['WRAP_SUV_LG_FULL', 'FULL_WRAP', 'LARGE_SUV', 'Large SUV Full Wrap', 'Complete large SUV coverage', 'All panels', 315, 4200, 13.33, 3, true, 'Full-size SUV'],
+    ['WRAP_PICKUP_FULL', 'FULL_WRAP', 'PICKUP_STD', 'Pickup Full Wrap', 'Complete pickup coverage', 'All panels', 285, 3800, 13.33, 4, true, 'Standard pickup'],
+    ['WRAP_VAN_SM_FULL', 'FULL_WRAP', 'CARGO_VAN_SM', 'Small Van Full Wrap', 'Complete small van coverage', 'All panels', 315, 4200, 13.33, 5, true, 'Transit Connect, ProMaster City'],
+    ['WRAP_VAN_LG_FULL', 'FULL_WRAP', 'CARGO_VAN_LG', 'Large Van Full Wrap', 'Complete cargo van coverage', 'All panels', 475, 6500, 13.68, 6, true, 'Sprinter, Transit, ProMaster'],
+    ['WRAP_BOX_SM_FULL', 'FULL_WRAP', 'BOX_TRUCK_SM', 'Box Truck Full Wrap', 'Complete box truck coverage', 'Cab + Box', 525, 7000, 13.33, 7, true, '10-16ft box truck'],
+    ['WRAP_BOX_LG_FULL', 'FULL_WRAP', 'BOX_TRUCK_LG', 'Large Box Truck Full', 'Complete large box coverage', 'Cab + Box', 750, 11000, 14.67, 8, true, '20-26ft box truck'],
+    
+    // Partial Wrap Packages
+    ['WRAP_PARTIAL_BASIC', 'PARTIAL_WRAP', 'ALL', 'Partial Basic', 'Essential branding coverage', 'Doors + Rear', 80, 1200, 15.00, 1, true, 'Entry-level branding'],
+    ['WRAP_PARTIAL_PLUS', 'PARTIAL_WRAP', 'ALL', 'Partial Plus', 'Enhanced branding coverage', 'Hood, Doors, Tailgate/Rear', 120, 1800, 15.00, 2, true, 'Popular partial option'],
+    ['WRAP_PARTIAL_PREMIUM', 'PARTIAL_WRAP', 'ALL', 'Partial Premium', 'Maximum partial coverage', 'Hood, Doors, Fenders, Tailgate/Rear', 160, 2400, 15.00, 3, true, 'Near-full coverage look']
+  ];
+  
+  sheet.getRange(2, 1, packages.length, packages[0].length).setValues(packages);
+  
+  // Auto-resize columns
+  for (let i = 1; i <= headers.length; i++) {
+    sheet.autoResizeColumn(i);
+  }
+  
+  Logger.log('✅ Packages sheet created with ' + packages.length + ' packages');
+}
+
+/**
+ * Utility: View all categories (for testing)
+ */
+function testGetCategories() {
+  const ss = SpreadsheetApp.openById('1RvRIcNDsYGvx2to302lzDs3nmFQXHETYNZzMWoyFnhE');
+  const sheet = ss.getSheetByName('Categories');
+  const data = sheet.getDataRange().getValues();
+  Logger.log('Categories: ' + JSON.stringify(data));
+}
+
+// ============================================================================
+// SYSTEM SETTINGS FUNCTIONS
+// ============================================================================
+
+/**
+ * Get all system settings (categories, packages, templates)
+ */
+function getSystemSettingsConfig() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    
+    // Load Categories
+    const catSheet = ss.getSheetByName('Categories');
+    const categories = catSheet ? settingsSheetToObjects(catSheet) : [];
+    
+    // Load Packages
+    const pkgSheet = ss.getSheetByName('Packages');
+    const packages = pkgSheet ? settingsSheetToObjects(pkgSheet) : [];
+    
+    // Load LineItemTemplates
+    const tmpSheet = ss.getSheetByName('LineItemTemplates');
+    const templates = tmpSheet ? settingsSheetToObjects(tmpSheet) : [];
+    
+    return {
+      ok: true,
+      categories: categories.filter(c => c.active !== false && c.active !== 'FALSE'),
+      packages: packages.filter(p => p.active !== false && p.active !== 'FALSE'),
+      templates: templates
+    };
+    
+  } catch (error) {
+    Logger.log('getQuoteBuilderConfig error: ' + error.toString());
+    return { ok: false, error: error.toString(), categories: [], packages: [], templates: [] };
+  }
+}
+
+/**
+ * Get ALL settings including inactive (for settings UI)
+ */
+function getAllSystemSettings() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    
+    // Load Categories (all, including inactive)
+    const catSheet = ss.getSheetByName('Categories');
+    const categories = catSheet ? settingsSheetToObjects(catSheet) : [];
+    
+    // Load Packages (all, including inactive)
+    const pkgSheet = ss.getSheetByName('Packages');
+    const packages = pkgSheet ? settingsSheetToObjects(pkgSheet) : [];
+    
+    // Load LineItemTemplates
+    const tmpSheet = ss.getSheetByName('LineItemTemplates');
+    const templates = tmpSheet ? settingsSheetToObjects(tmpSheet) : [];
+    
+    return {
+      ok: true,
+      categories: categories,
+      packages: packages,
+      templates: templates
+    };
+    
+  } catch (error) {
+    Logger.log('getAllSystemSettings error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Save a category (create or update)
+ */
+function saveCategory(categoryData) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('Categories');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // Find if category exists
+    const keyCol = headers.indexOf('category_key');
+    let rowIndex = -1;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][keyCol] === categoryData.category_key) {
+        rowIndex = i;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      // Create new row
+      const newRow = headers.map(h => categoryData[h] ?? '');
+      sheet.appendRow(newRow);
+      Logger.log('✓ Category created: ' + categoryData.category_key);
+    } else {
+      // Update existing row
+      headers.forEach((h, col) => {
+        if (categoryData[h] !== undefined) {
+          sheet.getRange(rowIndex + 1, col + 1).setValue(categoryData[h]);
+        }
+      });
+      Logger.log('✓ Category updated: ' + categoryData.category_key);
+    }
+    
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('saveCategory error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a category
+ */
+function deleteCategory(categoryKey) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('Categories');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const keyCol = headers.indexOf('category_key');
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][keyCol] === categoryKey) {
+        sheet.deleteRow(i + 1);
+        Logger.log('✓ Category deleted: ' + categoryKey);
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Category not found' };
+    
+  } catch (error) {
+    Logger.log('deleteCategory error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Save a package (create or update)
+ */
+function savePackage(packageData) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('Packages');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const keyCol = headers.indexOf('package_key');
+    let rowIndex = -1;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][keyCol] === packageData.package_key) {
+        rowIndex = i;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      // Create new
+      const newRow = headers.map(h => packageData[h] ?? '');
+      sheet.appendRow(newRow);
+      Logger.log('✓ Package created: ' + packageData.package_key);
+    } else {
+      // Update existing
+      headers.forEach((h, col) => {
+        if (packageData[h] !== undefined) {
+          sheet.getRange(rowIndex + 1, col + 1).setValue(packageData[h]);
+        }
+      });
+      Logger.log('✓ Package updated: ' + packageData.package_key);
+    }
+    
+    return { ok: true };
+    
+  } catch (error) {
+    Logger.log('savePackage error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a package
+ */
+function deletePackage(packageKey) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.specSheetId);
+    const sheet = ss.getSheetByName('Packages');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const keyCol = headers.indexOf('package_key');
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][keyCol] === packageKey) {
+        sheet.deleteRow(i + 1);
+        Logger.log('✓ Package deleted: ' + packageKey);
+        return { ok: true };
+      }
+    }
+    
+    return { ok: false, error: 'Package not found' };
+    
+  } catch (error) {
+    Logger.log('deletePackage error: ' + error.toString());
+    return { ok: false, error: error.toString() };
+  }
+}
+
+/**
+ * Helper: Convert sheet to array of objects
+ */
+function settingsSheetToObjects(sheet) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  
+  const headers = data[0];
+  const objects = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const obj = {};
+    headers.forEach((h, col) => {
+      obj[h] = data[i][col];
+    });
+    objects.push(obj);
+  }
+  
+  return objects;
+}
