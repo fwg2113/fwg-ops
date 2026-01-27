@@ -519,6 +519,10 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
         // Add message to conversation directly
         setConversations(convos => convos.map(c => {
           if (c.phone === selectedPhone || c.phone === data.message.customer_phone) {
+            // Prevent duplicate: check if message already exists
+            if (c.messages.some(m => m.id === data.message.id)) {
+              return c
+            }
             return {
               ...c,
               messages: [...c.messages, data.message],
