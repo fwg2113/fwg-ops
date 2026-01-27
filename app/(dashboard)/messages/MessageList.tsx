@@ -249,6 +249,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
   const [attachment, setAttachment] = useState<{ file: File, url: string, uploading: boolean } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const processedMessageIds = useRef<Set<string>>(new Set())
 
   // Load phone links on mount
   useEffect(() => {
@@ -383,14 +384,17 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           const newMsg = payload.new as Message
           console.log('New message received:', newMsg)
 
+          // Prevent duplicate processing using ref (survives re-renders)
+          if (processedMessageIds.current.has(newMsg.id)) {
+            console.log('Skipping duplicate message:', newMsg.id)
+            return
+          }
+          processedMessageIds.current.add(newMsg.id)
+
           setConversations(prevConvos => {
             const existingConvo = prevConvos.find(c => c.phone === newMsg.customer_phone)
 
             if (existingConvo) {
-              // Check if message already exists (prevent duplicates)
-              if (existingConvo.messages.some(m => m.id === newMsg.id)) {
-                return prevConvos
-              }
               return prevConvos.map(c => {
                 if (c.phone === newMsg.customer_phone) {
                   return {
