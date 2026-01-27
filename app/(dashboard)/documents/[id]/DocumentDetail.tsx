@@ -102,183 +102,6 @@ const DEFAULT_LINE_TYPES = [
   { key: 'CUSTOM', label: 'Custom Item' }
 ]
 
-// Lightbox Component
-function Lightbox({ 
-  attachment, 
-  onClose 
-}: { 
-  attachment: Attachment
-  onClose: () => void 
-}) {
-  return (
-    <div 
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.9)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px'
-      }}
-    >
-      <div 
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: '90vw',
-          maxHeight: '90vh',
-          position: 'relative'
-        }}
-      >
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '-40px',
-            right: 0,
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.1)',
-            border: 'none',
-            color: 'white',
-            fontSize: '24px',
-            cursor: 'pointer'
-          }}
-        >x</button>
-        <img 
-          src={attachment.url} 
-          alt={attachment.filename}
-          style={{
-            maxWidth: '100%',
-            maxHeight: '80vh',
-            borderRadius: '8px'
-          }}
-        />
-        <div style={{ textAlign: 'center', marginTop: '16px', color: 'white' }}>
-          <div style={{ fontSize: '14px', marginBottom: '12px' }}>{attachment.filename}</div>
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-            <a 
-              href={attachment.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              style={{ color: '#d71cd1', textDecoration: 'none' }}
-            >Open Full Size</a>
-            <a 
-              href={attachment.url} 
-              download={attachment.filename}
-              style={{ color: '#d71cd1', textDecoration: 'none' }}
-            >Download</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Attachment Thumbnail Component
-function AttachmentThumb({ 
-  attachment, 
-  onDelete, 
-  onClick 
-}: { 
-  attachment: Attachment
-  onDelete: () => void
-  onClick: () => void
-}) {
-  const [isHovered, setIsHovered] = useState(false)
-  const isImage = attachment.contentType?.startsWith('image/') || 
-                  /\.(jpg|jpeg|png|gif|webp)$/i.test(attachment.filename)
-  const ext = attachment.filename?.split('.').pop()?.toUpperCase() || 'FILE'
-  const shortName = attachment.filename?.length > 12 
-    ? attachment.filename.substring(0, 10) + '...' 
-    : attachment.filename
-
-  return (
-    <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={onClick}
-      style={{
-        width: '80px',
-        height: '80px',
-        borderRadius: '8px',
-        overflow: 'hidden',
-        position: 'relative',
-        cursor: 'pointer',
-        border: isHovered ? '1px solid #d71cd1' : '1px solid #3f4451',
-        background: '#1d1d1d',
-        transition: 'all 0.15s ease',
-        transform: isHovered ? 'translateY(-2px)' : 'none',
-        boxShadow: isHovered ? '0 4px 12px rgba(0,0,0,0.3)' : 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-    >
-      {isImage ? (
-        <img 
-          src={attachment.url} 
-          alt={attachment.filename}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover'
-          }}
-        />
-      ) : (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '8px',
-          textAlign: 'center'
-        }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14,2 14,8 20,8" />
-          </svg>
-          <span style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', marginTop: '4px' }}>{ext}</span>
-          <span style={{ fontSize: '9px', color: '#64748b', maxWidth: '70px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortName}</span>
-        </div>
-      )}
-      
-      {isHovered && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
-          }}
-          style={{
-            position: 'absolute',
-            top: '4px',
-            right: '4px',
-            width: '20px',
-            height: '20px',
-            borderRadius: '50%',
-            background: 'rgba(239, 68, 68, 0.9)',
-            border: 'none',
-            color: 'white',
-            fontSize: '14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            lineHeight: 1
-          }}
-        >x</button>
-      )}
-    </div>
-  )
-}
-
 export default function DocumentDetail({ document: doc, initialLineItems }: { document: Document, initialLineItems: LineItem[] }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -288,7 +111,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
   const [uploading, setUploading] = useState(false)
   const [docStatus, setDocStatus] = useState(doc.status)
   const [docType, setDocType] = useState(doc.doc_type)
-  const [lightboxAttachment, setLightboxAttachment] = useState<Attachment | null>(null)
   const [newItem, setNewItem] = useState({ 
     line_type_key: '', 
     description: '', 
@@ -313,6 +135,12 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     return key
   }
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
@@ -321,8 +149,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     const newAttachments: Attachment[] = []
 
     for (const file of Array.from(files)) {
-      
-
       const formData = new FormData()
       formData.append('file', file)
       formData.append('documentId', doc.id)
@@ -367,8 +193,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
   }
 
   const handleDeleteAttachment = async (key: string) => {
-    if (!confirm('Remove this attachment?')) return
-    
     const updatedAttachments = attachments.filter(a => a.key !== key)
     setAttachments(updatedAttachments)
 
@@ -376,16 +200,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
       .from('documents')
       .update({ attachments: updatedAttachments })
       .eq('id', doc.id)
-  }
-
-  const handleAttachmentClick = (attachment: Attachment) => {
-    const isImage = attachment.contentType?.startsWith('image/') || 
-                    /\.(jpg|jpeg|png|gif|webp)$/i.test(attachment.filename)
-    if (isImage) {
-      setLightboxAttachment(attachment)
-    } else {
-      window.open(attachment.url, '_blank')
-    }
   }
 
   const handleAddLineItem = async () => {
@@ -588,15 +402,22 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
     }
   }
 
+  const FileIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14,2 14,8 20,8" />
+    </svg>
+  )
+
+  const TrashIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="3,6 5,6 21,6" />
+      <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2" />
+    </svg>
+  )
+
   return (
     <div style={{ padding: '24px' }}>
-      {lightboxAttachment && (
-        <Lightbox 
-          attachment={lightboxAttachment} 
-          onClose={() => setLightboxAttachment(null)} 
-        />
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -676,65 +497,87 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
             </div>
           </div>
 
-          {/* Attachments - Thumbnail Grid Style */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
-            <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Attachments</h3>
-            
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-start' }}>
-              {attachments.map((attachment) => (
-                <AttachmentThumb
-                  key={attachment.key}
-                  attachment={attachment}
-                  onDelete={() => handleDeleteAttachment(attachment.key)}
-                  onClick={() => handleAttachmentClick(attachment)}
-                />
-              ))}
-              
-              {/* Add File Button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: 0 }}>Attachments</h3>
               <label style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '8px',
-                border: '2px dashed #3f4451',
-                background: 'transparent',
-                color: '#64748b',
+                padding: '8px 16px',
+                background: '#d71cd1',
+                border: 'none',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '14px',
                 cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                transition: 'all 0.15s ease',
-                position: 'relative',
                 opacity: uploading ? 0.7 : 1
               }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                <span style={{ fontSize: '10px', fontWeight: 500 }}>{uploading ? 'Uploading' : 'Add File'}</span>
+                {uploading ? 'Uploading...' : 'Upload Files'}
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                   onChange={handleFileUpload}
                   disabled={uploading}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    opacity: 0,
-                    cursor: 'pointer'
-                  }}
+                  style={{ display: 'none' }}
                 />
               </label>
             </div>
+            
+            {attachments.length === 0 ? (
+              <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>No attachments yet</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.key}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px',
+                      background: '#282a30',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                      <FileIcon />
+                      <div style={{ minWidth: 0 }}>
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: '#f1f5f9',
+                            fontSize: '14px',
+                            textDecoration: 'none',
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >{attachment.filename}</a>
+                        <span style={{ color: '#64748b', fontSize: '12px' }}>
+                          {formatFileSize(attachment.size)}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteAttachment(attachment.key)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        padding: '4px'
+                      }}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Line Items */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px' }}>Line Items</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -870,7 +713,6 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
           </div>
         </div>
 
-        {/* Sidebar */}
         <div>
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', position: 'sticky', top: '24px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '20px' }}>Summary</h3>
@@ -1018,6 +860,26 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
                 opacity: saving ? 0.7 : 1
               }}
             >Schedule Event</button>
+            
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/view/${doc.id}`
+                navigator.clipboard.writeText(url)
+                alert("Customer link copied to clipboard!")
+              }}
+              style={{
+                width: "100%",
+                padding: "14px",
+                background: "transparent",
+                border: "1px solid #3f4451",
+                borderRadius: "8px",
+                color: "#94a3b8",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: "pointer",
+                marginBottom: "12px"
+              }}
+            >Copy Customer Link</button>
 
             <button
               onClick={() => window.open(`/api/pdf?id=${doc.id}`, '_blank')}

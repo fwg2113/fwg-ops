@@ -154,7 +154,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     // Quotes needing action
     data.quotes.forEach(q => {
       // Draft quotes - need to send
-      if (q.status === 'draft') {
+      if (q.status?.toLowerCase() === 'draft') {
         items.push({
           id: `quote-${q.id}`,
           type: 'quote',
@@ -167,7 +167,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
         })
       }
       // Approved quotes - convert to invoice
-      if (q.status === 'approved') {
+      if (q.status?.toLowerCase() === 'approved') {
         items.push({
           id: `quote-${q.id}`,
           type: 'quote',
@@ -180,7 +180,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
         })
       }
       // Sent quotes needing follow-up (sent > 3 days ago, not viewed)
-      if (q.status === 'sent' && q.sent_at) {
+      if (q.status?.toLowerCase() === 'sent' && q.sent_at) {
         const sentDate = new Date(q.sent_at)
         const daysSinceSent = (Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24)
         if (daysSinceSent > 3) {
@@ -201,7 +201,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     // Invoices needing action
     data.invoices.forEach(inv => {
       // Paid invoices - schedule installation
-      if (inv.status === 'paid') {
+      if (inv.status?.toLowerCase() === 'paid') {
         items.push({
           id: `invoice-${inv.id}`,
           type: 'invoice',
