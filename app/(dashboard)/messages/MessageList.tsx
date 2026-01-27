@@ -387,6 +387,10 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
             const existingConvo = prevConvos.find(c => c.phone === newMsg.customer_phone)
 
             if (existingConvo) {
+              // Check if message already exists (prevent duplicates)
+              if (existingConvo.messages.some(m => m.id === newMsg.id)) {
+                return prevConvos
+              }
               return prevConvos.map(c => {
                 if (c.phone === newMsg.customer_phone) {
                   return {
@@ -394,8 +398,8 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                     messages: [...c.messages, newMsg],
                     lastMessage: newMsg.message_body,
                     lastTime: newMsg.created_at,
-                    unreadCount: newMsg.direction === 'inbound' && !newMsg.read 
-                      ? c.unreadCount + 1 
+                    unreadCount: newMsg.direction === 'inbound' && !newMsg.read
+                      ? c.unreadCount + 1
                       : c.unreadCount
                   }
                 }
