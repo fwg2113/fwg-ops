@@ -25,12 +25,22 @@ type Document = {
   customer_name: string
   customer_email: string
   customer_phone: string
+  company_name?: string
+  vehicle_description?: string
+  company_name?: string
+  vehicle_description?: string
+  company_name?: string
+  vehicle_description?: string
   project_description: string
   category: string
   total: number
   created_at: string
   sent_at?: string
   viewed_at?: string
+  paid_at?: string
+  event_id?: string
+  paid_at?: string
+  event_id?: string
   last_followup_at?: string
   followup_count?: number
 }
@@ -40,8 +50,20 @@ type Submission = {
   customer_name: string
   customer_email: string
   customer_phone: string
+  company_name?: string
+  vehicle_description?: string
+  company_name?: string
+  vehicle_description?: string
+  company_name?: string
+  vehicle_description?: string
   status: string
   vehicle_category: string
+  vehicle_year?: string
+  vehicle_make?: string
+  vehicle_model?: string
+  vehicle_year?: string
+  vehicle_make?: string
+  vehicle_model?: string
   project_type: string
   price_range_min: number
   price_range_max: number
@@ -352,8 +374,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
 
   const getActionLabel = (actionType: string) => {
     const labels: Record<string, string> = {
-      'schedule': 'Schedule',
-      'convert': 'Convert',
+      'schedule': 'Schedule Job',
+      'convert': 'Convert to Invoice',
       'followup': 'Follow Up',
       'send': 'Send',
       'new-lead': 'New Lead',
