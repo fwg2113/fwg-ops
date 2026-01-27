@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../lib/supabase'
 
 export async function POST(request: Request) {
   const { to, message, mediaUrl } = await request.json()
@@ -55,16 +54,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: data.message || 'Failed to send SMS' }, { status: response.status })
     }
 
-    await supabase.from('messages').insert({
-      direction: 'outbound',
-      customer_phone: formattedTo,
-      message_body: message || '',
-      media_url: mediaUrl || null,
-      status: 'sent',
-      read: true
-    })
-
-    return NextResponse.json({ success: true, sid: data.sid })
+    return NextResponse.json({ success: true, sid: data.sid, phone: formattedTo })
   } catch (error) {
     console.error('SMS Error:', error)
     return NextResponse.json({ error: 'Failed to send SMS' }, { status: 500 })
