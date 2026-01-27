@@ -383,6 +383,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
         (payload) => {
           const newMsg = payload.new as Message
           console.log('New message received:', newMsg)
+          console.log('Direction check:', newMsg.direction, newMsg.direction === 'outbound')
 
           // Only handle INBOUND messages via realtime
           // Outbound messages are added directly from API response to avoid race condition
@@ -402,6 +403,11 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
             const existingConvo = prevConvos.find(c => c.phone === newMsg.customer_phone)
 
             if (existingConvo) {
+              // Final safety check - don't add if already exists
+              if (existingConvo.messages.some(m => m.id === newMsg.id)) {
+                console.log('Message already in conversation, skipping')
+                return prevConvos
+              }
               return prevConvos.map(c => {
                 if (c.phone === newMsg.customer_phone) {
                   return {
