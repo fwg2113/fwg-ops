@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
+import { supabase } from '../../lib/supabase'
 
 export async function POST(request: Request) {
-  const { to, message } = await request.json()
+  const { to, message, mediaUrl } = await request.json()
 
-  if (!to || !message) {
-    return NextResponse.json({ error: 'Missing to or message' }, { status: 400 })
+  if (!to || (!message && !mediaUrl)) {
+    return NextResponse.json({ error: 'Missing to or message/media' }, { status: 400 })
   }
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID
@@ -15,7 +16,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Twilio not configured' }, { status: 500 })
   }
 
-  // Format phone number
   let formattedTo = to.replace(/\D/g, '')
   if (formattedTo.length === 10) {
     formattedTo = '+1' + formattedTo
@@ -24,6 +24,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    const params: Record<string, string> = {
+      To: formattedTo,
+      From: fromNumber,
+    }
+    
+    if (message) {
+      params.Body = message
+    }
+    
+    if (mediaUrl) {
+      params.MediaUrl = mediaUrl
+    }
+
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
@@ -32,11 +45,7 @@ export async function POST(request: Request) {
           'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          To: formattedTo,
-          From: fromNumber,
-          Body: message,
-        }),
+        body: new URLSearchParams(params),
       }
     )
 
@@ -45,6 +54,15 @@ export async function POST(request: Request) {
     if (!response.ok) {
       return NextResponse.json({ error: data.message || 'Failed to send SMS' }, { status: response.status })
     }
+
+    await supabase.from('messages').insert({
+      direction: 'outbound',
+      customer_phone: formattedTo,
+      message_body: message || '',
+      media_url: mediaUrl || null,
+      status: 'sent',
+      read: true
+    })
 
     return NextResponse.json({ success: true, sid: data.sid })
   } catch (error) {

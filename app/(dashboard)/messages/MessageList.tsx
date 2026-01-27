@@ -10,6 +10,7 @@ type Message = {
   customer_phone: string
   customer_name: string | null
   message_body: string
+  media_url?: string | null
   status: string
   read: boolean
   created_at: string
@@ -29,7 +30,16 @@ type Call = {
   voicemail_url: string | null
   call_sid: string | null
   created_at: string
+  read?: boolean
+  archived?: boolean
 }
+
+const MESSAGE_TEMPLATES = [
+  { id: 'missed', label: 'Missed Call', text: "Sorry we missed your call! We were likely on another line or assisting a customer. How can we help you?" },
+  { id: 'followup', label: 'Follow Up', text: "Hi! It was great speaking with you. Please let us know if you have any questions." },
+  { id: 'quote', label: 'Quote Ready', text: "Hi! Your quote is ready. Please let us know if you have any questions or would like to proceed." },
+  { id: 'thanks', label: 'Thank You', text: "Thank you for choosing Frederick Wraps & Graphics! We appreciate your business." },
+]
 
 type Conversation = {
   phone: string
@@ -233,6 +243,11 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
   const [newMessageCustomerName, setNewMessageCustomerName] = useState('')
   const [newMessageCustomerSearch, setNewMessageCustomerSearch] = useState('')
   const [newMessageCustomerResults, setNewMessageCustomerResults] = useState<Array<{ phone: string, name: string }>>([])
+  const [selectedCall, setSelectedCall] = useState<Call | null>(null)
+  const [callModalMessage, setCallModalMessage] = useState('')
+  const [sendingFromModal, setSendingFromModal] = useState(false)
+  const [attachment, setAttachment] = useState<{ file: File, url: string, uploading: boolean } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Load phone links on mount
@@ -460,7 +475,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
   })
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedPhone) return
+    if ((!newMessage.trim() && !attachment?.url) || !selectedPhone) return
 
     setSending(true)
 
@@ -470,7 +485,8 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: selectedPhone,
-          message: newMessage
+          message: newMessage,
+          mediaUrl: attachment?.url || undefined
         })
       })
 
@@ -481,6 +497,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           customer_phone: selectedPhone,
           customer_name: selectedConvo?.name || null,
           message_body: newMessage,
+          media_url: attachment?.url || null,
           status: 'sent',
           read: true,
           created_at: new Date().toISOString()
@@ -491,7 +508,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
             return {
               ...c,
               messages: [...c.messages, newMsg],
-              lastMessage: newMessage,
+              lastMessage: newMessage || '📎 Attachment',
               lastTime: newMsg.created_at
             }
           }
@@ -499,6 +516,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
         }))
 
         setNewMessage('')
+        setAttachment(null)
       } else {
         const data = await response.json()
         alert('Failed to send: ' + (data.error || 'Unknown error'))
@@ -766,7 +784,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           }}
         >
           <PhoneIcon /> Calls
-          {calls.filter(c => c.status === 'missed' || c.status === 'voicemail').length > 0 && (
+          {calls.filter(c => (c.status === 'missed' || c.status === 'voicemail') && !c.read && !c.archived).length > 0 && (
             <span style={{
               background: '#ef4444',
               color: 'white',
@@ -775,7 +793,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
               borderRadius: '10px',
               fontWeight: 600
             }}>
-              {calls.filter(c => c.status === 'missed' || c.status === 'voicemail').length}
+              {calls.filter(c => (c.status === 'missed' || c.status === 'voicemail') && !c.read && !c.archived).length}
             </span>
           )}
         </button>
@@ -1128,9 +1146,50 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                         background: isOutbound ? '#d71cd1' : '#1d1d1d',
                         color: isOutbound ? 'white' : '#f1f5f9'
                       }}>
-                        <p style={{ fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
-                          {msg.message_body}
-                        </p>
+                        {msg.media_url && (
+                          <div style={{ marginBottom: msg.message_body ? '8px' : 0 }}>
+                            {msg.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                              <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
+                                <img 
+                                  src={msg.media_url} 
+                                  alt="Attachment" 
+                                  style={{ 
+                                    maxWidth: '200px', 
+                                    maxHeight: '200px', 
+                                    borderRadius: '8px',
+                                    display: 'block'
+                                  }}
+                                />
+                              </a>
+                            ) : (
+                              <a 
+                                href={msg.media_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '8px 12px',
+                                  background: 'rgba(0,0,0,0.2)',
+                                  borderRadius: '8px',
+                                  color: 'inherit',
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                </svg>
+                                <span style={{ fontSize: '13px' }}>View Attachment</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {msg.message_body && (
+                          <p style={{ fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
+                            {msg.message_body}
+                          </p>
+                        )}
                         <p style={{
                           fontSize: '11px',
                           opacity: 0.7,
@@ -1151,7 +1210,117 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                 padding: '16px 20px',
                 borderTop: '1px solid rgba(148, 163, 184, 0.1)'
               }}>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                {/* Attachment Preview */}
+                {attachment && (
+                  <div style={{
+                    marginBottom: '12px',
+                    padding: '10px',
+                    background: '#1d1d1d',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {attachment.file.type.startsWith('image/') ? (
+                        <img 
+                          src={URL.createObjectURL(attachment.file)} 
+                          alt="Preview" 
+                          style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          background: '#d71cd1',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: 600
+                        }}>
+                          {attachment.file.name.split('.').pop()?.toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <p style={{ color: '#f1f5f9', fontSize: '13px', margin: 0 }}>{attachment.file.name}</p>
+                        <p style={{ color: '#64748b', fontSize: '11px', margin: '2px 0 0 0' }}>
+                          {attachment.uploading ? 'Uploading...' : `${(attachment.file.size / 1024).toFixed(1)} KB`}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setAttachment(null)}
+                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}
+                    >×</button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {/* Attachment Button */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*,.pdf"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      
+                      // Check file size (max 5MB for MMS)
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('File too large. Maximum size is 5MB.')
+                        return
+                      }
+                      
+                      setAttachment({ file, url: '', uploading: true })
+                      
+                      try {
+                        const formData = new FormData()
+                        formData.append('file', file)
+                        
+                        const response = await fetch('/api/upload', {
+                          method: 'POST',
+                          body: formData
+                        })
+                        
+                        const result = await response.json()
+                        
+                        if (result.success) {
+                          setAttachment({ file, url: result.url, uploading: false })
+                        } else {
+                          alert('Upload failed')
+                          setAttachment(null)
+                        }
+                      } catch (error) {
+                        alert('Upload failed')
+                        setAttachment(null)
+                      }
+                      
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!!attachment?.uploading}
+                    style={{
+                      padding: '12px',
+                      background: '#1d1d1d',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      borderRadius: '50%',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title="Attach file"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                  </button>
                   <input
                     type="text"
                     value={newMessage}
@@ -1175,16 +1344,16 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                   />
                   <button
                     onClick={handleSendMessage}
-                    disabled={sending || !newMessage.trim()}
+                    disabled={sending || (!newMessage.trim() && !attachment?.url)}
                     style={{
                       padding: '12px 20px',
-                      background: sending || !newMessage.trim() ? '#64748b' : '#d71cd1',
+                      background: sending || (!newMessage.trim() && !attachment?.url) ? '#64748b' : '#d71cd1',
                       border: 'none',
                       borderRadius: '24px',
                       color: 'white',
                       fontSize: '14px',
                       fontWeight: 600,
-                      cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
+                      cursor: sending || (!newMessage.trim() && !attachment?.url) ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px'
@@ -1231,10 +1400,10 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           alignItems: 'center'
         }}>
           <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Call History</h2>
-          <span style={{ color: '#64748b', fontSize: '13px' }}>{calls.length} calls</span>
+          <span style={{ color: '#64748b', fontSize: '13px' }}>{calls.filter(c => !c.archived).length} calls</span>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {calls.length > 0 ? calls.map((call) => (
+          {calls.filter(c => !c.archived).length > 0 ? calls.filter(c => !c.archived).map((call) => (
             <div
               key={call.id}
               style={{
@@ -1243,30 +1412,12 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                 justifyContent: 'space-between',
                 padding: '14px 20px',
                 borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                background: (!call.read && (call.status === 'missed' || call.status === 'voicemail')) ? 'rgba(239, 68, 68, 0.1)' : 'transparent'
               }}
               onClick={() => {
-                // Switch to messages and open conversation with this phone
-                setActiveView('messages')
-                const cleanPhone = call.caller_phone.replace(/\D/g, '')
-                const existingConvo = conversations.find(c => {
-                  const convoPhone = c.phone.replace(/\D/g, '')
-                  return convoPhone.includes(cleanPhone.slice(-10)) || cleanPhone.includes(convoPhone.slice(-10))
-                })
-                if (existingConvo) {
-                  setSelectedPhone(existingConvo.phone)
-                } else {
-                  const newConvo: Conversation = {
-                    phone: cleanPhone,
-                    name: call.caller_name,
-                    lastMessage: '',
-                    lastTime: new Date().toISOString(),
-                    unreadCount: 0,
-                    messages: []
-                  }
-                  setConversations([newConvo, ...conversations])
-                  setSelectedPhone(cleanPhone)
-                }
+                setSelectedCall(call)
+                setCallModalMessage('')
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -1317,12 +1468,40 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                   </div>
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#94a3b8', fontSize: '13px' }}>
-                  {new Date(call.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                </div>
-                <div style={{ color: '#64748b', fontSize: '12px' }}>
-                  {new Date(call.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {call.voicemail_url && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(call.voicemail_url!, '_blank')
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      background: '#f59e0b',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                    Play
+                  </button>
+                )}
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '13px' }}>
+                    {new Date(call.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '12px' }}>
+                    {new Date(call.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1335,6 +1514,308 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           )}
         </div>
       </div>
+      )}
+
+      {/* Call Detail Modal */}
+      {selectedCall && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            width: '500px',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {/* Header */}
+            <div style={{ 
+              padding: '20px', 
+              borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  background: selectedCall.status === 'completed' ? '#22c55e' : 
+                              selectedCall.status === 'voicemail' ? '#f59e0b' : '#ef4444',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <PhoneIcon />
+                </div>
+                <div>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>
+                    {selectedCall.caller_name || formatPhone(selectedCall.caller_phone)}
+                  </h3>
+                  <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
+                    {formatPhone(selectedCall.caller_phone)}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedCall(null)}
+                style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}
+              >×</button>
+            </div>
+
+            {/* Call Details */}
+            <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px 0' }}>Status</p>
+                  <p style={{ 
+                    color: selectedCall.status === 'completed' ? '#22c55e' : 
+                           selectedCall.status === 'voicemail' ? '#f59e0b' : '#ef4444',
+                    fontSize: '14px', 
+                    fontWeight: 600,
+                    margin: 0 
+                  }}>
+                    {selectedCall.status === 'completed' ? 'Answered' : 
+                     selectedCall.status === 'voicemail' ? 'Voicemail' : 
+                     selectedCall.status === 'missed' ? 'Missed' : selectedCall.status}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px 0' }}>Duration</p>
+                  <p style={{ color: '#f1f5f9', fontSize: '14px', margin: 0 }}>
+                    {selectedCall.duration > 0 
+                      ? `${Math.floor(selectedCall.duration / 60)}:${String(selectedCall.duration % 60).padStart(2, '0')}`
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px 0' }}>Date & Time</p>
+                  <p style={{ color: '#f1f5f9', fontSize: '14px', margin: 0 }}>
+                    {new Date(selectedCall.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(selectedCall.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </p>
+                </div>
+                {selectedCall.answered_by && (
+                  <div>
+                    <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px 0' }}>Answered By</p>
+                    <p style={{ color: '#f1f5f9', fontSize: '14px', margin: 0 }}>{selectedCall.answered_by}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Voicemail Player */}
+              {selectedCall.voicemail_url && (
+                <div style={{ marginTop: '16px', padding: '12px', background: '#282a30', borderRadius: '8px' }}>
+                  <p style={{ color: '#f59e0b', fontSize: '13px', fontWeight: 600, margin: '0 0 8px 0' }}>📞 Voicemail</p>
+                  <audio controls style={{ width: '100%', height: '36px' }}>
+                    <source src={selectedCall.voicemail_url} type="audio/mpeg" />
+                  </audio>
+                </div>
+              )}
+            </div>
+
+            {/* Send Message Section */}
+            <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
+              <p style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 12px 0' }}>Send a Message</p>
+              
+              {/* Templates */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                {MESSAGE_TEMPLATES.map(template => (
+                  <button
+                    key={template.id}
+                    onClick={() => setCallModalMessage(template.text)}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#282a30',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      borderRadius: '6px',
+                      color: '#94a3b8',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {template.label}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                value={callModalMessage}
+                onChange={(e) => setCallModalMessage(e.target.value)}
+                placeholder="Type a message..."
+                style={{
+                  width: '100%',
+                  height: '100px',
+                  padding: '12px',
+                  background: '#111111',
+                  border: '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '8px',
+                  color: '#f1f5f9',
+                  fontSize: '14px',
+                  resize: 'none'
+                }}
+              />
+            </div>
+
+            {/* Footer Actions */}
+            <div style={{ 
+              padding: '16px 20px', 
+              borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {(selectedCall.status === 'missed' || selectedCall.status === 'voicemail') && !selectedCall.read && (
+                  <button
+                    onClick={async () => {
+                      await supabase.from('calls').update({ read: true }).eq('id', selectedCall.id)
+                      setCalls(calls.map(c => c.id === selectedCall.id ? { ...c, read: true } : c))
+                      setSelectedCall({ ...selectedCall, read: true })
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      borderRadius: '8px',
+                      color: '#94a3b8',
+                      fontSize: '13px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Mark as Read
+                  </button>
+                )}
+                <button
+                  onClick={async () => {
+                    if (confirm('Archive this call?')) {
+                      await supabase.from('calls').update({ archived: true }).eq('id', selectedCall.id)
+                      setCalls(calls.map(c => c.id === selectedCall.id ? { ...c, archived: true } : c))
+                      setSelectedCall(null)
+                    }
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'transparent',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '8px',
+                    color: '#ef4444',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Archive
+                </button>
+              </div>
+              <button
+                disabled={!callModalMessage.trim() || sendingFromModal}
+                onClick={async () => {
+                  if (!callModalMessage.trim()) return
+                  setSendingFromModal(true)
+                  
+                  try {
+                    const response = await fetch('/api/sms', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        to: selectedCall.caller_phone,
+                        message: callModalMessage
+                      })
+                    })
+
+                    if (response.ok) {
+                      // Create the new message object
+                      const newMsg: Message = {
+                        id: Date.now().toString(),
+                        direction: 'outbound',
+                        customer_phone: selectedCall.caller_phone,
+                        customer_name: selectedCall.caller_name,
+                        message_body: callModalMessage,
+                        status: 'sent',
+                        read: true,
+                        created_at: new Date().toISOString()
+                      }
+
+                      // Mark call as read
+                      await supabase.from('calls').update({ read: true }).eq('id', selectedCall.id)
+                      setCalls(calls.map(c => c.id === selectedCall.id ? { ...c, read: true } : c))
+                      
+                      // Update or create conversation
+                      const cleanPhone = selectedCall.caller_phone.replace(/\D/g, '')
+                      const existingConvoIndex = conversations.findIndex(c => {
+                        const convoPhone = c.phone.replace(/\D/g, '')
+                        return convoPhone.includes(cleanPhone.slice(-10)) || cleanPhone.includes(convoPhone.slice(-10))
+                      })
+
+                      if (existingConvoIndex >= 0) {
+                        // Add message to existing conversation
+                        const updatedConvos = [...conversations]
+                        updatedConvos[existingConvoIndex] = {
+                          ...updatedConvos[existingConvoIndex],
+                          messages: [...updatedConvos[existingConvoIndex].messages, newMsg],
+                          lastMessage: callModalMessage,
+                          lastTime: new Date().toISOString()
+                        }
+                        setConversations(updatedConvos)
+                        setSelectedPhone(updatedConvos[existingConvoIndex].phone)
+                      } else {
+                        // Create new conversation
+                        const newConvo: Conversation = {
+                          phone: cleanPhone,
+                          name: selectedCall.caller_name,
+                          lastMessage: callModalMessage,
+                          lastTime: new Date().toISOString(),
+                          unreadCount: 0,
+                          messages: [newMsg]
+                        }
+                        setConversations([newConvo, ...conversations])
+                        setSelectedPhone(cleanPhone)
+                      }
+
+                      setSelectedCall(null)
+                      setCallModalMessage('')
+                      setActiveView('messages')
+                    } else {
+                      alert('Failed to send message')
+                    }
+                  } catch (error) {
+                    alert('Failed to send message')
+                  }
+                  
+                  setSendingFromModal(false)
+                }}
+                style={{
+                  padding: '10px 24px',
+                  background: callModalMessage.trim() ? '#d71cd1' : '#4b5563',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: callModalMessage.trim() ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <SendIcon />
+                {sendingFromModal ? 'Sending...' : 'Send Message'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add/Link Contact Modal */}
