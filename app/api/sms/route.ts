@@ -55,16 +55,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: data.message || 'Failed to send SMS' }, { status: response.status })
     }
 
-    await supabase.from('messages').insert({
+    const { data: savedMessage } = await supabase.from('messages').insert({
       direction: 'outbound',
       customer_phone: formattedTo,
       message_body: message || '',
       media_url: mediaUrl || null,
       status: 'sent',
       read: true
-    })
+    }).select().single()
 
-    return NextResponse.json({ success: true, sid: data.sid })
+    return NextResponse.json({ success: true, sid: data.sid, message: savedMessage })
   } catch (error) {
     console.error('SMS Error:', error)
     return NextResponse.json({ error: 'Failed to send SMS' }, { status: 500 })

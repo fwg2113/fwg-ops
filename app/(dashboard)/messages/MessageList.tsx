@@ -498,12 +498,28 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
         })
       })
 
-      if (response.ok) {
-        // Message will appear via realtime subscription - no need to add locally
+      const data = await response.json()
+
+      if (response.ok && data.message) {
+        // Mark as processed so realtime subscription ignores it
+        processedMessageIds.current.add(data.message.id)
+
+        // Add message to conversation directly
+        setConversations(convos => convos.map(c => {
+          if (c.phone === selectedPhone || c.phone === data.message.customer_phone) {
+            return {
+              ...c,
+              messages: [...c.messages, data.message],
+              lastMessage: data.message.message_body || 'Attachment',
+              lastTime: data.message.created_at
+            }
+          }
+          return c
+        }))
+
         setNewMessage('')
         setAttachment(null)
       } else {
-        const data = await response.json()
         alert('Failed to send: ' + (data.error || 'Unknown error'))
       }
     } catch (error) {
