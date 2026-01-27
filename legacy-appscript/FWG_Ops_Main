@@ -36,8 +36,8 @@ const CONFIG = {
   
   // Twilio (FWG dedicated number)
   twilio: {
-    accountSid: 'AC4abff8430e36f165cf7d20b39f992798',
-    authToken: '8c6964a985c338608e6a3ebe15705c19',
+    accountSid: 'x',
+    authToken: 'X',
     phoneNumber: '+12406933715',
     messagingServiceSid: '' // Add if using messaging service
   },
