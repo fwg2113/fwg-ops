@@ -60,7 +60,7 @@ export default async function DashboardPage() {
 
   // Pipeline value from sent/viewed quotes
   const pipelineValue = quotes
-    ?.filter(q => q.status === 'sent' || q.status === 'viewed')
+    ?.filter(q => q.status?.toLowerCase() === 'draft' || q.status?.toLowerCase() === 'sent' || q.status?.toLowerCase() === 'viewed')
     .reduce((sum, q) => sum + (q.total || 0), 0) || 0
 
   // Category breakdown
