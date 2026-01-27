@@ -491,30 +491,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
       })
 
       if (response.ok) {
-        const newMsg: Message = {
-          id: Date.now().toString(),
-          direction: 'outbound',
-          customer_phone: selectedPhone,
-          customer_name: selectedConvo?.name || null,
-          message_body: newMessage,
-          media_url: attachment?.url || null,
-          status: 'sent',
-          read: true,
-          created_at: new Date().toISOString()
-        }
-
-        setConversations(convos => convos.map(c => {
-          if (c.phone === selectedPhone) {
-            return {
-              ...c,
-              messages: [...c.messages, newMsg],
-              lastMessage: newMessage || '📎 Attachment',
-              lastTime: newMsg.created_at
-            }
-          }
-          return c
-        }))
-
+        // Message will appear via realtime subscription - no need to add locally
         setNewMessage('')
         setAttachment(null)
       } else {
