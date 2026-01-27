@@ -384,6 +384,13 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           const newMsg = payload.new as Message
           console.log('New message received:', newMsg)
 
+          // Only handle INBOUND messages via realtime
+          // Outbound messages are added directly from API response to avoid race condition
+          if (newMsg.direction === 'outbound') {
+            console.log('Skipping outbound message (handled by API response):', newMsg.id)
+            return
+          }
+
           // Prevent duplicate processing using ref (survives re-renders)
           if (processedMessageIds.current.has(newMsg.id)) {
             console.log('Skipping duplicate message:', newMsg.id)
