@@ -250,6 +250,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const processedMessageIds = useRef<Set<string>>(new Set())
+  const isSendingRef = useRef(false)
 
   // Load phone links on mount
   useEffect(() => {
@@ -492,6 +493,10 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && !attachment?.url) || !selectedPhone) return
 
+    // Prevent double submission using ref (synchronous check)
+    if (isSendingRef.current) return
+    isSendingRef.current = true
+
     setSending(true)
 
     try {
@@ -532,6 +537,8 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
     } catch (error) {
       console.error('Failed to send:', error)
       alert('Failed to send message')
+    } finally {
+      isSendingRef.current = false
     }
 
     setSending(false)
