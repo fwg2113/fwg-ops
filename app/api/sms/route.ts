@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { supabase } from '../../lib/supabase'
 
 export async function POST(request: Request) {
   const { to, message, mediaUrl } = await request.json()
@@ -36,6 +37,8 @@ export async function POST(request: Request) {
       params.MediaUrl = mediaUrl
     }
 
+    console.log('Sending SMS with params:', params)
+
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
@@ -49,10 +52,21 @@ export async function POST(request: Request) {
     )
 
     const data = await response.json()
+    console.log('Twilio response:', data)
 
     if (!response.ok) {
       return NextResponse.json({ error: data.message || 'Failed to send SMS' }, { status: response.status })
     }
+
+    // Save to database
+    await supabase.from('messages').insert({
+      direction: 'outbound',
+      customer_phone: formattedTo,
+      message_body: message || '',
+      media_url: mediaUrl || null,
+      status: 'sent',
+      read: true
+    })
 
     return NextResponse.json({ success: true, sid: data.sid, phone: formattedTo })
   } catch (error) {

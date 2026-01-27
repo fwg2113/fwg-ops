@@ -247,6 +247,9 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
   const [callModalMessage, setCallModalMessage] = useState('')
   const [sendingFromModal, setSendingFromModal] = useState(false)
   const [attachment, setAttachment] = useState<{ file: File, url: string, uploading: boolean } | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [lightboxZoom, setLightboxZoom] = useState(1)
+  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -491,30 +494,6 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
       })
 
       if (response.ok) {
-        const newMsg: Message = {
-          id: Date.now().toString(),
-          direction: 'outbound',
-          customer_phone: selectedPhone,
-          customer_name: selectedConvo?.name || null,
-          message_body: newMessage,
-          media_url: attachment?.url || null,
-          status: 'sent',
-          read: true,
-          created_at: new Date().toISOString()
-        }
-
-        setConversations(convos => convos.map(c => {
-          if (c.phone === selectedPhone) {
-            return {
-              ...c,
-              messages: [...c.messages, newMsg],
-              lastMessage: newMessage || '📎 Attachment',
-              lastTime: newMsg.created_at
-            }
-          }
-          return c
-        }))
-
         setNewMessage('')
         setAttachment(null)
       } else {
@@ -1148,19 +1127,19 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       }}>
                         {msg.media_url && (
                           <div style={{ marginBottom: msg.message_body ? '8px' : 0 }}>
-                            {msg.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                              <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
-                                <img 
-                                  src={msg.media_url} 
-                                  alt="Attachment" 
-                                  style={{ 
-                                    maxWidth: '200px', 
-                                    maxHeight: '200px', 
-                                    borderRadius: '8px',
-                                    display: 'block'
-                                  }}
-                                />
-                              </a>
+                            {msg.media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) || msg.media_url.includes('/Media/') || msg.media_url.includes('twilio.com') ? (
+                              <img 
+                                src={msg.media_url} 
+                                alt="Attachment" 
+                                onClick={() => setLightboxUrl(msg.media_url!)}
+                                style={{ 
+                                  maxWidth: '200px', 
+                                  maxHeight: '200px', 
+                                  borderRadius: '8px',
+                                  display: 'block',
+                                  cursor: 'pointer'
+                                }}
+                              />
                             ) : (
                               <a 
                                 href={msg.media_url} 
@@ -2374,6 +2353,213 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                 Start Conversation
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.95)',
+            zIndex: 2000,
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '16px 20px',
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)'
+          }}>
+            <div style={{ color: 'white', fontSize: '14px' }}>Image Preview</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {/* Zoom In */}
+              <button
+                onClick={() => setLightboxZoom(z => Math.min(z * 1.5, 5))}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: 'white',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Zoom In"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  <line x1="11" y1="8" x2="11" y2="14"></line>
+                  <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+              </button>
+              {/* Zoom Out */}
+              <button
+                onClick={() => {
+                  setLightboxZoom(z => {
+                    const newZoom = Math.max(z / 1.5, 1)
+                    if (newZoom === 1) setLightboxPan({ x: 0, y: 0 })
+                    return newZoom
+                  })
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: 'white',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Zoom Out"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+              </button>
+              {/* Reset */}
+              <button
+                onClick={() => {
+                  setLightboxZoom(1)
+                  setLightboxPan({ x: 0, y: 0 })
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: 'white',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Reset"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                </svg>
+              </button>
+              {/* Close */}
+              <button
+                onClick={() => {
+                  setLightboxUrl(null)
+                  setLightboxZoom(1)
+                  setLightboxPan({ x: 0, y: 0 })
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: 'white',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Close"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Image Container */}
+          <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setLightboxUrl(null)
+                setLightboxZoom(1)
+                setLightboxPan({ x: 0, y: 0 })
+              }
+            }}
+            onDoubleClick={() => {
+              if (lightboxZoom > 1) {
+                setLightboxZoom(1)
+                setLightboxPan({ x: 0, y: 0 })
+              } else {
+                setLightboxZoom(2.5)
+              }
+            }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              cursor: lightboxZoom > 1 ? 'grab' : 'zoom-in'
+            }}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Full size"
+              draggable={false}
+              style={{
+                maxWidth: lightboxZoom === 1 ? '90vw' : 'none',
+                maxHeight: lightboxZoom === 1 ? '80vh' : 'none',
+                transform: `translate(${lightboxPan.x}px, ${lightboxPan.y}px) scale(${lightboxZoom})`,
+                transition: 'transform 0.1s ease-out',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '16px 20px',
+            background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
+            gap: '20px'
+          }}>
+            
+              <a
+              href={lightboxUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: '#d71cd1',
+                textDecoration: 'none',
+                fontSize: '14px'
+              }}>
+              Open in New Tab
+            </a>
+            <a
+              href={lightboxUrl}
+              download
+              style={{
+                color: '#d71cd1',
+                textDecoration: 'none',
+                fontSize: '14px'
+              }}>
+              Download
+            </a>
           </div>
         </div>
       )}

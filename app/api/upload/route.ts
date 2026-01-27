@@ -37,12 +37,12 @@ export async function POST(request: NextRequest) {
       ContentType: file.type,
     }))
 
-    // Return proxy URL instead of direct R2 URL
-    const proxyUrl = `/api/files/${key}`
+    // Return full public R2 URL for MMS
+    const publicUrl = `${process.env.R2_PUBLIC_URL}/${key}`
 
     return NextResponse.json({ 
       success: true, 
-      url: proxyUrl,
+      url: publicUrl,
       key: key,
       filename: file.name,
       contentType: file.type,
