@@ -25,6 +25,8 @@ type Document = {
   customer_name: string
   customer_email: string
   customer_phone: string
+  company_name?: string
+  vehicle_description?: string
   project_description: string
   category: string
   total: number
@@ -33,6 +35,8 @@ type Document = {
   viewed_at?: string
   last_followup_at?: string
   followup_count?: number
+  paid_at?: string
+  event_id?: string
 }
 
 type Submission = {
@@ -40,6 +44,8 @@ type Submission = {
   customer_name: string
   customer_email: string
   customer_phone: string
+  company_name?: string
+  vehicle_description?: string
   status: string
   vehicle_category: string
   vehicle_year?: string
