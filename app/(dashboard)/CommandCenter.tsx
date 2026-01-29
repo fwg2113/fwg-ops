@@ -84,6 +84,7 @@ type DashboardData = {
     ppfVinylRevenue: number
     bonus25Pct: number
     pipelineValue: number
+    yearlyRevenue: number
   }
   categoryBreakdown: { category: string; amount: number }[]
 }
@@ -651,6 +652,14 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
             </div>
             <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
               Pipeline Value
+            </div>
+          </div>
+          <div style={{ padding: '16px', background: '#1d1d1d', borderRadius: '10px', textAlign: 'center' }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: '#a855f7', marginBottom: '4px' }}>
+              ${data.metrics.yearlyRevenue.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+              {new Date().getFullYear()} YTD
             </div>
           </div>
         </div>
