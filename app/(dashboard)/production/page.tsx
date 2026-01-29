@@ -9,7 +9,6 @@ export default async function ProductionPage() {
     .from('documents')
     .select(`
       id,
-      doc_id,
       doc_number,
       type,
       status,
@@ -17,11 +16,9 @@ export default async function ProductionPage() {
       total,
       category,
       paid_at,
-      customers (
-        id,
-        display_name
-      ),
-      vehicle_info
+      customer_name,
+      vehicle_description,
+      project_description
     `)
     .eq('in_production', true)
     .order('created_at', { ascending: false })
@@ -31,7 +28,7 @@ export default async function ProductionPage() {
   }
 
   // Fetch production tasks for these jobs
-  const jobIds = productionJobs?.map(j => j.doc_id) || []
+  const jobIds = productionJobs?.map(j => j.id) || []
   const { data: tasks } = await supabase
     .from('tasks')
     .select('*')
