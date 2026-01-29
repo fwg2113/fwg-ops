@@ -10,9 +10,25 @@ export default async function TasksPage() {
     .select('*')
     .order('created_at', { ascending: false })
 
+  // Fetch documents with customer info for invoice/quote linking
+  const { data: documents } = await supabase
+    .from('documents')
+    .select(`
+      id,
+      doc_id,
+      doc_number,
+      type,
+      customer_id,
+      customers (
+        id,
+        display_name
+      )
+    `)
+    .order('created_at', { ascending: false })
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <TaskBoard initialTasks={tasks || []} />
+      <TaskBoard initialTasks={tasks || []} documents={documents || []} />
     </div>
   )
 }

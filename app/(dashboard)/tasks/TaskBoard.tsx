@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Task = {
   id: string
@@ -16,8 +17,21 @@ type Task = {
   notes?: string | null
 }
 
+type Document = {
+  id: string
+  doc_id: string
+  doc_number: number
+  type: string
+  customer_id: string
+  customers: {
+    id: string
+    display_name: string
+  }[] | null
+}
+
 type TaskBoardProps = {
   initialTasks: Task[]
+  documents: Document[]
 }
 
 const priorityColors = {
@@ -33,11 +47,13 @@ const statusColors = {
   COMPLETED: '#22c55e'
 }
 
-export default function TaskBoard({ initialTasks }: TaskBoardProps) {
+export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
+  const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [showModal, setShowModal] = useState(false)
   const [currentView, setCurrentView] = useState<'kanban' | 'list'>('kanban')
   const [filterPriority, setFilterPriority] = useState<string>('')
+  const [filterInvoice, setFilterInvoice] = useState<string>('')
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
 
@@ -56,9 +72,26 @@ export default function TaskBoard({ initialTasks }: TaskBoardProps) {
     { key: 'COMPLETED', label: 'Completed', color: statusColors.COMPLETED }
   ]
 
-  const filteredTasks = filterPriority
-    ? tasks.filter(task => task.priority === filterPriority)
-    : tasks
+  // Get unique invoices from documents
+  const uniqueInvoices = documents
+    .filter(doc => doc.type === 'invoice')
+    .sort((a, b) => b.doc_number - a.doc_number)
+
+  // Filter tasks by priority and invoice
+  let filteredTasks = tasks
+  if (filterPriority) {
+    filteredTasks = filteredTasks.filter(task => task.priority === filterPriority)
+  }
+  if (filterInvoice) {
+    filteredTasks = filteredTasks.filter(task => task.invoice_id === filterInvoice)
+  }
+
+  // Helper function to get customer name for an invoice
+  const getCustomerName = (invoiceId: string | null | undefined) => {
+    if (!invoiceId) return null
+    const doc = documents.find(d => d.doc_id === invoiceId && d.type === 'invoice')
+    return doc?.customers?.[0]?.display_name || null
+  }
 
   const getTasksByStatus = (status: string) => {
     return filteredTasks.filter(task => task.status === status)
@@ -240,6 +273,27 @@ export default function TaskBoard({ initialTasks }: TaskBoardProps) {
             <option value="HIGH">High</option>
             <option value="MEDIUM">Medium</option>
             <option value="LOW">Low</option>
+          </select>
+
+          <select
+            value={filterInvoice}
+            onChange={(e) => setFilterInvoice(e.target.value)}
+            style={{
+              background: '#1d1d1d',
+              border: '1px solid rgba(148, 163, 184, 0.1)',
+              borderRadius: '6px',
+              color: '#f1f5f9',
+              padding: '8px 12px',
+              fontSize: '13px',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="">All Invoices</option>
+            {uniqueInvoices.map(inv => (
+              <option key={inv.id} value={inv.doc_id}>
+                {inv.doc_id} - {inv.customers?.[0]?.display_name || 'Unknown'}
+              </option>
+            ))}
           </select>
 
           {/* Add Task Button */}
@@ -496,6 +550,13 @@ export default function TaskBoard({ initialTasks }: TaskBoardProps) {
                       }}>
                         {task.invoice_id && (
                           <span
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const doc = documents.find(d => d.doc_id === task.invoice_id && d.type === 'invoice')
+                              if (doc) {
+                                router.push(`/documents/${doc.id}`)
+                              }
+                            }}
                             style={{
                               fontSize: '12px',
                               color: '#64748b',
@@ -503,7 +564,17 @@ export default function TaskBoard({ initialTasks }: TaskBoardProps) {
                               padding: '2px 6px',
                               borderRadius: '4px',
                               display: 'inline-flex',
-                              alignItems: 'center'
+                              alignItems: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#22d3ee'
+                              e.currentTarget.style.color = 'white'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#111111'
+                              e.currentTarget.style.color = '#64748b'
                             }}
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '10px', height: '10px', marginRight: '3px' }}>
@@ -511,6 +582,14 @@ export default function TaskBoard({ initialTasks }: TaskBoardProps) {
                               <line x1="1" y1="10" x2="23" y2="10"></line>
                             </svg>
                             {task.invoice_id}
+                          </span>
+                        )}
+                        {task.invoice_id && getCustomerName(task.invoice_id) && (
+                          <span style={{
+                            fontSize: '12px',
+                            color: '#64748b'
+                          }}>
+                            {getCustomerName(task.invoice_id)}
                           </span>
                         )}
                         {task.due_date && (
