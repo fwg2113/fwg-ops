@@ -126,6 +126,32 @@ const ChevronRightIcon = () => (
   </svg>
 )
 
+const RefreshIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 4 23 10 17 10" />
+    <polyline points="1 20 1 14 7 14" />
+    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+  </svg>
+)
+
+// Helper function to format category labels
+const formatCategoryLabel = (category: string): string => {
+  const specialCases: Record<string, string> = {
+    'PPF': 'PPF',
+    'TINT': 'Window Tint'
+  }
+
+  if (specialCases[category]) {
+    return specialCases[category]
+  }
+
+  // Replace underscores with spaces and convert to title case
+  return category
+    .split('_')
+    .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export default function CommandCenter({ initialData }: { initialData: DashboardData }) {
   const router = useRouter()
   const [data, setData] = useState(initialData)
@@ -133,12 +159,20 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
     priority: 'NORMAL',
     due_date: ''
   })
+
+  // Handle refresh
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    router.refresh()
+    setTimeout(() => setIsRefreshing(false), 1000)
+  }
 
   // Build action items from all data sources
   const buildActionItems = (): ActionItem[] => {
@@ -153,7 +187,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'submission',
           actionType: 'new-lead',
           customer: s.customer_name,
-          details: [s.vehicle_year, s.vehicle_make, s.vehicle_model].filter(Boolean).join(' ') + (s.project_type ? ' - ' + s.project_type.replace(/_/g, ' ') : '') || 'New submission',
+          details: [s.vehicle_year, s.vehicle_make, s.vehicle_model].filter(Boolean).join(' ') + (s.project_type ? ' - ' + formatCategoryLabel(s.project_type) : '') || 'New submission',
           amount: s.price_range_max || 0,
           priority: 100, // New leads are high priority
           data: s
@@ -169,7 +203,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'quote',
           actionType: 'send',
           customer: q.customer_name,
-          details: (q.vehicle_description || q.project_description || q.category || 'Quote') + ' - ' + (q.status || ''),
+          details: (q.vehicle_description || q.project_description || (q.category ? formatCategoryLabel(q.category) : '') || 'Quote') + ' - ' + (q.status || ''),
           amount: q.total || 0,
           priority: 50,
           data: q
@@ -182,7 +216,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'quote',
           actionType: 'convert',
           customer: q.customer_name,
-          details: (q.vehicle_description || q.project_description || q.category || 'Quote') + ' - ' + (q.status || ''),
+          details: (q.vehicle_description || q.project_description || (q.category ? formatCategoryLabel(q.category) : '') || 'Quote') + ' - ' + (q.status || ''),
           amount: q.total || 0,
           priority: 90,
           data: q
@@ -198,7 +232,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
             type: 'quote',
             actionType: 'followup',
             customer: q.customer_name,
-            details: (q.vehicle_description || q.project_description || q.category || 'Quote') + ' - ' + (q.status || ''),
+            details: (q.vehicle_description || q.project_description || (q.category ? formatCategoryLabel(q.category) : '') || 'Quote') + ' - ' + (q.status || ''),
             amount: q.total || 0,
             priority: 60 + Math.min(daysSinceSent, 30),
             data: q
@@ -216,7 +250,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'invoice',
           actionType: 'schedule',
           customer: inv.customer_name,
-          details: (inv.vehicle_description || inv.project_description || inv.category || 'Invoice') + ' - ' + (inv.status || ''),
+          details: (inv.vehicle_description || inv.project_description || (inv.category ? formatCategoryLabel(inv.category) : '') || 'Invoice') + ' - ' + (inv.status || ''),
           amount: inv.total || 0,
           priority: 95,
           data: inv
@@ -253,7 +287,21 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
 
   // Get waiting on customer items (sent/viewed quotes not yet approved)
   const getWaitingItems = (): Document[] => {
-    return data.quotes.filter(q => q.status === 'sent' || q.status === 'viewed')
+    const waiting = data.quotes
+      .filter(q => q.status === 'sent' || q.status === 'viewed')
+      .map(q => {
+        const sentDate = q.sent_at ? new Date(q.sent_at) : new Date(q.created_at)
+        const daysWaiting = Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24))
+        return { ...q, daysWaiting }
+      })
+      .sort((a, b) => b.daysWaiting - a.daysWaiting) // Sort by days waiting (longest first)
+    return waiting
+  }
+
+  // Calculate days waiting for a quote
+  const getDaysWaiting = (quote: Document): number => {
+    const sentDate = quote.sent_at ? new Date(quote.sent_at) : new Date(quote.created_at)
+    return Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24))
   }
 
   const actionItems = buildActionItems()
@@ -349,12 +397,12 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   // Get action badge style
   const getActionBadgeStyle = (actionType: string) => {
     const styles: Record<string, { bg: string; color: string }> = {
-      'schedule': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
-      'convert': { bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' },
+      'new-lead': { bg: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' },
       'followup': { bg: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' },
+      'schedule': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
+      'convert': { bg: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6' },
       'send': { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' },
-      'new-lead': { bg: 'rgba(215, 28, 209, 0.15)', color: '#d71cd1' },
-      'task': { bg: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }
+      'task': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' }
     }
     return styles[actionType] || styles['task']
   }
@@ -403,6 +451,27 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '16px', fontWeight: 600, color: '#f1f5f9' }}>
             <span style={{ color: '#d71cd1' }}><LightningIcon /></span>
             Customer Action Center
+            <button
+              onClick={handleRefresh}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s ease',
+                transform: isRefreshing ? 'rotate(360deg)' : 'rotate(0deg)',
+                animation: isRefreshing ? 'spin 1s linear' : 'none'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#d71cd1'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
+            >
+              <RefreshIcon />
+            </button>
           </div>
           <button
             onClick={() => setShowAddTaskModal(true)}
@@ -499,39 +568,42 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
               ${waitingTotal.toLocaleString()}
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
-            {waitingItems.map(q => (
-              <div
-                key={q.id}
-                onClick={() => router.push(`/documents/${q.id}`)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px 14px',
-                  background: '#1d1d1d',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  border: '1px solid transparent',
-                  transition: 'all 0.15s ease'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
-              >
-                <EyeIcon viewed={q.status === 'viewed'} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {q.customer_name}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '10px' }}>
+            {waitingItems.map(q => {
+              const daysWaiting = getDaysWaiting(q)
+              return (
+                <div
+                  key={q.id}
+                  onClick={() => router.push(`/documents/${q.id}`)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px 14px',
+                    background: '#1d1d1d',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    border: '1px solid transparent',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
+                >
+                  <EyeIcon viewed={q.status === 'viewed'} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {q.customer_name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                      Quote #{q.doc_number} • {daysWaiting}d waiting
+                    </div>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    Quote #{q.doc_number}
+                  <div style={{ fontWeight: 600, color: '#94a3b8', flexShrink: 0 }}>
+                    ${(q.total || 0).toLocaleString()}
                   </div>
                 </div>
-                <div style={{ fontWeight: 600, color: '#94a3b8', flexShrink: 0 }}>
-                  ${(q.total || 0).toLocaleString()}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -598,14 +670,14 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {data.categoryBreakdown.map(cat => (
               <div key={cat.category} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '100px', fontSize: '13px', color: '#94a3b8', flexShrink: 0 }}>
-                  {cat.category.replace(/_/g, ' ')}
+                <div style={{ width: '120px', fontSize: '13px', color: '#94a3b8', flexShrink: 0 }}>
+                  {formatCategoryLabel(cat.category)}
                 </div>
                 <div style={{ flex: 1, height: '20px', background: '#1d1d1d', borderRadius: '4px', overflow: 'hidden' }}>
                   <div style={{
                     height: '100%',
                     width: `${(cat.amount / maxCategoryValue) * 100}%`,
-                    background: 'linear-gradient(90deg, #d71cd1, #06b6d4)',
+                    background: 'linear-gradient(90deg, #d71cd1, #8b5cf6)',
                     borderRadius: '4px',
                     transition: 'width 0.4s ease'
                   }} />
