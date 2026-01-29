@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import ProductionFlow from './ProductionFlow'
 
 export default async function ProductionPage() {
-  // Fetch paid invoices (production jobs)
+  // Fetch invoices in production
   const { data: productionJobs } = await supabase
     .from('documents')
     .select(`
@@ -23,9 +23,8 @@ export default async function ProductionPage() {
       ),
       vehicle_info
     `)
-    .eq('type', 'invoice')
-    .eq('status', 'paid')
-    .order('paid_at', { ascending: false })
+    .eq('in_production', true)
+    .order('created_at', { ascending: false })
 
   // Fetch production tasks for these jobs
   const jobIds = productionJobs?.map(j => j.doc_id) || []
