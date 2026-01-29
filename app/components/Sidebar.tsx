@@ -5,36 +5,17 @@ import { usePathname } from 'next/navigation'
 
 const navSections = [
   {
-    title: 'CORE',
+    title: '',
     items: [
       { href: '/', label: 'Command', labelGradient: 'Center', icon: 'grid' },
       { href: '/submissions', label: 'Lead', labelGradient: 'Pipeline', icon: 'activity' },
-    ]
-  },
-  {
-    title: 'SALES',
-    items: [
-      { href: '/documents', label: 'Quote', labelGradient: 'Builder', icon: 'document' },
-      { href: '/customers', label: 'Customer', labelGradient: 'Database', icon: 'users' },
-    ]
-  },
-  {
-    title: 'COMMUNICATION',
-    items: [
-      { href: '/calendar', label: 'Schedule', labelGradient: 'Calendar', icon: 'calendar' },
+      { href: '/quotes', label: 'Quotes', labelGradient: '', icon: 'document' },
+      { href: '/invoices', label: 'Invoices', labelGradient: '', icon: 'receipt' },
       { href: '/messages', label: 'Message', labelGradient: 'Hub', icon: 'chat' },
-    ]
-  },
-  {
-    title: 'PRODUCTION',
-    items: [
-      { href: '/production', label: 'Production', labelGradient: 'Flow', icon: 'layers' },
+      { href: '/customers', label: 'Customer', labelGradient: 'Database', icon: 'users' },
+      { href: '/calendar', label: 'Schedule', labelGradient: 'Calendar', icon: 'calendar' },
       { href: '/tasks', label: 'Task', labelGradient: 'Board', icon: 'tasks' },
-    ]
-  },
-  {
-    title: 'ACCOUNT',
-    items: [
+      { href: '/production', label: 'Production', labelGradient: 'Flow', icon: 'layers' },
       { href: '/settings', label: 'System', labelGradient: 'Settings', icon: 'cog' },
     ]
   }
@@ -60,6 +41,12 @@ const icons: Record<string, React.ReactElement> = {
       <polyline points="14 2 14 8 20 8"></polyline>
       <line x1="16" y1="13" x2="8" y2="13"></line>
       <line x1="16" y1="17" x2="8" y2="17"></line>
+    </svg>
+  ),
+  receipt: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+      <line x1="1" y1="10" x2="23" y2="10"></line>
     </svg>
   ),
   users: (
@@ -165,47 +152,33 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav style={{ flex: 1, padding: '16px 0', overflowY: 'auto' }}>
-        {navSections.map((section) => (
-          <div key={section.title} style={{ marginBottom: '8px' }}>
-            <div style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              color: '#4b5563',
-              textTransform: 'uppercase',
-              letterSpacing: '1.5px',
-              padding: '16px 20px 10px'
-            }}>
-              {section.title}
-            </div>
-            {section.items.map((item) => {
-              const isActive = pathname === item.href
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '12px 20px',
-                    color: isActive ? '#22d3ee' : '#6b7280',
-                    textDecoration: 'none',
-                    borderLeft: isActive ? '3px solid #06b6d4' : '3px solid transparent',
-                    background: isActive ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <span style={{ color: isActive ? '#22d3ee' : '#6b7280' }}>
-                    {icons[item.icon]}
-                  </span>
-                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#e5e7eb' }}>
-                    {item.label} <span style={gradientStyle}>{item.labelGradient}</span>
-                  </span>
-                </Link>
-              )
-            })}
-          </div>
-        ))}
+        {navSections[0].items.map((item) => {
+          const isActive = pathname === item.href || (item.href === '/quotes' && pathname.startsWith('/documents?type=quote')) || (item.href === '/invoices' && pathname.startsWith('/documents?type=invoice'))
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 20px',
+                color: isActive ? '#22d3ee' : '#6b7280',
+                textDecoration: 'none',
+                borderLeft: isActive ? '3px solid #06b6d4' : '3px solid transparent',
+                background: isActive ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span style={{ color: isActive ? '#22d3ee' : '#6b7280' }}>
+                {icons[item.icon]}
+              </span>
+              <span style={{ fontSize: '14px', fontWeight: 500, color: '#e5e7eb' }}>
+                {item.label}{item.labelGradient && <span style={gradientStyle}> {item.labelGradient}</span>}
+              </span>
+            </Link>
+          )
+        })}
       </nav>
 
       {/* Footer */}
