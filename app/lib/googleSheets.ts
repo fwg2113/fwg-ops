@@ -8,7 +8,12 @@ const SHEETS_CONFIG = {
 
 // Initialize Google Sheets API client
 function getGoogleSheetsClient() {
-  const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS || '{}')
+  const envVar = process.env.GOOGLE_SHEETS_CREDENTIALS
+  console.log('Raw env var length:', envVar?.length)
+  console.log('First 100 chars:', envVar?.substring(0, 100))
+
+  const credentials = JSON.parse(envVar || '{}')
+  console.log('Parsed credentials has client_email:', !!credentials.client_email)
 
   const auth = new google.auth.GoogleAuth({
     credentials,
