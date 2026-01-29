@@ -82,6 +82,7 @@ type DashboardData = {
   metrics: {
     monthlyRevenue: number
     ppfVinylRevenue: number
+    bonus25Pct: number
     pipelineValue: number
   }
   categoryBreakdown: { category: string; amount: number }[]
@@ -638,7 +639,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           </div>
           <div style={{ padding: '16px', background: '#1d1d1d', borderRadius: '10px', textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: 700, color: '#22c55e', marginBottom: '4px' }}>
-              ${Math.round(data.metrics.ppfVinylRevenue * 0.025).toLocaleString()}
+              ${Math.round(data.metrics.bonus25Pct).toLocaleString()}
             </div>
             <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
               2.5% Bonus
