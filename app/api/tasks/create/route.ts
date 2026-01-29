@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { title, description, priority, due_date, status } = body
+    const { title, description, priority, due_date, status, notes } = body
 
     const { data, error } = await supabase
       .from('tasks')
@@ -14,6 +14,7 @@ export async function POST(request: Request) {
         priority,
         due_date: due_date || null,
         status: status || 'TO_DO',
+        notes: notes || null,
         created_at: new Date().toISOString()
       }])
       .select()
