@@ -42,6 +42,9 @@ type Submission = {
   customer_phone: string
   status: string
   vehicle_category: string
+  vehicle_year?: string
+  vehicle_make?: string
+  vehicle_model?: string
   project_type: string
   price_range_min: number
   price_range_max: number
