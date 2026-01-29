@@ -5,17 +5,39 @@ import { usePathname } from 'next/navigation'
 
 const navSections = [
   {
-    title: '',
+    title: 'CORE',
     items: [
       { href: '/', label: 'Command', labelGradient: 'Center', icon: 'grid' },
       { href: '/submissions', label: 'Lead', labelGradient: 'Pipeline', icon: 'activity' },
-      { href: '/quotes', label: 'Quotes', labelGradient: '', icon: 'document' },
-      { href: '/invoices', label: 'Invoices', labelGradient: '', icon: 'receipt' },
+    ]
+  },
+  {
+    title: 'SALES',
+    items: [
+      { href: '/quotes', label: 'Quote', labelGradient: 'Builder', icon: 'document' },
+      { href: '/invoices', label: 'Invoice', labelGradient: 'Manager', icon: 'receipt' },
+      { href: '/payments', label: 'Payment', labelGradient: 'History', icon: 'dollar' },
+    ]
+  },
+  {
+    title: 'COMMUNICATION',
+    items: [
       { href: '/messages', label: 'Message', labelGradient: 'Hub', icon: 'chat' },
       { href: '/customers', label: 'Customer', labelGradient: 'Database', icon: 'users' },
-      { href: '/calendar', label: 'Schedule', labelGradient: 'Calendar', icon: 'calendar' },
+      { href: '/email-templates', label: 'Email', labelGradient: 'Templates', icon: 'mail', badge: 'Soon' },
+    ]
+  },
+  {
+    title: 'PRODUCTION',
+    items: [
+      { href: '/calendar', label: 'Job', labelGradient: 'Calendar', icon: 'calendar' },
       { href: '/tasks', label: 'Task', labelGradient: 'Board', icon: 'tasks' },
       { href: '/production', label: 'Production', labelGradient: 'Flow', icon: 'layers' },
+    ]
+  },
+  {
+    title: 'ACCOUNT',
+    items: [
       { href: '/settings', label: 'System', labelGradient: 'Settings', icon: 'cog' },
     ]
   }
@@ -90,6 +112,18 @@ const icons: Record<string, React.ReactElement> = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
     </svg>
   ),
+  dollar: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <line x1="12" y1="1" x2="12" y2="23"></line>
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+    </svg>
+  ),
+  mail: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+      <polyline points="22,6 12,13 2,6"></polyline>
+    </svg>
+  ),
 }
 
 export default function Sidebar() {
@@ -152,33 +186,61 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav style={{ flex: 1, padding: '16px 0', overflowY: 'auto' }}>
-        {navSections[0].items.map((item) => {
-          const isActive = pathname === item.href || (item.href === '/quotes' && pathname.startsWith('/documents?type=quote')) || (item.href === '/invoices' && pathname.startsWith('/documents?type=invoice'))
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 20px',
-                color: isActive ? '#22d3ee' : '#6b7280',
-                textDecoration: 'none',
-                borderLeft: isActive ? '3px solid #06b6d4' : '3px solid transparent',
-                background: isActive ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <span style={{ color: isActive ? '#22d3ee' : '#6b7280' }}>
-                {icons[item.icon]}
-              </span>
-              <span style={{ fontSize: '14px', fontWeight: 500, color: '#e5e7eb' }}>
-                {item.label}{item.labelGradient && <span style={gradientStyle}> {item.labelGradient}</span>}
-              </span>
-            </Link>
-          )
-        })}
+        {navSections.map((section) => (
+          <div key={section.title} style={{ marginBottom: '8px' }}>
+            {section.title && (
+              <div style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#4b5563',
+                textTransform: 'uppercase',
+                letterSpacing: '1.5px',
+                padding: '16px 20px 10px'
+              }}>
+                {section.title}
+              </div>
+            )}
+            {section.items.map((item) => {
+              const isActive = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px 20px',
+                    color: isActive ? '#22d3ee' : '#6b7280',
+                    textDecoration: 'none',
+                    borderLeft: isActive ? '3px solid #06b6d4' : '3px solid transparent',
+                    background: isActive ? 'rgba(6, 182, 212, 0.1)' : 'transparent',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ color: isActive ? '#22d3ee' : '#6b7280' }}>
+                    {icons[item.icon]}
+                  </span>
+                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#e5e7eb', flex: 1 }}>
+                    {item.label}{item.labelGradient && <span style={gradientStyle}> {item.labelGradient}</span>}
+                  </span>
+                  {item.badge && (
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: '#4b5563',
+                      color: '#f1f5f9'
+                    }}>
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}
