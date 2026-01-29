@@ -34,8 +34,16 @@ export default async function ProductionPage() {
     .in('invoice_id', jobIds)
     .order('created_at', { ascending: true })
 
+  // Debug: Check what we're getting
+  console.log('Production Jobs:', productionJobs)
+  console.log('Tasks:', tasks)
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
+      {/* Debug info */}
+      <div style={{ marginBottom: '20px', padding: '10px', background: '#1d1d1d', borderRadius: '8px', fontSize: '12px', color: '#64748b' }}>
+        Debug: Found {productionJobs?.length || 0} jobs in production and {tasks?.length || 0} tasks
+      </div>
       <ProductionFlow
         initialJobs={productionJobs || []}
         initialTasks={tasks || []}
