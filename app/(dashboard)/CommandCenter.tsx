@@ -19,7 +19,7 @@ type Task = {
 
 type Document = {
   id: string
-  doc_id: number
+  doc_number: number
   doc_type: string
   status: string
   customer_name: string
@@ -524,7 +524,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
                     {q.customer_name}
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    Quote #{q.doc_id}
+                    Quote #{q.doc_number}
                   </div>
                 </div>
                 <div style={{ fontWeight: 600, color: '#94a3b8', flexShrink: 0 }}>
@@ -1004,7 +1004,7 @@ function ActionItemRow({
               background: '#282a30',
               borderRadius: '4px'
             }}>
-              {item.type === 'submission' ? 'Submission' : `${item.data.doc_type === 'quote' ? 'Quote' : 'Invoice'} #${item.data.doc_id}`}
+              {item.type === 'submission' ? 'Submission' : `${item.data.doc_type === 'quote' ? 'Quote' : 'Invoice'} #${item.data.doc_number}`}
             </span>
           )}
         </div>

@@ -37,11 +37,21 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
     e.preventDefault()
     setSaving(true)
 
+    // Get next doc_number (max + 1, minimum 1001)
+    const { data: maxDoc } = await supabase
+      .from('documents')
+      .select('doc_number')
+      .order('doc_number', { ascending: false })
+      .limit(1)
+      .single()
+    const nextDocNumber = Math.max((maxDoc?.doc_number || 0) + 1, 1001)
+
     const customer = customers.find(c => c.id === selectedCustomer)
     
     const { data, error } = await supabase
       .from('documents')
       .insert([{
+        doc_number: nextDocNumber,
         doc_type: 'quote',
         status: 'draft',
         customer_id: selectedCustomer || null,
