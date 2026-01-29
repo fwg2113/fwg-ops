@@ -24,7 +24,7 @@ type Customer = {
   company: string
 }
 
-export default function DocumentList({ initialDocuments, customers }: { initialDocuments: Document[], customers: Customer[] }) {
+export default function DocumentList({ initialDocuments, customers, docType }: { initialDocuments: Document[], customers: Customer[], docType?: 'quote' | 'invoice' }) {
   const router = useRouter()
   const [documents, setDocuments] = useState<Document[]>(initialDocuments)
   const [showModal, setShowModal] = useState(false)
@@ -32,6 +32,10 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [projectDescription, setProjectDescription] = useState('')
   const [category, setCategory] = useState('')
+
+  // Page title based on docType
+  const pageTitle = docType === 'quote' ? 'Quotes' : docType === 'invoice' ? 'Invoices' : 'Documents'
+  const createButtonLabel = docType === 'invoice' ? 'Create Invoice' : 'Create Quote'
 
   const handleCreateQuote = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,10 +80,10 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
     <div style={{ fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>Documents</h1>
+          <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>{pageTitle}</h1>
           <p style={{ color: '#94a3b8' }}>{documents.length} total</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowModal(true)}
           style={{
             background: '#d71cd1',
@@ -92,7 +96,7 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
             cursor: 'pointer'
           }}
         >
-          + New Quote
+          + {createButtonLabel}
         </button>
       </div>
 
@@ -187,7 +191,7 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
             width: '100%',
             maxWidth: '500px'
           }}>
-            <h2 style={{ color: '#f1f5f9', fontSize: '20px', marginBottom: '24px' }}>New Quote</h2>
+            <h2 style={{ color: '#f1f5f9', fontSize: '20px', marginBottom: '24px' }}>New {docType === 'invoice' ? 'Invoice' : 'Quote'}</h2>
             
             <form onSubmit={handleCreateQuote}>
               <div style={{ marginBottom: '16px' }}>
@@ -296,7 +300,7 @@ export default function DocumentList({ initialDocuments, customers }: { initialD
                     opacity: saving ? 0.7 : 1
                   }}
                 >
-                  {saving ? 'Creating...' : 'Create Quote'}
+                  {saving ? 'Creating...' : createButtonLabel}
                 </button>
               </div>
             </form>
