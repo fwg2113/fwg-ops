@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase'
-import { redirect } from 'next/navigation'
 
 export default async function PaymentSuccessPage({ 
   searchParams 
@@ -20,7 +19,7 @@ export default async function PaymentSuccessPage({
 
   // Get the Stripe session to find the invoice
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY
-  let invoiceId = null
+  let documentId: string | null = null
   let amount = 0
 
   try {
@@ -32,14 +31,14 @@ export default async function PaymentSuccessPage({
     const session = await response.json()
     
     if (session.metadata?.document_id) {
-      invoiceId = session.metadata.invoiceId
+      documentId = session.metadata.document_id
       amount = (session.amount_total || 0) / 100
       
       // Get current invoice
       const { data: invoice } = await supabase
         .from('documents')
         .select('*')
-        .eq('id', invoiceId)
+        .eq('id', documentId)
         .single()
       
       if (invoice) {
@@ -56,13 +55,13 @@ export default async function PaymentSuccessPage({
             balance_due: Math.max(0, newBalanceDue),
             paid_at: isPaidInFull ? new Date().toISOString() : null
           })
-          .eq('id', invoiceId)
+          .eq('id', documentId)
         
         // Record payment
         await supabase
           .from('payments')
           .insert({
-            document_id: invoiceId,
+            document_id: documentId,
             amount: amount,
             payment_method: 'card',
             processor: 'stripe',
@@ -75,6 +74,8 @@ export default async function PaymentSuccessPage({
   } catch (e) {
     console.error('Error processing payment:', e)
   }
+
+  const viewUrl = documentId ? `/view/${documentId}` : '/'
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
@@ -102,7 +103,7 @@ export default async function PaymentSuccessPage({
         </p>
         <div style={{ marginTop: '40px' }}>
           <a 
-            href={invoiceId ? `/view/${invoiceId}` : '/'}
+            href={viewUrl}
             style={{
               display: 'inline-block',
               padding: '14px 32px',
