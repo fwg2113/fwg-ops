@@ -16,7 +16,6 @@ type Task = {
 
 type ProductionJob = {
   id: string
-  doc_id: string
   doc_number: number
   type: string
   status: string
@@ -24,8 +23,9 @@ type ProductionJob = {
   total: number
   category: string
   paid_at?: string
-  customers: { id: string; display_name: string }[] | null
-  vehicle_info?: string | null
+  customer_name: string
+  vehicle_description?: string | null
+  project_description?: string | null
 }
 
 type ProductionFlowProps = {
@@ -52,8 +52,8 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   }
 
   // Get tasks for a job
-  const getJobTasks = (jobDocId: string) => {
-    return tasks.filter(t => t.invoice_id === jobDocId)
+  const getJobTasks = (jobId: string) => {
+    return tasks.filter(t => t.invoice_id === jobId)
   }
 
   // Calculate progress
@@ -123,11 +123,11 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const filteredJobs = jobs.filter(job => {
     if (searchTerm) {
       const search = searchTerm.toLowerCase()
-      const customerName = job.customers?.[0]?.display_name?.toLowerCase() || ''
-      const vehicleInfo = (job.vehicle_info || '').toLowerCase()
-      const invoiceId = job.doc_id.toLowerCase()
+      const customerName = (job.customer_name || '').toLowerCase()
+      const vehicleInfo = (job.vehicle_description || '').toLowerCase()
+      const invoiceNum = String(job.doc_number).toLowerCase()
 
-      if (!customerName.includes(search) && !vehicleInfo.includes(search) && !invoiceId.includes(search)) {
+      if (!customerName.includes(search) && !vehicleInfo.includes(search) && !invoiceNum.includes(search)) {
         return false
       }
     }
@@ -267,7 +267,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
           </div>
         ) : (
           filteredJobs.map(job => {
-            const jobTasks = getJobTasks(job.doc_id)
+            const jobTasks = getJobTasks(job.id)
             const progress = calculateProgress(jobTasks)
             const nextTaskIndex = jobTasks.findIndex(t => t.status !== 'COMPLETED')
             const visibleTasks = jobTasks.slice(0, 4)
@@ -358,13 +358,13 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                       color: '#f1f5f9',
                       marginBottom: '4px'
                     }}>
-                      {job.customers?.[0]?.display_name || 'Unknown'}
+                      {job.customer_name || 'Unknown'}
                     </div>
                     <div style={{ fontSize: '13px', color: '#51a8f1' }}>
-                      {job.vehicle_info || 'Vehicle'} &bull; <span style={{
+                      {job.vehicle_description || job.project_description || 'Project'} &bull; <span style={{
                         fontFamily: '"Courier New", monospace',
                         color: '#22d3ee'
-                      }}>#{job.doc_id}</span>
+                      }}>#{job.doc_number}</span>
                     </div>
                   </div>
 
