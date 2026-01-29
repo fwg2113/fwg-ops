@@ -144,7 +144,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'submission',
           actionType: 'new-lead',
           customer: s.customer_name,
-          details: `${s.vehicle_category || ''} ${s.project_type || ''}`.trim() || 'New submission',
+          details: [s.vehicle_year, s.vehicle_make, s.vehicle_model].filter(Boolean).join(' ') + (s.project_type ? ' - ' + s.project_type.replace(/_/g, ' ') : '') || 'New submission',
           amount: s.price_range_max || 0,
           priority: 100, // New leads are high priority
           data: s
@@ -160,7 +160,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'quote',
           actionType: 'send',
           customer: q.customer_name,
-          details: q.project_description || q.category || 'Quote',
+          details: (q.vehicle_description || q.project_description || q.category || 'Quote') + ' - ' + (q.status || ''),
           amount: q.total || 0,
           priority: 50,
           data: q
@@ -173,7 +173,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'quote',
           actionType: 'convert',
           customer: q.customer_name,
-          details: q.project_description || q.category || 'Quote',
+          details: (q.vehicle_description || q.project_description || q.category || 'Quote') + ' - ' + (q.status || ''),
           amount: q.total || 0,
           priority: 90,
           data: q
@@ -189,7 +189,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
             type: 'quote',
             actionType: 'followup',
             customer: q.customer_name,
-            details: q.project_description || q.category || 'Quote',
+            details: (q.vehicle_description || q.project_description || q.category || 'Quote') + ' - ' + (q.status || ''),
             amount: q.total || 0,
             priority: 60 + Math.min(daysSinceSent, 30),
             data: q
@@ -207,7 +207,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           type: 'invoice',
           actionType: 'schedule',
           customer: inv.customer_name,
-          details: inv.project_description || inv.category || 'Invoice',
+          details: (inv.vehicle_description || inv.project_description || inv.category || 'Invoice') + ' - ' + (inv.status || ''),
           amount: inv.total || 0,
           priority: 95,
           data: inv
