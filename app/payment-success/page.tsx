@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import PaymentSuccessClient from './PaymentSuccessClient'
 
 export default async function PaymentSuccessPage({ 
   searchParams 
@@ -17,8 +18,8 @@ export default async function PaymentSuccessPage({
     )
   }
 
-  // Get the Stripe session to find the invoice
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+  const resendApiKey = process.env.RESEND_API_KEY
   let documentId: string | null = null
   let amount = 0
 
@@ -34,7 +35,6 @@ export default async function PaymentSuccessPage({
       documentId = session.metadata.document_id
       amount = (session.amount_total || 0) / 100
       
-      // Get current invoice
       const { data: invoice } = await supabase
         .from('documents')
         .select('*')
@@ -46,7 +46,6 @@ export default async function PaymentSuccessPage({
         const newBalanceDue = (invoice.total || 0) - newAmountPaid
         const isPaidInFull = newBalanceDue <= 0
         
-        // Update invoice
         await supabase
           .from('documents')
           .update({
@@ -57,7 +56,6 @@ export default async function PaymentSuccessPage({
           })
           .eq('id', documentId)
         
-        // Record payment
         await supabase
           .from('payments')
           .insert({
@@ -69,55 +67,46 @@ export default async function PaymentSuccessPage({
             status: 'completed',
             created_at: new Date().toISOString()
           })
+
+        // Send notification email to FWG
+        if (resendApiKey && isPaidInFull) {
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'FWG Ops <quotes@frederickwraps.com>',
+              to: ['info@frederickwraps.com'],
+              subject: `Invoice #${invoice.doc_number} PAID - $${amount.toFixed(2)}`,
+              html: `
+                <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h1 style="color: #22c55e;">Payment Received!</h1>
+                  <p><strong>Invoice #${invoice.doc_number}</strong> has been paid in full.</p>
+                  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                    <tr><td style="padding: 8px 0; color: #666;">Customer</td><td style="padding: 8px 0;"><strong>${invoice.customer_name}</strong></td></tr>
+                    <tr><td style="padding: 8px 0; color: #666;">Amount</td><td style="padding: 8px 0;"><strong style="color: #22c55e;">$${amount.toFixed(2)}</strong></td></tr>
+                    <tr><td style="padding: 8px 0; color: #666;">Project</td><td style="padding: 8px 0;">${invoice.vehicle_description || invoice.project_description || '-'}</td></tr>
+                  </table>
+                  <p><strong>Next Steps:</strong></p>
+                  <ul>
+                    <li>Schedule the installation</li>
+                    <li>Move to production</li>
+                  </ul>
+                  <p style="margin-top: 30px;">
+                    <a href="https://fwg-ops.vercel.app/documents/${documentId}" style="background: linear-gradient(135deg, #d71cd1, #8b5cf6); color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">View Invoice</a>
+                  </p>
+                </div>
+              `,
+            }),
+          })
+        }
       }
     }
   } catch (e) {
     console.error('Error processing payment:', e)
   }
 
-  const viewUrl = documentId ? `/view/${documentId}` : '/'
-
-  return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <div style={{ 
-          width: '80px', 
-          height: '80px', 
-          borderRadius: '50%', 
-          background: 'rgba(34, 197, 94, 0.15)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          margin: '0 auto 24px'
-        }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-        </div>
-        <h1 style={{ margin: '0 0 16px', fontSize: '32px', fontWeight: 700 }}>Payment Successful!</h1>
-        <p style={{ margin: '0 0 32px', color: '#94a3b8', fontSize: '18px' }}>
-          Thank you for your payment{amount > 0 ? ` of $${amount.toFixed(2)}` : ''}.
-        </p>
-        <p style={{ margin: '0', color: '#64748b' }}>
-          Frederick Wraps Group will be in touch shortly.
-        </p>
-        <div style={{ marginTop: '40px' }}>
-          <a 
-            href={viewUrl}
-            style={{
-              display: 'inline-block',
-              padding: '14px 32px',
-              background: 'linear-gradient(135deg, #d71cd1 0%, #8b5cf6 100%)',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '8px',
-              fontWeight: 600
-            }}
-          >
-            View Invoice
-          </a>
-        </div>
-      </div>
-    </div>
-  )
+  return <PaymentSuccessClient documentId={documentId} amount={amount} />
 }
