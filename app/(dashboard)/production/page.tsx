@@ -10,7 +10,7 @@ export default async function ProductionPage() {
     .select(`
       id,
       doc_number,
-      type,
+      doc_type,
       status,
       customer_id,
       total,

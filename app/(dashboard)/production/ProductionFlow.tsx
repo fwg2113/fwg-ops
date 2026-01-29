@@ -17,7 +17,7 @@ type Task = {
 type ProductionJob = {
   id: string
   doc_number: number
-  type: string
+  doc_type: string
   status: string
   customer_id: string
   total: number
