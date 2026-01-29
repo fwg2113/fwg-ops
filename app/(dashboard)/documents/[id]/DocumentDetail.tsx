@@ -382,11 +382,22 @@ export default function DocumentDetail({ document: doc, initialLineItems }: { do
 
   const handleSendToProduction = async () => {
     setSaving(true)
-    await supabase
+    const { data, error } = await supabase
       .from('documents')
       .update({ in_production: true })
       .eq('id', doc.id)
+      .select()
+
+    if (error) {
+      console.error('Error sending to production:', error)
+      alert('Error: ' + error.message)
+      setSaving(false)
+      return
+    }
+
+    console.log('Sent to production, updated doc:', data)
     alert('Sent to production!')
+    router.refresh()
     setSaving(false)
   }
 
