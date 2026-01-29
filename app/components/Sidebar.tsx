@@ -95,6 +95,8 @@ const navSections = [
 export default function Sidebar() {
   const pathname = usePathname()
 
+  console.log('🚛 NEW SIDEBAR LOADED - Frederick Wraps Operations Hub')
+
   const handleLogout = () => {
     document.cookie = 'fwg_auth=; path=/; max-age=0'
     localStorage.removeItem('fwg_user')
