@@ -5,7 +5,7 @@ import ProductionFlow from './ProductionFlow'
 
 export default async function ProductionPage() {
   // Fetch invoices in production
-  const { data: productionJobs } = await supabase
+  const { data: productionJobs, error: jobsError } = await supabase
     .from('documents')
     .select(`
       id,
@@ -25,6 +25,10 @@ export default async function ProductionPage() {
     `)
     .eq('in_production', true)
     .order('created_at', { ascending: false })
+
+  if (jobsError) {
+    console.error('Error fetching production jobs:', jobsError)
+  }
 
   // Fetch production tasks for these jobs
   const jobIds = productionJobs?.map(j => j.doc_id) || []
