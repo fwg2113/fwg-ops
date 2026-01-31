@@ -412,7 +412,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const getActionLabel = (actionType: string) => {
     const labels: Record<string, string> = {
       'schedule': 'Schedule Job',
-      'convert': 'Convert',
+      'convert': 'Approved - Convert & Send Payment Request',
       'followup': 'Follow Up',
       'send': 'Send',
       'new-lead': 'New Lead',
@@ -1067,14 +1067,15 @@ function ActionItemRow({
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '4px 10px',
+            padding: '6px 12px',
             borderRadius: '6px',
-            fontSize: '11px',
+            fontSize: '12px',
             fontWeight: 600,
             textTransform: 'uppercase',
             letterSpacing: '0.3px',
             background: badgeStyle.bg,
-            color: badgeStyle.color
+            color: badgeStyle.color,
+            whiteSpace: 'nowrap'
           }}>
             {getActionLabel(item.actionType)}
           </span>
