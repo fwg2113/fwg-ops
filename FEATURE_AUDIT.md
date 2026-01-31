@@ -20,13 +20,13 @@
 | Shows approved quotes needing conversion | | |
 | Shows draft quotes needing to be sent | | |
 | Shows quotes needing follow-up (3+ days) | | |
-| Shows paid invoices needing scheduling | | |
-| Shows draft invoices needing to be sent | | |
+| Shows paid invoices needing scheduling | WORKING | |
+| Shows draft invoices needing to be sent | WORKING | |
 | Shows invoices needing follow-up | | |
 | Shows open tasks (unlinked) | | |
 | Shows tasks linked to documents | | |
-| Priority ranking logic (1=schedule, 2=convert, etc) | | |
-| Pin/unpin items | | |
+| Priority ranking logic (1=schedule, 2=convert, etc) |  | |
+| Pin/unpin items | WORKING | |
 | Complete task from action card | | |
 | Click card navigates to correct detail view | | |
 | Add Task button opens modal | | |
