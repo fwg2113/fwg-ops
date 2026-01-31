@@ -50,3 +50,19 @@ If npm run dev fails with missing modules:
    npm install
 
 If you see supabase errors, make sure .env.local file exists.
+
+
+git pull
+Downloads the latest code from GitHub to your computer. Like checking your mailbox for new mail.
+git add .
+Tells Git "these are the files I want to save." The dot means "all changed files." Like putting papers in an envelope.
+git commit -m "message"
+Seals the envelope and writes a note on it describing what's inside. The message helps you remember what you changed.
+git push
+Sends the envelope to GitHub. Now it's in the cloud and available from your other machine.
+npm run dev
+Starts your website locally so you can view it at localhost:3000.
+Ctrl + C
+Stops the server.
+npm install
+Downloads all the helper code your project needs. Only needed when setting up a new machine or if something breaks.
