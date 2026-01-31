@@ -207,7 +207,8 @@ export default function DocumentDetail({
       setFilteredCustomers([])
       setShowCustomerDropdown(false)
     }
-  }, [customerSearch, customers])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerSearch])
 
   // Lightbox keyboard navigation
   useEffect(() => {
