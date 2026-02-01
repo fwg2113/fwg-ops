@@ -34,10 +34,10 @@ export async function POST(request: Request) {
   const isQuote = doc.doc_type === 'quote'
   const docType = isQuote ? 'Quote' : 'Invoice'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://fwg-ops.vercel.app'
-  const pdfUrl = `${appUrl}/api/pdf?id=${documentId}`
+  const viewUrl = `${appUrl}/view/${documentId}`
 
   // Build email HTML
-  const emailHtml = buildEmailHtml(doc, lineItems || [], docType, pdfUrl, message)
+  const emailHtml = buildEmailHtml(doc, lineItems || [], docType, viewUrl, message)
   const emailSubject = subject || `${docType} #${doc.doc_number} from Frederick Wraps`
 
   try {
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   }
 }
 
-function buildEmailHtml(doc: any, lineItems: any[], docType: string, pdfUrl: string, customMessage?: string) {
+function buildEmailHtml(doc: any, lineItems: any[], docType: string, viewUrl: string, customMessage?: string) {
   const lineItemsHtml = lineItems.map(item => `
     <tr>
       <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: left;">${item.description || '-'}</td>
@@ -165,7 +165,7 @@ function buildEmailHtml(doc: any, lineItems: any[], docType: string, pdfUrl: str
 
               <!-- CTA Button -->
               <div style="text-align: center; margin: 40px 0;">
-                <a href="${pdfUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #d71cd1 0%, #8b5cf6 100%); color: white; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px;">View ${docType}</a>
+                <a href="${viewUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #d71cd1 0%, #8b5cf6 100%); color: white; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 8px;">View ${docType}</a>
               </div>
 
               <p style="color: #999; font-size: 14px; line-height: 1.6; margin: 0;">
