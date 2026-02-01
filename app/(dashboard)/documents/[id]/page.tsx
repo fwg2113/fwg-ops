@@ -13,11 +13,19 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     .eq('id', id)
     .single()
 
-  const { data: lineItems } = await supabase
+  const { data: lineItemsRaw } = await supabase
     .from('line_items')
     .select('*')
     .eq('document_id', id)
     .order('sort_order', { ascending: true })
+
+  // Parse attachments if needed
+  const lineItems = (lineItemsRaw || []).map(item => ({
+    ...item,
+    attachments: item.attachments 
+      ? (typeof item.attachments === 'string' ? JSON.parse(item.attachments) : item.attachments) 
+      : []
+  }))
 
   const { data: customers } = await supabase
     .from('customers')
