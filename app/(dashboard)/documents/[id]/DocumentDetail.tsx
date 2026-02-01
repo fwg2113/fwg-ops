@@ -4,6 +4,57 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 
+const buttonStyles = `
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .action-btn:hover:not(:disabled) {
+    transform: translateY(-4px) scale(1.05);
+  }
+  .action-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+  }
+  .action-btn-secondary {
+    background: #282a30;
+    border: 1px solid rgba(148,163,184,0.2);
+    color: #94a3b8;
+  }
+  .action-btn-secondary:hover:not(:disabled) {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  }
+  .action-btn-primary {
+    background: linear-gradient(135deg, #d71cd1, #8b5cf6);
+    border: none;
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 0 20px rgba(215, 28, 209, 0.3);
+  }
+  .action-btn-primary:hover:not(:disabled) {
+    box-shadow: 0 0 30px rgba(215, 28, 209, 0.6);
+  }
+  .action-btn-success {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    border: none;
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+  .action-btn-success:hover:not(:disabled) {
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.6);
+  }
+  .action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`
+
 // Reusable Button Component with hover effects
 const ActionButton = ({ 
   onClick, 
@@ -18,48 +69,12 @@ const ActionButton = ({
   children: React.ReactNode
   style?: React.CSSProperties
 }) => {
-  const baseStyles: Record<string, React.CSSProperties> = {
-    primary: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 0 20px rgba(215, 28, 209, 0.3)' },
-    secondary: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer', transition: 'all 0.15s ease' },
-    success: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }
-  }
-  
-  const handleHover = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled) return
-    const btn = e.currentTarget
-    btn.style.transform = 'translateY(-4px) scale(1.05)'
-    if (variant === 'primary') btn.style.boxShadow = '0 0 30px rgba(215, 28, 209, 0.6)'
-    else if (variant === 'success') btn.style.boxShadow = '0 0 30px rgba(34, 197, 94, 0.6)'
-    else btn.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.4)'
-  }
-  
-  const handleLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const btn = e.currentTarget
-    btn.style.transform = 'translateY(0) scale(1)'
-    if (variant === 'primary') btn.style.boxShadow = '0 0 20px rgba(215, 28, 209, 0.3)'
-    else if (variant === 'success') btn.style.boxShadow = '0 0 20px rgba(34, 197, 94, 0.3)'
-    else btn.style.boxShadow = 'none'
-  }
-  
-  const handleDown = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled) return
-    e.currentTarget.style.transform = 'translateY(0) scale(0.97)'
-  }
-  
-  const handleUp = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled) return
-    e.currentTarget.style.transform = 'translateY(-4px) scale(1.05)'
-  }
-  
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      style={{ ...baseStyles[variant], ...style, opacity: disabled ? 0.5 : 1 }}
-      onMouseEnter={handleHover}
-      onMouseLeave={handleLeave}
-      onMouseDown={handleDown}
-      onMouseUp={handleUp}
+      className={`action-btn action-btn-${variant}`}
+      style={style}
     >
       {children}
     </button>
@@ -346,11 +361,13 @@ export default function DocumentDetail({
     setTimeout(() => setLinkCopied(false), 2000)
   }
 
-  const [refreshed, setRefreshed] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const handleRefresh = () => {
-    setRefreshed(true)
+    setRefreshing(true)
     router.refresh()
-    setTimeout(() => setRefreshed(false), 2000)
+    setTimeout(() => {
+      setRefreshing(false)
+    }, 1000)
   }
 
 
@@ -1077,10 +1094,60 @@ export default function DocumentDetail({
   // ============================================================================
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', paddingBottom: '100px' }}>
+      <style>{`
+        .action-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 10px 16px;
+          border-radius: 8px;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .action-btn:hover:not(:disabled) {
+          transform: translateY(-4px) scale(1.05) !important;
+        }
+        .action-btn:active:not(:disabled) {
+          transform: translateY(0) scale(0.97) !important;
+        }
+        .action-btn-secondary {
+          background: #282a30;
+          border: 1px solid rgba(148,163,184,0.2);
+          color: #94a3b8;
+        }
+        .action-btn-secondary:hover:not(:disabled) {
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
+        }
+        .action-btn-primary {
+          background: linear-gradient(135deg, #d71cd1, #8b5cf6);
+          border: none;
+          color: white;
+          font-weight: 600;
+          box-shadow: 0 0 20px rgba(215, 28, 209, 0.3);
+        }
+        .action-btn-primary:hover:not(:disabled) {
+          box-shadow: 0 0 30px rgba(215, 28, 209, 0.6) !important;
+        }
+        .action-btn-success {
+          background: linear-gradient(135deg, #22c55e, #16a34a);
+          border: none;
+          color: white;
+          font-weight: 600;
+          box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+        }
+        .action-btn-success:hover:not(:disabled) {
+          box-shadow: 0 0 30px rgba(34, 197, 94, 0.6) !important;
+        }
+        .action-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      `}</style>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ color: '#f1f5f9', fontSize: '24px', fontWeight: 600, margin: 0 }}>{isQuote ? 'Quote' : 'Invoice'} Details</h1>
-        <button onClick={() => router.refresh()} style={btnSecondary}>Refresh</button>
+        <ActionButton onClick={handleRefresh} variant="secondary">{refreshing ? 'Refreshing...' : 'Refresh'}</ActionButton>
       </div>
 
       {/* Document Header */}
@@ -1304,11 +1371,13 @@ export default function DocumentDetail({
 
       {/* Fees & Adjustments */}
       <div style={cardStyle}>
-        {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ color: '#f1f5f9', fontSize: '24px', fontWeight: 600, margin: 0 }}>{isQuote ? 'Quote' : 'Invoice'} Details</h1>
-        <ActionButton onClick={handleRefresh} variant="secondary">{refreshed ? 'Refreshed!' : 'Refresh'}</ActionButton>
-      </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Fees & Adjustments</h3>
+          <ActionButton onClick={addFee} variant="secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Fee
+          </ActionButton>
+        </div>
         {fees.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '13px' }}>No fees added</div>
         ) : (
