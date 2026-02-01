@@ -1101,7 +1101,7 @@ export default function DocumentDetail({
               const isArchived = doc.bucket === 'ARCHIVE_WON' || doc.bucket === 'ARCHIVE_LOST'
               const hasBeenSent = doc.sent_at || doc.status === 'sent' || doc.status === 'viewed'
               const isCold = doc.bucket === 'COLD'
-              const inProduction = doc.in_production === true || doc.in_production === 'TRUE'
+              const inProduction = doc.in_production === true
               const buttons = []
               
               // Copy Link - always show
