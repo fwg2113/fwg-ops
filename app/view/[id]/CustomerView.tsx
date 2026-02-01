@@ -94,6 +94,28 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
     return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + url)
   })
 
+  const handleChangeMind = async () => {
+    if (!confirm('This will reset your approval. You can then request revisions or approve again. Continue?')) return
+    
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/documents/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: doc.id, status: 'sent' })
+      })
+      
+      if (res.ok) {
+        setStatus('sent')
+      } else {
+        alert('Failed to reset approval')
+      }
+    } catch (e) {
+      alert('Error resetting approval')
+    }
+    setSubmitting(false)
+  }
+
   const handleApprove = async () => {
     setSubmitting(true)
     try {
@@ -387,231 +409,40 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
           </div>
         )}
 
-        {/* Project Details */}
-        <div style={{ 
-          background: '#1e293b',
-          borderRadius: '8px',
-          marginBottom: '24px',
-          border: '1px solid #334155',
-          overflow: 'hidden'
-        }}>
-          <div style={{ 
-            background: '#334155',
-            padding: '12px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '14px',
-            fontWeight: 600
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-            Project Details
-          </div>
-          <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <div>
-              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Prepared For</p>
-              <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.customer_name}</p>
-            </div>
-            {doc.company_name && (
-              <div>
-                <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Company</p>
-                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.company_name}</p>
-              </div>
-            )}
-            {doc.vehicle_description && (
-              <div>
-                <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vehicle</p>
-                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.vehicle_description}</p>
-              </div>
-            )}
-            {doc.project_description && (
-              <div>
-                <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project Type</p>
-                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.project_description}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Pricing */}
-        <div style={{ 
-          background: '#1e293b',
-          borderRadius: '8px',
-          marginBottom: '24px',
-          border: '1px solid #334155',
-          overflow: 'hidden'
-        }}>
-          <div style={{ 
-            background: '#334155',
-            padding: '12px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '14px',
-            fontWeight: 600
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="1" x2="12" y2="23"/>
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </svg>
-            Pricing
-          </div>
-          <div style={{ padding: '20px' }}>
-            {/* Line Items */}
-            {lineItems.map((item, i) => (
-              <div key={item.id || i} style={{ 
-                padding: '16px',
-                background: '#0f172a',
-                borderRadius: '8px',
-                marginBottom: '12px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start'
-              }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{item.description || 'Service'}</p>
-                  <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13px' }}>
-                    {item.sqft || item.quantity} × {formatCurrency(item.rate || item.unit_price)}
-                  </p>
-                </div>
-                <p style={{ margin: 0, fontWeight: 600 }}>{formatCurrency(item.line_total)}</p>
-              </div>
-            ))}
-            
-            {/* Totals */}
-            <div style={{ borderTop: '1px solid #334155', marginTop: '16px', paddingTop: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: '#94a3b8' }}>Subtotal</span>
-                <span>{formatCurrency(doc.subtotal)}</span>
-              </div>
-              
-              {doc.discount_amount && doc.discount_amount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#22c55e' }}>Discount{doc.discount_note ? ` (${doc.discount_note})` : ''}</span>
-                  <span style={{ color: '#22c55e' }}>-{formatCurrency(doc.discount_amount)}</span>
-                </div>
-              )}
-              
-              {doc.tax_amount && doc.tax_amount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>Tax</span>
-                  <span>{formatCurrency(doc.tax_amount)}</span>
-                </div>
-              )}
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #334155' }}>
-                <span style={{ fontWeight: 600, fontSize: '18px' }}>Total</span>
-                <span style={{ fontWeight: 700, fontSize: '18px' }}>{formatCurrency(doc.total)}</span>
-              </div>
-              
-              {(doc.amount_paid || 0) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>Amount Paid</span>
-                  <span style={{ color: '#22c55e' }}>{formatCurrency(doc.amount_paid || 0)}</span>
-                </div>
-              )}
-              
-              {balanceDue > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>Balance Due</span>
-                  <span>{formatCurrency(balanceDue)}</span>
-                </div>
-              )}
-              
-              {/* Amount Due to Proceed (Deposit) */}
-              {!isPaid && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #334155' }}>
-                  <span style={{ color: '#d71cd1', fontWeight: 600, fontSize: '16px' }}>Amount Due to Proceed</span>
-                  <span style={{ color: '#d71cd1', fontWeight: 700, fontSize: '16px' }}>{formatCurrency(amountToPay)}</span>
-                </div>
-              )}
-            </div>
-            
-            {/* Valid Until */}
-            {doc.valid_until && (
-              <div style={{ 
-                marginTop: '16px',
-                padding: '12px',
-                background: '#0f172a',
-                borderRadius: '8px',
-                textAlign: 'center',
-                color: '#64748b',
-                fontSize: '14px'
-              }}>
-                {isQuote ? 'Quote' : 'Invoice'} valid until {formatDate(doc.valid_until)}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Quote Approved - Show Payment Options */}
+        {/* Design Approved Badge with Changed My Mind */}
         {isQuote && isApproved && (
           <div style={{ 
-            background: '#1e293b',
+            background: 'rgba(34, 197, 94, 0.1)',
             borderRadius: '8px',
-            padding: '24px',
+            padding: '16px 20px',
             marginBottom: '24px',
-            border: '1px solid #334155',
-            textAlign: 'center'
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-              </svg>
-              <span style={{ color: '#22c55e', fontWeight: 600, fontSize: '18px' }}>Quote Approved!</span>
-            </div>
-            <p style={{ color: '#94a3b8', marginBottom: '20px' }}>Thank you! Pay your deposit to get started.</p>
-            
-            {/* Payment Options */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* Bank Transfer - Primary */}
-              <button
-                onClick={handlePayByBank}
-                disabled={submitting}
-                style={{
-                  width: '100%',
-                  padding: '18px',
-                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: 'white',
-                  fontSize: '16px',
-                  fontWeight: 700,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.7 : 1
-                }}
-              >
-                Pay {formatCurrency(amountToPay)} by Bank Transfer
-                <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, opacity: 0.9, marginTop: '4px' }}>No processing fee</span>
-              </button>
-              
-              {/* Card Payment - Secondary */}
-              <button
-                onClick={handlePayByCard}
-                disabled={submitting}
-                style={{
-                  width: '100%',
-                  padding: '18px',
-                  background: '#334155',
-                  border: '1px solid #475569',
-                  borderRadius: '10px',
-                  color: '#f1f5f9',
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.7 : 1
-                }}
-              >
-                Pay {formatCurrency(cardTotal)} by Card
-                <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, color: '#94a3b8', marginTop: '4px' }}>
-                  Includes {formatCurrency(processingFee)} processing fee (2.9% + $0.30)
-                </span>
-              </button>
-            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+            <span style={{ color: '#22c55e', fontWeight: 600 }}>Design Approved</span>
+            <button
+              onClick={handleChangeMind}
+              disabled={submitting}
+              style={{
+                marginLeft: '8px',
+                padding: '6px 12px',
+                background: 'transparent',
+                border: '1px solid #22c55e',
+                borderRadius: '6px',
+                color: '#22c55e',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+            >
+              Changed My Mind?
+            </button>
           </div>
         )}
 
