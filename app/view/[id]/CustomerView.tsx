@@ -2,6 +2,16 @@
 
 import { useState } from 'react'
 
+type Attachment = {
+  url?: string
+  file_url?: string
+  filename?: string
+  file_name?: string
+  name?: string
+  contentType?: string
+  type?: string
+}
+
 type Document = {
   id: string
   doc_number: number
@@ -13,9 +23,11 @@ type Document = {
   company_name?: string
   vehicle_description?: string
   project_description?: string
+  category?: string
   subtotal: number
   discount_amount?: number
   discount_percent?: number
+  discount_note?: string
   tax_amount?: number
   total: number
   deposit_required?: number
@@ -25,30 +37,64 @@ type Document = {
   notes?: string
   created_at: string
   valid_until?: string
+  revision_history_json?: any
 }
 
 type LineItem = {
   id: string
   description: string
   quantity: number
+  sqft?: number
   unit_price: number
+  rate?: number
   line_total: number
+  attachments?: Attachment[]
 }
 
 export default function CustomerView({ document: doc, lineItems }: { document: Document, lineItems: LineItem[] }) {
   const [status, setStatus] = useState(doc.status)
   const [submitting, setSubmitting] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'card'>('bank')
+  const [showRevisionModal, setShowRevisionModal] = useState(false)
+  const [revisionMessage, setRevisionMessage] = useState('')
+  const [revisionName, setRevisionName] = useState('')
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   
   const isQuote = doc.doc_type === 'quote'
   const isInvoice = doc.doc_type === 'invoice'
   const docLabel = isQuote ? 'Quote' : 'Invoice'
   
-  const canApprove = isQuote && (status === 'sent' || status === 'viewed' || status === 'Sent' || status === 'Viewed')
-  const canPay = isInvoice && status !== 'paid' && status !== 'Paid'
+  const canRespond = isQuote && ['sent', 'viewed', 'Sent', 'Viewed'].includes(status)
+  const canPay = isInvoice && !['paid', 'Paid'].includes(status)
+  const isApproved = ['approved', 'Approved'].includes(status)
+  const isPaid = ['paid', 'Paid'].includes(status)
   
+  // Calculate amounts
+  const balanceDue = doc.balance_due ?? (doc.total - (doc.amount_paid || 0))
+  const depositAmount = doc.deposit_required || (doc.total * 0.5)
+  const amountToPay = (doc.amount_paid || 0) > 0 ? balanceDue : depositAmount
+  
+  // Card processing fee (2.9% + $0.30)
+  const processingFee = (amountToPay * 0.029) + 0.30
+  const cardTotal = amountToPay + processingFee
+  
+  // Get all image attachments from line items
+  const allAttachments: Attachment[] = []
+  lineItems.forEach(item => {
+    if (item.attachments) {
+      item.attachments.forEach(att => {
+        const url = att.url || att.file_url
+        if (url) allAttachments.push(att)
+      })
+    }
+  })
+  const imageAttachments = allAttachments.filter(att => {
+    const url = att.url || att.file_url || ''
+    const name = att.filename || att.file_name || att.name || ''
+    return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + url)
+  })
+
   const handleApprove = async () => {
-    if (!confirm('Approve this quote? This confirms you want to proceed with the project.')) return
-    
     setSubmitting(true)
     try {
       const res = await fetch('/api/documents/approve', {
@@ -59,7 +105,6 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
       
       if (res.ok) {
         setStatus('approved')
-        alert('Quote approved! We will be in touch shortly.')
       } else {
         alert('Failed to approve quote')
       }
@@ -68,8 +113,8 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
     }
     setSubmitting(false)
   }
-  
-  const handlePay = async () => {
+
+  const handlePayByCard = async () => {
     setSubmitting(true)
     try {
       const res = await fetch('/api/payment', {
@@ -77,7 +122,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           documentId: doc.id,
-          amount: doc.balance_due || doc.total
+          amount: cardTotal // Include processing fee
         })
       })
       
@@ -93,240 +138,733 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
     setSubmitting(false)
   }
 
+  const handlePayByBank = async () => {
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/payment/bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          documentId: doc.id,
+          amount: amountToPay
+        })
+      })
+      
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert('Failed to create bank payment link')
+      }
+    } catch (e) {
+      alert('Error creating payment')
+    }
+    setSubmitting(false)
+  }
+
+  const handleSubmitRevision = async () => {
+    if (!revisionMessage.trim()) return
+    
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/documents/revision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          documentId: doc.id,
+          message: revisionMessage,
+          name: revisionName || doc.customer_name
+        })
+      })
+      
+      if (res.ok) {
+        setShowRevisionModal(false)
+        setRevisionMessage('')
+        alert('Revision request sent! We will be in touch shortly.')
+      } else {
+        alert('Failed to submit revision request')
+      }
+    } catch (e) {
+      alert('Error submitting revision')
+    }
+    setSubmitting(false)
+  }
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0)
+  }
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
   const getStatusBadge = () => {
     const s = status?.toLowerCase()
     if (s === 'approved') return { text: 'Approved', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' }
-    if (s === 'paid') return { text: 'Paid', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' }
-    if (s === 'viewed') return { text: 'Awaiting Response', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
-    if (s === 'sent') return { text: 'Awaiting Response', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' }
+    if (s === 'paid') return { text: 'Paid in Full', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' }
+    if (s === 'partial') return { text: 'Partial Payment Received', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
+    if (s === 'viewed' || s === 'sent') return { text: 'Awaiting Your Response', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
     return { text: status, color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)' }
   }
 
   const badge = getStatusBadge()
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
       <div style={{ 
-        background: 'linear-gradient(135deg, #d71cd1 0%, #8b5cf6 100%)', 
-        padding: '40px 20px',
-        textAlign: 'center'
+        background: '#1e293b', 
+        borderRadius: '0 0 16px 16px',
+        padding: '32px 20px',
+        textAlign: 'center',
+        margin: '0 auto',
+        maxWidth: '900px',
+        borderBottom: '1px solid #334155'
       }}>
-        <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 700 }}>Frederick Wraps Group</h1>
-        <p style={{ margin: '8px 0 0', opacity: 0.9, fontSize: '14px' }}>Vehicle Wraps & Graphics</p>
+        {/* Car Icon */}
+        <div style={{ marginBottom: '16px' }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
+            <path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
+            <path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
+            <path d="M5 17h-2v-6l2 -5h9l4 5h1a2 2 0 0 1 2 2v4h-2m-4 0h-6m-6 -6h15m-6 0v-5"/>
+          </svg>
+        </div>
+        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#d71cd1' }}>Frederick Wraps & Graphics</h1>
+        <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>Professional Vehicle Wraps & Graphics</p>
+        
+        <div style={{ marginTop: '24px' }}>
+          <p style={{ margin: 0, fontWeight: 600, fontSize: '18px' }}>Your {docLabel}</p>
+          <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>{docLabel} #{doc.doc_number}</p>
+        </div>
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
-        {/* Document Header */}
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 16px' }}>
+        {/* Status Badge */}
         <div style={{ 
-          background: '#1a1a1a', 
-          borderRadius: '12px', 
-          padding: '24px',
+          background: badge.bg,
+          border: `1px solid ${badge.color}33`,
+          borderRadius: '8px',
+          padding: '12px 20px',
+          textAlign: 'center',
           marginBottom: '24px',
-          border: '1px solid #2a2a2a'
+          color: badge.color,
+          fontWeight: 500
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '24px' }}>{docLabel} #{doc.doc_number}</h2>
-              <p style={{ margin: '8px 0 0', color: '#94a3b8' }}>
-                For: {doc.customer_name}{doc.company_name ? ` - ${doc.company_name}` : ''}
-              </p>
-              {doc.vehicle_description && (
-                <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>{doc.vehicle_description}</p>
+          {badge.text}
+        </div>
+
+        {/* Design/Attachments Section */}
+        {imageAttachments.length > 0 && (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              borderRadius: '8px 8px 0 0',
+              padding: '12px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span style={{ fontWeight: 600 }}>Your Design</span>
+            </div>
+            <div style={{ 
+              background: '#1e293b',
+              borderRadius: '0 0 8px 8px',
+              padding: '16px',
+              border: '1px solid #334155',
+              borderTop: 'none'
+            }}>
+              {/* Main Image */}
+              {imageAttachments[0] && (
+                <div 
+                  style={{ 
+                    width: '100%', 
+                    borderRadius: '8px', 
+                    overflow: 'hidden', 
+                    marginBottom: imageAttachments.length > 1 ? '12px' : 0,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setLightboxUrl(imageAttachments[0].url || imageAttachments[0].file_url || null)}
+                >
+                  <img 
+                    src={imageAttachments[0].url || imageAttachments[0].file_url} 
+                    alt="Design" 
+                    style={{ width: '100%', display: 'block' }}
+                  />
+                </div>
+              )}
+              
+              {/* Thumbnails */}
+              {imageAttachments.length > 1 && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {imageAttachments.map((att, idx) => (
+                    <div 
+                      key={idx}
+                      style={{ 
+                        width: '60px', 
+                        height: '60px', 
+                        borderRadius: '6px', 
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        border: '2px solid transparent'
+                      }}
+                      onClick={() => setLightboxUrl(att.url || att.file_url || null)}
+                    >
+                      <img 
+                        src={att.url || att.file_url} 
+                        alt="" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {imageAttachments.length > 0 && (
+                <p style={{ margin: '12px 0 0', fontSize: '12px', color: '#64748b', textAlign: 'right' }}>
+                  Tap to enlarge
+                </p>
               )}
             </div>
-            <div style={{ 
-              padding: '8px 16px', 
-              borderRadius: '20px', 
-              background: badge.bg,
-              color: badge.color,
-              fontSize: '14px',
-              fontWeight: 600
-            }}>
-              {badge.text}
-            </div>
           </div>
-          
-          {doc.project_description && (
-            <div style={{ marginTop: '20px', padding: '16px', background: '#111', borderRadius: '8px' }}>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', marginBottom: '4px' }}>Project</p>
-              <p style={{ margin: 0, fontSize: '15px' }}>{doc.project_description}</p>
+        )}
+
+        {/* Quote Actions - Request Revision / Love It */}
+        {canRespond && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+            <button
+              onClick={() => setShowRevisionModal(true)}
+              style={{
+                padding: '16px',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                color: '#f1f5f9',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Request Revision
+            </button>
+            <button
+              onClick={handleApprove}
+              disabled={submitting}
+              style={{
+                padding: '16px',
+                background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+              Love It!
+            </button>
+          </div>
+        )}
+
+        {/* Project Details */}
+        <div style={{ 
+          background: '#1e293b',
+          borderRadius: '8px',
+          marginBottom: '24px',
+          border: '1px solid #334155',
+          overflow: 'hidden'
+        }}>
+          <div style={{ 
+            background: '#334155',
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '14px',
+            fontWeight: 600
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            Project Details
+          </div>
+          <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Prepared For</p>
+              <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.customer_name}</p>
             </div>
-          )}
+            {doc.company_name && (
+              <div>
+                <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Company</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.company_name}</p>
+              </div>
+            )}
+            {doc.vehicle_description && (
+              <div>
+                <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vehicle</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.vehicle_description}</p>
+              </div>
+            )}
+            {doc.project_description && (
+              <div>
+                <p style={{ margin: 0, fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project Type</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{doc.project_description}</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Line Items */}
+        {/* Pricing */}
         <div style={{ 
-          background: '#1a1a1a', 
-          borderRadius: '12px', 
-          padding: '24px',
+          background: '#1e293b',
+          borderRadius: '8px',
           marginBottom: '24px',
-          border: '1px solid #2a2a2a'
+          border: '1px solid #334155',
+          overflow: 'hidden'
         }}>
-          <h3 style={{ margin: '0 0 20px', fontSize: '16px', color: '#94a3b8', textTransform: 'uppercase' }}>Items</h3>
-          
-          {lineItems.length > 0 ? (
+          <div style={{ 
+            background: '#334155',
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '14px',
+            fontWeight: 600
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="1" x2="12" y2="23"/>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            Pricing
+          </div>
+          <div style={{ padding: '20px' }}>
+            {/* Line Items */}
+            {lineItems.map((item, i) => (
+              <div key={item.id || i} style={{ 
+                padding: '16px',
+                background: '#0f172a',
+                borderRadius: '8px',
+                marginBottom: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start'
+              }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{item.description || 'Service'}</p>
+                  <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '13px' }}>
+                    {item.sqft || item.quantity} × {formatCurrency(item.rate || item.unit_price)}
+                  </p>
+                </div>
+                <p style={{ margin: 0, fontWeight: 600 }}>{formatCurrency(item.line_total)}</p>
+              </div>
+            ))}
+            
+            {/* Totals */}
+            <div style={{ borderTop: '1px solid #334155', marginTop: '16px', paddingTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Subtotal</span>
+                <span>{formatCurrency(doc.subtotal)}</span>
+              </div>
+              
+              {doc.discount_amount && doc.discount_amount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#22c55e' }}>Discount{doc.discount_note ? ` (${doc.discount_note})` : ''}</span>
+                  <span style={{ color: '#22c55e' }}>-{formatCurrency(doc.discount_amount)}</span>
+                </div>
+              )}
+              
+              {doc.tax_amount && doc.tax_amount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#94a3b8' }}>Tax</span>
+                  <span>{formatCurrency(doc.tax_amount)}</span>
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #334155' }}>
+                <span style={{ fontWeight: 600, fontSize: '18px' }}>Total</span>
+                <span style={{ fontWeight: 700, fontSize: '18px' }}>{formatCurrency(doc.total)}</span>
+              </div>
+              
+              {(doc.amount_paid || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#94a3b8' }}>Amount Paid</span>
+                  <span style={{ color: '#22c55e' }}>{formatCurrency(doc.amount_paid || 0)}</span>
+                </div>
+              )}
+              
+              {balanceDue > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#94a3b8' }}>Balance Due</span>
+                  <span>{formatCurrency(balanceDue)}</span>
+                </div>
+              )}
+              
+              {/* Amount Due to Proceed (Deposit) */}
+              {!isPaid && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #334155' }}>
+                  <span style={{ color: '#d71cd1', fontWeight: 600, fontSize: '16px' }}>Amount Due to Proceed</span>
+                  <span style={{ color: '#d71cd1', fontWeight: 700, fontSize: '16px' }}>{formatCurrency(amountToPay)}</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Valid Until */}
+            {doc.valid_until && (
+              <div style={{ 
+                marginTop: '16px',
+                padding: '12px',
+                background: '#0f172a',
+                borderRadius: '8px',
+                textAlign: 'center',
+                color: '#64748b',
+                fontSize: '14px'
+              }}>
+                {isQuote ? 'Quote' : 'Invoice'} valid until {formatDate(doc.valid_until)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quote Approved - Show Payment Options */}
+        {isQuote && isApproved && (
+          <div style={{ 
+            background: '#1e293b',
+            borderRadius: '8px',
+            padding: '24px',
+            marginBottom: '24px',
+            border: '1px solid #334155',
+            textAlign: 'center'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span style={{ color: '#22c55e', fontWeight: 600, fontSize: '18px' }}>Quote Approved!</span>
+            </div>
+            <p style={{ color: '#94a3b8', marginBottom: '20px' }}>Thank you! Pay your deposit to get started.</p>
+            
+            {/* Payment Options */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {lineItems.map((item, i) => (
-                <div key={item.id || i} style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  padding: '16px',
-                  background: '#111',
-                  borderRadius: '8px'
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontWeight: 500 }}>{item.description}</p>
-                    <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '14px' }}>
-                      {item.quantity} x {formatCurrency(item.unit_price)}
-                    </p>
-                  </div>
-                  <div style={{ fontWeight: 600, fontSize: '16px' }}>
-                    {formatCurrency(item.line_total)}
-                  </div>
-                </div>
-              ))}
+              {/* Bank Transfer - Primary */}
+              <button
+                onClick={handlePayByBank}
+                disabled={submitting}
+                style={{
+                  width: '100%',
+                  padding: '18px',
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: 'white',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1
+                }}
+              >
+                Pay {formatCurrency(amountToPay)} by Bank Transfer
+                <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, opacity: 0.9, marginTop: '4px' }}>No processing fee</span>
+              </button>
+              
+              {/* Card Payment - Secondary */}
+              <button
+                onClick={handlePayByCard}
+                disabled={submitting}
+                style={{
+                  width: '100%',
+                  padding: '18px',
+                  background: '#334155',
+                  border: '1px solid #475569',
+                  borderRadius: '10px',
+                  color: '#f1f5f9',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1
+                }}
+              >
+                Pay {formatCurrency(cardTotal)} by Card
+                <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, color: '#94a3b8', marginTop: '4px' }}>
+                  Includes {formatCurrency(processingFee)} processing fee (2.9% + $0.30)
+                </span>
+              </button>
             </div>
-          ) : (
-            <p style={{ color: '#64748b', textAlign: 'center', padding: '20px' }}>No items</p>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Totals */}
+        {/* Invoice Payment Options */}
+        {canPay && (
+          <div style={{ 
+            background: '#1e293b',
+            borderRadius: '8px',
+            padding: '24px',
+            marginBottom: '24px',
+            border: '1px solid #334155'
+          }}>
+            <h3 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: 600, textAlign: 'center' }}>Payment Options</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Bank Transfer - Primary */}
+              <button
+                onClick={handlePayByBank}
+                disabled={submitting}
+                style={{
+                  width: '100%',
+                  padding: '18px',
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: 'white',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1
+                }}
+              >
+                Pay {formatCurrency(amountToPay)} by Bank Transfer
+                <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, opacity: 0.9, marginTop: '4px' }}>No processing fee - Recommended</span>
+              </button>
+              
+              {/* Card Payment - Secondary */}
+              <button
+                onClick={handlePayByCard}
+                disabled={submitting}
+                style={{
+                  width: '100%',
+                  padding: '18px',
+                  background: '#334155',
+                  border: '1px solid #475569',
+                  borderRadius: '10px',
+                  color: '#f1f5f9',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.7 : 1
+                }}
+              >
+                Pay {formatCurrency(cardTotal)} by Card
+                <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, color: '#94a3b8', marginTop: '4px' }}>
+                  Includes {formatCurrency(processingFee)} processing fee (2.9% + $0.30)
+                </span>
+              </button>
+            </div>
+            
+            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                or pay by phone: <a href="tel:+12406933715" style={{ color: '#d71cd1' }}>(240) 693-3715</a>
+                <span style={{ margin: '0 8px' }}>•</span>
+                Zelle: <span style={{ color: '#d71cd1' }}>info@frederickwraps.com</span>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Paid Confirmation */}
+        {isPaid && (
+          <div style={{ 
+            background: 'rgba(34, 197, 94, 0.1)',
+            borderRadius: '8px',
+            padding: '24px',
+            marginBottom: '24px',
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+            textAlign: 'center'
+          }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" style={{ marginBottom: '12px' }}>
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <h3 style={{ margin: '0 0 8px', color: '#22c55e', fontSize: '20px' }}>Payment Complete!</h3>
+            <p style={{ margin: 0, color: '#94a3b8' }}>Thank you for your payment. We will be in touch soon.</p>
+          </div>
+        )}
+
+        {/* Questions Footer */}
         <div style={{ 
-          background: '#1a1a1a', 
-          borderRadius: '12px', 
+          background: '#1e293b',
+          borderRadius: '8px',
           padding: '24px',
           marginBottom: '24px',
-          border: '1px solid #2a2a2a'
+          border: '1px solid #334155',
+          textAlign: 'center'
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#94a3b8' }}>Subtotal</span>
-              <span>{formatCurrency(doc.subtotal)}</span>
-            </div>
-            
-            {(doc.discount_amount && doc.discount_amount > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#22c55e' }}>Discount</span>
-                <span style={{ color: '#22c55e' }}>-{formatCurrency(doc.discount_amount)}</span>
-              </div>
-            )}
-            
-            {(doc.tax_amount && doc.tax_amount > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#94a3b8' }}>Tax</span>
-                <span>{formatCurrency(doc.tax_amount)}</span>
-              </div>
-            )}
-            
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              paddingTop: '16px',
-              borderTop: '1px solid #2a2a2a',
-              fontSize: '20px',
-              fontWeight: 700
-            }}>
-              <span>Total</span>
-              <span style={{ color: '#d71cd1' }}>{formatCurrency(doc.total)}</span>
-            </div>
-
-            {isInvoice && doc.amount_paid && doc.amount_paid > 0 && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#22c55e' }}>
-                  <span>Amount Paid</span>
-                  <span>{formatCurrency(doc.amount_paid)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                  <span>Balance Due</span>
-                  <span style={{ color: '#f59e0b' }}>{formatCurrency(doc.balance_due || 0)}</span>
-                </div>
-              </>
-            )}
-          </div>
+          <h3 style={{ margin: '0 0 12px', fontSize: '16px' }}>Questions?</h3>
+          <p style={{ margin: '0 0 4px' }}>
+            <a href="tel:+12406933715" style={{ color: '#d71cd1', textDecoration: 'none' }}>(240) 693-3715</a>
+          </p>
+          <p style={{ margin: 0 }}>
+            <a href="mailto:info@frederickwraps.com" style={{ color: '#d71cd1', textDecoration: 'none' }}>info@frederickwraps.com</a>
+          </p>
         </div>
-
-        {/* Action Buttons */}
-        {(canApprove || canPay) && (
-          <div style={{ 
-            background: '#1a1a1a', 
-            borderRadius: '12px', 
-            padding: '24px',
-            marginBottom: '24px',
-            border: '1px solid #2a2a2a'
-          }}>
-            {canApprove && (
-              <button
-                onClick={handleApprove}
-                disabled={submitting}
-                style={{
-                  width: '100%',
-                  padding: '18px',
-                  background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: 'white',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.7 : 1
-                }}
-              >
-                {submitting ? 'Processing...' : 'Approve Quote'}
-              </button>
-            )}
-            
-            {canPay && (
-              <button
-                onClick={handlePay}
-                disabled={submitting}
-                style={{
-                  width: '100%',
-                  padding: '18px',
-                  background: 'linear-gradient(135deg, #d71cd1 0%, #8b5cf6 100%)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: 'white',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.7 : 1
-                }}
-              >
-                {submitting ? 'Processing...' : `Pay ${formatCurrency(doc.balance_due || doc.total)}`}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Notes */}
-        {doc.notes && (
-          <div style={{ 
-            background: '#1a1a1a', 
-            borderRadius: '12px', 
-            padding: '24px',
-            marginBottom: '24px',
-            border: '1px solid #2a2a2a'
-          }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: '14px', color: '#94a3b8', textTransform: 'uppercase' }}>Notes</h3>
-            <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#e2e8f0' }}>{doc.notes}</p>
-          </div>
-        )}
 
         {/* Footer */}
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', fontSize: '14px' }}>
-          <p style={{ margin: '0 0 8px' }}>Frederick Wraps Group</p>
-          <p style={{ margin: '0 0 4px' }}>5728 Industry Lane, Frederick, MD 21704</p>
-          <p style={{ margin: 0 }}>(240) 693-3715 | info@frederickwraps.com</p>
+        <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '12px' }}>
+          <p style={{ margin: 0 }}>© {new Date().getFullYear()} Frederick Wraps Group. All rights reserved.</p>
         </div>
       </div>
+
+      {/* Revision Request Modal */}
+      {showRevisionModal && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: 'rgba(0,0,0,0.8)', 
+          zIndex: 1000, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          padding: '20px'
+        }} onClick={() => setShowRevisionModal(false)}>
+          <div style={{ 
+            background: '#1e293b', 
+            borderRadius: '16px', 
+            width: '100%', 
+            maxWidth: '450px',
+            border: '1px solid #334155'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Request Revision</h2>
+              <button onClick={() => setShowRevisionModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
+            </div>
+            
+            <div style={{ padding: '24px' }}>
+              <p style={{ margin: '0 0 20px', color: '#94a3b8' }}>
+                Let us know what changes you'd like to see. We'll update the design and send you a revised quote.
+              </p>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Your Name</label>
+                <input 
+                  type="text"
+                  value={revisionName}
+                  onChange={(e) => setRevisionName(e.target.value)}
+                  placeholder={doc.customer_name}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>What changes would you like?</label>
+                <textarea 
+                  value={revisionMessage}
+                  onChange={(e) => setRevisionMessage(e.target.value)}
+                  placeholder="Describe the changes you'd like to see..."
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+              
+              <button
+                onClick={handleSubmitRevision}
+                disabled={submitting || !revisionMessage.trim()}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: submitting || !revisionMessage.trim() ? '#334155' : 'linear-gradient(135deg, #d71cd1, #8b5cf6)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  cursor: submitting || !revisionMessage.trim() ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {submitting ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            background: 'rgba(0,0,0,0.95)', 
+            zIndex: 1000, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            padding: '20px'
+          }} 
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button 
+            onClick={() => setLightboxUrl(null)}
+            style={{ 
+              position: 'absolute', 
+              top: '20px', 
+              right: '20px', 
+              background: 'rgba(255,255,255,0.1)', 
+              border: 'none', 
+              color: 'white', 
+              width: '40px', 
+              height: '40px', 
+              borderRadius: '50%', 
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            ×
+          </button>
+          <img 
+            src={lightboxUrl} 
+            alt="Full size" 
+            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '8px' }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

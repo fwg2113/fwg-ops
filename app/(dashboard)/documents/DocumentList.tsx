@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
@@ -60,6 +60,29 @@ export default function DocumentList({
   const [vehicleDescription, setVehicleDescription] = useState('')
   const [projectDescription, setProjectDescription] = useState('')
   const [category, setCategory] = useState('')
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('')
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([])
+
+  // Filter customers based on search
+  useEffect(() => {
+    if (customerSearchTerm.length >= 1) {
+      const term = customerSearchTerm.toLowerCase()
+      const filtered = customers.filter(c => 
+        c.display_name?.toLowerCase().includes(term) ||
+        c.first_name?.toLowerCase().includes(term) ||
+        c.last_name?.toLowerCase().includes(term) ||
+        c.company?.toLowerCase().includes(term) ||
+        c.email?.toLowerCase().includes(term) ||
+        c.phone?.includes(term)
+      ).slice(0, 10)
+      setFilteredCustomers(filtered)
+      setShowCustomerDropdown(filtered.length > 0)
+    } else {
+      setFilteredCustomers([])
+      setShowCustomerDropdown(false)
+    }
+  }, [customerSearchTerm, customers])
 
   const pageTitle = docType === 'quote' ? 'Quotes' : docType === 'invoice' ? 'Invoices' : 'Documents'
 
@@ -157,6 +180,8 @@ export default function DocumentList({
     setVehicleDescription('')
     setProjectDescription('')
     setCategory('')
+    setCustomerSearchTerm('')
+    setShowCustomerDropdown(false)
   }
 
   const getStatusStyle = (status: string) => {
@@ -534,14 +559,17 @@ export default function DocumentList({
             </div>
             
             <form onSubmit={handleCreateDocument} style={{ padding: '24px' }}>
-              {/* Customer Selection */}
-              <div style={{ marginBottom: '20px' }}>
+              {/* Customer Selection - Searchable */}
+              <div style={{ marginBottom: '20px', position: 'relative' }}>
                 <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Select Existing Customer
+                  Search Existing Customer
                 </label>
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => handleCustomerSelect(e.target.value)}
+                <input
+                  type="text"
+                  value={customerSearchTerm}
+                  onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                  onFocus={() => customerSearchTerm.length >= 1 && setShowCustomerDropdown(true)}
+                  placeholder="Type to search customers..."
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -549,17 +577,50 @@ export default function DocumentList({
                     border: '1px solid rgba(148, 163, 184, 0.2)',
                     borderRadius: '8px',
                     color: '#f1f5f9',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
                   }}
-                >
-                  <option value="">-- Or enter new customer below --</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.display_name || `${customer.first_name} ${customer.last_name}`}
-                      {customer.company ? ` (${customer.company})` : ''}
-                    </option>
-                  ))}
-                </select>
+                />
+                {showCustomerDropdown && filteredCustomers.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    background: '#1d1d1d',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    marginTop: '4px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    zIndex: 1001
+                  }}>
+                    {filteredCustomers.map((customer) => (
+                      <div
+                        key={customer.id}
+                        onClick={() => {
+                          handleCustomerSelect(customer.id)
+                          setCustomerSearchTerm(customer.display_name || `${customer.first_name} ${customer.last_name}`)
+                          setShowCustomerDropdown(false)
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid rgba(148, 163, 184, 0.1)'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#282a30'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <div style={{ color: '#f1f5f9', fontSize: '14px' }}>
+                          {customer.display_name || `${customer.first_name} ${customer.last_name}`}
+                        </div>
+                        {customer.company && (
+                          <div style={{ color: '#64748b', fontSize: '12px' }}>{customer.company}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Customer Info Grid */}
