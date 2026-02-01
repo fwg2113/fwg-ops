@@ -239,6 +239,19 @@ export default function DocumentDetail({
   const [archiveReason, setArchiveReason] = useState('')
   const [archiveOtherReason, setArchiveOtherReason] = useState('')
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduleTitle, setScheduleTitle] = useState('')
+  const [scheduleNotes, setScheduleNotes] = useState('')
+  const [schedulingEvent, setSchedulingEvent] = useState(false)
+  // Vehicle On Site (syncs to Google Calendar)
+  const [vehicleStartDate, setVehicleStartDate] = useState('')
+  const [vehicleStartTime, setVehicleStartTime] = useState('09:00')
+  const [vehicleEndDate, setVehicleEndDate] = useState('')
+  const [vehicleEndTime, setVehicleEndTime] = useState('17:00')
+  // Install Period (internal only)
+  const [installStartDate, setInstallStartDate] = useState('')
+  const [installStartTime, setInstallStartTime] = useState('09:00')
+  const [installEndDate, setInstallEndDate] = useState('')
+  const [installEndTime, setInstallEndTime] = useState('17:00')
   
   // Send modal state
   const [sendEmail, setSendEmail] = useState(true)
@@ -654,6 +667,117 @@ export default function DocumentDetail({
     setDoc({ ...doc, bucket: 'COLD' })
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
     setSaving(false)
+  }
+
+  const handleOpenScheduleModal = () => {
+    // Build default title from document info
+    const parts = []
+    if (customerName) parts.push(customerName)
+    if (vehicleDescription) parts.push(vehicleDescription)
+    if (projectDescription) parts.push(projectDescription)
+    const defaultTitle = parts.join(' ') || 'Scheduled Job'
+    
+    // Default to tomorrow for vehicle drop-off
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const dropOffDate = tomorrow.toISOString().split('T')[0]
+    
+    // Default vehicle pickup 7 days later
+    const pickupDate = new Date(tomorrow)
+    pickupDate.setDate(pickupDate.getDate() + 7)
+    const vehicleEndStr = pickupDate.toISOString().split('T')[0]
+    
+    // Default install starts day after drop-off, ends day before pickup
+    const installStart = new Date(tomorrow)
+    installStart.setDate(installStart.getDate() + 1)
+    const installEnd = new Date(pickupDate)
+    installEnd.setDate(installEnd.getDate() - 1)
+    
+    setScheduleTitle(defaultTitle)
+    setVehicleStartDate(dropOffDate)
+    setVehicleStartTime('09:00')
+    setVehicleEndDate(vehicleEndStr)
+    setVehicleEndTime('17:00')
+    setInstallStartDate(installStart.toISOString().split('T')[0])
+    setInstallStartTime('09:00')
+    setInstallEndDate(installEnd.toISOString().split('T')[0])
+    setInstallEndTime('17:00')
+    setScheduleNotes('')
+    setShowScheduleModal(true)
+  }
+
+  const handleScheduleEvent = async () => {
+    if (!scheduleTitle || !vehicleStartDate || !vehicleEndDate || !installStartDate || !installEndDate) {
+      alert('Please fill in all required fields')
+      return
+    }
+    
+    setSchedulingEvent(true)
+    
+    try {
+      // Vehicle On Site times (for Google Calendar)
+      const vehicleStart = new Date(`${vehicleStartDate}T${vehicleStartTime}`).toISOString()
+      const vehicleEnd = new Date(`${vehicleEndDate}T${vehicleEndTime}`).toISOString()
+      
+      // Install times (internal only)
+      const installStart = new Date(`${installStartDate}T${installStartTime}`).toISOString()
+      const installEnd = new Date(`${installEndDate}T${installEndTime}`).toISOString()
+      
+      // Create Google Calendar event (Vehicle On Site only)
+      const calendarResponse = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: scheduleTitle,
+          description: `Vehicle On Site\n\nInstall: ${installStartDate} - ${installEndDate}\n\n${scheduleNotes}`,
+          startTime: vehicleStart,
+          endTime: vehicleEnd,
+          customerName: customerName,
+          customerPhone: customerPhone
+        })
+      })
+      
+      const calendarResult = await calendarResponse.json()
+      
+      if (!calendarResult.success) {
+        alert('Failed to create calendar event: ' + (calendarResult.error || 'Unknown error'))
+        setSchedulingEvent(false)
+        return
+      }
+      
+      // Save to database with all date fields
+      const { error: dbError } = await supabase.from('calendar_events').insert({
+        google_event_id: calendarResult.eventId,
+        event_type: 'Job',
+        title: scheduleTitle,
+        start_time: vehicleStart,
+        end_time: vehicleEnd,
+        vehicle_start: vehicleStartDate,
+        vehicle_end: vehicleEndDate,
+        install_start: installStartDate,
+        install_end: installEndDate,
+        customer_name: customerName || null,
+        customer_phone: customerPhone || null,
+        vehicle_description: vehicleDescription || null,
+        document_id: doc.id,
+        status: 'Scheduled',
+        notes: scheduleNotes || null
+      })
+      
+      if (dbError) {
+        console.error('DB error:', dbError)
+        alert('Event created in Google Calendar, but failed to save locally')
+      } else {
+        alert('Event scheduled!')
+      }
+      
+      setShowScheduleModal(false)
+    } catch (err) {
+      console.error('Schedule error:', err)
+      alert('Failed to schedule event')
+    }
+    
+    setSchedulingEvent(false)
   }
 
   const handleMoveToProduction = async () => {
@@ -1200,7 +1324,7 @@ export default function DocumentDetail({
                 }
                 // Schedule It (unless archived)
                 if (!isArchived) {
-                  buttons.push(<ActionButton key="schedule" onClick={() => setShowScheduleModal(true)} variant="primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Schedule It</ActionButton>)
+                  buttons.push(<ActionButton key="schedule" onClick={handleOpenScheduleModal} variant="primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Schedule It</ActionButton>)
                 }
                 // Move to Production (unless archived or already in production)
                 if (!isArchived && !inProduction) {
@@ -1854,6 +1978,94 @@ export default function DocumentDetail({
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <ActionButton onClick={() => setShowArchiveModal(false)} variant="secondary">Cancel</ActionButton>
               <ActionButton onClick={handleArchive} disabled={saving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Modal */}
+      {showScheduleModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowScheduleModal(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Schedule Project</h2>
+              <button onClick={() => setShowScheduleModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
+            </div>
+            
+            <div style={{ padding: '20px 24px' }}>
+              {/* Project Title */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={labelStyle}>Project Title *</label>
+                <input type="text" value={scheduleTitle} onChange={(e) => setScheduleTitle(e.target.value)} style={inputStyle} />
+              </div>
+              
+              {/* Vehicle On Site Section */}
+              <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(34,197,94,0.05)', border: '2px dashed rgba(34,197,94,0.3)', borderRadius: '12px' }}>
+                <h3 style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  Vehicle On Site
+                  <span style={{ fontWeight: 400, fontSize: '12px', color: '#64748b' }}>(syncs to Google Calendar)</span>
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>Drop-off Date *</label>
+                    <input type="date" value={vehicleStartDate} onChange={(e) => setVehicleStartDate(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Drop-off Time</label>
+                    <input type="time" value={vehicleStartTime} onChange={(e) => setVehicleStartTime(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Pick-up Date *</label>
+                    <input type="date" value={vehicleEndDate} onChange={(e) => setVehicleEndDate(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Pick-up Time</label>
+                    <input type="time" value={vehicleEndTime} onChange={(e) => setVehicleEndTime(e.target.value)} style={inputStyle} />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Install Period Section */}
+              <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(34,197,94,0.1)', border: '2px solid rgba(34,197,94,0.4)', borderRadius: '12px' }}>
+                <h3 style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  Install Period
+                  <span style={{ fontWeight: 400, fontSize: '12px', color: '#64748b' }}>(internal scheduling)</span>
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={labelStyle}>Install Start *</label>
+                    <input type="date" value={installStartDate} onChange={(e) => setInstallStartDate(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Start Time</label>
+                    <input type="time" value={installStartTime} onChange={(e) => setInstallStartTime(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Install End *</label>
+                    <input type="date" value={installEndDate} onChange={(e) => setInstallEndDate(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>End Time</label>
+                    <input type="time" value={installEndTime} onChange={(e) => setInstallEndTime(e.target.value)} style={inputStyle} />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Notes */}
+              <div>
+                <label style={labelStyle}>Notes</label>
+                <textarea value={scheduleNotes} onChange={(e) => setScheduleNotes(e.target.value)} placeholder="Additional notes..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
+            </div>
+            
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <ActionButton onClick={() => setShowScheduleModal(false)} variant="secondary">Cancel</ActionButton>
+              <ActionButton onClick={handleScheduleEvent} disabled={schedulingEvent || !scheduleTitle || !vehicleStartDate || !vehicleEndDate || !installStartDate || !installEndDate} variant="success">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                {schedulingEvent ? 'Scheduling...' : 'Schedule Project'}
+              </ActionButton>
             </div>
           </div>
         </div>
