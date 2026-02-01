@@ -739,7 +739,7 @@ export default function DocumentDetail({
         status: isPaidInFull ? 'paid' : 'partial',
         amount_paid: newAmountPaid, 
         balance_due: Math.max(0, newBalanceDue),
-        paid_at: isPaidInFull ? new Date().toISOString() : null
+        paid_at: isPaidInFull ? new Date().toISOString() : doc.paid_at
       })
       setShowRecordPaymentModal(false)
       
