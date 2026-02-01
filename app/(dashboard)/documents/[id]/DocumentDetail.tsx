@@ -49,6 +49,16 @@ const buttonStyles = `
   .action-btn-success:hover:not(:disabled) {
     box-shadow: 0 0 30px rgba(34, 197, 94, 0.6);
   }
+  .action-btn-success-outline {
+    background: transparent;
+    border: 2px solid #22c55e;
+    color: #22c55e;
+    font-weight: 600;
+  }
+  .action-btn-success-outline:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.1);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
   .action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -65,7 +75,7 @@ const ActionButton = ({
 }: { 
   onClick?: () => void
   disabled?: boolean
-  variant?: 'primary' | 'secondary' | 'success'
+  variant?: 'primary' | 'secondary' | 'success' | 'success-outline'
   children: React.ReactNode
   style?: React.CSSProperties
 }) => {
@@ -719,6 +729,33 @@ export default function DocumentDetail({
       showToast('Failed to send', 'error')
     }
     setSendingDocument(false)
+  }
+
+  const handleMarkApproved = async () => {
+    if (!confirm('Mark this quote as approved? This will also convert it to an invoice.')) return
+    
+    setSaving(true)
+    try {
+      const res = await fetch('/api/documents/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: doc.id, convertToInvoice: true })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        showToast('Quote approved and converted to invoice!', 'success')
+        // Refresh the page to show updated document
+        window.location.reload()
+      } else {
+        showToast('Failed to approve: ' + (data.error || 'Unknown error'), 'error')
+      }
+    } catch (err) {
+      console.error('Approve error:', err)
+      showToast('Failed to approve quote', 'error')
+    }
+    setSaving(false)
   }
 
   const handleConvertToInvoice = async () => {
@@ -1455,9 +1492,19 @@ export default function DocumentDetail({
           box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
         }
         .action-btn-success:hover:not(:disabled) {
-          box-shadow: 0 0 30px rgba(34, 197, 94, 0.6) !important;
-        }
-        .action-btn:disabled {
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.6) !important;
+  }
+  .action-btn-success-outline {
+    background: transparent !important;
+    border: 2px solid #22c55e !important;
+    color: #22c55e !important;
+    font-weight: 600;
+  }
+  .action-btn-success-outline:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.1) !important;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3) !important;
+  }
+  .action-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
         }
@@ -1500,6 +1547,10 @@ export default function DocumentDetail({
                 // Follow Up (if sent, not approved/declined/expired/archived)
                 if (hasBeenSent && !isArchived && doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired') {
                   buttons.push(<ActionButton key="followup" onClick={handleOpenFollowUpModal} variant="secondary">Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}</ActionButton>)
+                }
+                // Mark Approved (unless already approved/declined/expired/archived)
+                if (doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
+                  buttons.push(<ActionButton key="approve" onClick={handleMarkApproved} disabled={saving} variant="success-outline">Mark Approved</ActionButton>)
                 }
                 // Convert to Invoice (unless declined/expired/archived)
                 if (doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
