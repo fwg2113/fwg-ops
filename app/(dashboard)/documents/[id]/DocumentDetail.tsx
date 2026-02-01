@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 
@@ -84,7 +84,7 @@ const ActionButton = ({
 // ============================================================================
 // TYPES
 // ============================================================================
-type Attachment = { url: string; key: string; filename: string; contentType: string; size: number; uploadedAt: string }
+type Attachment = { url: string; key: string; filename: string; contentType: string; size: number; uploadedAt: string; file_id?: string; file_url?: string; file_name?: string; name?: string; type?: string; mime_type?: string; uploaded_at?: string }
 type Customer = { id: string; display_name: string; first_name: string; last_name: string; email: string; phone: string; company: string }
 
 type Document = {
@@ -95,7 +95,7 @@ type Document = {
   deposit_required: number; deposit_paid: number; amount_paid: number; balance_due: number
   notes: string; created_at: string; sent_at: string; viewed_at: string; approved_at: string; paid_at: string
   valid_until: string | null; attachments?: Attachment[]; in_production: boolean; fees?: Fee[] | string
-  followup_count?: number; last_followup_at?: string
+  followup_count?: number; last_followup_at?: string; revision_history_json?: any
 }
 
 type LineItem = {
@@ -230,6 +230,18 @@ export default function DocumentDetail({
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [paymentNotes, setPaymentNotes] = useState('')
 
+  // Revision History state
+  const [revisions, setRevisions] = useState<Array<{timestamp: string, from: string, name: string, message: string, sentSms?: boolean}>>(() => {
+    try {
+      const doc = initialDoc as any
+      return Array.isArray(doc.revision_history_json) ? doc.revision_history_json : JSON.parse(doc.revision_history_json || '[]')
+    } catch { return [] }
+  })
+  const [revisionReply, setRevisionReply] = useState('')
+  const [revisionSendSms, setRevisionSendSms] = useState(false)
+  const [revisionIncludeLink, setRevisionIncludeLink] = useState(false)
+  const [sendingRevision, setSendingRevision] = useState(false)
+
   // Modals
   const [showSectionModal, setShowSectionModal] = useState(false)
   const [showSendModal, setShowSendModal] = useState(false)
@@ -295,6 +307,40 @@ export default function DocumentDetail({
 
   const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'))
   const lightboxUrl = lightboxIndex !== null ? imageAttachments[lightboxIndex]?.url : null
+  
+// Toast notifications
+  const [toasts, setToasts] = useState<Array<{id: number, message: string, type: 'success' | 'error' | 'info'}>>([])
+  const toastIdRef = useRef(0)
+  
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = ++toastIdRef.current
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
+  }
+
+  // Line item lightbox state
+  const [lineItemLightbox, setLineItemLightbox] = useState<{itemId: string, index: number} | null>(null)
+  
+  const getLineItemImageAttachments = (itemId: string) => {
+    const item = lineItems.find(i => i.id === itemId)
+    if (!item || !item.attachments) return []
+    return item.attachments.filter(att => {
+      const url = att.url || att.file_url || ''
+      const name = att.name || att.filename || att.file_name || ''
+      return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
+    })
+  }
+  
+  const openLineItemLightbox = (itemId: string, index: number) => {
+    setLineItemLightbox({ itemId, index })
+    setLightboxZoom(1)
+    setLightboxPan({ x: 0, y: 0 })
+  }
+  
+  const lineItemLightboxImages = lineItemLightbox ? getLineItemImageAttachments(lineItemLightbox.itemId) : []
+  const lineItemLightboxUrl = lineItemLightbox && lineItemLightboxImages[lineItemLightbox.index] 
+    ? (lineItemLightboxImages[lineItemLightbox.index].url || lineItemLightboxImages[lineItemLightbox.index].file_url || '')
+    : null
 
   // Calculate totals
   const subtotal = lineItems.reduce((sum, item) => sum + (item.line_total || 0), 0)
@@ -329,6 +375,15 @@ export default function DocumentDetail({
   // Lightbox keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Handle line item lightbox
+      if (lineItemLightbox) {
+        if (e.key === 'Escape') { setLineItemLightbox(null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }
+        else if (e.key === 'ArrowLeft') { setLineItemLightbox(prev => prev ? { ...prev, index: prev.index > 0 ? prev.index - 1 : lineItemLightboxImages.length - 1 } : null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }
+        else if (e.key === 'ArrowRight') { setLineItemLightbox(prev => prev ? { ...prev, index: prev.index < lineItemLightboxImages.length - 1 ? prev.index + 1 : 0 } : null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }
+        else if (e.key === '+' || e.key === '=') setLightboxZoom(z => Math.min(z * 1.5, 5))
+        else if (e.key === '-') setLightboxZoom(z => { const nz = Math.max(z / 1.5, 1); if (nz === 1) setLightboxPan({ x: 0, y: 0 }); return nz })
+        return
+      }
       if (lightboxIndex === null) return
       if (e.key === 'Escape') { setLightboxIndex(null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }
       else if (e.key === 'ArrowLeft') { setLightboxIndex(i => i !== null ? (i > 0 ? i - 1 : imageAttachments.length - 1) : null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }
@@ -432,7 +487,7 @@ export default function DocumentDetail({
 
   const handleSendFollowUp = async () => {
     if (!followUpMessage.trim()) {
-      alert('Please enter a message')
+      showToast('Please enter a message', 'error')
       return
     }
     setSendingFollowUp(true)
@@ -507,11 +562,11 @@ export default function DocumentDetail({
       
       setDoc({ ...doc, ...updates })
       setShowFollowUpModal(false)
-      alert('Follow-up sent!')
+      showToast('Follow-up sent!', 'success')
 
     } catch (err) {
       console.error('Follow-up error:', err)
-      alert('Failed to send follow-up')
+      showToast('Failed to send follow-up', 'error')
     }
     setSendingFollowUp(false)
   }
@@ -529,7 +584,7 @@ export default function DocumentDetail({
   }
 
   const handleSendDocument = async () => {
-    if (!sendEmail && !sendSms) { alert('Select at least one delivery method'); return }
+    if (!sendEmail && !sendSms) { showToast('Select at least one delivery method', 'error'); return }
     setSendingDocument(true)
     
     try {
@@ -570,7 +625,7 @@ export default function DocumentDetail({
         })
         const emailData = await emailRes.json()
         if (!emailData.success) {
-          alert('Email failed: ' + emailData.error)
+          showToast('Email failed: ' + emailData.error, 'error')
         }
       }
       
@@ -594,13 +649,13 @@ export default function DocumentDetail({
           const smsData = await smsRes.json()
           console.log('SMS Response data:', smsData)
           if (!smsData.success) {
-            alert('SMS failed: ' + (smsData.error || JSON.stringify(smsData)))
+            showToast('SMS failed: ' + (smsData.error || JSON.stringify(smsData)), 'error')
           } else {
             console.log('SMS sent successfully!')
           }
         } catch (smsErr) {
           console.error('SMS fetch error:', smsErr)
-          alert('SMS error: ' + smsErr)
+          showToast('SMS error: ' + smsErr, 'error')
         }
       } else {
         console.log('SMS skipped - sendSms:', sendSms, 'customerPhone:', customerPhone)
@@ -628,10 +683,10 @@ export default function DocumentDetail({
       
       setDoc({ ...doc, status: 'sent', sent_at: new Date().toISOString(), deposit_required: depositAmount })
       setShowSendModal(false)
-      alert('Sent successfully!')
+      showToast('Sent successfully!', 'success')
       
     } catch (err) {
-      alert('Failed to send')
+      showToast('Failed to send', 'error')
     }
     setSendingDocument(false)
   }
@@ -708,7 +763,7 @@ export default function DocumentDetail({
 
   const handleScheduleEvent = async () => {
     if (!scheduleTitle || !vehicleStartDate || !vehicleEndDate || !installStartDate || !installEndDate) {
-      alert('Please fill in all required fields')
+      showToast('Please fill in all required fields', 'error')
       return
     }
     
@@ -740,7 +795,7 @@ export default function DocumentDetail({
       const calendarResult = await calendarResponse.json()
       
       if (!calendarResult.success) {
-        alert('Failed to create calendar event: ' + (calendarResult.error || 'Unknown error'))
+        showToast('Failed to create calendar event: ' + (calendarResult.error || 'Unknown error'), 'error')
         setSchedulingEvent(false)
         return
       }
@@ -766,15 +821,15 @@ export default function DocumentDetail({
       
       if (dbError) {
         console.error('DB error:', dbError)
-        alert('Event created in Google Calendar, but failed to save locally')
+        showToast('Event created in Google Calendar, but failed to save locally', 'error')
       } else {
-        alert('Event scheduled!')
+        showToast('Event scheduled!', 'success')
       }
       
       setShowScheduleModal(false)
     } catch (err) {
       console.error('Schedule error:', err)
-      alert('Failed to schedule event')
+      showToast('Failed to schedule event', 'error')
     }
     
     setSchedulingEvent(false)
@@ -817,11 +872,11 @@ export default function DocumentDetail({
       }
       
       setDoc({ ...doc, in_production: true, bucket: 'IN_PRODUCTION' })
-      alert(`Moved to Production! ${tasksCreated} tasks created.`)
+      showToast(`Moved to Production! ${tasksCreated} tasks created.`, 'success')
       
     } catch (err) {
       console.error('Error moving to production:', err)
-      alert('Failed to move to production')
+      showToast('Failed to move to production', 'error')
     }
     
     setSaving(false)
@@ -832,6 +887,51 @@ export default function DocumentDetail({
     await supabase.from('documents').update({ status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 }).eq('id', doc.id)
     setDoc({ ...doc, status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 })
     setSaving(false)
+  }
+
+  const handleSendRevisionReply = async () => {
+    if (!revisionReply.trim()) return
+    setSendingRevision(true)
+    
+    try {
+      const newRevision = {
+        timestamp: new Date().toISOString(),
+        from: 'fwg',
+        name: 'FWG',
+        message: revisionReply.trim(),
+        sentSms: revisionSendSms
+      }
+      
+      const updatedRevisions = [...revisions, newRevision]
+      
+      // Send SMS if checked
+      if (revisionSendSms && customerPhone) {
+        let smsMessage = revisionReply.trim()
+        if (revisionIncludeLink) {
+          smsMessage += `\n\nView your ${doc.doc_type}: ${window.location.origin}/view/${doc.id}`
+        }
+        
+        await fetch('/api/sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: customerPhone, message: smsMessage })
+        })
+      }
+      
+      // Save to database
+      await supabase.from('documents').update({ revision_history_json: updatedRevisions }).eq('id', doc.id)
+      
+      setRevisions(updatedRevisions)
+      setRevisionReply('')
+      setRevisionSendSms(false)
+      setRevisionIncludeLink(false)
+      
+    } catch (err) {
+      console.error('Revision reply error:', err)
+      showToast('Failed to send reply', 'error')
+    }
+    
+    setSendingRevision(false)
   }
 
   const handleRecordPayment = async () => {
@@ -886,7 +986,7 @@ export default function DocumentDetail({
       
     } catch (err) {
       console.error('Error recording payment:', err)
-      alert('Failed to record payment')
+      showToast('Failed to record payment', 'error')
     }
     
     setRecordingPayment(false)
@@ -1057,6 +1157,68 @@ export default function DocumentDetail({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const handleLineItemAttachment = async (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    
+    const item = lineItems.find(i => i.id === itemId)
+    if (!item) return
+    
+    const newAttachments: Attachment[] = [...(item.attachments || [])]
+    
+    for (const file of Array.from(files)) {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('documentId', doc.id)
+      formData.append('prefix', 'doc-line-item')
+      formData.append('lineItemId', itemId)
+      
+      try {
+        const response = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await response.json()
+        if (data.success) {
+          newAttachments.push({
+            url: data.url,
+            key: data.key,
+            filename: data.filename || file.name,
+            contentType: data.contentType || file.type,
+            size: data.size || file.size,
+            uploadedAt: new Date().toISOString()
+          })
+        }
+      } catch (err) {
+        console.error('Upload error:', err)
+      }
+    }
+    
+    // Update line item with new attachments
+    const updatedItems = lineItems.map(i => i.id === itemId ? { ...i, attachments: newAttachments } : i)
+    setLineItems(updatedItems)
+    
+    // Save to database
+    await supabase.from('line_items').update({ attachments: newAttachments }).eq('id', itemId)
+    
+    // Reset file input
+    e.target.value = ''
+  }
+
+  const handleDeleteLineItemAttachment = async (itemId: string, fileId: string) => {
+    if (!confirm('Delete this attachment?')) return
+    
+    const item = lineItems.find(i => i.id === itemId)
+    if (!item) return
+    
+    const currentAttachments = item.attachments || []
+    const updatedAttachments = currentAttachments.filter((att, idx) => (att.file_id || att.key || String(idx)) !== fileId)
+    
+    // Update local state
+    const updatedItems = lineItems.map(i => i.id === itemId ? { ...i, attachments: updatedAttachments } : i)
+    setLineItems(updatedItems)
+    
+    // Save to database
+    await supabase.from('line_items').update({ attachments: updatedAttachments }).eq('id', itemId)
+  }
+
   const handleDeleteAttachment = async (key: string) => {
     const updated = attachments.filter(a => a.key !== key)
     setAttachments(updated)
@@ -1146,7 +1308,7 @@ export default function DocumentDetail({
       setHasChanges(false)
       // Saved successfully - no toast needed
     } else {
-      alert('Save failed: ' + error.message)
+      showToast('Save failed: ' + error.message, 'error')
     }
     setSaving(false)
   }
@@ -1435,39 +1597,78 @@ export default function DocumentDetail({
                   </thead>
                   <tbody>
                     {groupItems.map(item => (
-                      <tr key={item.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
-                        {showPackages && (
+                      <React.Fragment key={item.id}>
+                        <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.05)' }}>
+                          {showPackages && (
+                            <td style={{ padding: '8px 12px' }}>
+                              <select value={item.package_key || ''} onChange={(e) => updateLineItem(item.id, 'package_key', e.target.value)} style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}>
+                                <option value="">-- Select --</option>
+                                {pkgs.map(p => <option key={p.package_key} value={p.package_key}>{p.label}</option>)}
+                              </select>
+                            </td>
+                          )}
+                          {showTypes && (
+                            <td style={{ padding: '8px 12px' }}>
+                              <select value={item.line_type || ''} onChange={(e) => updateLineItem(item.id, 'line_type', e.target.value)} style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}>
+                                <option value="">-- Select --</option>
+                                {types.map(t => <option key={t.type_key} value={t.type_key}>{t.label}</option>)}
+                              </select>
+                            </td>
+                          )}
                           <td style={{ padding: '8px 12px' }}>
-                            <select value={item.package_key || ''} onChange={(e) => updateLineItem(item.id, 'package_key', e.target.value)} style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}>
-                              <option value="">-- Select --</option>
-                              {pkgs.map(p => <option key={p.package_key} value={p.package_key}>{p.label}</option>)}
-                            </select>
+                            <input type="text" value={item.description || ''} onChange={(e) => updateLineItem(item.id, 'description', e.target.value)} placeholder="Description" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
                           </td>
-                        )}
-                        {showTypes && (
                           <td style={{ padding: '8px 12px' }}>
-                            <select value={item.line_type || ''} onChange={(e) => updateLineItem(item.id, 'line_type', e.target.value)} style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}>
-                              <option value="">-- Select --</option>
-                              {types.map(t => <option key={t.type_key} value={t.type_key}>{t.label}</option>)}
-                            </select>
+                            <input type="number" value={item.sqft || item.quantity || ''} onChange={(e) => updateLineItem(item.id, 'sqft', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, padding: '8px', fontSize: '13px', textAlign: 'right' }} />
                           </td>
-                        )}
-                        <td style={{ padding: '8px 12px' }}>
-                          <input type="text" value={item.description || ''} onChange={(e) => updateLineItem(item.id, 'description', e.target.value)} placeholder="Description" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
-                        </td>
-                        <td style={{ padding: '8px 12px' }}>
-                          <input type="number" value={item.sqft || item.quantity || ''} onChange={(e) => updateLineItem(item.id, 'sqft', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, padding: '8px', fontSize: '13px', textAlign: 'right' }} />
-                        </td>
-                        <td style={{ padding: '8px 12px' }}>
-                          <input type="number" step="0.01" value={item.rate || item.unit_price || ''} onChange={(e) => updateLineItem(item.id, 'rate', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, padding: '8px', fontSize: '13px', textAlign: 'right' }} />
-                        </td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#f1f5f9', fontWeight: 500, fontSize: '14px' }}>${(item.line_total || 0).toFixed(2)}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                          <button onClick={() => deleteLineItem(item.id)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                          </button>
-                        </td>
-                      </tr>
+                          <td style={{ padding: '8px 12px' }}>
+                            <input type="number" step="0.01" value={item.rate || item.unit_price || ''} onChange={(e) => updateLineItem(item.id, 'rate', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, padding: '8px', fontSize: '13px', textAlign: 'right' }} />
+                          </td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', color: '#f1f5f9', fontWeight: 500, fontSize: '14px' }}>${(item.line_total || 0).toFixed(2)}</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                            <button onClick={() => deleteLineItem(item.id)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                          </td>
+                        </tr>
+                        <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
+                          <td colSpan={20} style={{ padding: '8px 12px 12px 12px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                              {(item.attachments || []).map((att, attIdx) => {
+                                const url = att.url || att.file_url || ''
+                                const name = att.name || att.filename || att.file_name || 'File'
+                                const isImage = /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
+                                // Normalize attachment for lightbox
+                                const normalizedAtt: Attachment = {
+                                  url: url,
+                                  key: att.key || att.file_id || String(attIdx),
+                                  filename: name,
+                                  contentType: att.contentType || att.type || att.mime_type || (isImage ? 'image/jpeg' : 'application/octet-stream'),
+                                  size: att.size || 0,
+                                  uploadedAt: att.uploadedAt || att.uploaded_at || ''
+                                }
+                                return (
+                                  <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
+                                    {isImage && url ? (
+                                      <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b', gap: '2px' }}>
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                        <span>{name.length > 8 ? name.substring(0, 8) + '...' : name}</span>
+                                      </div>
+                                    )}
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteLineItemAttachment(item.id, att.file_id || att.key || String(attIdx)) }} style={{ position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(239,68,68,0.9)', border: 'none', color: 'white', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                                  </div>
+                                )
+                              })}
+                              <label style={{ width: '60px', height: '60px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '10px', background: 'transparent', transition: 'all 0.15s' }}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
+                              </label>
+                            </div>
+                          </td>
+                        </tr>
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -1523,6 +1724,72 @@ export default function DocumentDetail({
         )}
         <div style={{ marginTop: '12px', textAlign: 'right', color: '#64748b', fontSize: '14px' }}>Fees Total: <span style={{ color: '#f1f5f9', fontWeight: 500 }}>${feesTotal.toFixed(2)}</span></div>
       </div>
+
+      {/* Revision History */}
+      {revisions.length > 0 && (
+        <div style={cardStyle}>
+          <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Revision Requests
+          </h3>
+          
+          {/* Message Thread */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', padding: '4px', marginBottom: '16px' }}>
+            {revisions.map((rev, idx) => {
+              const isCustomer = rev.from === 'customer'
+              const timestamp = new Date(rev.timestamp).toLocaleString()
+              return (
+                <div key={idx} style={{ 
+                  padding: '12px 16px', 
+                  borderRadius: '12px', 
+                  maxWidth: '85%', 
+                  alignSelf: isCustomer ? 'flex-start' : 'flex-end',
+                  background: isCustomer ? '#1d1d1d' : 'rgba(215,28,209,0.15)',
+                  border: isCustomer ? '1px solid #f59e0b' : '1px solid #d71cd1',
+                  borderBottomLeftRadius: isCustomer ? '4px' : '12px',
+                  borderBottomRightRadius: isCustomer ? '12px' : '4px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '11px', color: '#64748b' }}>
+                    <span style={{ fontWeight: 600, color: isCustomer ? '#f59e0b' : '#d71cd1' }}>{rev.name || (isCustomer ? 'Customer' : 'FWG')}</span>
+                    <span>{timestamp}</span>
+                  </div>
+                  <div style={{ fontSize: '14px', lineHeight: 1.5, color: '#f1f5f9', whiteSpace: 'pre-wrap' }}>{rev.message}</div>
+                  {rev.sentSms && <div style={{ marginTop: '6px', fontSize: '10px', color: '#64748b' }}>Sent via SMS</div>}
+                </div>
+              )
+            })}
+          </div>
+          
+          {/* Reply Box */}
+          <div style={{ borderTop: '1px solid rgba(148,163,184,0.1)', paddingTop: '16px' }}>
+            <textarea 
+              value={revisionReply} 
+              onChange={(e) => setRevisionReply(e.target.value)} 
+              placeholder="Reply to customer..." 
+              rows={2} 
+              style={{ ...inputStyle, resize: 'none', marginBottom: '12px' }} 
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#94a3b8', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={revisionSendSms} onChange={(e) => { setRevisionSendSms(e.target.checked); if (!e.target.checked) setRevisionIncludeLink(false) }} style={{ width: '16px', height: '16px', accentColor: '#d71cd1' }} />
+                  Send SMS to customer
+                </label>
+                {revisionSendSms && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#94a3b8', cursor: 'pointer', marginLeft: '24px' }}>
+                    <input type="checkbox" checked={revisionIncludeLink} onChange={(e) => setRevisionIncludeLink(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d71cd1' }} />
+                    Include {doc.doc_type} link
+                  </label>
+                )}
+              </div>
+              <ActionButton onClick={handleSendRevisionReply} disabled={sendingRevision || !revisionReply.trim()} variant="primary" style={{ padding: '8px 16px' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                {sendingRevision ? 'Sending...' : 'Save & Send'}
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Discount, Tax & Notes */}
       <div style={cardStyle}>
@@ -2128,6 +2395,81 @@ export default function DocumentDetail({
         </div>
       )}
 
+      {/* Line Item Lightbox */}
+      {lineItemLightboxUrl && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' }}>
+            <div style={{ color: 'white', fontSize: '14px' }}>{lineItemLightbox && lineItemLightboxImages.length > 1 && `${lineItemLightbox.index + 1} / ${lineItemLightboxImages.length}`}</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setLightboxZoom(z => Math.min(z * 1.5, 5))} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Zoom In"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+              <button onClick={() => { setLightboxZoom(z => { const nz = Math.max(z / 1.5, 1); if (nz === 1) setLightboxPan({ x: 0, y: 0 }); return nz }) }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Zoom Out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+              <button onClick={() => { setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Reset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+              <button onClick={() => { setLineItemLightbox(null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            {lineItemLightboxImages.length > 1 && <button onClick={() => { setLineItemLightbox(prev => prev ? { ...prev, index: prev.index > 0 ? prev.index - 1 : lineItemLightboxImages.length - 1 } : null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }} style={{ position: 'absolute', left: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '50px', height: '50px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><polyline points="15 18 9 12 15 6"/></svg></button>}
+            <div 
+              onClick={(e) => { if (e.target === e.currentTarget) { setLineItemLightbox(null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) } }} 
+              onDoubleClick={() => { 
+                if (lightboxZoom > 1) { 
+                  setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) 
+                } else { 
+                  setLightboxZoom(2.5)
+                } 
+              }} 
+              onMouseDown={(e) => {
+                if (lightboxZoom <= 1) return
+                e.preventDefault()
+                const startX = e.clientX - lightboxPan.x
+                const startY = e.clientY - lightboxPan.y
+                const handleMouseMove = (moveE: MouseEvent) => {
+                  setLightboxPan({ x: moveE.clientX - startX, y: moveE.clientY - startY })
+                }
+                const handleMouseUp = () => {
+                  window.removeEventListener('mousemove', handleMouseMove)
+                  window.removeEventListener('mouseup', handleMouseUp)
+                }
+                window.addEventListener('mousemove', handleMouseMove)
+                window.addEventListener('mouseup', handleMouseUp)
+              }}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: lightboxZoom > 1 ? 'grab' : 'zoom-in', height: '100%' }}
+            >
+              <img src={lineItemLightboxUrl} alt="Full size" draggable={false} style={{ maxWidth: lightboxZoom === 1 ? '90vw' : 'none', maxHeight: lightboxZoom === 1 ? '80vh' : 'none', transform: `translate(${lightboxPan.x}px, ${lightboxPan.y}px) scale(${lightboxZoom})`, transition: 'transform 0.05s ease-out', borderRadius: '4px', userSelect: 'none' }} />
+            </div>
+            {lineItemLightboxImages.length > 1 && <button onClick={() => { setLineItemLightbox(prev => prev ? { ...prev, index: prev.index < lineItemLightboxImages.length - 1 ? prev.index + 1 : 0 } : null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }} style={{ position: 'absolute', right: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '50px', height: '50px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><polyline points="9 18 15 12 9 6"/></svg></button>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px 20px', background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)', gap: '20px' }}>
+            <a href={lineItemLightboxUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#d71cd1', textDecoration: 'none', fontSize: '14px' }}>Open in New Tab</a>
+            <a href={lineItemLightboxUrl} download style={{ color: '#d71cd1', textDecoration: 'none', fontSize: '14px' }}>Download</a>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notifications */}
+      <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 3000, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {toasts.map(toast => (
+          <div key={toast.id} style={{ 
+            padding: '12px 20px', 
+            borderRadius: '8px', 
+            background: toast.type === 'success' ? 'rgba(34,197,94,0.95)' : toast.type === 'error' ? 'rgba(239,68,68,0.95)' : 'rgba(59,130,246,0.95)', 
+            color: 'white', 
+            fontSize: '14px', 
+            fontWeight: 500,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            animation: 'slideIn 0.2s ease-out'
+          }}>
+            {toast.type === 'success' && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>}
+            {toast.type === 'error' && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>}
+            {toast.type === 'info' && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>}
+            {toast.message}
+          </div>
+        ))}
+      </div>
+
       {/* Lightbox */}
       {lightboxUrl && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>
@@ -2142,7 +2484,13 @@ export default function DocumentDetail({
           </div>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
             {imageAttachments.length > 1 && <button onClick={() => { setLightboxIndex(i => i !== null ? (i > 0 ? i - 1 : imageAttachments.length - 1) : null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }} style={{ position: 'absolute', left: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '50px', height: '50px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><polyline points="15 18 9 12 15 6"/></svg></button>}
-            <div onClick={(e) => { if (e.target === e.currentTarget) { setLightboxIndex(null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) } }} onDoubleClick={() => { if (lightboxZoom > 1) { setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) } else { setLightboxZoom(2.5) } }} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: lightboxZoom > 1 ? 'grab' : 'zoom-in', height: '100%' }}>
+            <div onClick={(e) => { if (e.target === e.currentTarget) { setLightboxIndex(null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) } }} onDoubleClick={() => { 
+                if (lightboxZoom > 1) { 
+                  setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) 
+                } else { 
+                  setLightboxZoom(2.5)
+                } 
+              }} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: lightboxZoom > 1 ? 'grab' : 'zoom-in', height: '100%' }}>
               <img src={lightboxUrl} alt="Full size" draggable={false} style={{ maxWidth: lightboxZoom === 1 ? '90vw' : 'none', maxHeight: lightboxZoom === 1 ? '80vh' : 'none', transform: `translate(${lightboxPan.x}px, ${lightboxPan.y}px) scale(${lightboxZoom})`, transition: 'transform 0.1s ease-out', borderRadius: '4px' }} />
             </div>
             {imageAttachments.length > 1 && <button onClick={() => { setLightboxIndex(i => i !== null ? (i < imageAttachments.length - 1 ? i + 1 : 0) : null); setLightboxZoom(1); setLightboxPan({ x: 0, y: 0 }) }} style={{ position: 'absolute', right: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '50px', height: '50px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><polyline points="9 18 15 12 9 6"/></svg></button>}
