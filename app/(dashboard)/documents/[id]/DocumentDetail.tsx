@@ -95,7 +95,7 @@ type Document = {
   deposit_required: number; deposit_paid: number; amount_paid: number; balance_due: number
   notes: string; created_at: string; sent_at: string; viewed_at: string; approved_at: string; paid_at: string
   valid_until: string | null; attachments?: Attachment[]; in_production: boolean; fees?: Fee[] | string
-  followup_count?: number; last_followup_at?: string; revision_history_json?: any
+  followup_count?: number; last_followup_at?: string; revision_history_json?: any; discount_note?: string
 }
 
 type LineItem = {
@@ -217,10 +217,28 @@ export default function DocumentDetail({
   // Discount/Tax/Notes state
   const [discountAmountInput, setDiscountAmountInput] = useState(initialDoc.discount_amount || 0)
   const [discountPercentInput, setDiscountPercentInput] = useState(initialDoc.discount_percent || 0)
+  const [discountMode, setDiscountMode] = useState<'none' | 'percent' | 'flat'>(() => {
+    if (initialDoc.discount_percent > 0) return 'percent'
+    if (initialDoc.discount_amount > 0) return 'flat'
+    return 'none'
+  })
+  const [discountNote, setDiscountNote] = useState(initialDoc.discount_note || '')
   const [taxAmountInput, setTaxAmountInput] = useState(initialDoc.tax_amount || 0)
   const [depositRequired, setDepositRequired] = useState(initialDoc.deposit_required || 0)
+  const [depositType, setDepositType] = useState<'50%' | 'full' | 'custom'>(() => {
+    const dep = initialDoc.deposit_required || 0
+    const tot = initialDoc.total || 0
+    if (tot > 0 && Math.abs(dep - tot) < 0.01) return 'full'
+    if (tot > 0 && Math.abs(dep - (tot * 0.5)) < 0.01) return '50%'
+    if (dep > 0) return 'custom'
+    return '50%'
+  })
   const [validUntil, setValidUntil] = useState(initialDoc.valid_until ? initialDoc.valid_until.split('T')[0] : '')
   const [notes, setNotes] = useState(initialDoc.notes || '')
+  const handleDiscountNoteBlur = async () => {
+    await supabase.from('documents').update({ discount_note: discountNote }).eq('id', doc.id)
+    setDoc({ ...doc, discount_note: discountNote })
+  }
 
   // Payments state
   const [payments, setPayments] = useState<Payment[]>(initialPayments)
@@ -349,6 +367,16 @@ export default function DocumentDetail({
   const taxAmount = doc.tax_amount || 0
   const total = subtotal + feesTotal - discountAmount + taxAmount
   const balanceDue = total - (doc.amount_paid || 0)
+
+  
+  // Auto-update deposit when total changes (if not custom)
+  useEffect(() => {
+    if (depositType === '50%') {
+      setDepositRequired(total * 0.5)
+    } else if (depositType === 'full') {
+      setDepositRequired(total)
+    }
+  }, [total, depositType])
 
   // Track customer field changes
   useEffect(() => {
@@ -1267,9 +1295,10 @@ export default function DocumentDetail({
     await supabase.from('documents').update({ 
       discount_amount: discountAmountInput, 
       discount_percent: discountPercentInput,
+      discount_note: discountNote,
       total: newTotal 
     }).eq('id', doc.id)
-    setDoc({ ...doc, discount_amount: discountAmountInput, discount_percent: discountPercentInput, total: newTotal })
+    setDoc({ ...doc, discount_amount: discountAmountInput, discount_percent: discountPercentInput, discount_note: discountNote, total: newTotal })
   }
 
   const handleTaxChange = async () => {
@@ -1723,6 +1752,156 @@ export default function DocumentDetail({
           </div>
         )}
         <div style={{ marginTop: '12px', textAlign: 'right', color: '#64748b', fontSize: '14px' }}>Fees Total: <span style={{ color: '#f1f5f9', fontWeight: 500 }}>${feesTotal.toFixed(2)}</span></div>
+        
+        {/* Totals Section */}
+        <div style={{ maxWidth: '320px', marginLeft: 'auto', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(148,163,184,0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ color: '#94a3b8', fontSize: '14px' }}>Subtotal</span>
+            <span style={{ color: '#f1f5f9', fontSize: '14px' }}>${subtotal.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ color: '#94a3b8', fontSize: '14px' }}>Discount</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <select 
+                value={
+                  discountPercentInput === 5 ? '5%' :
+                  discountPercentInput === 10 ? '10%' :
+                  discountPercentInput === 15 ? '15%' :
+                  discountPercentInput === 20 ? '20%' :
+                  discountPercentInput === 25 ? '25%' :
+                  discountPercentInput > 0 ? 'custom%' :
+                  discountAmountInput > 0 ? 'flat' : 'none'
+                } 
+                onChange={async (e) => {
+                  const val = e.target.value
+                  let newPercent = 0
+                  let newAmount = 0
+                  
+                  if (val === 'none') {
+                    newPercent = 0
+                    newAmount = 0
+                    setDiscountMode('none')
+                  } else if (val === 'flat') {
+                    newPercent = 0
+                    newAmount = discountAmountInput || 50
+                    setDiscountMode('flat')
+                  } else if (val === 'custom%') {
+                    newPercent = discountPercentInput || 10
+                    newAmount = 0
+                    setDiscountMode('percent')
+                  } else if (val.endsWith('%')) {
+                    newPercent = parseInt(val)
+                    newAmount = 0
+                    setDiscountMode('percent')
+                  }
+                  
+                  setDiscountPercentInput(newPercent)
+                  setDiscountAmountInput(newAmount)
+                  
+                  // Save immediately
+                  const discount = newAmount || (subtotal * newPercent / 100)
+                  const newTotal = subtotal + feesTotal - discount + taxAmountInput
+                  await supabase.from('documents').update({ 
+                    discount_amount: newAmount, 
+                    discount_percent: newPercent,
+                    total: newTotal 
+                  }).eq('id', doc.id)
+                  setDoc({ ...doc, discount_amount: newAmount, discount_percent: newPercent, total: newTotal })
+                }}
+                style={{ ...inputStyle, width: '100px', padding: '6px 8px', fontSize: '13px' }}
+              >
+                <option value="none">None</option>
+                <option value="5%">5%</option>
+                <option value="10%">10%</option>
+                <option value="15%">15%</option>
+                <option value="20%">20%</option>
+                <option value="25%">25%</option>
+                <option value="flat">Flat $</option>
+                <option value="custom%">Custom %</option>
+              </select>
+              {(discountPercentInput > 0 && ![5,10,15,20,25].includes(discountPercentInput)) && (
+                <input type="number" value={discountPercentInput} onChange={(e) => setDiscountPercentInput(parseFloat(e.target.value) || 0)} onBlur={handleDiscountChange} style={{ ...inputStyle, width: '60px', padding: '6px 8px', fontSize: '13px' }} placeholder="%" />
+              )}
+              {discountMode === 'flat' && (
+                <input type="text" inputMode="decimal" value={discountAmountInput || ''} onChange={(e) => setDiscountAmountInput(parseFloat(e.target.value) || 0)} onBlur={handleDiscountChange} style={{ ...inputStyle, width: '80px', padding: '6px 8px', fontSize: '13px' }} placeholder="Amount" />
+              )}
+              <span style={{ color: '#22c55e', fontSize: '14px', minWidth: '70px', textAlign: 'right' }}>-${discountAmount.toFixed(2)}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <span style={{ color: '#94a3b8', fontSize: '14px' }}>Tax</span>
+            <input type="number" step="0.01" value={taxAmountInput} onChange={(e) => setTaxAmountInput(parseFloat(e.target.value) || 0)} onBlur={handleTaxChange} style={{ ...inputStyle, width: '100px', padding: '6px 8px', fontSize: '13px', textAlign: 'right' }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)', marginBottom: '12px' }}>
+            <span style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600 }}>Total</span>
+            <span style={{ color: '#22c55e', fontSize: '20px', fontWeight: 700 }}>${total.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#94a3b8', fontSize: '14px' }}>Deposit Required</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <select 
+                value={depositType} 
+                onChange={async (e) => {
+                  const val = e.target.value as '50%' | 'full' | 'custom'
+                  setDepositType(val)
+                  let newDeposit = 0
+                  
+                  if (val === 'full') {
+                    newDeposit = total
+                  } else if (val === '50%') {
+                    newDeposit = total * 0.5
+                  } else {
+                    newDeposit = depositRequired || total * 0.5
+                  }
+                  
+                  setDepositRequired(newDeposit)
+                  await supabase.from('documents').update({ deposit_required: newDeposit }).eq('id', doc.id)
+                  setDoc({ ...doc, deposit_required: newDeposit })
+                }}
+                style={{ ...inputStyle, width: '90px', padding: '6px 8px', fontSize: '13px' }}
+              >
+                <option value="50%">50%</option>
+                <option value="full">Full</option>
+                <option value="custom">Custom</option>
+              </select>
+              {depositType === 'custom' && (
+                <input 
+                  type="text" 
+                  inputMode="decimal" 
+                  value={depositRequired} 
+                  onChange={(e) => setDepositRequired(parseFloat(e.target.value) || 0)} 
+                  onBlur={async () => {
+                    await supabase.from('documents').update({ deposit_required: depositRequired }).eq('id', doc.id)
+                    setDoc({ ...doc, deposit_required: depositRequired })
+                  }}
+                  style={{ ...inputStyle, width: '80px', padding: '6px 8px', fontSize: '13px', textAlign: 'right' }} 
+                />
+              )}
+              <span style={{ color: '#f1f5f9', fontSize: '14px', minWidth: '70px', textAlign: 'right' }}>${depositRequired.toFixed(2)}</span>
+            </div>
+          </div>
+          {isInvoice && (doc.amount_paid || 0) > 0 && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '14px' }}>Amount Paid</span>
+                <span style={{ color: '#22c55e', fontSize: '14px' }}>-${(doc.amount_paid || 0).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                <span style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600 }}>Balance Due</span>
+                <span style={{ color: '#f59e0b', fontSize: '18px', fontWeight: 700 }}>${balanceDue.toFixed(2)}</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Internal Notes */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Internal Notes</h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes (not shown to customer)..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
       </div>
 
       {/* Revision History */}
@@ -1791,40 +1970,7 @@ export default function DocumentDetail({
         </div>
       )}
 
-      {/* Discount, Tax & Notes */}
-      <div style={cardStyle}>
-        <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>Adjustments & Notes</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
-          <div>
-            <label style={labelStyle}>Discount ($)</label>
-            <input type="number" step="0.01" value={discountAmountInput} onChange={(e) => setDiscountAmountInput(parseFloat(e.target.value) || 0)} onBlur={handleDiscountChange} style={inputStyle} placeholder="0.00" />
-          </div>
-          <div>
-            <label style={labelStyle}>Discount (%)</label>
-            <input type="number" step="0.1" value={discountPercentInput} onChange={(e) => setDiscountPercentInput(parseFloat(e.target.value) || 0)} onBlur={handleDiscountChange} style={inputStyle} placeholder="0" />
-          </div>
-          <div>
-            <label style={labelStyle}>Tax ($)</label>
-            <input type="number" step="0.01" value={taxAmountInput} onChange={(e) => setTaxAmountInput(parseFloat(e.target.value) || 0)} onBlur={handleTaxChange} style={inputStyle} placeholder="0.00" />
-          </div>
-        </div>
-        {isInvoice && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
-            <div>
-              <label style={labelStyle}>Deposit Required</label>
-              <input type="number" step="0.01" value={depositRequired} onChange={(e) => setDepositRequired(parseFloat(e.target.value) || 0)} style={inputStyle} placeholder="0.00" />
-            </div>
-            <div>
-              <label style={labelStyle}>Valid Until</label>
-              <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} style={inputStyle} />
-            </div>
-          </div>
-        )}
-        <div>
-          <label style={labelStyle}>Internal Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes for internal use only..." rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
-        </div>
-      </div>
+
 
       {/* Payments Section - Invoice Only */}
       {isInvoice && (
@@ -1873,22 +2019,7 @@ export default function DocumentDetail({
         </div>
       )}
 
-      {/* Summary */}
-      <div style={cardStyle}>
-        <div style={{ maxWidth: '300px', marginLeft: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}><span style={{ color: '#94a3b8', fontSize: '14px' }}>Subtotal</span><span style={{ color: '#f1f5f9', fontSize: '14px' }}>${subtotal.toFixed(2)}</span></div>
-          {feesTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}><span style={{ color: '#94a3b8', fontSize: '14px' }}>Fees</span><span style={{ color: '#f1f5f9', fontSize: '14px' }}>${feesTotal.toFixed(2)}</span></div>}
-          {discountAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}><span style={{ color: '#94a3b8', fontSize: '14px' }}>Discount</span><span style={{ color: '#ef4444', fontSize: '14px' }}>-${discountAmount.toFixed(2)}</span></div>}
-          {taxAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}><span style={{ color: '#94a3b8', fontSize: '14px' }}>Tax</span><span style={{ color: '#f1f5f9', fontSize: '14px' }}>${taxAmount.toFixed(2)}</span></div>}
-          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)' }}><span style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600 }}>Total</span><span style={{ color: '#22c55e', fontSize: '20px', fontWeight: 700 }}>${total.toFixed(2)}</span></div>
-          {isInvoice && (doc.amount_paid || 0) > 0 && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px' }}><span style={{ color: '#94a3b8', fontSize: '14px' }}>Amount Paid</span><span style={{ color: '#22c55e', fontSize: '14px' }}>-${(doc.amount_paid || 0).toFixed(2)}</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px' }}><span style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600 }}>Balance Due</span><span style={{ color: '#f59e0b', fontSize: '18px', fontWeight: 700 }}>${balanceDue.toFixed(2)}</span></div>
-            </>
-          )}
-        </div>
-      </div>
+      
 
       {/* Sticky Footer */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '20px 24px', background: 'linear-gradient(to top, #111111 60%, transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
