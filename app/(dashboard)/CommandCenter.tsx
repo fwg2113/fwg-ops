@@ -492,7 +492,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           </button>
         </div>
 
-        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '600px', overflowY: 'auto' }}>
+        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {pinnedActionItems.length > 0 && (
             <>
               {pinnedActionItems.map((item, index) => (
@@ -1034,10 +1034,10 @@ function ActionItemRow({
         borderBottom: `1px solid ${isHovered ? '#d71cd1' : 'rgba(148, 163, 184, 0.2)'}`,
         borderLeft: isPinned ? '3px solid #eab308' : `1px solid ${isHovered ? '#d71cd1' : 'rgba(148, 163, 184, 0.2)'}`,
         borderRadius: '10px',
-        padding: '16px 20px',
+        padding: '12px 16px',
         display: 'flex',
         alignItems: 'center',
-        gap: '16px',
+        gap: '12px',
         cursor: 'pointer',
         transition: 'all 0.15s ease',
         transform: isHovered ? 'translateX(4px)' : 'none'
@@ -1045,14 +1045,14 @@ function ActionItemRow({
     >
       {/* Rank */}
       <div style={{
-        width: '32px',
-        height: '32px',
+        width: '28px',
+        height: '28px',
         borderRadius: '50%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         fontWeight: 700,
-        fontSize: '13px',
+        fontSize: '12px',
         flexShrink: 0,
         background: isUrgent ? 'linear-gradient(135deg, #d71cd1, #ef4444)' : '#282a30',
         color: isUrgent ? 'white' : '#94a3b8'
@@ -1060,50 +1060,56 @@ function ActionItemRow({
         {rank}
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            fontSize: '12px',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.3px',
-            background: badgeStyle.bg,
-            color: badgeStyle.color,
-            whiteSpace: 'nowrap'
-          }}>
-            {getActionLabel(item.actionType)}
-          </span>
+      {/* ACTION LABEL - Prominent glowing bar */}
+      <div style={{
+        padding: '10px 20px',
+        borderRadius: '8px',
+        fontSize: '13px',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+        background: badgeStyle.bg,
+        color: badgeStyle.color,
+        border: `1px solid ${badgeStyle.color}`,
+        boxShadow: `0 0 12px ${badgeStyle.color}40, 0 0 24px ${badgeStyle.color}20`,
+        textShadow: `0 0 8px ${badgeStyle.color}60`
+      }}>
+        {getActionLabel(item.actionType)}
+      </div>
+
+      {/* Content - Left side */}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+          <div style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {item.customer}
+          </div>
           {item.type !== 'task' && (
             <span style={{
               fontSize: '11px',
               color: '#64748b',
-              padding: '2px 8px',
+              padding: '2px 6px',
               background: '#282a30',
-              borderRadius: '4px'
+              borderRadius: '4px',
+              flexShrink: 0
             }}>
               {item.type === 'submission' ? 'Submission' : `${item.data.doc_type === 'quote' ? 'Quote' : 'Invoice'} #${item.data.doc_number}`}
             </span>
           )}
         </div>
-        <div style={{ fontSize: '16px', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {item.customer}
-        </div>
         {item.details && (
-          <div style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {item.details}
           </div>
         )}
       </div>
 
+    
+
       {/* Amount */}
       {item.amount > 0 && (
-        <div style={{ fontSize: '20px', fontWeight: 700, color: '#22c55e', flexShrink: 0 }}>
+        <div style={{ fontSize: '16px', fontWeight: 700, color: '#22c55e', flexShrink: 0 }}>
           ${item.amount.toLocaleString()}
         </div>
       )}

@@ -4,6 +4,68 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 
+// Reusable Button Component with hover effects
+const ActionButton = ({ 
+  onClick, 
+  disabled, 
+  variant = 'secondary', 
+  children, 
+  style = {} 
+}: { 
+  onClick?: () => void
+  disabled?: boolean
+  variant?: 'primary' | 'secondary' | 'success'
+  children: React.ReactNode
+  style?: React.CSSProperties
+}) => {
+  const baseStyles: Record<string, React.CSSProperties> = {
+    primary: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 0 20px rgba(215, 28, 209, 0.3)' },
+    secondary: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer', transition: 'all 0.15s ease' },
+    success: { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }
+  }
+  
+  const handleHover = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (disabled) return
+    const btn = e.currentTarget
+    btn.style.transform = 'translateY(-4px) scale(1.05)'
+    if (variant === 'primary') btn.style.boxShadow = '0 0 30px rgba(215, 28, 209, 0.6)'
+    else if (variant === 'success') btn.style.boxShadow = '0 0 30px rgba(34, 197, 94, 0.6)'
+    else btn.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.4)'
+  }
+  
+  const handleLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = e.currentTarget
+    btn.style.transform = 'translateY(0) scale(1)'
+    if (variant === 'primary') btn.style.boxShadow = '0 0 20px rgba(215, 28, 209, 0.3)'
+    else if (variant === 'success') btn.style.boxShadow = '0 0 20px rgba(34, 197, 94, 0.3)'
+    else btn.style.boxShadow = 'none'
+  }
+  
+  const handleDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (disabled) return
+    e.currentTarget.style.transform = 'translateY(0) scale(0.97)'
+  }
+  
+  const handleUp = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (disabled) return
+    e.currentTarget.style.transform = 'translateY(-4px) scale(1.05)'
+  }
+  
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{ ...baseStyles[variant], ...style, opacity: disabled ? 0.5 : 1 }}
+      onMouseEnter={handleHover}
+      onMouseLeave={handleLeave}
+      onMouseDown={handleDown}
+      onMouseUp={handleUp}
+    >
+      {children}
+    </button>
+  )
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -48,6 +110,18 @@ type FeeType = { fee_type_key: string; label: string; default_amount: number }
 
 type Fee = { fee_type: string; description: string; amount: number }
 
+type Payment = {
+  id: string
+  document_id: string
+  amount: number
+  payment_method: string
+  processor: string
+  processor_txn_id: string
+  status: string
+  notes: string
+  created_at: string
+}
+
 type Props = {
   document: Document
   initialLineItems: LineItem[]
@@ -56,6 +130,7 @@ type Props = {
   packages: Package[]
   lineItemTypes: LineItemType[]
   feeTypes: FeeType[]
+  payments: Payment[]
 }
 
 // ============================================================================
@@ -74,7 +149,8 @@ export default function DocumentDetail({
   categories = [],
   packages = [],
   lineItemTypes = [],
-  feeTypes = []
+  feeTypes = [],
+  payments: initialPayments = []
 }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -131,11 +207,23 @@ export default function DocumentDetail({
   const [validUntil, setValidUntil] = useState(initialDoc.valid_until ? initialDoc.valid_until.split('T')[0] : '')
   const [notes, setNotes] = useState(initialDoc.notes || '')
 
+  // Payments state
+  const [payments, setPayments] = useState<Payment[]>(initialPayments)
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false)
+  const [recordingPayment, setRecordingPayment] = useState(false)
+  const [paymentAmount, setPaymentAmount] = useState(0)
+  const [paymentMethod, setPaymentMethod] = useState('card')
+  const [paymentNotes, setPaymentNotes] = useState('')
+
   // Modals
   const [showSectionModal, setShowSectionModal] = useState(false)
   const [showSendModal, setShowSendModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
   const [showArchiveModal, setShowArchiveModal] = useState(false)
+  const [archiveBucket, setArchiveBucket] = useState<'won' | 'lost'>('lost')
+  const [archiveReason, setArchiveReason] = useState('')
+  const [archiveOtherReason, setArchiveOtherReason] = useState('')
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
   
   // Send modal state
   const [sendEmail, setSendEmail] = useState(true)
@@ -251,7 +339,19 @@ export default function DocumentDetail({
     setSaving(false)
   }
 
-  const handleCopyLink = () => { navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id); alert('Customer link copied!') }
+  const [linkCopied, setLinkCopied] = useState(false)
+  const handleCopyLink = () => { 
+    navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
+
+  const [refreshed, setRefreshed] = useState(false)
+  const handleRefresh = () => {
+    setRefreshed(true)
+    router.refresh()
+    setTimeout(() => setRefreshed(false), 2000)
+  }
 
 
   // Follow-up handlers
@@ -515,10 +615,74 @@ export default function DocumentDetail({
   }
 
   const handleArchive = async () => {
-    if (!confirm('Archive this document?')) return
     setSaving(true)
-    await supabase.from('documents').update({ status: 'archived', bucket: 'ARCHIVED' }).eq('id', doc.id)
+    const bucketValue = archiveBucket === 'won' ? 'ARCHIVE_WON' : 'ARCHIVE_LOST'
+    const reason = archiveBucket === 'lost' ? (archiveReason === 'OTHER' ? archiveOtherReason : archiveReason) : null
+    
+    await supabase.from('documents').update({ 
+      status: 'archived', 
+      bucket: bucketValue,
+      archive_reason: reason
+    }).eq('id', doc.id)
+    
+    setShowArchiveModal(false)
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
+    setSaving(false)
+  }
+
+  const handleMoveToCold = async () => {
+    if (!confirm(`Move this ${doc.doc_type} to Cold?`)) return
+    setSaving(true)
+    await supabase.from('documents').update({ bucket: 'COLD' }).eq('id', doc.id)
+    setDoc({ ...doc, bucket: 'COLD' })
+    router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
+    setSaving(false)
+  }
+
+  const handleMoveToProduction = async () => {
+    if (!confirm('Move this invoice to Production? This will generate production tasks based on line item categories.')) return
+    setSaving(true)
+    
+    try {
+      // Update document
+      await supabase.from('documents').update({ 
+        in_production: true,
+        bucket: 'IN_PRODUCTION'
+      }).eq('id', doc.id)
+      
+      // Generate production tasks for each line item category
+      const categories = [...new Set(lineItems.map(item => item.category).filter(Boolean))]
+      let tasksCreated = 0
+      
+      for (const category of categories) {
+        // Create basic production tasks
+        const tasks = [
+          { task_name: 'Print', step_order: 1 },
+          { task_name: 'Laminate', step_order: 2 },
+          { task_name: 'Cut', step_order: 3 },
+          { task_name: 'Install', step_order: 4 }
+        ]
+        
+        for (const task of tasks) {
+          await supabase.from('production_tasks').insert({
+            invoice_id: doc.id,
+            category: category,
+            task_name: task.task_name,
+            step_order: task.step_order,
+            status: 'pending'
+          })
+          tasksCreated++
+        }
+      }
+      
+      setDoc({ ...doc, in_production: true, bucket: 'IN_PRODUCTION' })
+      alert(`Moved to Production! ${tasksCreated} tasks created.`)
+      
+    } catch (err) {
+      console.error('Error moving to production:', err)
+      alert('Failed to move to production')
+    }
+    
     setSaving(false)
   }
 
@@ -527,6 +691,64 @@ export default function DocumentDetail({
     await supabase.from('documents').update({ status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 }).eq('id', doc.id)
     setDoc({ ...doc, status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 })
     setSaving(false)
+  }
+
+  const handleRecordPayment = async () => {
+    if (paymentAmount <= 0) return
+    setRecordingPayment(true)
+    
+    try {
+      // Insert payment record
+      const { data: newPayment, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          document_id: doc.id,
+          amount: paymentAmount,
+          payment_method: paymentMethod,
+          processor: paymentMethod === 'card' ? 'manual' : null,
+          status: 'completed',
+          notes: paymentNotes || null,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+      
+      if (paymentError) throw paymentError
+      
+      // Update document totals
+      const newAmountPaid = (doc.amount_paid || 0) + paymentAmount
+      const newBalanceDue = total - newAmountPaid
+      const isPaidInFull = newBalanceDue <= 0
+      
+      const { error: docError } = await supabase
+        .from('documents')
+        .update({
+          status: isPaidInFull ? 'paid' : 'partial',
+          amount_paid: newAmountPaid,
+          balance_due: Math.max(0, newBalanceDue),
+          paid_at: isPaidInFull ? new Date().toISOString() : null
+        })
+        .eq('id', doc.id)
+      
+      if (docError) throw docError
+      
+      // Update local state
+      setPayments([newPayment, ...payments])
+      setDoc({ 
+        ...doc, 
+        status: isPaidInFull ? 'paid' : 'partial',
+        amount_paid: newAmountPaid, 
+        balance_due: Math.max(0, newBalanceDue),
+        paid_at: isPaidInFull ? new Date().toISOString() : null
+      })
+      setShowRecordPaymentModal(false)
+      
+    } catch (err) {
+      console.error('Error recording payment:', err)
+      alert('Failed to record payment')
+    }
+    
+    setRecordingPayment(false)
   }
 
   // ============================================================================
@@ -781,7 +1003,7 @@ export default function DocumentDetail({
     if (!error) {
       setDoc({ ...doc, ...updates })
       setHasChanges(false)
-      alert('Saved!')
+      // Saved successfully - no toast needed
     } else {
       alert('Save failed: ' + error.message)
     }
@@ -812,9 +1034,31 @@ export default function DocumentDetail({
   const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }
   const labelStyle: React.CSSProperties = { display: 'block', color: '#64748b', fontSize: '11px', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }
   const cardStyle: React.CSSProperties = { background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '12px', padding: '20px', marginBottom: '20px' }
-  const btnSecondary: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer' }
-  const btnPrimary: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }
-  const btnSuccess: React.CSSProperties = { ...btnPrimary, background: '#22c55e' }
+  const btnSecondary: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer', transition: 'all 0.15s ease' }
+  const btnPrimary: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 0 20px rgba(215, 28, 209, 0.3)' }
+  const btnSuccess: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }
+
+  // Button hover/click handlers
+  const btnHover = (e: React.MouseEvent<HTMLButtonElement>, type: 'primary' | 'secondary' | 'success') => {
+    const btn = e.currentTarget
+    btn.style.transform = 'translateY(-2px) scale(1.02)'
+    if (type === 'primary') btn.style.boxShadow = '0 0 30px rgba(215, 28, 209, 0.5)'
+    else if (type === 'success') btn.style.boxShadow = '0 0 30px rgba(34, 197, 94, 0.5)'
+    else btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)'
+  }
+  const btnLeave = (e: React.MouseEvent<HTMLButtonElement>, type: 'primary' | 'secondary' | 'success') => {
+    const btn = e.currentTarget
+    btn.style.transform = 'translateY(0) scale(1)'
+    if (type === 'primary') btn.style.boxShadow = '0 0 20px rgba(215, 28, 209, 0.3)'
+    else if (type === 'success') btn.style.boxShadow = '0 0 20px rgba(34, 197, 94, 0.3)'
+    else btn.style.boxShadow = 'none'
+  }
+  const btnDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.transform = 'translateY(0) scale(0.97)'
+  }
+  const btnUp = (e: React.MouseEvent<HTMLButtonElement>, type: 'primary' | 'secondary' | 'success') => {
+    e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'
+  }
 
   // Get categories grouped by parent
   const automotiveCategories = categories.filter(c => c.parent_category === 'AUTOMOTIVE' && c.active).sort((a, b) => a.sort_order - b.sort_order)
@@ -832,7 +1076,7 @@ export default function DocumentDetail({
   // RENDER
   // ============================================================================
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ fontFamily: 'system-ui, sans-serif', paddingBottom: '100px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ color: '#f1f5f9', fontSize: '24px', fontWeight: 600, margin: 0 }}>{isQuote ? 'Quote' : 'Invoice'} Details</h1>
@@ -853,16 +1097,62 @@ export default function DocumentDetail({
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button onClick={handleCopyLink} style={btnSecondary}>Copy Link</button>
-            <button onClick={handleOpenSendModal} disabled={saving || (!customerEmail && !customerPhone)} style={{ ...btnSecondary, opacity: (!customerEmail && !customerPhone) ? 0.5 : 1 }}>Send</button>
-            {doc.status === 'sent' || doc.status === 'viewed' ? (
-              <button onClick={handleOpenFollowUpModal} style={btnSecondary}>
-                Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}
-              </button>
-            ) : null}
-            {isQuote && <button onClick={handleConvertToInvoice} disabled={saving} style={btnSuccess}>Convert to Invoice</button>}
-            {isInvoice && doc.status !== 'paid' && <button onClick={handleMarkPaid} disabled={saving} style={btnSuccess}>Mark Paid</button>}
-            <button onClick={handleArchive} disabled={saving} style={btnSecondary}>Archive</button>
+            {(() => {
+              const isArchived = doc.bucket === 'ARCHIVE_WON' || doc.bucket === 'ARCHIVE_LOST'
+              const hasBeenSent = doc.sent_at || doc.status === 'sent' || doc.status === 'viewed'
+              const isCold = doc.bucket === 'COLD'
+              const inProduction = doc.in_production === true || doc.in_production === 'TRUE'
+              const buttons = []
+              
+              // Copy Link - always show
+              buttons.push(<ActionButton key="copy" onClick={handleCopyLink} variant="secondary">{linkCopied ? 'Copied!' : 'Copy Link'}</ActionButton>)
+              
+              if (isQuote) {
+                // Send (unless declined/expired/archived)
+                if (doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
+                  buttons.push(<ActionButton key="send" onClick={handleOpenSendModal} disabled={saving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
+                }
+                // Follow Up (if sent, not approved/declined/expired/archived)
+                if (hasBeenSent && !isArchived && doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired') {
+                  buttons.push(<ActionButton key="followup" onClick={handleOpenFollowUpModal} variant="secondary">Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}</ActionButton>)
+                }
+                // Convert to Invoice (unless declined/expired/archived)
+                if (doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
+                  buttons.push(<ActionButton key="convert" onClick={handleConvertToInvoice} disabled={saving} variant="success">Convert to Invoice</ActionButton>)
+                }
+              }
+              
+              if (isInvoice) {
+                // Send (unless void/paid/archived)
+                if (doc.status !== 'void' && doc.status !== 'paid' && !isArchived) {
+                  buttons.push(<ActionButton key="send" onClick={handleOpenSendModal} disabled={saving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
+                }
+                // Follow Up (if sent, not paid/void/archived)
+                if (hasBeenSent && !isArchived && doc.status !== 'paid' && doc.status !== 'void') {
+                  buttons.push(<ActionButton key="followup" onClick={handleOpenFollowUpModal} variant="secondary">Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}</ActionButton>)
+                }
+                // Schedule It (unless archived)
+                if (!isArchived) {
+                  buttons.push(<ActionButton key="schedule" onClick={() => setShowScheduleModal(true)} variant="primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Schedule It</ActionButton>)
+                }
+                // Move to Production (unless archived or already in production)
+                if (!isArchived && !inProduction) {
+                  buttons.push(<ActionButton key="production" onClick={handleMoveToProduction} disabled={saving} variant="primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>Move to Production</ActionButton>)
+                }
+              }
+              
+              // Move to Cold (if sent, not archived, not already cold)
+              if (!isArchived && !isCold && hasBeenSent) {
+                buttons.push(<ActionButton key="cold" onClick={handleMoveToCold} disabled={saving} variant="secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12h4m12 0h4M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>Move to Cold</ActionButton>)
+              }
+              
+              // Archive (unless already archived)
+              if (!isArchived) {
+                buttons.push(<ActionButton key="archive" onClick={() => { setArchiveBucket(doc.status === 'paid' ? 'won' : 'lost'); setArchiveReason(''); setArchiveOtherReason(''); setShowArchiveModal(true) }} disabled={saving} variant="secondary">Archive</ActionButton>)
+              }
+              
+              return buttons
+            })()}
           </div>
         </div>
       </div>
@@ -1014,13 +1304,11 @@ export default function DocumentDetail({
 
       {/* Fees & Adjustments */}
       <div style={cardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Fees & Adjustments</h3>
-          <button onClick={addFee} style={{ ...btnSecondary, padding: '6px 12px', fontSize: '13px' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Fee
-          </button>
-        </div>
+        {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1 style={{ color: '#f1f5f9', fontSize: '24px', fontWeight: 600, margin: 0 }}>{isQuote ? 'Quote' : 'Invoice'} Details</h1>
+        <ActionButton onClick={handleRefresh} variant="secondary">{refreshed ? 'Refreshed!' : 'Refresh'}</ActionButton>
+      </div>
         {fees.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '12px', color: '#64748b', fontSize: '13px' }}>No fees added</div>
         ) : (
@@ -1078,6 +1366,53 @@ export default function DocumentDetail({
         </div>
       </div>
 
+      {/* Payments Section - Invoice Only */}
+      {isInvoice && (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Payments</h3>
+            <ActionButton onClick={() => { setPaymentAmount(balanceDue > 0 ? balanceDue : total); setPaymentMethod('card'); setPaymentNotes(''); setShowRecordPaymentModal(true) }} variant="secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Record Payment
+            </ActionButton>
+          </div>
+          
+          {payments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '14px' }}>
+              No payments recorded yet
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {payments.map((payment) => (
+                <div key={payment.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#1d1d1d', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.1)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 500 }}>${payment.amount.toFixed(2)}</div>
+                    <div style={{ color: '#64748b', fontSize: '12px' }}>
+                      {payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method === 'cash' ? 'Cash' : payment.payment_method === 'check' ? 'Check' : 'Other'}
+                      {payment.processor && ` via ${payment.processor.charAt(0).toUpperCase() + payment.processor.slice(1)}`}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ color: '#22c55e', fontSize: '12px', fontWeight: 500 }}>{payment.status}</div>
+                    <div style={{ color: '#64748b', fontSize: '11px' }}>{formatDate(payment.created_at)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {payments.length > 0 && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#64748b', fontSize: '14px' }}>Total Paid</span>
+              <span style={{ color: '#22c55e', fontSize: '16px', fontWeight: 600 }}>${(doc.amount_paid || 0).toFixed(2)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Summary */}
       <div style={cardStyle}>
         <div style={{ maxWidth: '300px', marginLeft: 'auto' }}>
@@ -1095,9 +1430,47 @@ export default function DocumentDetail({
         </div>
       </div>
 
-      {/* Sticky Save Button */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', background: 'linear-gradient(to top, #111111 80%, transparent)', display: 'flex', justifyContent: 'center', gap: '12px', zIndex: 100 }}>
-        <button onClick={handleSaveAll} disabled={saving} style={{ ...btnPrimary, padding: '14px 32px', fontSize: '15px' }}>
+      {/* Sticky Footer */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '20px 24px', background: 'linear-gradient(to top, #111111 60%, transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
+        <ActionButton onClick={() => router.back()} variant="secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </ActionButton>
+        <button 
+          onClick={handleSaveAll} 
+          disabled={saving} 
+          style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            padding: '12px 28px', 
+            background: 'linear-gradient(135deg, #d71cd1, #38c2f0)', 
+            border: 'none', 
+            borderRadius: '8px', 
+            color: 'white', 
+            fontSize: '15px', 
+            fontWeight: 600, 
+            cursor: 'pointer', 
+            opacity: saving ? 0.7 : 1, 
+            boxShadow: '0 0 20px rgba(215, 28, 209, 0.4)',
+            transition: 'all 0.2s ease',
+            transform: 'scale(1)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)'
+            e.currentTarget.style.boxShadow = '0 0 30px rgba(215, 28, 209, 0.6)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)'
+            e.currentTarget.style.boxShadow = '0 0 20px rgba(215, 28, 209, 0.4)'
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = 'scale(0.95)'
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)'
+          }}
+        >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           {saving ? 'Saving...' : 'Save'}
         </button>
@@ -1233,11 +1606,11 @@ export default function DocumentDetail({
             </div>
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button onClick={() => setShowFollowUpModal(false)} style={btnSecondary}>Cancel</button>
-              <button onClick={handleSendFollowUp} disabled={sendingFollowUp} style={btnPrimary}>
+              <ActionButton onClick={() => setShowFollowUpModal(false)} variant="secondary">Cancel</ActionButton>
+              <ActionButton onClick={handleSendFollowUp} disabled={sendingFollowUp} variant="primary">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 {sendingFollowUp ? 'Sending...' : 'Send Follow-Up'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </div>
@@ -1347,11 +1720,128 @@ export default function DocumentDetail({
             </div>
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button onClick={() => setShowSendModal(false)} style={btnSecondary}>Cancel</button>
-              <button onClick={handleSendDocument} disabled={sendingDocument || (!sendEmail && !sendSms)} style={{ ...btnPrimary, opacity: (!sendEmail && !sendSms) ? 0.5 : 1 }}>
+              <ActionButton onClick={() => setShowSendModal(false)} variant="secondary">Cancel</ActionButton>
+              <ActionButton onClick={handleSendDocument} disabled={sendingDocument || (!sendEmail && !sendSms)} variant="primary">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 {sendingDocument ? 'Sending...' : 'Send'}
-              </button>
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Archive Modal */}
+      {showArchiveModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowArchiveModal(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Archive {isQuote ? 'Quote' : 'Invoice'}</h2>
+              <button onClick={() => setShowArchiveModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
+            </div>
+            
+            <div style={{ padding: '20px 24px' }}>
+              {/* Archive As */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ ...labelStyle, marginBottom: '12px' }}>Archive As</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <button onClick={() => setArchiveBucket('won')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '16px', background: archiveBucket === 'won' ? 'rgba(16,185,129,0.2)' : '#1d1d1d', border: archiveBucket === 'won' ? '2px solid #10b981' : '1px solid rgba(148,163,184,0.2)', borderRadius: '12px', cursor: 'pointer' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={archiveBucket === 'won' ? '#10b981' : '#64748b'} strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span style={{ color: archiveBucket === 'won' ? '#10b981' : '#94a3b8', fontWeight: 600 }}>Won</span>
+                  </button>
+                  <button onClick={() => setArchiveBucket('lost')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '16px', background: archiveBucket === 'lost' ? 'rgba(239,68,68,0.2)' : '#1d1d1d', border: archiveBucket === 'lost' ? '2px solid #ef4444' : '1px solid rgba(148,163,184,0.2)', borderRadius: '12px', cursor: 'pointer' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={archiveBucket === 'lost' ? '#ef4444' : '#64748b'} strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    <span style={{ color: archiveBucket === 'lost' ? '#ef4444' : '#94a3b8', fontWeight: 600 }}>Lost</span>
+                  </button>
+                </div>
+              </div>
+              
+              {/* Reason (only for Lost) */}
+              {archiveBucket === 'lost' && (
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: '12px' }}>Reason</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { value: 'COMPETITOR', label: 'Went with competitor' },
+                      { value: 'BUDGET', label: 'Budget issues' },
+                      { value: 'NO_RESPONSE', label: 'No response' },
+                      { value: 'TIMING', label: 'Bad timing' },
+                      { value: 'OTHER', label: 'Other' }
+                    ].map(reason => (
+                      <label key={reason.value} onClick={() => setArchiveReason(reason.value)} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: archiveReason === reason.value ? 'rgba(215,28,209,0.1)' : '#1d1d1d', border: archiveReason === reason.value ? '1px solid #d71cd1' : '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', cursor: 'pointer' }}>
+                        <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: archiveReason === reason.value ? '2px solid #d71cd1' : '2px solid rgba(148,163,184,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {archiveReason === reason.value && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#d71cd1' }} />}
+                        </div>
+                        <span style={{ color: '#f1f5f9', fontSize: '14px' }}>{reason.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {archiveReason === 'OTHER' && (
+                    <input type="text" value={archiveOtherReason} onChange={(e) => setArchiveOtherReason(e.target.value)} placeholder="Enter reason..." style={{ ...inputStyle, marginTop: '12px' }} />
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <ActionButton onClick={() => setShowArchiveModal(false)} variant="secondary">Cancel</ActionButton>
+              <ActionButton onClick={handleArchive} disabled={saving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record Payment Modal */}
+      {showRecordPaymentModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowRecordPaymentModal(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Record Payment</h2>
+              <button onClick={() => setShowRecordPaymentModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
+            </div>
+            
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={labelStyle}>Amount *</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>$</span>
+                  <input type="number" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} style={{ ...inputStyle, paddingLeft: '28px' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button onClick={() => setPaymentAmount(balanceDue)} style={{ padding: '4px 10px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>Balance (${balanceDue.toFixed(2)})</button>
+                  <button onClick={() => setPaymentAmount(total * 0.5)} style={{ padding: '4px 10px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>50% (${(total * 0.5).toFixed(2)})</button>
+                  <button onClick={() => setPaymentAmount(total)} style={{ padding: '4px 10px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>Full (${total.toFixed(2)})</button>
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={labelStyle}>Payment Method</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {[
+                    { value: 'card', label: 'Card', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
+                    { value: 'cash', label: 'Cash', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+                    { value: 'check', label: 'Check', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+                    { value: 'other', label: 'Other', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> }
+                  ].map(method => (
+                    <button key={method.value} onClick={() => setPaymentMethod(method.value)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '12px 8px', background: paymentMethod === method.value ? 'rgba(215,28,209,0.2)' : '#1d1d1d', border: paymentMethod === method.value ? '1px solid #d71cd1' : '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: paymentMethod === method.value ? '#d71cd1' : '#94a3b8', cursor: 'pointer' }}>
+                      {method.icon}
+                      <span style={{ fontSize: '12px' }}>{method.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label style={labelStyle}>Notes (optional)</label>
+                <input type="text" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="e.g., Check #1234, Square terminal" style={inputStyle} />
+              </div>
+            </div>
+            
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <ActionButton onClick={() => setShowRecordPaymentModal(false)} variant="secondary">Cancel</ActionButton>
+              <ActionButton onClick={handleRecordPayment} disabled={recordingPayment || paymentAmount <= 0} variant="success">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                {recordingPayment ? 'Recording...' : 'Record Payment'}
+              </ActionButton>
             </div>
           </div>
         </div>

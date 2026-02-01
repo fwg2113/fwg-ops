@@ -49,6 +49,12 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     .eq('active', true)
     .order('sort_order', { ascending: true })
 
+  const { data: payments } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('document_id', id)
+    .order('created_at', { ascending: false })
+
   if (!document) {
     return <div style={{ color: '#f1f5f9', padding: '40px' }}>Document not found</div>
   }
@@ -62,6 +68,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       packages={packages || []}
       lineItemTypes={lineItemTypes || []}
       feeTypes={feeTypes || []}
+      payments={payments || []}
     />
   )
 }
