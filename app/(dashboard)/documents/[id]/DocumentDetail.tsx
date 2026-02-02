@@ -150,6 +150,7 @@ type Payment = {
   id: string
   document_id: string
   amount: number
+  processing_fee: number
   payment_method: string
   processor: string
   processor_txn_id: string
@@ -2523,8 +2524,9 @@ export default function DocumentDetail({
                   <div style={{ flex: 1 }}>
                     <div style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 500 }}>${payment.amount.toFixed(2)}</div>
                     <div style={{ color: '#64748b', fontSize: '12px' }}>
-                      {payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method === 'cash' ? 'Cash' : payment.payment_method === 'check' ? 'Check' : 'Other'}
+                      {payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method === 'bank_transfer' ? 'Bank Transfer' : payment.payment_method === 'cash' ? 'Cash' : payment.payment_method === 'check' ? 'Check' : 'Other'}
                       {payment.processor && ` via ${payment.processor.charAt(0).toUpperCase() + payment.processor.slice(1)}`}
+                      {(payment.processing_fee || 0) > 0 && <span style={{ color: '#94a3b8' }}> (incl. ${(payment.processing_fee || 0).toFixed(2)} processing fee)</span>}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>

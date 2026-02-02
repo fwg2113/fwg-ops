@@ -41,15 +41,26 @@ type LineItem = {
 
 type Fee = { fee_type: string; description: string; amount: number }
 
+type Payment = {
+  id: string
+  amount: number
+  processing_fee: number
+  payment_method: string
+  processor: string
+  status: string
+  created_at: string
+}
+
 type Props = {
   document: Document
   lineItems: LineItem[]
+  payments?: Payment[]
 }
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export default function CustomerDocumentView({ document: doc, lineItems }: Props) {
+export default function CustomerDocumentView({ document: doc, lineItems, payments = [] }: Props) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [approving, setApproving] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -554,6 +565,11 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
                     <span style={{ color: '#22c55e' }}>Amount Paid</span>
                     <span style={{ color: '#22c55e' }}>-{formatCurrency(doc.amount_paid)}</span>
                   </div>
+                  {payments.filter(p => (parseFloat(String(p.processing_fee)) || 0) > 0).map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                      <span style={{ color: '#6b7280', fontSize: '12px' }}>+ {formatCurrency(parseFloat(String(p.processing_fee)))} credit card processing fee applied at checkout</span>
+                    </div>
+                  ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
                     <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Balance Due</span>
                     <span style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(balanceDue)}</span>

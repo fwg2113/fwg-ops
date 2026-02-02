@@ -26,6 +26,12 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ i
       : []
   }))
 
+  const { data: payments } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('document_id', id)
+    .order('created_at', { ascending: false })
+
   if (!document) {
     return (
       <div style={{ 
@@ -47,7 +53,8 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ i
   return (
     <CustomerDocumentView 
       document={document} 
-      lineItems={lineItems} 
+      lineItems={lineItems}
+      payments={payments || []}
     />
   )
 }
