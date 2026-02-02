@@ -2836,12 +2836,24 @@ export default function DocumentDetail({
               </div>
             </div>
 
-            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <ActionButton onClick={() => setShowSendModal(false)} variant="secondary">Cancel</ActionButton>
-              <ActionButton onClick={handleSendDocument} disabled={sendingDocument || (!sendEmail && !sendSms)} variant="primary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                {sendingDocument ? 'Sending...' : 'Send'}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <ActionButton 
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id)
+                  showToast('Link copied!', 'success')
+                }} 
+                variant="secondary"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                Copy Link
               </ActionButton>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <ActionButton onClick={() => setShowSendModal(false)} variant="secondary">Cancel</ActionButton>
+                <ActionButton onClick={handleSendDocument} disabled={sendingDocument || (!sendEmail && !sendSms)} variant="primary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  {sendingDocument ? 'Sending...' : 'Send'}
+                </ActionButton>
+              </div>
             </div>
           </div>
         </div>
