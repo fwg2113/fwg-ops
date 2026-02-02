@@ -478,17 +478,39 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
   }
 
   // Create quote for customer
-  const createQuoteForCustomer = () => {
+  const createQuoteForCustomer = async () => {
     if (!customerDetail) return
     const c = customerDetail.customer
-    sessionStorage.setItem('newQuoteCustomer', JSON.stringify({
-      name: c.display_name,
-      email: c.email,
-      phone: c.phone,
-      company: c.company
-    }))
-    setShowDetailModal(false)
-    router.push('/documents/new?type=quote')
+    
+    // Get next doc_number
+    const { data: lastDoc } = await supabase
+      .from('documents')
+      .select('doc_number')
+      .order('doc_number', { ascending: false })
+      .limit(1)
+      .single()
+    
+    const nextDocNumber = (lastDoc?.doc_number || 1000) + 1
+    
+    const { data, error } = await supabase
+      .from('documents')
+      .insert([{
+        doc_type: 'quote',
+        status: 'draft',
+        doc_number: nextDocNumber,
+        customer_id: c.id,
+        customer_name: c.display_name || `${c.first_name} ${c.last_name}`,
+        customer_email: c.email,
+        customer_phone: c.phone,
+        company_name: c.company
+      }])
+      .select()
+      .single()
+    
+    if (!error && data) {
+      setShowDetailModal(false)
+      router.push(`/documents/${data.id}`)
+    }
   }
 
   // Render attachments

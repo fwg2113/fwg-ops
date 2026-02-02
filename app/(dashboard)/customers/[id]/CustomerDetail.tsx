@@ -83,14 +83,28 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
   }
 
   const handleCreateQuote = async () => {
+    console.log('handleCreateQuote called, category:', quoteCategory)
     if (!quoteCategory) return
     
     setSaving(true)
+    console.log('Creating quote...')
+    
+    // Get next doc_number
+    const { data: lastDoc } = await supabase
+      .from('documents')
+      .select('doc_number')
+      .order('doc_number', { ascending: false })
+      .limit(1)
+      .single()
+    
+    const nextDocNumber = (lastDoc?.doc_number || 1000) + 1
+    
     const { data, error } = await supabase
       .from('documents')
       .insert([{
         doc_type: 'quote',
         status: 'draft',
+        doc_number: nextDocNumber,
         category: quoteCategory,
         customer_id: customer.id,
         customer_name: customer.display_name || `${customer.first_name} ${customer.last_name}`,
@@ -103,8 +117,12 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
       .single()
 
     setSaving(false)
+    console.log('Insert result:', { data, error })
     if (!error && data) {
+      console.log('Navigating to:', `/documents/${data.id}`)
       router.push(`/documents/${data.id}`)
+    } else {
+      console.log('Error or no data:', error)
     }
   }
 
