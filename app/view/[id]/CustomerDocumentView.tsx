@@ -64,7 +64,7 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
       supabase.from('documents').update({ 
         status: 'viewed', 
         viewed_at: new Date().toISOString() 
-      }).eq('id', doc.id).then(() => {})
+      }).eq('doc_id', doc.id).then(() => {})
     }
   }, [doc.id, doc.status])
 
@@ -560,8 +560,8 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
           </div>
         )}
 
-        {/* Payment Options */}
-        {(canApprove || canPay) && (
+        {/* Quote Approval Section */}
+        {canApprove && (
           <div style={{
             background: '#ffffff',
             borderRadius: '16px',
@@ -570,7 +570,132 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
             marginBottom: '24px'
           }}>
             <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 20px 0' }}>
-              {canApprove ? 'Approve & Pay' : 'Payment Options'}
+              Review & Approve
+            </h2>
+            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px' }}>
+              Please review the details above. If everything looks good, approve the quote to proceed. Need changes? Let us know!
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={handleApprove}
+                disabled={approving || (doc.options_mode && !selectedOption)}
+                onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(190,30,45,0.3)'; }}}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                style={{
+                  flex: 1,
+                  padding: '16px 24px',
+                  background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  color: 'white',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  cursor: (approving || (doc.options_mode && !selectedOption)) ? 'not-allowed' : 'pointer',
+                  opacity: (approving || (doc.options_mode && !selectedOption)) ? 0.6 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {approving ? 'Approving...' : 'Approve Quote'}
+              </button>
+              <button
+                onClick={() => setShowRevisionModal(true)}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#be1e2d'; e.currentTarget.style.color = '#be1e2d'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                style={{
+                  padding: '16px 24px',
+                  background: '#ffffff',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '12px',
+                  color: '#6b7280',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Request Changes
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Undo Approval Section */}
+        {isQuote && ['approved', 'option_selected'].includes(doc.status?.toLowerCase()) && (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            padding: '24px 32px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+            marginBottom: '24px',
+            textAlign: 'center'
+          }}>
+            <div style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              padding: '8px 16px', 
+              background: 'rgba(34, 197, 94, 0.1)', 
+              borderRadius: '20px',
+              marginBottom: '16px'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span style={{ color: '#22c55e', fontWeight: 600 }}>Quote Approved</span>
+            </div>
+            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '16px' }}>
+              Thank you for approving! We'll be in touch shortly to schedule your project.
+            </p>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/documents/undo-approval', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ documentId: doc.id })
+                  })
+                  const data = await res.json()
+                  if (data.success) {
+                    window.location.reload()
+                  } else {
+                    alert('Failed to undo approval. Please try again.')
+                  }
+                } catch (err) {
+                  console.error('Undo error:', err)
+                  alert('Failed to undo approval. Please try again.')
+                }
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#be1e2d'; e.currentTarget.style.borderColor = '#be1e2d'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+              style={{
+                padding: '10px 20px',
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                color: '#6b7280',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Changed my mind? Undo Approval
+            </button>
+          </div>
+        )}
+
+        {/* Payment Options */}
+        {canPay && (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            padding: '24px 32px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+            marginBottom: '24px'
+          }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 20px 0' }}>
+              Payment Options
             </h2>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -640,46 +765,7 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
               </div>
             </div>
             
-            {/* Approve Button (for quotes) */}
-            {canApprove && (
-              <div style={{ marginTop: '20px', display: 'flex', gap: '12px' }}>
-                <button
-                  onClick={handleApprove}
-                  disabled={approving || (doc.options_mode && !selectedOption)}
-                  style={{
-                    flex: 1,
-                    padding: '16px 24px',
-                    background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
-                    border: 'none',
-                    borderRadius: '12px',
-                    color: 'white',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    cursor: (approving || (doc.options_mode && !selectedOption)) ? 'not-allowed' : 'pointer',
-                    opacity: (approving || (doc.options_mode && !selectedOption)) ? 0.6 : 1,
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {approving ? 'Approving...' : 'Approve Quote'}
-                </button>
-                <button
-                  onClick={() => setShowRevisionModal(true)}
-                  style={{
-                    padding: '16px 24px',
-                    background: '#ffffff',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '12px',
-                    color: '#6b7280',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  Request Changes
-                </button>
-              </div>
-            )}
+        
           </div>
         )}
 
