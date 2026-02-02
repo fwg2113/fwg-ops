@@ -12,7 +12,17 @@ type Attachment = {
   type?: string
 }
 
-type Document = {
+type QuoteOption = {
+  id: string
+  title: string
+  description: string
+  price_min: number
+  price_max?: number
+  attachments?: Attachment[]
+  sort_order: number
+}
+
+type CustomerDocument = {
   id: string
   doc_number: number
   doc_type: string
@@ -38,6 +48,8 @@ type Document = {
   created_at: string
   valid_until?: string
   revision_history_json?: any
+  options_mode?: boolean
+  options_json?: QuoteOption[]
 }
 
 type LineItem = {
@@ -51,15 +63,27 @@ type LineItem = {
   attachments?: Attachment[]
 }
 
-export default function CustomerView({ document: doc, lineItems }: { document: Document, lineItems: LineItem[] }) {
+export default function CustomerView({ document: doc, lineItems }: { document: CustomerDocument, lineItems: LineItem[] }) {
   const [status, setStatus] = useState(doc.status)
   const [submitting, setSubmitting] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'card'>('bank')
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [revisionMessage, setRevisionMessage] = useState('')
   const [revisionName, setRevisionName] = useState('')
   const [contactPreference, setContactPreference] = useState<'sms' | 'email'>('sms')
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
+  const [optionQuestion, setOptionQuestion] = useState('')
+  const [showQuestionField, setShowQuestionField] = useState(false)
+  
+  // Parse options
+  const options: QuoteOption[] = (() => {
+    try {
+      if (Array.isArray(doc.options_json)) return doc.options_json
+      if (typeof doc.options_json === 'string') return JSON.parse(doc.options_json)
+      return []
+    } catch { return [] }
+  })()
+  const isOptionsMode = doc.options_mode && options.length > 0
   
   const isQuote = doc.doc_type === 'quote'
   const isInvoice = doc.doc_type === 'invoice'
@@ -145,7 +169,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           documentId: doc.id,
-          amount: cardTotal // Include processing fee
+          amount: cardTotal
         })
       })
       
@@ -185,6 +209,38 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
     setSubmitting(false)
   }
 
+  const handleSubmitOption = async () => {
+    if (!selectedOptionId) return
+    
+    const selectedOption = options.find(o => o.id === selectedOptionId)
+    if (!selectedOption) return
+    
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/documents/option-selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          documentId: doc.id,
+          optionId: selectedOptionId,
+          optionTitle: selectedOption.title,
+          question: optionQuestion || null,
+          customerName: doc.customer_name
+        })
+      })
+      
+      if (res.ok) {
+        setStatus('option_selected')
+        alert('Thank you! Your selection has been submitted. We will be in touch shortly.')
+      } else {
+        alert('Failed to submit selection')
+      }
+    } catch (e) {
+      alert('Error submitting selection')
+    }
+    setSubmitting(false)
+  }
+
   const handleSubmitRevision = async () => {
     if (!revisionMessage.trim()) return
     
@@ -218,10 +274,6 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0)
   }
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-  }
-
   const getStatusBadge = () => {
     const s = status?.toLowerCase()
     if (s === 'approved') return { text: 'Approved', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' }
@@ -229,6 +281,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
     if (s === 'partial') return { text: 'Partial Payment Received', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
     if (s === 'viewed' || s === 'sent') return { text: 'Awaiting Your Response', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
     if (s === 'revision_requested') return { text: 'Revision In Progress - We\'ll be in touch soon!', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.15)' }
+    if (s === 'option_selected') return { text: 'Option Selected - We\'ll finalize your quote soon!', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' }
     return { text: status, color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)' }
   }
 
@@ -246,7 +299,6 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
         maxWidth: '900px',
         borderBottom: '1px solid #334155'
       }}>
-        {/* Car Icon */}
         <div style={{ marginBottom: '16px' }}>
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
             <path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
@@ -279,8 +331,225 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
           {badge.text}
         </div>
 
+        {/* OPTIONS MODE VIEW */}
+        {isOptionsMode && (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #7c3aed, #d71cd1)',
+              borderRadius: '12px',
+              padding: '24px',
+              textAlign: 'center',
+              marginBottom: '20px'
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ marginBottom: '12px' }}>
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+              </svg>
+              <h2 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 700 }}>Please Select an Option</h2>
+              <p style={{ margin: 0, fontSize: '14px', opacity: 0.9 }}>
+                Review the options below and select the one that best fits your needs
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {options.sort((a, b) => a.sort_order - b.sort_order).map((opt) => {
+                const isSelected = selectedOptionId === opt.id
+                const optImages = (opt.attachments || []).filter(att => {
+                  const url = att.url || att.file_url || ''
+                  const name = att.filename || att.file_name || att.name || ''
+                  return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + url)
+                })
+                
+                return (
+                  <div 
+                    key={opt.id}
+                    onClick={() => setSelectedOptionId(opt.id)}
+                    style={{ 
+                      background: '#1e293b',
+                      border: isSelected ? '2px solid #22c55e' : '2px solid #334155',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: isSelected ? '0 0 20px rgba(34, 197, 94, 0.3)' : 'none'
+                    }}
+                  >
+                    <div style={{ 
+                      padding: '16px 20px',
+                      background: isSelected ? 'rgba(34, 197, 94, 0.1)' : '#161b26',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      borderBottom: '1px solid #334155'
+                    }}>
+                      <div style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        border: isSelected ? '2px solid #22c55e' : '2px solid #64748b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {isSelected && (
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#22c55e' }} />
+                        )}
+                      </div>
+                      
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, flex: 1, color: isSelected ? '#22c55e' : '#f1f5f9' }}>
+                        {opt.title}
+                      </h3>
+                      
+                      {isSelected && (
+                        <span style={{ 
+                          padding: '4px 12px', 
+                          background: '#22c55e', 
+                          borderRadius: '20px', 
+                          fontSize: '12px', 
+                          fontWeight: 600,
+                          color: 'white'
+                        }}>
+                          SELECTED
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ padding: '20px' }}>
+                      {optImages.length > 0 && (
+                        <div style={{ marginBottom: '16px' }}>
+                          {optImages.length === 1 ? (
+                            <div 
+                              style={{ borderRadius: '8px', overflow: 'hidden', cursor: 'pointer' }}
+                              onClick={(e) => { e.stopPropagation(); setLightboxUrl(optImages[0].url || optImages[0].file_url || null) }}
+                            >
+                              <img src={optImages[0].url || optImages[0].file_url} alt={opt.title} style={{ width: '100%', display: 'block' }} />
+                            </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
+                              {optImages.map((att, idx) => (
+                                <div 
+                                  key={idx}
+                                  style={{ borderRadius: '8px', overflow: 'hidden', aspectRatio: '1', cursor: 'pointer' }}
+                                  onClick={(e) => { e.stopPropagation(); setLightboxUrl(att.url || att.file_url || null) }}
+                                >
+                                  <img src={att.url || att.file_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {opt.description && (
+                        <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '14px', lineHeight: 1.6 }}>
+                          {opt.description}
+                        </p>
+                      )}
+
+                      <div style={{ 
+                        padding: '12px 16px', 
+                        background: '#0f172a', 
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span style={{ color: '#64748b', fontSize: '14px' }}>Estimated Price</span>
+                        <span style={{ color: '#22c55e', fontSize: '24px', fontWeight: 700 }}>
+                          {opt.price_max 
+                            ? `$${opt.price_min.toLocaleString()} - $${opt.price_max.toLocaleString()}`
+                            : `$${opt.price_min.toLocaleString()}`
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ marginTop: '24px' }}>
+              {!showQuestionField ? (
+                <button
+                  onClick={() => setShowQuestionField(true)}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    background: 'transparent',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    color: '#94a3b8',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  Have a question? Click here
+                </button>
+              ) : (
+                <div style={{ 
+                  background: '#1e293b', 
+                  border: '1px solid #334155', 
+                  borderRadius: '8px', 
+                  padding: '16px' 
+                }}>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>
+                    Your Question (optional)
+                  </label>
+                  <textarea
+                    value={optionQuestion}
+                    onChange={(e) => setOptionQuestion(e.target.value)}
+                    placeholder="Type your question here..."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: '8px',
+                      color: '#f1f5f9',
+                      fontSize: '14px',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleSubmitOption}
+              disabled={!selectedOptionId || submitting}
+              style={{
+                width: '100%',
+                marginTop: '20px',
+                padding: '18px',
+                background: !selectedOptionId || submitting 
+                  ? '#334155' 
+                  : 'linear-gradient(135deg, #22c55e, #16a34a)',
+                border: 'none',
+                borderRadius: '10px',
+                color: 'white',
+                fontSize: '18px',
+                fontWeight: 700,
+                cursor: !selectedOptionId || submitting ? 'not-allowed' : 'pointer',
+                opacity: !selectedOptionId || submitting ? 0.6 : 1
+              }}
+            >
+              {submitting ? 'Submitting...' : selectedOptionId ? 'Submit My Selection' : 'Select an Option Above'}
+            </button>
+          </div>
+        )}
+
         {/* Design/Attachments Section */}
-        {imageAttachments.length > 0 && (
+        {imageAttachments.length > 0 && !isOptionsMode && (
           <div style={{ marginBottom: '24px' }}>
             <div style={{ 
               background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
@@ -304,7 +573,6 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
               border: '1px solid #334155',
               borderTop: 'none'
             }}>
-              {/* Main Image */}
               {imageAttachments[0] && (
                 <div 
                   style={{ 
@@ -324,7 +592,6 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
                 </div>
               )}
               
-              {/* Thumbnails */}
               {imageAttachments.length > 1 && (
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {imageAttachments.map((att, idx) => (
@@ -360,7 +627,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
         )}
 
         {/* Quote Actions - Request Revision / Love It */}
-        {canRespond && (
+        {canRespond && !isOptionsMode && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
             <button
               onClick={() => setShowRevisionModal(true)}
@@ -413,7 +680,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
         )}
 
         {/* Design Approved Badge with Changed My Mind */}
-        {isQuote && isApproved && (
+        {isQuote && isApproved && !isOptionsMode && (
           <div style={{ 
             background: 'rgba(34, 197, 94, 0.1)',
             borderRadius: '8px',
@@ -461,7 +728,6 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
             <h3 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: 600, textAlign: 'center' }}>Payment Options</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* Bank Transfer - Primary */}
               <button
                 onClick={handlePayByBank}
                 disabled={submitting}
@@ -482,7 +748,6 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
                 <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, opacity: 0.9, marginTop: '4px' }}>No processing fee - Recommended</span>
               </button>
               
-              {/* Card Payment - Secondary */}
               <button
                 onClick={handlePayByCard}
                 disabled={submitting}

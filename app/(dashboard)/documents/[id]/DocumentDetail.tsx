@@ -106,6 +106,17 @@ type Document = {
   notes: string; created_at: string; sent_at: string; viewed_at: string; approved_at: string; paid_at: string
   valid_until: string | null; attachments?: Attachment[]; in_production: boolean; fees?: Fee[] | string
   followup_count?: number; last_followup_at?: string; revision_history_json?: any; discount_note?: string
+  options_mode?: boolean; options_json?: QuoteOption[]
+}
+
+type QuoteOption = {
+  id: string
+  title: string
+  description: string
+  price_min: number
+  price_max?: number
+  attachments?: Attachment[]
+  sort_order: number
 }
 
 type LineItem = {
@@ -245,6 +256,15 @@ export default function DocumentDetail({
   })
   const [validUntil, setValidUntil] = useState(initialDoc.valid_until ? initialDoc.valid_until.split('T')[0] : '')
   const [notes, setNotes] = useState(initialDoc.notes || '')
+  // Options mode state
+  const [optionsMode, setOptionsMode] = useState(initialDoc.options_mode || false)
+  const [options, setOptions] = useState<QuoteOption[]>(() => {
+    try {
+      if (Array.isArray(initialDoc.options_json)) return initialDoc.options_json
+      if (typeof initialDoc.options_json === 'string') return JSON.parse(initialDoc.options_json)
+      return []
+    } catch { return [] }
+  })
   const handleDiscountNoteBlur = async () => {
     await supabase.from('documents').update({ discount_note: discountNote }).eq('id', doc.id)
     setDoc({ ...doc, discount_note: discountNote })
@@ -332,6 +352,12 @@ export default function DocumentDetail({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [lightboxZoom, setLightboxZoom] = useState(1)
   const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
+  
+  // Option lightbox
+  const [optionLightboxIndex, setOptionLightboxIndex] = useState<number | null>(null)
+  const [optionLightboxOptionId, setOptionLightboxOptionId] = useState<string | null>(null)
+  const [optionLightboxZoom, setOptionLightboxZoom] = useState(1)
+  const [optionLightboxPan, setOptionLightboxPan] = useState({ x: 0, y: 0 })
 
   const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'))
   const lightboxUrl = lightboxIndex !== null ? imageAttachments[lightboxIndex]?.url : null
@@ -1034,7 +1060,7 @@ export default function DocumentDetail({
           status: isPaidInFull ? 'paid' : 'partial',
           amount_paid: newAmountPaid,
           balance_due: Math.max(0, newBalanceDue),
-          paid_at: isPaidInFull ? new Date().toISOString() : null
+          paid_at: new Date().toISOString()
         })
         .eq('id', doc.id)
       
@@ -1715,8 +1741,326 @@ export default function DocumentDetail({
         </div>
       </div>
 
+      {/* Options Mode Toggle */}
+      {isQuote && (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 4px 0' }}>Quote Mode</h3>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                {optionsMode 
+                  ? 'Options mode: Customer will choose from multiple options' 
+                  : 'Standard mode: Traditional quote with line items'}
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                const newMode = !optionsMode
+                setOptionsMode(newMode)
+                await supabase.from('documents').update({ options_mode: newMode }).eq('id', doc.id)
+              }}
+              style={{
+                padding: '10px 20px',
+                background: optionsMode ? 'linear-gradient(135deg, #f59e0b, #d97706)' : '#282a30',
+                border: optionsMode ? 'none' : '1px solid rgba(148,163,184,0.2)',
+                borderRadius: '8px',
+                color: optionsMode ? 'white' : '#94a3b8',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+              </svg>
+              {optionsMode ? 'Options Mode ON' : 'Options Mode OFF'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Options Builder (when in options mode) */}
+      {isQuote && optionsMode && (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Options</h3>
+            <button
+              onClick={async () => {
+                const newOption: QuoteOption = {
+                  id: 'opt_' + Date.now(),
+                  title: `Option ${options.length + 1}`,
+                  description: '',
+                  price_min: 0,
+                  price_max: undefined,
+                  attachments: [],
+                  sort_order: options.length
+                }
+                const updated = [...options, newOption]
+                setOptions(updated)
+                await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
+              }}
+              style={{
+                padding: '8px 16px',
+                background: '#d71cd1',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Option
+            </button>
+          </div>
+
+          {options.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', border: '2px dashed rgba(148,163,184,0.2)', borderRadius: '12px' }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }}>
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+              </svg>
+              <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>No options yet</p>
+              <p style={{ margin: 0, fontSize: '12px' }}>Add options for your customer to choose from</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {options.map((opt, idx) => (
+                <div key={opt.id} style={{ background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
+                  {/* Option Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#161616', borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px' }}>
+                      {idx + 1}
+                    </div>
+                    <input
+                      type="text"
+                      value={opt.title}
+                      onChange={async (e) => {
+                        const updated = options.map(o => o.id === opt.id ? { ...o, title: e.target.value } : o)
+                        setOptions(updated)
+                      }}
+                      onBlur={async () => {
+                        await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
+                      }}
+                      placeholder="Option title"
+                      style={{ flex: 1, padding: '8px 12px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '15px', fontWeight: 600 }}
+                    />
+                    {/* Sort buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <button
+                        onClick={async () => {
+                          if (idx === 0) return
+                          const updated = [...options]
+                          const temp = updated[idx - 1]
+                          updated[idx - 1] = updated[idx]
+                          updated[idx] = temp
+                          updated.forEach((o, i) => o.sort_order = i)
+                          setOptions(updated)
+                          await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
+                        }}
+                        disabled={idx === 0}
+                        style={{ background: 'none', border: 'none', color: idx === 0 ? '#334155' : '#64748b', cursor: idx === 0 ? 'default' : 'pointer', padding: '2px', lineHeight: 1 }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="18 15 12 9 6 15"/></svg>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (idx === options.length - 1) return
+                          const updated = [...options]
+                          const temp = updated[idx + 1]
+                          updated[idx + 1] = updated[idx]
+                          updated[idx] = temp
+                          updated.forEach((o, i) => o.sort_order = i)
+                          setOptions(updated)
+                          await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
+                        }}
+                        disabled={idx === options.length - 1}
+                        style={{ background: 'none', border: 'none', color: idx === options.length - 1 ? '#334155' : '#64748b', cursor: idx === options.length - 1 ? 'default' : 'pointer', padding: '2px', lineHeight: 1 }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      </button>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Delete this option?')) return
+                        const updated = options.filter(o => o.id !== opt.id)
+                        setOptions(updated)
+                        await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '8px' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Option Body */}
+                  <div style={{ padding: '16px' }}>
+                    {/* Description */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={labelStyle}>Description</label>
+                      <textarea
+                        value={opt.description}
+                        onChange={(e) => {
+                          const updated = options.map(o => o.id === opt.id ? { ...o, description: e.target.value } : o)
+                          setOptions(updated)
+                        }}
+                        onBlur={async () => {
+                          await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
+                        }}
+                        placeholder="Describe what's included in this option..."
+                        rows={2}
+                        style={{ ...inputStyle, resize: 'vertical' }}
+                      />
+                    </div>
+
+                    {/* Pricing */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                      <div>
+                        <label style={labelStyle}>Price {opt.price_max ? '(Min)' : ''}</label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>$</span>
+                          <input
+                            type="number"
+                            value={opt.price_min || ''}
+                            onChange={(e) => {
+                              const updated = options.map(o => o.id === opt.id ? { ...o, price_min: parseFloat(e.target.value) || 0 } : o)
+                              setOptions(updated)
+                            }}
+                            onBlur={async () => {
+                              await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
+                            }}
+                            placeholder="0"
+                            style={{ ...inputStyle, paddingLeft: '28px' }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Price Max (optional - shows range)</label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>$</span>
+                          <input
+                            type="number"
+                            value={opt.price_max || ''}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseFloat(e.target.value) : undefined
+                              const updated = options.map(o => o.id === opt.id ? { ...o, price_max: val } : o)
+                              setOptions(updated)
+                            }}
+                            onBlur={async () => {
+                              await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
+                            }}
+                            placeholder="Leave empty for fixed price"
+                            style={{ ...inputStyle, paddingLeft: '28px' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Price Preview */}
+                    <div style={{ padding: '12px 16px', background: '#282a30', borderRadius: '8px', marginBottom: '16px' }}>
+                      <span style={{ color: '#64748b', fontSize: '12px' }}>Customer sees: </span>
+                      <span style={{ color: '#22c55e', fontSize: '18px', fontWeight: 700 }}>
+                        {opt.price_max 
+                          ? `$${(opt.price_min || 0).toLocaleString()} - $${opt.price_max.toLocaleString()}`
+                          : `$${(opt.price_min || 0).toLocaleString()}`
+                        }
+                      </span>
+                    </div>
+
+                    {/* Attachments */}
+                    <div>
+                      <label style={labelStyle}>Images</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {(opt.attachments || []).map((att, attIdx) => {
+                          const url = att.url || att.file_url || ''
+                          const name = att.name || att.filename || att.file_name || 'File'
+                          return (
+                            <div key={attIdx} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(148,163,184,0.2)' }}>
+                              <img 
+                                src={url} 
+                                alt={name} 
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} 
+                                onClick={() => {
+                                  setOptionLightboxOptionId(opt.id)
+                                  setOptionLightboxIndex(attIdx)
+                                  setOptionLightboxZoom(1)
+                                  setOptionLightboxPan({ x: 0, y: 0 })
+                                }}
+                              />
+                              <button
+                                onClick={async () => {
+                                  const updatedAtts = (opt.attachments || []).filter((_, i) => i !== attIdx)
+                                  const updated = options.map(o => o.id === opt.id ? { ...o, attachments: updatedAtts } : o)
+                                  setOptions(updated)
+                                  await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
+                                }}
+                                style={{ position: 'absolute', top: '4px', right: '4px', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(239,68,68,0.9)', border: 'none', color: 'white', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >×</button>
+                            </div>
+                          )
+                        })}
+                        <label style={{ width: '80px', height: '80px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px' }}>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                              const files = e.target.files
+                              if (!files || files.length === 0) return
+                              
+                              const newAttachments: Attachment[] = [...(opt.attachments || [])]
+                              
+                              for (const file of Array.from(files)) {
+                                const formData = new FormData()
+                                formData.append('file', file)
+                                formData.append('documentId', doc.id)
+                                formData.append('prefix', 'doc-option')
+                                
+                                try {
+                                  const response = await fetch('/api/upload', { method: 'POST', body: formData })
+                                  const data = await response.json()
+                                  if (data.success) {
+                                    newAttachments.push({
+                                      url: data.url,
+                                      key: data.key,
+                                      filename: data.filename || file.name,
+                                      contentType: data.contentType || file.type,
+                                      size: data.size || file.size,
+                                      uploadedAt: new Date().toISOString()
+                                    })
+                                  }
+                                } catch (err) {
+                                  console.error('Upload error:', err)
+                                }
+                              }
+                              
+                              const updated = options.map(o => o.id === opt.id ? { ...o, attachments: newAttachments } : o)
+                              setOptions(updated)
+                              await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Line Items */}
-      <div style={cardStyle}>
+      <div style={{ ...cardStyle, display: optionsMode ? 'none' : 'block' }}>
         <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>Line Items</h3>
         
         {/* Line Item Groups */}
@@ -2775,6 +3119,69 @@ export default function DocumentDetail({
           </div>
         ))}
       </div>
+
+      {/* Option Lightbox */}
+      {optionLightboxOptionId !== null && optionLightboxIndex !== null && (() => {
+        const opt = options.find(o => o.id === optionLightboxOptionId)
+        if (!opt) return null
+        const optImages = (opt.attachments || []).filter(att => {
+          const url = att.url || att.file_url || ''
+          const name = att.filename || att.file_name || att.name || ''
+          return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + url)
+        })
+        if (optImages.length === 0) return null
+        const currentAtt = optImages[optionLightboxIndex]
+        const currentUrl = currentAtt?.url || currentAtt?.file_url || ''
+        
+        return (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 2000, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' }}>
+              <div style={{ color: 'white', fontSize: '14px' }}>{optImages.length > 1 && `${optionLightboxIndex + 1} / ${optImages.length}`}</div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setOptionLightboxZoom(z => Math.min(z * 1.5, 5))} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Zoom In"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+                <button onClick={() => { setOptionLightboxZoom(z => { const nz = Math.max(z / 1.5, 1); if (nz === 1) setOptionLightboxPan({ x: 0, y: 0 }); return nz }) }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Zoom Out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+                <button onClick={() => { setOptionLightboxZoom(1); setOptionLightboxPan({ x: 0, y: 0 }) }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Reset"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+                <button onClick={() => { setOptionLightboxOptionId(null); setOptionLightboxIndex(null); setOptionLightboxZoom(1); setOptionLightboxPan({ x: 0, y: 0 }) }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              {optImages.length > 1 && <button onClick={() => { setOptionLightboxIndex(i => i !== null ? (i > 0 ? i - 1 : optImages.length - 1) : null); setOptionLightboxZoom(1); setOptionLightboxPan({ x: 0, y: 0 }) }} style={{ position: 'absolute', left: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '50px', height: '50px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><polyline points="15 18 9 12 15 6"/></svg></button>}
+              <div 
+                onClick={(e) => { if (e.target === e.currentTarget) { setOptionLightboxOptionId(null); setOptionLightboxIndex(null); setOptionLightboxZoom(1); setOptionLightboxPan({ x: 0, y: 0 }) } }} 
+                onDoubleClick={() => { 
+                  if (optionLightboxZoom > 1) { 
+                    setOptionLightboxZoom(1); setOptionLightboxPan({ x: 0, y: 0 }) 
+                  } else { 
+                    setOptionLightboxZoom(2.5)
+                  } 
+                }}
+                onMouseDown={(e) => {
+                  if (optionLightboxZoom <= 1) return
+                  const startX = e.clientX - optionLightboxPan.x
+                  const startY = e.clientY - optionLightboxPan.y
+                  const handleMouseMove = (moveE: MouseEvent) => {
+                    setOptionLightboxPan({ x: moveE.clientX - startX, y: moveE.clientY - startY })
+                  }
+                  const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove)
+                    document.removeEventListener('mouseup', handleMouseUp)
+                  }
+                  document.addEventListener('mousemove', handleMouseMove)
+                  document.addEventListener('mouseup', handleMouseUp)
+                }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: optionLightboxZoom > 1 ? 'grab' : 'zoom-in', height: '100%' }}
+              >
+                <img src={currentUrl} alt="Full size" draggable={false} style={{ maxWidth: optionLightboxZoom === 1 ? '90vw' : 'none', maxHeight: optionLightboxZoom === 1 ? '80vh' : 'none', transform: `translate(${optionLightboxPan.x}px, ${optionLightboxPan.y}px) scale(${optionLightboxZoom})`, transition: 'transform 0.1s ease-out', borderRadius: '4px' }} />
+              </div>
+              {optImages.length > 1 && <button onClick={() => { setOptionLightboxIndex(i => i !== null ? (i < optImages.length - 1 ? i + 1 : 0) : null); setOptionLightboxZoom(1); setOptionLightboxPan({ x: 0, y: 0 }) }} style={{ position: 'absolute', right: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: '50px', height: '50px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><polyline points="9 18 15 12 9 6"/></svg></button>}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px 20px', background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)', gap: '20px' }}>
+              <a href={currentUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#d71cd1', textDecoration: 'none', fontSize: '14px' }}>Open in New Tab</a>
+              <a href={currentUrl} download style={{ color: '#d71cd1', textDecoration: 'none', fontSize: '14px' }}>Download</a>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Lightbox */}
       {lightboxUrl && (
