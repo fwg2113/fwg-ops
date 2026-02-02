@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Get current document
     const { data: doc, error: fetchError } = await supabase
       .from('documents')
       .select('*')
@@ -26,7 +25,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
-    // Build note entry
     const timestamp = new Date().toLocaleString('en-US', { 
       month: 'short', day: 'numeric', year: 'numeric',
       hour: 'numeric', minute: '2-digit', hour12: true 
@@ -42,7 +40,6 @@ export async function POST(request: NextRequest) {
     const existingNotes = doc.notes || ''
     const updatedNotes = existingNotes ? `${existingNotes}\n\n${noteEntry}` : noteEntry
 
-    // Update document
     const { error: updateError } = await supabase
       .from('documents')
       .update({
@@ -56,7 +53,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to update document' }, { status: 500 })
     }
 
-    // Send SMS notification to business
     const businessPhone = process.env.TWILIO_PHONE_TO || '+12406933715'
     let smsBody = `Option Selected!\n${customerName} selected "${optionTitle}" on Quote #${doc.doc_number}`
     if (question) {
