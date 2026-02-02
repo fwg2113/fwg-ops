@@ -28,19 +28,18 @@ export async function POST(request: Request) {
 
     // If it's a quote and we should convert to invoice
     if (doc.doc_type === 'quote' && convertToInvoice) {
-      // Get next invoice number
-      const { data: lastInvoice } = await supabase
+      // Get next doc_number from ALL documents (not just invoices)
+      const { data: lastDoc } = await supabase
         .from('documents')
         .select('doc_number')
-        .eq('doc_type', 'invoice')
         .order('doc_number', { ascending: false })
         .limit(1)
         .single()
 
-      const nextInvoiceNumber = (lastInvoice?.doc_number || 1000) + 1
+      const nextDocNumber = (lastDoc?.doc_number || 1000) + 1
 
       updateData.doc_type = 'invoice'
-      updateData.doc_number = nextInvoiceNumber
+      updateData.doc_number = nextDocNumber
       updateData.balance_due = doc.total - (doc.amount_paid || 0)
     }
 
