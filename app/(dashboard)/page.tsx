@@ -36,6 +36,11 @@ export default async function DashboardPage() {
     .from('pinned_items')
     .select('*')
 
+  const { data: calendarEvents } = await supabase
+    .from('calendar_events')
+    .select('document_id')
+    .not('document_id', 'is', null)
+
   // Fetch LIVE metrics from Google Sheets
   let liveMetrics = {
     fwgMtdTotal: 0,
@@ -63,9 +68,12 @@ export default async function DashboardPage() {
     .map(([category, amount]) => ({ category, amount: amount as number }))
     .sort((a, b) => b.amount - a.amount)
 
+  // Get invoice IDs that have calendar events scheduled
+  const scheduledInvoiceIds = new Set((calendarEvents || []).map(e => e.document_id))
+
   const dashboardData = {
     quotes: quotes || [],
-    invoices: invoices || [],
+    invoices: (invoices || []).map(inv => ({ ...inv, hasScheduledEvent: scheduledInvoiceIds.has(inv.id) })),
     submissions: submissions || [],
     tasks: tasks || [],
     pinnedItems: pinnedItems || [],
