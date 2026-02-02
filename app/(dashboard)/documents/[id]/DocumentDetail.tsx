@@ -1757,7 +1757,14 @@ export default function DocumentDetail({
               onClick={async () => {
                 const newMode = !optionsMode
                 setOptionsMode(newMode)
-                await supabase.from('documents').update({ options_mode: newMode }).eq('id', doc.id)
+                const updateData: any = { options_mode: newMode }
+                if (!newMode && ['option_selected', 'viewed', 'sent'].includes(doc.status)) {
+                  updateData.status = 'draft'
+                }
+                await supabase.from('documents').update(updateData).eq('id', doc.id)
+                if (updateData.status) {
+                  window.location.reload()
+                }
               }}
               style={{
                 padding: '10px 20px',
