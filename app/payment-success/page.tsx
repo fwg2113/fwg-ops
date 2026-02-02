@@ -33,7 +33,9 @@ export default async function PaymentSuccessPage({
     
     if (session.metadata?.document_id) {
       documentId = session.metadata.document_id
-      amount = (session.amount_total || 0) / 100
+      const stripeAmount = (session.amount_total || 0) / 100
+      // Use base amount from metadata if available (excludes CC processing fee)
+      amount = session.metadata?.base_amount ? parseFloat(session.metadata.base_amount) : stripeAmount
       
       const { data: invoice } = await supabase
         .from('documents')
@@ -56,12 +58,14 @@ export default async function PaymentSuccessPage({
           })
           .eq('id', documentId)
         
+        const paymentType = session.metadata?.payment_type === 'bank_transfer' ? 'bank_transfer' : 'card'
+        
         await supabase
           .from('payments')
           .insert({
             document_id: documentId,
             amount: amount,
-            payment_method: 'card',
+            payment_method: paymentType,
             processor: 'stripe',
             processor_txn_id: session.payment_intent,
             status: 'completed',
