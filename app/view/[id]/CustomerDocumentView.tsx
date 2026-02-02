@@ -194,14 +194,14 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
   }
 
   const handlePayment = async (method: 'bank' | 'card') => {
-    // For now, create a Stripe payment link
     try {
-      const res = await fetch('/api/stripe/create-payment-link', {
+      const endpoint = method === 'bank' ? '/api/payment/bank' : '/api/payment'
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId: doc.id,
-          amount: balanceDue,
+          amount: method === 'card' ? cardTotal : balanceDue,
           method
         })
       })
