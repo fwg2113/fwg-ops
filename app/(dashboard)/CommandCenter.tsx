@@ -38,6 +38,7 @@ type Document = {
   paid_at?: string
   event_id?: string
   revision_history_json?: any
+  notes?: string
 }
 
 type Submission = {
@@ -61,7 +62,7 @@ type Submission = {
 type ActionItem = {
   id: string
   type: 'submission' | 'quote' | 'invoice' | 'task'
-  actionType: 'new-lead' | 'followup' | 'schedule' | 'convert' | 'send' | 'task' | 'revision' | 'payment-received'
+  actionType: 'new-lead' | 'followup' | 'schedule' | 'convert' | 'send' | 'task' | 'revision' | 'payment-received' | 'option-selected'
   customer: string
   details: string
   amount: number
@@ -200,6 +201,25 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       
     // Quotes needing action
     data.quotes.forEach(q => {
+      // Option selected - customer chose an option, need to finalize quote
+      if (q.status?.toLowerCase() === 'option_selected') {
+        let selectedOption = ''
+        if (q.notes) {
+          const match = q.notes.match(/Selected: (.+)/m)
+          if (match) selectedOption = match[1]
+        }
+        items.push({
+          id: `quote-${q.id}`,
+          type: 'quote',
+          actionType: 'option-selected',
+          customer: q.customer_name,
+          details: selectedOption || 'Customer selected an option',
+          amount: q.total || 0,
+          priority: 92,
+          data: q
+        })
+        return
+      }
       // Revision requested - needs response
       if (q.status?.toLowerCase() === 'revision_requested') {
         let revisionMessage = ''
@@ -455,7 +475,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       'send': { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' },
       'task': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' },
       'revision': { bg: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' },
-      'payment-received': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }
+      'payment-received': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
+      'option-selected': { bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }
     }
     return styles[actionType] || styles['task']
   }
@@ -469,7 +490,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       'new-lead': 'New Lead',
       'task': 'Task',
       'revision': 'Revision Requested',
-      'payment-received': 'Payment Received'
+      'payment-received': 'Payment Received',
+      'option-selected': 'Option Selected'
     }
     return labels[actionType] || 'Action'
   }

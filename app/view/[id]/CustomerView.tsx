@@ -71,6 +71,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: C
   const [revisionName, setRevisionName] = useState('')
   const [contactPreference, setContactPreference] = useState<'sms' | 'email'>('sms')
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [mainImageIndex, setMainImageIndex] = useState(0)
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
   const [optionQuestion, setOptionQuestion] = useState('')
   const [showQuestionField, setShowQuestionField] = useState(false)
@@ -573,7 +574,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: C
               border: '1px solid #334155',
               borderTop: 'none'
             }}>
-              {imageAttachments[0] && (
+              {imageAttachments[mainImageIndex] && (
                 <div 
                   style={{ 
                     width: '100%', 
@@ -582,10 +583,10 @@ export default function CustomerView({ document: doc, lineItems }: { document: C
                     marginBottom: imageAttachments.length > 1 ? '12px' : 0,
                     cursor: 'pointer'
                   }}
-                  onClick={() => setLightboxUrl(imageAttachments[0].url || imageAttachments[0].file_url || null)}
+                  onClick={() => setLightboxUrl(imageAttachments[mainImageIndex].url || imageAttachments[mainImageIndex].file_url || null)}
                 >
                   <img 
-                    src={imageAttachments[0].url || imageAttachments[0].file_url} 
+                    src={imageAttachments[mainImageIndex].url || imageAttachments[mainImageIndex].file_url} 
                     alt="Design" 
                     style={{ width: '100%', display: 'block' }}
                   />
@@ -603,9 +604,9 @@ export default function CustomerView({ document: doc, lineItems }: { document: C
                         borderRadius: '6px', 
                         overflow: 'hidden',
                         cursor: 'pointer',
-                        border: '2px solid transparent'
+                        border: mainImageIndex === idx ? '2px solid #d71cd1' : '2px solid transparent'
                       }}
-                      onClick={() => setLightboxUrl(att.url || att.file_url || null)}
+                      onClick={() => setMainImageIndex(idx)}
                     >
                       <img 
                         src={att.url || att.file_url} 
