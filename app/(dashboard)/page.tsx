@@ -49,19 +49,26 @@ export default async function DashboardPage() {
     bonus25Pct: 0,
     categoryMtd: {} as Record<string, number>
   }
-  let pipelineMetrics = {
-    pipelineValue: 0,
-    quotes: { totalValue: 0, count: 0 },
-    invoices: { unpaidValue: 0, count: 0 },
-    actionItems: { newSubmissions: 0, approvedQuotes: 0, viewedQuotes: 0, unpaidInvoices: 0 }
-  }
-
   try {
     liveMetrics = await getCommandCenterMetrics()
-    pipelineMetrics = await getPipelineMetrics()
   } catch (error) {
     console.error('Error fetching Google Sheets metrics:', error)
   }
+
+  // Calculate pipeline value from Supabase data (not Google Sheets)
+  const activeQuoteStatuses = ['draft', 'sent', 'viewed', 'approved', 'revision_requested', 'option_selected']
+  const quotePipelineValue = (quotes || [])
+    .filter(q => activeQuoteStatuses.includes(q.status?.toLowerCase()))
+    .reduce((sum, q) => sum + (q.total || 0), 0)
+
+  const invoicePipelineValue = (invoices || [])
+    .filter(i => i.status?.toLowerCase() !== 'paid' && i.status?.toLowerCase() !== 'void' && i.status?.toLowerCase() !== 'archived')
+    .reduce((sum, i) => sum + (i.balance_due || i.total || 0), 0)
+
+  const submissionPipelineValue = (submissions || [])
+    .reduce((sum, s) => sum + (s.price_range_max || 0), 0)
+
+  const pipelineValue = quotePipelineValue + invoicePipelineValue + submissionPipelineValue
 
   // Convert category breakdown to array format
   const categoryBreakdown = Object.entries(liveMetrics.categoryMtd || {})
@@ -82,7 +89,7 @@ export default async function DashboardPage() {
       ppfVinylRevenue: liveMetrics.bonusEligibleMtd,
       bonus25Pct: liveMetrics.bonus25Pct,
       yearlyRevenue: liveMetrics.fwgYtdTotal,
-      pipelineValue: pipelineMetrics.pipelineValue
+      pipelineValue: pipelineValue
     },
     categoryBreakdown
   }
