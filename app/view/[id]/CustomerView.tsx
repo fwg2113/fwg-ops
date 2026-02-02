@@ -58,6 +58,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [revisionMessage, setRevisionMessage] = useState('')
   const [revisionName, setRevisionName] = useState('')
+  const [contactPreference, setContactPreference] = useState<'sms' | 'email'>('sms')
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   
   const isQuote = doc.doc_type === 'quote'
@@ -195,7 +196,8 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
         body: JSON.stringify({ 
           documentId: doc.id,
           message: revisionMessage,
-          name: revisionName || doc.customer_name
+          name: revisionName || doc.customer_name,
+          contactPreference: contactPreference
         })
       })
       
@@ -625,6 +627,41 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
                     resize: 'vertical'
                   }}
                 />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '10px', textTransform: 'uppercase' }}>How should we contact you?</label>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="contactPreference"
+                      value="sms"
+                      checked={contactPreference === 'sms'}
+                      onChange={(e) => setContactPreference(e.target.value as 'sms' | 'email')}
+                      style={{ accentColor: '#d71cd1' }}
+                    />
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span style={{ color: '#f1f5f9', fontSize: '14px' }}>Text Message</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="contactPreference"
+                      value="email"
+                      checked={contactPreference === 'email'}
+                      onChange={(e) => setContactPreference(e.target.value as 'sms' | 'email')}
+                      style={{ accentColor: '#d71cd1' }}
+                    />
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                      <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    <span style={{ color: '#f1f5f9', fontSize: '14px' }}>Email</span>
+                  </label>
+                </div>
               </div>
               
               <button

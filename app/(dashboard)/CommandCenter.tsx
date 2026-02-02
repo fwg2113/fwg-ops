@@ -37,6 +37,7 @@ type Document = {
   followup_count?: number
   paid_at?: string
   event_id?: string
+  revision_history_json?: any
 }
 
 type Submission = {
@@ -60,7 +61,7 @@ type Submission = {
 type ActionItem = {
   id: string
   type: 'submission' | 'quote' | 'invoice' | 'task'
-  actionType: 'new-lead' | 'followup' | 'schedule' | 'convert' | 'send' | 'task'
+  actionType: 'new-lead' | 'followup' | 'schedule' | 'convert' | 'send' | 'task' | 'revision'
   customer: string
   details: string
   amount: number
@@ -196,8 +197,37 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
         })
       })
 
+      
     // Quotes needing action
     data.quotes.forEach(q => {
+      // Revision requested - needs response
+      if (q.status?.toLowerCase() === 'revision_requested') {
+        let revisionMessage = ''
+        let contactPref = 'sms'
+        if (q.revision_history_json) {
+          try {
+            const history = typeof q.revision_history_json === 'string' 
+              ? JSON.parse(q.revision_history_json) 
+              : q.revision_history_json
+            if (Array.isArray(history) && history.length > 0) {
+              const latest = history[history.length - 1]
+              revisionMessage = latest.message?.substring(0, 50) + (latest.message?.length > 50 ? '...' : '')
+              contactPref = latest.contactPreference || 'sms'
+            }
+          } catch (e) {}
+        }
+        items.push({
+          id: `quote-${q.id}`,
+          type: 'quote',
+          actionType: 'revision',
+          customer: q.customer_name,
+          details: revisionMessage || 'Revision requested',
+          amount: q.total || 0,
+          priority: 95,
+          data: { ...q, contactPreference: contactPref }
+        })
+        return
+      }
       // Draft quotes - need to send
       if (q.status?.toLowerCase() === 'draft') {
         items.push({
@@ -404,7 +434,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       'schedule': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
       'convert': { bg: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6' },
       'send': { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' },
-      'task': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' }
+      'task': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' },
+      'revision': { bg: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' }
     }
     return styles[actionType] || styles['task']
   }
@@ -416,7 +447,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       'followup': 'Follow Up',
       'send': 'Send',
       'new-lead': 'New Lead',
-      'task': 'Task'
+      'task': 'Task',
+      'revision': 'Revision Requested'
     }
     return labels[actionType] || 'Action'
   }
