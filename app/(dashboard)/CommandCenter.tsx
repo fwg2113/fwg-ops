@@ -61,7 +61,7 @@ type Submission = {
 type ActionItem = {
   id: string
   type: 'submission' | 'quote' | 'invoice' | 'task'
-  actionType: 'new-lead' | 'followup' | 'schedule' | 'convert' | 'send' | 'task' | 'revision'
+  actionType: 'new-lead' | 'followup' | 'schedule' | 'convert' | 'send' | 'task' | 'revision' | 'payment-received'
   customer: string
   details: string
   amount: number
@@ -275,8 +275,27 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
 
     // Invoices needing action
     data.invoices.forEach(inv => {
-      // Paid invoices - schedule installation
-      if (inv.status?.toLowerCase() === 'paid') {
+      // Recently paid invoices - payment received (show for 24 hours after payment)
+      if ((inv.status?.toLowerCase() === 'paid' || inv.status?.toLowerCase() === 'partial') && inv.paid_at) {
+        const paidDate = new Date(inv.paid_at)
+        const hoursSincePaid = (Date.now() - paidDate.getTime()) / (1000 * 60 * 60)
+        if (hoursSincePaid < 24) {
+          const isPartial = inv.status?.toLowerCase() === 'partial'
+          items.push({
+            id: `invoice-payment-${inv.id}`,
+            type: 'invoice',
+            actionType: 'payment-received',
+            customer: inv.customer_name,
+            details: (isPartial ? 'Deposit received' : 'Paid in full') + ' - ' + (inv.vehicle_description || inv.project_description || (inv.category ? formatCategoryLabel(inv.category) : '') || 'Invoice'),
+            amount: inv.total || 0,
+            priority: 85,
+            data: inv
+          })
+        }
+      }
+      // Paid invoices - schedule installation (only show if not recently paid)
+      const recentlyPaid = inv.paid_at && (Date.now() - new Date(inv.paid_at).getTime()) / (1000 * 60 * 60) < 24
+      if (inv.status?.toLowerCase() === 'paid' && !inv.event_id && !recentlyPaid) {
         items.push({
           id: `invoice-${inv.id}`,
           type: 'invoice',
@@ -435,7 +454,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       'convert': { bg: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6' },
       'send': { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' },
       'task': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' },
-      'revision': { bg: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' }
+      'revision': { bg: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' },
+      'payment-received': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }
     }
     return styles[actionType] || styles['task']
   }
@@ -448,7 +468,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       'send': 'Send',
       'new-lead': 'New Lead',
       'task': 'Task',
-      'revision': 'Revision Requested'
+      'revision': 'Revision Requested',
+      'payment-received': 'Payment Received'
     }
     return labels[actionType] || 'Action'
   }
