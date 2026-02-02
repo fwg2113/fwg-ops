@@ -109,6 +109,10 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
   // Format helpers
   const formatDate = (d: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
   const formatCurrency = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const formatCategory = (cat: string) => {
+    if (!cat) return ''
+    return cat.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+  }
 
   // Status badge
   const getStatusLabel = () => {
@@ -499,7 +503,7 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
                   }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>{item.description || 'Line Item'}</div>
-                    {item.category && <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{item.category}</div>}
+                    {item.category && <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{formatCategory(item.category)}</div>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
@@ -719,12 +723,12 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
                   top: '-10px',
                   right: '16px',
                   padding: '4px 12px',
-                  background: 'linear-gradient(179deg, #ffffff 0%, #969696 40%)',
+                  background: 'linear-gradient(135deg, #be1e2d 0%, #b60718 100%)',
                   borderRadius: '12px',
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: '#1a1a1a',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  color: '#ffffff',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
                 }}>
                   SAVE {formatCurrency(cardFee)}
                 </div>
@@ -857,7 +861,7 @@ export default function CustomerDocumentView({ document: doc, lineItems }: Props
   Simple, Honest & Convenient
 </p>
 <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 8px 0' }}>
-  Frederick Wraps & Graphics | 5728 Industry Lane, Frederick, MD 21704
+  Frederick Wraps & Graphics | 4509 Metropolitan Ct Ste A, Frederick, MD 21704
 </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '24px' }}>
             <a href="https://frederickwraps.com" style={{ color: '#be1e2d', fontSize: '13px', textDecoration: 'none' }}>Website</a>
