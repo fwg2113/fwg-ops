@@ -1593,6 +1593,84 @@ export default function DocumentDetail({
         </div>
       </div>
 
+      {/* Revision Request Banner */}
+      {doc.status === 'revision_requested' && revisions.length > 0 && (() => {
+        const latestRevision = revisions[revisions.length - 1]
+        const contactPref = (latestRevision as any).contactPreference || 'sms'
+        return (
+          <div style={{
+            background: 'rgba(251, 146, 60, 0.15)',
+            border: '2px solid #fb923c',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '16px'
+          }}>
+            <div style={{ 
+              width: '40px', 
+              height: '40px', 
+              borderRadius: '50%', 
+              background: 'rgba(251, 146, 60, 0.3)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fb923c" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span style={{ color: '#fb923c', fontWeight: 700, fontSize: '14px', textTransform: 'uppercase' }}>Revision Requested</span>
+                <span style={{ 
+                  padding: '2px 8px', 
+                  borderRadius: '4px', 
+                  fontSize: '11px', 
+                  fontWeight: 600,
+                  background: contactPref === 'email' ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.2)',
+                  color: contactPref === 'email' ? '#3b82f6' : '#22c55e'
+                }}>
+                  Prefers {contactPref === 'email' ? 'Email' : 'SMS'}
+                </span>
+              </div>
+              <div style={{ color: '#f1f5f9', fontSize: '14px', lineHeight: 1.5, marginBottom: '12px' }}>
+                "{latestRevision.message}"
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <ActionButton 
+                  onClick={() => router.push(`/messages?phone=${encodeURIComponent(customerPhone)}`)} 
+                  variant="primary" 
+                  style={{ padding: '8px 16px', fontSize: '13px' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  Reply via SMS
+                </ActionButton>
+                <ActionButton 
+                  onClick={() => {}} 
+                  variant="secondary" 
+                  style={{ padding: '8px 16px', fontSize: '13px', opacity: 0.5, cursor: 'not-allowed' }}
+                  disabled
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  Reply via Email
+                </ActionButton>
+              </div>
+            </div>
+            <div style={{ color: '#64748b', fontSize: '12px', flexShrink: 0 }}>
+              {new Date(latestRevision.timestamp).toLocaleString()}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Customer Information */}
       <div style={cardStyle}>
         <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>Customer Information</h3>

@@ -228,6 +228,7 @@ export default function CustomerView({ document: doc, lineItems }: { document: D
     if (s === 'paid') return { text: 'Paid in Full', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' }
     if (s === 'partial') return { text: 'Partial Payment Received', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
     if (s === 'viewed' || s === 'sent') return { text: 'Awaiting Your Response', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
+    if (s === 'revision_requested') return { text: 'Revision In Progress - We\'ll be in touch soon!', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.15)' }
     return { text: status, color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)' }
   }
 
