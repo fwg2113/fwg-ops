@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       .eq('call_sid', callSid)
 
     const from = url.searchParams.get('from')
-    const voicemailUrl = "https://fwg-ops.vercel.app/api/voice/voicemail?callSid=" + callSid + "&amp;from=" + encodeURIComponent(from || "")
+    const voicemailUrl = "https://ops.frederickwraps.com/api/voice/voicemail?callSid=" + callSid + "&amp;from=" + encodeURIComponent(from || "")
     const twiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"alice\">No one is available. Please leave a message after the beep.</Say><Record maxLength=\"120\" action=\"" + voicemailUrl + "\" /></Response>"
 
     return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })

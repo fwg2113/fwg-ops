@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     // Build dial - escape & as &amp; for XML
     const numbers = teamPhones.map(p => `<Number>${p.phone}</Number>`).join('\n    ')
-    const actionUrl = `https://fwg-ops.vercel.app/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
+    const actionUrl = `https://ops.frederickwraps.com/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
