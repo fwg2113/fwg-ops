@@ -2,11 +2,10 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-  const hostname = request.headers.get('host') || ''
+  const { pathname, hostname } = request.nextUrl
 
   // Portal domain - only allow customer-facing routes
-  if (hostname.startsWith('portal.')) {
+  if (hostname.includes('portal')) {
     if (
       pathname.startsWith('/view') ||
       pathname.startsWith('/payment-success') ||
@@ -16,12 +15,10 @@ export function middleware(request: NextRequest) {
     ) {
       return NextResponse.next()
     }
-    // Redirect everything else to a not-found or back to view
     return NextResponse.redirect(new URL('/view/not-found', request.url))
   }
 
   // Ops domain and all others - require auth
-  // Allow public routes
   if (
     pathname === '/login' ||
     pathname.startsWith('/view') ||
@@ -33,7 +30,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check for auth cookie
   const authCookie = request.cookies.get('fwg_auth')
 
   if (!authCookie) {
