@@ -405,7 +405,18 @@ export default function DocumentDetail({
   const calculatedTax = taxableSubtotal * 0.06
   const taxAmount = calculatedTax
   const total = subtotal + feesTotal - discountAmount + taxAmount
-  const balanceDue = total - (doc.amount_paid || 0)
+  // Calculate actual amount paid from payments (doc.amount_paid may be stale)
+  const actualAmountPaid = (() => {
+    const fromPayments = (payments || []).filter(p => p.status === 'completed').reduce((sum, p) => {
+      const amt = parseFloat(String(p.amount)) || 0
+      const fee = parseFloat(String(p.processing_fee)) || 0
+      if (fee > 0 && fee < amt) return sum + (amt - fee)
+      if (fee >= amt && p.payment_method === 'card') return sum + Math.round(((amt - 0.30) / 1.029) * 100) / 100
+      return sum + amt
+    }, 0)
+    return Math.max(fromPayments, parseFloat(String(doc.amount_paid)) || 0)
+  })()
+  const balanceDue = total - actualAmountPaid
 
   
   // Auto-update deposit when total changes (if not custom)
@@ -1051,7 +1062,7 @@ export default function DocumentDetail({
       if (paymentError) throw paymentError
       
       // Update document totals
-      const newAmountPaid = (doc.amount_paid || 0) + paymentAmount
+      const newAmountPaid = actualAmountPaid + paymentAmount
       const newBalanceDue = total - newAmountPaid
       const isPaidInFull = newBalanceDue <= 0
       
@@ -2404,13 +2415,13 @@ export default function DocumentDetail({
             <span style={{ color: '#f1f5f9', fontSize: '14px', textAlign: 'right' }}>${depositRequired.toFixed(2)}</span>
           </div>
           
-          {/* Invoice-specific: Amount Paid & Balance Due */}
-          {isInvoice && (doc.amount_paid || 0) > 0 && (
+          {/* Amount Paid & Balance Due - show for any doc type with payments */}
+          {actualAmountPaid > 0 && (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px', alignItems: 'center', marginTop: '16px', gap: '12px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '14px' }}>Amount Paid</span>
                 <div></div>
-                <span style={{ color: '#22c55e', fontSize: '14px', textAlign: 'right' }}>-${(doc.amount_paid || 0).toFixed(2)}</span>
+                <span style={{ color: '#22c55e', fontSize: '14px', textAlign: 'right' }}>-${actualAmountPaid.toFixed(2)}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px', alignItems: 'center', marginTop: '16px', gap: '12px' }}>
                 <span style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600 }}>Balance Due</span>
@@ -2499,8 +2510,8 @@ export default function DocumentDetail({
 
 
 
-      {/* Payments Section - Invoice Only */}
-      {isInvoice && (
+      {/* Payments Section */}
+      {(isInvoice || payments.length > 0 || actualAmountPaid > 0) && (
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Payments</h3>
@@ -2541,7 +2552,7 @@ export default function DocumentDetail({
           {payments.length > 0 && (
             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: '#64748b', fontSize: '14px' }}>Total Paid</span>
-              <span style={{ color: '#22c55e', fontSize: '16px', fontWeight: 600 }}>${(doc.amount_paid || 0).toFixed(2)}</span>
+              <span style={{ color: '#22c55e', fontSize: '16px', fontWeight: 600 }}>${actualAmountPaid.toFixed(2)}</span>
             </div>
           )}
         </div>

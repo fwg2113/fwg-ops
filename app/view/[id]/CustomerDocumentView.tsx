@@ -176,10 +176,25 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const taxableSubtotal = lineItems.filter(item => item.taxable).reduce((sum, item) => sum + (item.line_total || 0), 0)
   const taxAmount = taxableSubtotal * 0.06
   const total = subtotal + feesTotal - discountAmount + taxAmount
-  const balanceDue = total - (doc.amount_paid || 0)
+  // Calculate actual amount paid from payments table (doc.amount_paid may not be updated)
+  const actualAmountPaid = (() => {
+    const fromPayments = payments.filter(p => p.status === 'completed').reduce((sum, p) => {
+      const amt = parseFloat(String(p.amount)) || 0
+      const fee = parseFloat(String(p.processing_fee)) || 0
+      // If processing_fee is valid (> 0 and less than amount), subtract it
+      if (fee > 0 && fee < amt) return sum + (amt - fee)
+      // If processing_fee equals amount (known bug), reverse-calculate net from card fee formula
+      if (fee >= amt && p.payment_method === 'card') return sum + Math.round(((amt - 0.30) / 1.029) * 100) / 100
+      // Bank transfer or no fee — full amount goes toward balance
+      return sum + amt
+    }, 0)
+    // Use whichever is higher: calculated from payments or doc.amount_paid
+    return Math.max(fromPayments, parseFloat(String(doc.amount_paid)) || 0)
+  })()
+  const balanceDue = total - actualAmountPaid
   const depositRequired = doc.deposit_required || 0
-  const amountDue = depositRequired > 0 && depositRequired < total && (doc.amount_paid || 0) < depositRequired
-    ? depositRequired - (doc.amount_paid || 0)
+  const amountDue = depositRequired > 0 && depositRequired < total && actualAmountPaid < depositRequired
+    ? depositRequired - actualAmountPaid
     : balanceDue
 
   // Format helpers
@@ -207,9 +222,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const isQuote = doc.doc_type === 'quote'
   const isInvoice = doc.doc_type === 'invoice'
   const canApprove = isQuote && ['sent', 'viewed'].includes(status?.toLowerCase()) && !isOptionsMode
-  const canPay = (isInvoice || status === 'approved') && balanceDue > 0
+  const canPay = (isInvoice || ['approved', 'partial'].includes(status?.toLowerCase())) && balanceDue > 0.01
 
-  // Card fee calculation (3%)
+  // Card fee calculation (2.9% + $0.30)
   const cardFee = amountDue * 0.029 + 0.30
   const cardTotal = amountDue + cardFee
 
@@ -375,6 +390,8 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         body: JSON.stringify({
           documentId: doc.id,
           amount: method === 'card' ? cardTotal : amountDue,
+          netAmount: amountDue,
+          processingFee: method === 'card' ? cardFee : 0,
           method
         })
       })
@@ -454,17 +471,46 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                 </svg>
               </div>
               
-              <div style={{
-                background: '#be1e2d',
-                color: 'white',
-                padding: '8px 20px',
-                borderRadius: '20px',
-                fontSize: '13px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '1px'
-              }}>
-                {isQuote ? 'Quote' : 'Invoice'} #{doc.doc_number}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  className="no-print"
+                  onClick={() => window.print()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    background: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '20px',
+                    color: '#6b7280',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#be1e2d'; e.currentTarget.style.color = '#be1e2d'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#6b7280'; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Save PDF
+                </button>
+                <div style={{
+                  background: '#be1e2d',
+                  color: 'white',
+                  padding: '8px 20px',
+                  borderRadius: '20px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px'
+                }}>
+                  {isQuote ? 'Quote' : 'Invoice'} #{doc.doc_number}
+                </div>
               </div>
             </div>
             
@@ -1226,11 +1272,11 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   <span style={{ fontSize: '24px', fontWeight: 700, color: '#be1e2d' }}>{formatCurrency(total)}</span>
                 </div>
                 
-                {(doc.amount_paid || 0) > 0 && (
+                {actualAmountPaid > 0 && (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
                       <span style={{ color: '#22c55e' }}>Amount Paid</span>
-                      <span style={{ color: '#22c55e' }}>-{formatCurrency(doc.amount_paid)}</span>
+                      <span style={{ color: '#22c55e' }}>-{formatCurrency(actualAmountPaid)}</span>
                     </div>
                     {payments.filter(p => (parseFloat(String(p.processing_fee)) || 0) > 0).map(p => (
                       <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
@@ -1424,7 +1470,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Bank Transfer</span>
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(amountDue)}</div>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total ? '50% deposit · No processing fee' : 'No processing fee'}</div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total && actualAmountPaid < depositRequired ? '50% deposit · No processing fee' : 'No processing fee'}</div>
               </div>
               
               {/* Credit Card */}
@@ -1449,7 +1495,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Credit Card</span>
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(cardTotal)}</div>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total ? '50% deposit · Includes 2.9% + $0.30 processing fee' : 'Includes 3% processing fee'}</div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total && actualAmountPaid < depositRequired ? '50% deposit · Includes 2.9% + $0.30 processing fee' : 'Includes 2.9% + $0.30 processing fee'}</div>
               </div>
             </div>
           </div>
@@ -1488,7 +1534,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#be1e2d" strokeWidth="2">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
               </svg>
-              (240) 693-3715 
+              (240) 770-5424
             </a>
             <a 
               href="mailto:joe@frederickwraps.com"
@@ -1512,7 +1558,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
-              info@frederickwraps.com
+              joe@frederickwraps.com
             </a>
           </div>
         </div>
