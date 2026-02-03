@@ -210,7 +210,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const canPay = (isInvoice || status === 'approved') && balanceDue > 0
 
   // Card fee calculation (3%)
-  const cardFee = amountDue * 0.03
+  const cardFee = amountDue * 0.029 + 0.30
   const cardTotal = amountDue + cardFee
 
   // ============================================================================
@@ -1449,7 +1449,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Credit Card</span>
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(cardTotal)}</div>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total ? '50% deposit · Includes 3% processing fee' : 'Includes 3% processing fee'}</div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total ? '50% deposit · Includes 2.9% + $0.30 processing fee' : 'Includes 3% processing fee'}</div>
               </div>
             </div>
           </div>
