@@ -9,7 +9,7 @@ const twilioClient = twilio(
 
 export async function POST(request: NextRequest) {
   try {
-    const { documentId, optionId, optionTitle, question, customerName } = await request.json()
+    const { documentId, optionId, optionTitle, question, customerName, contactPreference } = await request.json()
 
     if (!documentId || !optionId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -33,8 +33,11 @@ export async function POST(request: NextRequest) {
     let noteEntry = `** OPTION SELECTED (${timestamp}) **\n`
     noteEntry += `Customer: ${customerName}\n`
     noteEntry += `Selected: ${optionTitle}\n`
+    if (contactPreference) {
+      noteEntry += `Contact Preference: ${contactPreference === 'sms' ? 'Text/SMS' : 'Email'}\n`
+    }
     if (question) {
-      noteEntry += `Question: ${question}\n`
+      noteEntry += `Revision Request: ${question}\n`
     }
 
     const existingNotes = doc.notes || ''
@@ -55,8 +58,11 @@ export async function POST(request: NextRequest) {
 
     const businessPhone = process.env.TWILIO_PHONE_TO || '+12406933715'
     let smsBody = `Option Selected!\n${customerName} selected "${optionTitle}" on Quote #${doc.doc_number}`
+    if (contactPreference) {
+      smsBody += `\nPrefers: ${contactPreference === 'sms' ? 'Text/SMS' : 'Email'}`
+    }
     if (question) {
-      smsBody += `\n\nQuestion: ${question}`
+      smsBody += `\n\nRevision Request: ${question}`
     }
 
     try {
