@@ -1278,11 +1278,17 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                       <span style={{ color: '#22c55e' }}>Amount Paid</span>
                       <span style={{ color: '#22c55e' }}>-{formatCurrency(actualAmountPaid)}</span>
                     </div>
-                    {payments.filter(p => (parseFloat(String(p.processing_fee)) || 0) > 0).map(p => (
-                      <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                        <span style={{ color: '#6b7280', fontSize: '12px' }}>+ {formatCurrency(parseFloat(String(p.processing_fee)))} credit card processing fee applied at checkout</span>
-                      </div>
-                    ))}
+                    {payments.filter(p => (parseFloat(String(p.processing_fee)) || 0) > 0 && p.payment_method === 'card').map(p => {
+                      const amt = parseFloat(String(p.amount)) || 0
+                      const rawFee = parseFloat(String(p.processing_fee)) || 0
+                      // If fee is bugged (equals or exceeds amount), calculate the actual fee
+                      const actualFee = (rawFee >= amt) ? Math.round((amt - (amt - 0.30) / 1.029) * 100) / 100 : rawFee
+                      return (
+                        <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                          <span style={{ color: '#6b7280', fontSize: '12px' }}>+ {formatCurrency(actualFee)} credit card processing fee applied at checkout</span>
+                        </div>
+                      )
+                    })}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
                       <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Balance Due</span>
                       <span style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(balanceDue)}</span>
