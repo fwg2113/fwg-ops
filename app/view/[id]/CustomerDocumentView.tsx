@@ -93,6 +93,10 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
   // Option hero image indexes (per option)
   const [optionHeroIndexes, setOptionHeroIndexes] = useState<Record<string, number>>({})
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+
+  // Ref for PDF capture
+  const documentRef = useRef<HTMLDivElement>(null)
 
   // Option lightbox state
   const [optLightbox, setOptLightbox] = useState<{ optionId: string; index: number } | null>(null)
@@ -404,6 +408,88 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     }
   }
 
+  // PDF Download handler
+  const handleDownloadPdf = async () => {
+    if (!documentRef.current || generatingPdf) return
+    setGeneratingPdf(true)
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const jsPDF = (await import('jspdf')).default
+
+      // Hide no-print elements during capture
+      const noPrintEls = documentRef.current.querySelectorAll('.no-print')
+      noPrintEls.forEach(el => (el as HTMLElement).style.display = 'none')
+
+      // Convert cross-origin images to base64 before capture
+      const images = documentRef.current.querySelectorAll('img')
+      const originalSrcs: { el: HTMLImageElement; src: string }[] = []
+      await Promise.all(Array.from(images).map(async (img) => {
+        try {
+          if (img.src && !img.src.startsWith('data:')) {
+            originalSrcs.push({ el: img, src: img.src })
+            const response = await fetch(img.src)
+            const blob = await response.blob()
+            const dataUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader()
+              reader.onloadend = () => resolve(reader.result as string)
+              reader.readAsDataURL(blob)
+            })
+            img.src = dataUrl
+          }
+        } catch (e) {
+          console.warn('Could not convert image to base64:', img.src, e)
+        }
+      }))
+
+      const canvas = await html2canvas(documentRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#f8f9fa',
+        logging: false
+      })
+
+      // Restore original image srcs
+      originalSrcs.forEach(({ el, src }) => { el.src = src })
+
+      // Restore no-print elements
+      noPrintEls.forEach(el => (el as HTMLElement).style.display = '')
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
+
+      // A4 proportions
+      const pdfWidth = 595.28
+      const pdfPageHeight = 841.89
+      const ratio = pdfWidth / imgWidth
+      const scaledHeight = imgHeight * ratio
+
+      const pdf = new jsPDF('p', 'pt', 'a4')
+      let position = 0
+      let remainingHeight = scaledHeight
+
+      // First page
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, scaledHeight)
+      remainingHeight -= pdfPageHeight
+
+      // Additional pages if needed
+      while (remainingHeight > 0) {
+        position -= pdfPageHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, scaledHeight)
+        remainingHeight -= pdfPageHeight
+      }
+
+      const docLabel = isQuote ? 'Quote' : 'Invoice'
+      pdf.save(`${docLabel}_${doc.doc_number}_${doc.customer_name.replace(/\s+/g, '_')}.pdf`)
+    } catch (err) {
+      console.error('PDF generation error:', err)
+      window.print()
+    }
+    setGeneratingPdf(false)
+  }
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -414,8 +500,47 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
       minHeight: '100vh',
       color: '#1a1a1a'
     }}>
+      {/* Print + Mobile Responsive Styles */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+          div[style*="box-shadow"] { box-shadow: none !important; }
+        }
+        @media (max-width: 768px) {
+          .header-inner { padding: 20px 16px !important; }
+          .header-logo svg { width: 160px !important; }
+          .header-top-row { flex-direction: column !important; gap: 16px !important; }
+          .header-badge-group { align-self: flex-start !important; }
+          .header-accent { display: none !important; }
+          .header-info-grid { 
+            grid-template-columns: 1fr !important; 
+            max-width: 100% !important; 
+            gap: 20px !important; 
+          }
+          .header-status-pill {
+            position: relative !important;
+            top: auto !important;
+            right: auto !important;
+            transform: none !important;
+            text-align: left !important;
+            margin-top: 4px !important;
+          }
+          .header-status-pill > div:first-child {
+            color: #6b7280 !important;
+            font-size: 11px !important;
+            letter-spacing: 0.5px !important;
+            margin-bottom: 8px !important;
+          }
+          .header-status-badge {
+            padding: 8px 20px !important;
+            font-size: 16px !important;
+          }
+          .main-container { padding: 12px !important; }
+        }
+      `}} />
       {/* Main Container */}
-      <div style={{ maxWidth: '1125px', margin: '0 auto', padding: '24px' }}>
+      <div ref={documentRef} className="main-container" style={{ maxWidth: '1125px', margin: '0 auto', padding: '24px' }}>
         
         {/* Header Card */}
         <div style={{
@@ -427,7 +552,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           position: 'relative'
         }}>
           {/* Maroon accent shape */}
-          <div style={{
+          <div className="header-accent" style={{
             position: 'absolute',
             top: '-50%',
             right: '-20%',
@@ -438,10 +563,10 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
             zIndex: 0
           }} />
           
-          <div style={{ position: 'relative', zIndex: 1, padding: '32px 40px' }}>
+          <div className="header-inner" style={{ position: 'relative', zIndex: 1, padding: '32px 40px' }}>
             {/* Top row: Logo + Badge */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div className="header-top-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+              <div className="header-logo" style={{ display: 'flex', alignItems: 'center' }}>
                 <svg viewBox="0 0 435.3 143.72" xmlns="http://www.w3.org/2000/svg" style={{ width: '240px', height: 'auto' }}>
                   <path d="M306.4,31.4c.8.9,1.5,2,2.1,3.1l.8-1.8v-1.6c-1.2,0-2.3-.1-3.5-.3.2.2.4.4.6.6h0Z"/>
                   <path d="M434.9,31.2V0h-150.7l-23.5,54.7L237.2,0h-31.2l-23.5,54.7L159,0H0v117.3l39.1-7.8v-36.9h78.6l7.8-31.3H39.1v-10.1h93.9c0,.1,33.8,78.2,33.8,78.2l31.8-.2,22.9-62.3,23.5,62.5h31.3l31.1-72.5h0s-.1-.2-.2-.3h0v-.4c-.2-.2-.2-.3-.3-.5-.3-.6-.7-1.2-1-1.7-.1-.2-.2-.3-.3-.4h0s-.1-.1-.2-.2c-.2-.3-.5-.5-.7-.8-.3-.3-.5-.5-.8-.8-.2-.1-.3-.2-.5-.4h-.1s-.2-.1-.2-.2c-.7-.5-1.4-.9-2.2-1.3-.5-.2-.6-.9-.3-1.3.2-.5.8-.5,1.2-.4,0,0-.1,0,0,0h.3c.3,0,.6.2.9.2.8.2,1.7.3,2.6.5h1.5c.7,0,1.3.1,2,.1h.2v-2.4c0-.9-.1-1.8-.2-2.7v-1c0,.3,0,0,0,0,0-.4-.1-.7-.2-1.1-.1-.5.2-1,.7-1.2s1.1.2,1.2.7c.4,1.9.5,3.9.6,5.9v1.9c.8,0,1.6,0,2.5-.1.4,0,.8,0,1.3-.1h1.2c.9-.1,1.8-.3,2.7-.5.5-.1,1,.2,1.2.7s-.2,1.1-.7,1.2c-2,.4-4.1.7-6.2.8h-1.9c0,2.5,0,5-.2,7.6,0,1.4-.1,2.8-.2,4.1v3c0,.4-.4.9-.8,1h-.1v62.6h85.9l39.1,7.9V41.3h-76.4l6.7,26.7h30.3v10h-48.8V31.2h88.3-.4Z"/>
@@ -471,10 +596,11 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                 </svg>
               </div>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="header-badge-group" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <button
                   className="no-print"
-                  onClick={() => window.print()}
+                  onClick={handleDownloadPdf}
+                  disabled={generatingPdf}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -486,10 +612,11 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                     color: '#6b7280',
                     fontSize: '13px',
                     fontWeight: 500,
-                    cursor: 'pointer',
+                    cursor: generatingPdf ? 'wait' : 'pointer',
+                    opacity: generatingPdf ? 0.6 : 1,
                     transition: 'all 0.15s ease'
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#be1e2d'; e.currentTarget.style.color = '#be1e2d'; }}
+                  onMouseEnter={(e) => { if (!generatingPdf) { e.currentTarget.style.borderColor = '#be1e2d'; e.currentTarget.style.color = '#be1e2d'; }}}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#6b7280'; }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -497,7 +624,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
-                  Save PDF
+                  {generatingPdf ? 'Generating...' : 'Save PDF'}
                 </button>
                 <div style={{
                   background: '#be1e2d',
@@ -515,7 +642,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
             </div>
             
             {/* Info Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '32px', maxWidth: '55%' }}>
+            <div className="header-info-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '32px', maxWidth: '55%' }}>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Bill To</div>
                 <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginBottom: '4px' }}>{doc.customer_name}</div>
@@ -532,7 +659,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
               </div>
               
               {/* Status pill */}
-              <div style={{ 
+              <div className="header-status-pill" style={{ 
                 position: 'absolute',
                 top: '60%',
                 right: '12%',
@@ -541,7 +668,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                 zIndex: 2
               }}>
                 <div style={{ fontSize: '16px', fontWeight: 600, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Status</div>
-                <div style={{
+                <div className="header-status-badge" style={{
                   display: 'inline-block',
                   padding: '12px 30px',
                   borderRadius: '30px',
