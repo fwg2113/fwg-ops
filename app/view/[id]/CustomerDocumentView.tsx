@@ -93,6 +93,8 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
   // Option hero image indexes (per option)
   const [optionHeroIndexes, setOptionHeroIndexes] = useState<Record<string, number>>({})
+  // Line item hero image indexes
+  const [itemHeroIndexes, setItemHeroIndexes] = useState<Record<string, number>>({})
   const [generatingPdf, setGeneratingPdf] = useState(false)
 
   // Ref for PDF capture
@@ -1259,61 +1261,101 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                           </div>
 
                           {/* Inline image gallery for this line item */}
-                          {itemImages.length > 0 && (
-                            <div style={{ marginTop: '12px', marginLeft: '20px' }}>
-                              <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: itemImages.length === 1 ? '1fr' : itemImages.length === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
-                                gap: '8px',
-                                maxWidth: itemImages.length === 1 ? '400px' : '100%'
-                              }}>
-                                {itemImages.map((img, imgIdx) => (
-                                  <div
-                                    key={imgIdx}
-                                    onClick={() => {
-                                      // Build a flat gallery index for this item's images within the full gallery
-                                      const flatIndex = galleryImages.findIndex(g => g.url === img.url)
-                                      if (flatIndex >= 0) setLightboxIndex(flatIndex)
-                                    }}
+                          {itemImages.length > 0 && (() => {
+                            const heroIdx = itemHeroIndexes[item.id] || 0
+                            return (
+                              <div style={{ marginTop: '12px' }}>
+                                {/* Hero Image - full width */}
+                                <div
+                                  onClick={() => {
+                                    const flatIndex = galleryImages.findIndex(g => g.url === itemImages[heroIdx]?.url)
+                                    if (flatIndex >= 0) setLightboxIndex(flatIndex)
+                                  }}
+                                  style={{
+                                    position: 'relative',
+                                    width: '100%',
+                                    paddingBottom: '56.25%',
+                                    borderRadius: '10px',
+                                    overflow: 'hidden',
+                                    cursor: 'pointer',
+                                    background: '#f1f5f9'
+                                  }}
+                                >
+                                  <img
+                                    src={itemImages[heroIdx]?.url}
+                                    alt={itemImages[heroIdx]?.name}
                                     style={{
-                                      position: 'relative',
-                                      paddingBottom: '66%',
-                                      borderRadius: '10px',
-                                      overflow: 'hidden',
-                                      cursor: 'pointer',
-                                      background: '#f1f5f9'
+                                      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                                      objectFit: 'cover', transition: 'transform 0.3s ease'
                                     }}
-                                  >
-                                    <img
-                                      src={img.url}
-                                      alt={img.name}
-                                      style={{
-                                        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                                        objectFit: 'cover', transition: 'transform 0.3s ease'
-                                      }}
-                                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                    />
-                                    {/* Enlarge hint on first image */}
-                                    {imgIdx === 0 && (
-                                      <div style={{
-                                        position: 'absolute', bottom: '8px', right: '8px',
-                                        background: 'rgba(0,0,0,0.6)', color: 'white',
-                                        padding: '4px 8px', borderRadius: '4px',
-                                        fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px',
-                                        pointerEvents: 'none'
-                                      }}>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                                        </svg>
-                                        Click to enlarge
-                                      </div>
-                                    )}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                  />
+                                  {/* Enlarge hint */}
+                                  <div style={{
+                                    position: 'absolute', bottom: '10px', right: '10px',
+                                    background: 'rgba(0,0,0,0.6)', color: 'white',
+                                    padding: '5px 10px', borderRadius: '6px',
+                                    fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
+                                    pointerEvents: 'none'
+                                  }}>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                    </svg>
+                                    Click to enlarge
                                   </div>
-                                ))}
+                                  {/* Image count badge */}
+                                  {itemImages.length > 1 && (
+                                    <div style={{
+                                      position: 'absolute', top: '10px', right: '10px',
+                                      background: 'rgba(0,0,0,0.6)', color: 'white',
+                                      padding: '4px 10px', borderRadius: '12px',
+                                      fontSize: '12px', fontWeight: 500
+                                    }}>
+                                      {heroIdx + 1} / {itemImages.length}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Thumbnail strip */}
+                                {itemImages.length > 1 && (
+                                  <div style={{
+                                    display: 'flex',
+                                    gap: '6px',
+                                    marginTop: '8px',
+                                    overflowX: 'auto'
+                                  }}>
+                                    {itemImages.map((img, imgIdx) => (
+                                      <div
+                                        key={imgIdx}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setItemHeroIndexes(prev => ({ ...prev, [item.id]: imgIdx }))
+                                        }}
+                                        style={{
+                                          width: '64px',
+                                          height: '48px',
+                                          borderRadius: '6px',
+                                          overflow: 'hidden',
+                                          flexShrink: 0,
+                                          cursor: 'pointer',
+                                          border: heroIdx === imgIdx ? '2px solid #be1e2d' : '2px solid transparent',
+                                          opacity: heroIdx === imgIdx ? 1 : 0.6,
+                                          transition: 'all 0.15s ease'
+                                        }}
+                                      >
+                                        <img
+                                          src={img.url}
+                                          alt=""
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          )}
+                            )
+                          })()}
 
                           {/* Non-image file downloads for this line item */}
                           {itemFiles.length > 0 && (
