@@ -177,6 +177,10 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const taxAmount = taxableSubtotal * 0.06
   const total = subtotal + feesTotal - discountAmount + taxAmount
   const balanceDue = total - (doc.amount_paid || 0)
+  const depositRequired = doc.deposit_required || 0
+  const amountDue = depositRequired > 0 && depositRequired < total && (doc.amount_paid || 0) < depositRequired
+    ? depositRequired - (doc.amount_paid || 0)
+    : balanceDue
 
   // Format helpers
   const formatDate = (d: string) => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
@@ -206,8 +210,8 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const canPay = (isInvoice || status === 'approved') && balanceDue > 0
 
   // Card fee calculation (3%)
-  const cardFee = balanceDue * 0.03
-  const cardTotal = balanceDue + cardFee
+  const cardFee = amountDue * 0.03
+  const cardTotal = amountDue + cardFee
 
   // ============================================================================
   // OPTION LIGHTBOX HANDLERS
@@ -370,7 +374,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId: doc.id,
-          amount: method === 'card' ? cardTotal : balanceDue,
+          amount: method === 'card' ? cardTotal : amountDue,
           method
         })
       })
@@ -1419,8 +1423,8 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   </svg>
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Bank Transfer</span>
                 </div>
-                <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(balanceDue)}</div>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>No processing fee</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(amountDue)}</div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total ? '50% deposit · No processing fee' : 'No processing fee'}</div>
               </div>
               
               {/* Credit Card */}
@@ -1445,7 +1449,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Credit Card</span>
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(cardTotal)}</div>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>Includes 3% processing fee</div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total ? '50% deposit · Includes 3% processing fee' : 'Includes 3% processing fee'}</div>
               </div>
             </div>
           </div>
