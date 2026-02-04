@@ -106,7 +106,13 @@ type Document = {
   notes: string; created_at: string; sent_at: string; viewed_at: string; approved_at: string; paid_at: string
   valid_until: string | null; attachments?: Attachment[]; in_production: boolean; fees?: Fee[] | string
   followup_count?: number; last_followup_at?: string; revision_history_json?: any; discount_note?: string
-  options_mode?: boolean; options_json?: QuoteOption[]
+  options_mode?: boolean; options_json?: QuoteOption[]; history_log?: HistoryEntry[]
+}
+
+type HistoryEntry = {
+  timestamp: string
+  event: string
+  detail?: string
 }
 
 type QuoteOption = {
@@ -291,6 +297,23 @@ export default function DocumentDetail({
   const [revisionIncludeLink, setRevisionIncludeLink] = useState(false)
   const [sendingRevision, setSendingRevision] = useState(false)
 
+  // History Log state
+  const [historyLog, setHistoryLog] = useState<HistoryEntry[]>(() => {
+    try {
+      const log = (initialDoc as any).history_log
+      return Array.isArray(log) ? log : JSON.parse(log || '[]')
+    } catch { return [] }
+  })
+  const [historyExpanded, setHistoryExpanded] = useState(false)
+
+  // Append a history entry and persist
+  const appendHistory = async (event: string, detail?: string) => {
+    const entry: HistoryEntry = { timestamp: new Date().toISOString(), event, detail }
+    const updated = [...historyLog, entry]
+    setHistoryLog(updated)
+    await supabase.from('documents').update({ history_log: updated }).eq('id', doc.id)
+  }
+
   // Modals
   const [showSectionModal, setShowSectionModal] = useState(false)
   const [showSendModal, setShowSendModal] = useState(false)
@@ -472,6 +495,23 @@ export default function DocumentDetail({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [lightboxIndex, imageAttachments.length])
+
+  // Seed history log from existing timestamps if log is empty
+  useEffect(() => {
+    if (historyLog.length > 0) return
+    const entries: HistoryEntry[] = []
+    if (doc.created_at) entries.push({ timestamp: doc.created_at, event: 'Created', detail: `${doc.doc_type === 'quote' ? 'Quote' : 'Invoice'} #${doc.doc_number} created` })
+    if (doc.sent_at) entries.push({ timestamp: doc.sent_at, event: 'Sent', detail: `Sent to ${doc.customer_name}` })
+    if (doc.viewed_at) entries.push({ timestamp: doc.viewed_at, event: 'Viewed', detail: 'Customer viewed the document' })
+    if (doc.approved_at) entries.push({ timestamp: doc.approved_at, event: 'Approved', detail: 'Customer approved' })
+    if (doc.paid_at) entries.push({ timestamp: doc.paid_at, event: 'Paid', detail: 'Payment received' })
+    if (entries.length > 0) {
+      entries.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      setHistoryLog(entries)
+      supabase.from('documents').update({ history_log: entries }).eq('id', doc.id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const openLightbox = (attachment: Attachment) => {
     const idx = imageAttachments.findIndex(a => a.key === attachment.key)
@@ -762,6 +802,7 @@ export default function DocumentDetail({
       setDoc({ ...doc, status: 'sent', sent_at: new Date().toISOString(), deposit_required: depositAmount })
       setShowSendModal(false)
       showToast('Sent successfully!', 'success')
+      await appendHistory('Sent', `${doc.doc_type === 'quote' ? 'Quote' : 'Invoice'} sent to ${doc.customer_name}`)
       
     } catch (err) {
       showToast('Failed to send', 'error')
@@ -784,7 +825,7 @@ export default function DocumentDetail({
       
       if (data.success) {
         showToast('Quote approved and converted to invoice!', 'success')
-        // Refresh the page to show updated document
+        await appendHistory('Approved', 'Quote approved and converted to invoice')
         window.location.reload()
       } else {
         showToast('Failed to approve: ' + (data.error || 'Unknown error'), 'error')
@@ -801,6 +842,7 @@ export default function DocumentDetail({
     setSaving(true)
     await supabase.from('documents').update({ doc_type: 'invoice', status: 'pending' }).eq('id', doc.id)
     setDoc({ ...doc, doc_type: 'invoice', status: 'pending' })
+    await appendHistory('Converted', 'Converted from quote to invoice')
     setSaving(false)
   }
 
@@ -816,6 +858,7 @@ export default function DocumentDetail({
     }).eq('id', doc.id)
     
     setShowArchiveModal(false)
+    await appendHistory('Archived', `Archived as ${archiveBucket}${reason ? ': ' + reason : ''}`)
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
     setSaving(false)
   }
@@ -825,6 +868,7 @@ export default function DocumentDetail({
     setSaving(true)
     await supabase.from('documents').update({ bucket: 'COLD' }).eq('id', doc.id)
     setDoc({ ...doc, bucket: 'COLD' })
+    await appendHistory('Moved to Cold', 'Document moved to cold bucket')
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
     setSaving(false)
   }
@@ -991,6 +1035,7 @@ export default function DocumentDetail({
     setSaving(true)
     await supabase.from('documents').update({ status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 }).eq('id', doc.id)
     setDoc({ ...doc, status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 })
+    await appendHistory('Marked Paid', `Manually marked as paid in full`)
     setSaving(false)
   }
 
@@ -1030,6 +1075,7 @@ export default function DocumentDetail({
       setRevisionReply('')
       setRevisionSendSms(false)
       setRevisionIncludeLink(false)
+      await appendHistory('Revision Reply Sent', revisionSendSms ? 'Reply sent with SMS notification' : 'Reply saved')
       
     } catch (err) {
       console.error('Revision reply error:', err)
@@ -1088,6 +1134,8 @@ export default function DocumentDetail({
         paid_at: isPaidInFull ? new Date().toISOString() : doc.paid_at
       })
       setShowRecordPaymentModal(false)
+      const methodLabel = paymentMethod === 'card' ? 'Credit Card' : paymentMethod === 'bank_transfer' ? 'Bank Transfer' : paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'check' ? 'Check' : 'Other'
+      await appendHistory('Payment Recorded', `$${paymentAmount.toFixed(2)} via ${methodLabel}${isPaidInFull ? ' — Paid in full' : ''}`)
       
     } catch (err) {
       console.error('Error recording payment:', err)
@@ -2557,6 +2605,71 @@ export default function DocumentDetail({
           )}
         </div>
       )}
+
+      {/* History Log */}
+      <div style={cardStyle}>
+        <div 
+          onClick={() => setHistoryExpanded(!historyExpanded)}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+        >
+          <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Activity Log
+            {historyLog.length > 0 && (
+              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 400 }}>({historyLog.length})</span>
+            )}
+          </h3>
+          <svg 
+            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" 
+            style={{ transition: 'transform 0.2s ease', transform: historyExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          >
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+
+        {historyExpanded && (
+          <div style={{ marginTop: '16px' }}>
+            {historyLog.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '13px' }}>
+                No activity recorded yet. Events will appear here as the document progresses.
+              </div>
+            ) : (
+              <div style={{ position: 'relative', paddingLeft: '20px' }}>
+                {/* Timeline line */}
+                <div style={{ position: 'absolute', left: '7px', top: '4px', bottom: '4px', width: '2px', background: 'rgba(148,163,184,0.15)', borderRadius: '1px' }} />
+                
+                {[...historyLog].reverse().map((entry, idx) => {
+                  const date = new Date(entry.timestamp)
+                  const timeStr = date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                  
+                  // Color-code by event type
+                  let dotColor = '#64748b'
+                  if (entry.event.includes('Sent')) dotColor = '#3b82f6'
+                  if (entry.event.includes('Approved')) dotColor = '#22c55e'
+                  if (entry.event.includes('Paid') || entry.event.includes('Payment')) dotColor = '#22c55e'
+                  if (entry.event.includes('Revision')) dotColor = '#f59e0b'
+                  if (entry.event.includes('Archived') || entry.event.includes('Cold')) dotColor = '#6b7280'
+                  if (entry.event.includes('Converted')) dotColor = '#a855f7'
+                  
+                  return (
+                    <div key={idx} style={{ position: 'relative', paddingBottom: idx < historyLog.length - 1 ? '16px' : '0', paddingLeft: '16px' }}>
+                      {/* Dot */}
+                      <div style={{ 
+                        position: 'absolute', left: '-13px', top: '3px',
+                        width: '10px', height: '10px', borderRadius: '50%',
+                        background: dotColor, border: '2px solid #111111'
+                      }} />
+                      <div style={{ fontSize: '13px', fontWeight: 500, color: '#f1f5f9' }}>{entry.event}</div>
+                      {entry.detail && <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>{entry.detail}</div>}
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>{timeStr}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       
 
