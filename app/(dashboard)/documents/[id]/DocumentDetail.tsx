@@ -987,47 +987,35 @@ export default function DocumentDetail({
   const handleMoveToProduction = async () => {
     if (!confirm('Move this invoice to Production? This will generate production tasks based on line item categories.')) return
     setSaving(true)
-    
+
     try {
-      // Update document
-      await supabase.from('documents').update({ 
-        in_production: true,
-        bucket: 'IN_PRODUCTION'
-      }).eq('id', doc.id)
-      
-      // Generate production tasks for each line item category
-      const categories = [...new Set(lineItems.map(item => item.category).filter(Boolean))]
-      let tasksCreated = 0
-      
-      for (const category of categories) {
-        // Create basic production tasks
-        const tasks = [
-          { task_name: 'Print', step_order: 1 },
-          { task_name: 'Laminate', step_order: 2 },
-          { task_name: 'Cut', step_order: 3 },
-          { task_name: 'Install', step_order: 4 }
-        ]
-        
-        for (const task of tasks) {
-          await supabase.from('production_tasks').insert({
-            invoice_id: doc.id,
-            category: category,
-            task_name: task.task_name,
-            step_order: task.step_order,
-            status: 'pending'
-          })
-          tasksCreated++
-        }
+      // Call new API to generate tasks from templates
+      const response = await fetch('/api/production/generate-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId: doc.id })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update document status
+        await supabase.from('documents').update({
+          in_production: true,
+          bucket: 'IN_PRODUCTION'
+        }).eq('id', doc.id)
+
+        setDoc({ ...doc, in_production: true, bucket: 'IN_PRODUCTION' })
+        showToast(`Moved to Production! ${result.totalTasksCreated} tasks created across ${result.lineItemsProcessed} line items.`, 'success')
+      } else {
+        showToast(`Partial success: ${result.totalTasksCreated} tasks created. Errors: ${result.errors.join(', ')}`, 'warning')
       }
-      
-      setDoc({ ...doc, in_production: true, bucket: 'IN_PRODUCTION' })
-      showToast(`Moved to Production! ${tasksCreated} tasks created.`, 'success')
-      
+
     } catch (err) {
       console.error('Error moving to production:', err)
       showToast('Failed to move to production', 'error')
     }
-    
+
     setSaving(false)
   }
 
