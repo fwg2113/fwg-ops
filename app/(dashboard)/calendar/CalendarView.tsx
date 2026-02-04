@@ -20,6 +20,59 @@ type CalendarEvent = {
   notes: string
   document_id: string
   google_event_id: string
+  category: string | null
+}
+
+// Category color map
+const CATEGORY_COLORS: Record<string, { color: string; label: string }> = {
+  PPF: { color: '#ec4899', label: 'PPF' },
+  FULL_PPF: { color: '#ec4899', label: 'PPF' },
+  PARTIAL_PPF: { color: '#ec4899', label: 'PPF' },
+  FULL_WRAP: { color: '#a855f7', label: 'Vinyl Wrap' },
+  VINYL_WRAP: { color: '#a855f7', label: 'Vinyl Wrap' },
+CHROME_DELETE: { color: '#a855f7', label: 'Vinyl Wrap' },
+  COLOR_CHANGE: { color: '#a855f7', label: 'Vinyl Wrap' },
+  COMMERCIAL_WRAP: { color: '#a855f7', label: 'Vinyl Wrap' },
+  VINYL_GRAPHICS: { color: '#22c55e', label: 'Vinyl Graphics' },
+  DECALS: { color: '#22c55e', label: 'Vinyl Graphics' },
+  STRIPES: { color: '#22c55e', label: 'Vinyl Graphics' },
+  LETTERING: { color: '#22c55e', label: 'Vinyl Graphics' },
+  SIGNAGE: { color: '#14b8a6', label: 'Signage' },
+  CHANNEL_LETTERS: { color: '#14b8a6', label: 'Signage' },
+  MONUMENT_SIGN: { color: '#14b8a6', label: 'Signage' },
+  WINDOW_TINT: { color: '#f59e0b', label: 'Window Tint' },
+  RESIDENTIAL_TINT: { color: '#f59e0b', label: 'Window Tint' },
+  COMMERCIAL_TINT: { color: '#f59e0b', label: 'Window Tint' },
+  APPAREL: { color: '#3b82f6', label: 'Apparel' },
+}
+
+const DEFAULT_COLOR = '#6b7280' // Gray for no linked doc / unknown
+
+const getEventColor = (event: CalendarEvent): string => {
+  if (event.category && CATEGORY_COLORS[event.category]) {
+    return CATEGORY_COLORS[event.category].color
+  }
+  // No category and no document = standalone event
+  if (!event.document_id) return DEFAULT_COLOR
+  // Has document but no category mapped
+  return DEFAULT_COLOR
+}
+
+// Build unique legend items from events
+const getLegendItems = (events: CalendarEvent[]) => {
+  const seen = new Map<string, { color: string; label: string }>()
+  
+  events.forEach(event => {
+    const color = getEventColor(event)
+    if (event.category && CATEGORY_COLORS[event.category]) {
+      const entry = CATEGORY_COLORS[event.category]
+      if (!seen.has(entry.label)) seen.set(entry.label, { color: entry.color, label: entry.label })
+    } else if (!event.document_id) {
+      if (!seen.has('Manual')) seen.set('Manual', { color: DEFAULT_COLOR, label: 'Manual / Other' })
+    }
+  })
+  
+  return Array.from(seen.values())
 }
 
 export default function CalendarView({ initialEvents }: { initialEvents: CalendarEvent[] }) {
@@ -259,18 +312,15 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
         
         if (dragState.edge === 'start') {
           newVehicleStart = addDays(dragState.originalStart, daysDelta)
-          // Don't allow start to go past end
           if (newVehicleStart > newVehicleEnd) newVehicleStart = newVehicleEnd
         } else if (dragState.edge === 'end') {
           newVehicleEnd = addDays(dragState.originalEnd, daysDelta)
-          // Don't allow end to go before start
           if (newVehicleEnd < newVehicleStart) newVehicleEnd = newVehicleStart
         } else {
           newVehicleStart = addDays(dragState.originalStart, daysDelta)
           newVehicleEnd = addDays(dragState.originalEnd, daysDelta)
         }
         
-        // Also move install dates if they would be outside vehicle range
         let newInstallStart = event.install_start || newVehicleStart
         let newInstallEnd = event.install_end || newVehicleEnd
         if (newInstallStart < newVehicleStart) newInstallStart = newVehicleStart
@@ -357,9 +407,8 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
     cursor: 'pointer'
   })
 
-  const eventColor = '#22c55e'
-
   const renderWeekEvent = (event: CalendarEvent, rowIndex: number, days: Date[]) => {
+    const eventColor = getEventColor(event)
     const vStart = event.vehicle_start || formatDateStr(new Date(event.start_time))
     const vEnd = event.vehicle_end || formatDateStr(new Date(event.end_time))
     const iStart = event.install_start || vStart
@@ -456,6 +505,7 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
     })
     
     return weekEvents.map((event, idx) => {
+      const eventColor = getEventColor(event)
       const vStart = event.vehicle_start || formatDateStr(new Date(event.start_time))
       const vEnd = event.vehicle_end || formatDateStr(new Date(event.end_time))
       const iStart = event.install_start || vStart
@@ -537,6 +587,9 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
     return weeks
   }
 
+  // Build dynamic legend from current events
+  const legendItems = getLegendItems(events)
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
@@ -564,15 +617,29 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
       </div>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: '24px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '32px', height: '18px', border: `2px dashed ${eventColor}`, borderRadius: '4px', background: `${eventColor}08` }} />
-          <span style={{ color: '#94a3b8', fontSize: '12px' }}>Vehicle On Site</span>
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Always show Vehicle / Install legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '28px', height: '16px', border: '2px dashed #94a3b8', borderRadius: '3px', background: 'transparent' }} />
+          <span style={{ color: '#64748b', fontSize: '12px' }}>Vehicle On Site</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '32px', height: '18px', border: `2px solid ${eventColor}`, borderRadius: '4px', background: `${eventColor}44` }} />
-          <span style={{ color: '#94a3b8', fontSize: '12px' }}>Install Period</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '28px', height: '16px', border: '2px solid #94a3b8', borderRadius: '3px', background: 'rgba(148,163,184,0.25)' }} />
+          <span style={{ color: '#64748b', fontSize: '12px' }}>Install Period</span>
         </div>
+        
+        {/* Divider */}
+        {legendItems.length > 0 && (
+          <div style={{ width: '1px', height: '16px', background: 'rgba(148,163,184,0.2)', margin: '0 4px' }} />
+        )}
+        
+        {/* Category color legend */}
+        {legendItems.map(item => (
+          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.color }} />
+            <span style={{ color: '#94a3b8', fontSize: '12px' }}>{item.label}</span>
+          </div>
+        ))}
       </div>
 
       {/* Calendar Grid */}
@@ -747,7 +814,28 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditingEvent(null)}>
           <div style={{ background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Edit Event</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Edit Event</h2>
+                {/* Category color badge */}
+                {editingEvent.category && CATEGORY_COLORS[editingEvent.category] && (
+                  <span style={{ 
+                    fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
+                    background: `${CATEGORY_COLORS[editingEvent.category].color}20`,
+                    color: CATEGORY_COLORS[editingEvent.category].color,
+                    border: `1px solid ${CATEGORY_COLORS[editingEvent.category].color}40`
+                  }}>
+                    {CATEGORY_COLORS[editingEvent.category].label}
+                  </span>
+                )}
+                {!editingEvent.document_id && !editingEvent.category && (
+                  <span style={{ 
+                    fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
+                    background: 'rgba(107,114,128,0.2)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.4)'
+                  }}>
+                    Manual
+                  </span>
+                )}
+              </div>
               <button onClick={() => setEditingEvent(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
             </div>
             
@@ -771,40 +859,47 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
               </div>
               
               {/* Vehicle On Site Section */}
-              <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(34,197,94,0.05)', border: '2px dashed rgba(34,197,94,0.3)', borderRadius: '12px' }}>
-                <h3 style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                  Vehicle On Site
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Drop-off Date</label>
-                    <input type="date" value={editingEvent.vehicle_start || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pick-up Date</label>
-                    <input type="date" value={editingEvent.vehicle_end || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Install Period Section */}
-              <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(34,197,94,0.1)', border: '2px solid rgba(34,197,94,0.4)', borderRadius: '12px' }}>
-                <h3 style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                  Install Period
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install Start</label>
-                    <input type="date" value={editingEvent.install_start || ''} onChange={(e) => setEditingEvent({...editingEvent, install_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install End</label>
-                    <input type="date" value={editingEvent.install_end || ''} onChange={(e) => setEditingEvent({...editingEvent, install_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                  </div>
-                </div>
-              </div>
+              {(() => {
+                const eColor = getEventColor(editingEvent)
+                return (
+                  <>
+                    <div style={{ marginBottom: '20px', padding: '16px', background: `${eColor}08`, border: `2px dashed ${eColor}50`, borderRadius: '12px' }}>
+                      <h3 style={{ color: eColor, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                        Vehicle On Site
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Drop-off Date</label>
+                          <input type="date" value={editingEvent.vehicle_start || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pick-up Date</label>
+                          <input type="date" value={editingEvent.vehicle_end || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Install Period Section */}
+                    <div style={{ marginBottom: '20px', padding: '16px', background: `${eColor}15`, border: `2px solid ${eColor}60`, borderRadius: '12px' }}>
+                      <h3 style={{ color: eColor, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                        Install Period
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install Start</label>
+                          <input type="date" value={editingEvent.install_start || ''} onChange={(e) => setEditingEvent({...editingEvent, install_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install End</label>
+                          <input type="date" value={editingEvent.install_end || ''} onChange={(e) => setEditingEvent({...editingEvent, install_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
               
               {/* Notes */}
               <div>
