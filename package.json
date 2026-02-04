@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate:legacy": "node -r dotenv/config -r tsx/cjs app/scripts/migrate-legacy-config.ts"
+    "migrate:legacy": "dotenv -e .env.local -- tsx app/scripts/migrate-legacy-config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",
@@ -26,6 +26,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "tailwindcss": "^4",
