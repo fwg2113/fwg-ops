@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate:legacy": "tsx app/scripts/migrate-legacy-config.ts"
+    "migrate:legacy": "node -r dotenv/config -r tsx/cjs app/scripts/migrate-legacy-config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.975.0",
