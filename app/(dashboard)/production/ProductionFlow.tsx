@@ -8,10 +8,19 @@ type Task = {
   title: string
   status: string
   priority: string
-  invoice_id?: string | null
+  document_id?: string | null
+  line_item_id?: string | null
   created_at: string
   due_date?: string | null
   description?: string | null
+  sort_order?: number
+  template_task_key?: string
+  auto_generated?: boolean
+  line_items?: {
+    id: string
+    description: string
+    category: string
+  } | null
 }
 
 type ProductionJob = {
@@ -53,7 +62,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
 
   // Get tasks for a job
   const getJobTasks = (jobId: string) => {
-    return tasks.filter(t => t.invoice_id === jobId)
+    return tasks.filter(t => t.document_id === jobId)
   }
 
   // Calculate progress

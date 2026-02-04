@@ -31,9 +31,17 @@ export default async function ProductionPage() {
   const jobIds = productionJobs?.map(j => j.id) || []
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('*')
-    .in('invoice_id', jobIds)
-    .order('created_at', { ascending: true })
+    .select(`
+      *,
+      line_items:line_item_id (
+        id,
+        description,
+        category
+      )
+    `)
+    .in('document_id', jobIds)
+    .eq('auto_generated', true)
+    .order('sort_order', { ascending: true })
 
   // Debug: Check what we're getting
   console.log('Production Jobs:', productionJobs)
