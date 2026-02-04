@@ -1008,7 +1008,7 @@ export default function DocumentDetail({
         setDoc({ ...doc, in_production: true, bucket: 'IN_PRODUCTION' })
         showToast(`Moved to Production! ${result.totalTasksCreated} tasks created across ${result.lineItemsProcessed} line items.`, 'success')
       } else {
-        showToast(`Partial success: ${result.totalTasksCreated} tasks created. Errors: ${result.errors.join(', ')}`, 'warning')
+        showToast(`Partial success: ${result.totalTasksCreated} tasks created. Errors: ${result.errors.join(', ')}`, 'error')
       }
 
     } catch (err) {
