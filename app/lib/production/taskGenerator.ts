@@ -196,7 +196,7 @@ async function generateTasksForLineItem(
       description: `${lineItem.description || 'Line item'} - ${templateTask.label}`,
       status: 'TODO',
       priority: templateTask.default_priority,
-      invoice_id: invoiceId,
+      document_id: invoiceId,
       line_item_id: lineItem.id,
       auto_generated: true,
       sort_order: templateTask.sort_order,
