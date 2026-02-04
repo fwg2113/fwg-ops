@@ -28,16 +28,14 @@ export async function POST(request: NextRequest) {
     // Return result
     if (result.success) {
       return NextResponse.json({
-        success: true,
-        message: `Generated ${result.totalTasksCreated} tasks across ${result.lineItemsProcessed} line items`,
-        ...result
+        ...result,
+        message: `Generated ${result.totalTasksCreated} tasks across ${result.lineItemsProcessed} line items`
       })
     } else {
       return NextResponse.json(
         {
-          success: false,
-          message: 'Task generation completed with errors',
-          ...result
+          ...result,
+          message: 'Task generation completed with errors'
         },
         { status: 207 } // Multi-status (partial success)
       )
