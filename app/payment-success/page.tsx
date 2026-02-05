@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { isAutomationEnabled } from '../lib/automation-settings'
 import PaymentSuccessClient from './PaymentSuccessClient'
 
 export default async function PaymentSuccessPage({ 
@@ -49,6 +50,7 @@ export default async function PaymentSuccessPage({
         const newBalanceDue = (invoice.total || 0) - newAmountPaid
         const isPaidInFull = newBalanceDue <= 0
         
+        // Update invoice payment status
         await supabase
           .from('documents')
           .update({
@@ -58,7 +60,41 @@ export default async function PaymentSuccessPage({
             paid_at: isPaidInFull ? new Date().toISOString() : null
           })
           .eq('id', documentId)
-        
+
+        // Automation #1: Auto-move to production on payment
+        if (isPaidInFull && !invoice.in_production) {
+          const autoProductionEnabled = await isAutomationEnabled('auto_production_on_payment')
+
+          if (autoProductionEnabled) {
+            try {
+              // Generate production tasks
+              const taskResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'https://fwg-ops.vercel.app'}/api/production/generate-tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ invoiceId: documentId })
+              })
+
+              const taskResult = await taskResponse.json()
+
+              if (taskResult.success) {
+                // Move invoice to production
+                await supabase
+                  .from('documents')
+                  .update({
+                    in_production: true,
+                    bucket: 'IN_PRODUCTION'
+                  })
+                  .eq('id', documentId)
+
+                console.log(`[Automation] Moved invoice #${invoice.doc_number} to production (${taskResult.totalTasksCreated} tasks created)`)
+              }
+            } catch (autoError) {
+              console.error('[Automation] Failed to auto-move to production:', autoError)
+              // Don't fail the payment process if automation fails
+            }
+          }
+        }
+
         const paymentType = session.metadata?.payment_type === 'bank_transfer' ? 'bank_transfer' : 'card'
         const baseAmount = session.metadata?.base_amount ? parseFloat(session.metadata.base_amount) : stripeAmount
         const processingFee = stripeAmount - baseAmount
