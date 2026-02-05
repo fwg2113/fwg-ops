@@ -31,15 +31,31 @@ export default async function SettingsPage() {
     .select('*')
     .order('ring_order', { ascending: true })
 
+  const { data: templates } = await supabase
+    .from('project_templates')
+    .select(`
+      *,
+      template_tasks (
+        id,
+        task_key,
+        label,
+        default_priority,
+        sort_order,
+        active
+      )
+    `)
+    .order('sort_order', { ascending: true })
+
   const calendarConnected = !!calendarSettings?.value
 
   return (
-    <SettingsView 
-      initialCategories={categories || []} 
+    <SettingsView
+      initialCategories={categories || []}
       initialMaterials={materials || []}
       initialBuckets={buckets || []}
       calendarConnected={calendarConnected}
       initialCallSettings={callSettings || []}
+      initialTemplates={templates || []}
     />
   )
 }
