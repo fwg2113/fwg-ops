@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '../../lib/supabase'
 
 type Task = {
   id: string
@@ -42,6 +43,13 @@ type ProductionFlowProps = {
   initialTasks: Task[]
 }
 
+type LineItemGroup = {
+  lineItemId: string
+  lineItemDescription: string
+  category: string
+  tasks: Task[]
+}
+
 export default function ProductionFlow({ initialJobs, initialTasks }: ProductionFlowProps) {
   const router = useRouter()
   const [jobs, setJobs] = useState<ProductionJob[]>(initialJobs)
@@ -49,6 +57,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set())
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Format category label
   const formatCategoryLabel = (category: string): string => {
@@ -60,19 +69,40 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
     return category?.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ') || 'General'
   }
 
-  // Get tasks for a job
-  const getJobTasks = (jobId: string) => {
-    return tasks.filter(t => t.document_id === jobId)
+  // Group tasks by line item for a job
+  const getLineItemGroups = (jobId: string): LineItemGroup[] => {
+    const jobTasks = tasks.filter(t => t.document_id === jobId)
+    const groups = new Map<string, LineItemGroup>()
+
+    jobTasks.forEach(task => {
+      const lineItemId = task.line_item_id || 'no-line-item'
+      if (!groups.has(lineItemId)) {
+        groups.set(lineItemId, {
+          lineItemId,
+          lineItemDescription: task.line_items?.description || 'Unknown line item',
+          category: task.line_items?.category || '',
+          tasks: []
+        })
+      }
+      groups.get(lineItemId)!.tasks.push(task)
+    })
+
+    // Sort tasks within each group by sort_order
+    groups.forEach(group => {
+      group.tasks.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    })
+
+    return Array.from(groups.values())
   }
 
-  // Calculate progress
-  const calculateProgress = (jobTasks: Task[]) => {
-    if (jobTasks.length === 0) return { completed: 0, total: 0, percent: 0 }
-    const completed = jobTasks.filter(t => t.status === 'COMPLETED').length
+  // Calculate progress for a line item group
+  const calculateProgress = (groupTasks: Task[]) => {
+    if (groupTasks.length === 0) return { completed: 0, total: 0, percent: 0 }
+    const completed = groupTasks.filter(t => t.status === 'COMPLETED').length
     return {
       completed,
-      total: jobTasks.length,
-      percent: Math.round((completed / jobTasks.length) * 100)
+      total: groupTasks.length,
+      percent: Math.round((completed / groupTasks.length) * 100)
     }
   }
 
@@ -89,24 +119,111 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
     if (lower.includes('install')) return 'Install'
     if (lower.includes('quality') || lower.includes('qc')) return 'QC'
     if (lower.includes('pickup')) return 'Pickup'
+    if (lower.includes('order')) return 'Order'
+    if (lower.includes('pattern')) return 'Patterns'
+    if (lower.includes('plot')) return 'Plot'
     return taskTitle.split(' ')[0].substring(0, 8)
   }
 
+  // Confetti animation
+  const launchConfetti = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+    canvas.style.display = 'block'
+
+    const particles: Array<{
+      x: number
+      y: number
+      vx: number
+      vy: number
+      color: string
+      size: number
+      rotation: number
+      rotationSpeed: number
+    }> = []
+
+    const colors = ['#22d3ee', '#a855f7', '#ec4899', '#22c55e', '#f59e0b']
+
+    for (let i = 0; i < 100; i++) {
+      particles.push({
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10 - 5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: Math.random() * 8 + 4,
+        rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 10
+      })
+    }
+
+    let animationId: number
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      particles.forEach((p, index) => {
+        p.x += p.vx
+        p.y += p.vy
+        p.vy += 0.3 // gravity
+        p.rotation += p.rotationSpeed
+
+        ctx.save()
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.rotation * Math.PI / 180)
+        ctx.fillStyle = p.color
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
+        ctx.restore()
+
+        if (p.y > canvas.height) {
+          particles.splice(index, 1)
+        }
+      })
+
+      if (particles.length > 0) {
+        animationId = requestAnimationFrame(animate)
+      } else {
+        canvas.style.display = 'none'
+        cancelAnimationFrame(animationId)
+      }
+    }
+
+    animate()
+  }
+
   // Toggle task completion
-  const toggleTask = async (taskId: string) => {
+  const toggleTask = async (taskId: string, lineItemTasks: Task[]) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
 
-    const newStatus = task.status === 'COMPLETED' ? 'IN_PROGRESS' : 'COMPLETED'
+    const newStatus = task.status === 'COMPLETED' ? 'TODO' : 'COMPLETED'
 
     // Optimistic update
     setTasks(prev => prev.map(t =>
       t.id === taskId ? { ...t, status: newStatus } : t
     ))
 
-    // TODO: Save to database
+    // Save to database
     try {
-      // await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId)
+      await supabase.from('tasks').update({
+        status: newStatus,
+        completed_at: newStatus === 'COMPLETED' ? new Date().toISOString() : null
+      }).eq('id', taskId)
+
+      // Check if all tasks in this line item are now completed
+      if (newStatus === 'COMPLETED') {
+        const allCompleted = lineItemTasks.every(t =>
+          t.id === taskId || t.status === 'COMPLETED'
+        )
+        if (allCompleted) {
+          launchConfetti()
+        }
+      }
     } catch (error) {
       // Revert on error
       setTasks(prev => prev.map(t =>
@@ -157,7 +274,22 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   }
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', position: 'relative' }}>
+      {/* Confetti Canvas */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 9999,
+          display: 'none'
+        }}
+      />
+
       {/* SVG Defs for gradients */}
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
@@ -276,16 +408,8 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
           </div>
         ) : (
           filteredJobs.map(job => {
-            const jobTasks = getJobTasks(job.id)
-            const progress = calculateProgress(jobTasks)
-            const nextTaskIndex = jobTasks.findIndex(t => t.status !== 'COMPLETED')
-            const visibleTasks = jobTasks.slice(0, 4)
-            const hiddenTasks = jobTasks.slice(4)
+            const lineItemGroups = getLineItemGroups(job.id)
             const isExpanded = expandedJobs.has(job.id)
-
-            // Progress ring calculations
-            const circumference = 188.5
-            const strokeOffset = circumference - (progress.percent / 100) * circumference
 
             return (
               <div
@@ -306,7 +430,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                   e.currentTarget.style.boxShadow = 'none'
                 }}
               >
-                {/* Card Header */}
+                {/* Card Header - Job Info */}
                 <div
                   onClick={() => router.push(`/documents/${job.id}`)}
                   style={{
@@ -321,371 +445,290 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                   onMouseEnter={(e) => e.currentTarget.style.background = '#1d1d1d'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  {/* Progress Ring */}
-                  <div style={{ position: 'relative', width: '72px', height: '72px', flexShrink: 0 }}>
-                    <svg width="72" height="72" style={{ transform: 'rotate(-90deg)' }}>
-                      <circle
-                        cx="36"
-                        cy="36"
-                        r="30"
-                        fill="none"
-                        stroke="#27272a"
-                        strokeWidth="6"
-                      />
-                      <circle
-                        cx="36"
-                        cy="36"
-                        r="30"
-                        fill="none"
-                        stroke="url(#ringGradient)"
-                        strokeWidth="6"
-                        strokeLinecap="round"
-                        strokeDasharray={circumference}
-                        strokeDashoffset={strokeOffset}
-                        style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-                      />
-                    </svg>
-                    <div style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      fontSize: '15px',
-                      fontWeight: '700',
-                      fontFamily: '"Courier New", monospace',
-                      color: '#f1f5f9'
-                    }}>
-                      {progress.percent}%
-                    </div>
-                  </div>
-
-                  {/* Job Info */}
                   <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: '20px',
-                      fontWeight: '600',
-                      color: '#f1f5f9',
-                      marginBottom: '4px'
-                    }}>
-                      {job.customer_name || 'Unknown'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        fontWeight: '700',
+                        background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(168, 85, 247, 0.15))',
+                        color: '#22d3ee',
+                        border: '1px solid rgba(34, 211, 238, 0.3)'
+                      }}>
+                        #{job.doc_number}
+                      </span>
                     </div>
-                    <div style={{ fontSize: '13px', color: '#51a8f1' }}>
-                      {job.vehicle_description || job.project_description || 'Project'} &bull; <span style={{
-                        fontFamily: '"Courier New", monospace',
-                        color: '#22d3ee'
-                      }}>#{job.doc_number}</span>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: '#f1f5f9', marginBottom: '4px' }}>
+                      {job.customer_name}
                     </div>
-                  </div>
-
-                  {/* Job Right */}
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{
-                      fontSize: '24px',
-                      fontWeight: '700',
-                      color: '#22c55e',
-                      marginBottom: '4px'
-                    }}>
-                      ${job.total.toLocaleString()}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#a855f7',
-                      background: 'rgba(168, 85, 247, 0.15)',
-                      padding: '4px 12px',
-                      borderRadius: '20px',
-                      display: 'inline-block'
-                    }}>
-                      {formatCategoryLabel(job.category)}
+                    <div style={{ fontSize: '14px', color: '#64748b' }}>
+                      {job.vehicle_description || 'No vehicle description'}
                     </div>
                   </div>
                 </div>
 
-                {/* Pipeline Section */}
-                {jobTasks.length > 0 && (
-                  <div style={{
-                    padding: '24px',
-                    background: '#1d1d1d'
-                  }}>
-                    <div style={{ position: 'relative', padding: '0 10px' }}>
-                      {/* Pipeline Track */}
-                      <div style={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: '20px',
-                        right: '20px',
-                        height: '4px',
-                        background: '#27272a',
-                        borderRadius: '2px',
-                        transform: 'translateY(-50%)',
-                        zIndex: 0
-                      }}>
-                        <div style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          height: '100%',
-                          background: 'linear-gradient(90deg, #22d3ee, #a855f7)',
-                          borderRadius: '2px',
-                          width: `${progress.percent}%`,
-                          transition: 'width 0.6s ease',
-                          boxShadow: '0 0 20px rgba(34, 211, 238, 0.4)'
-                        }} />
-                      </div>
+                {/* Line Item Groups */}
+                {lineItemGroups.map((group, groupIndex) => {
+                  const progress = calculateProgress(group.tasks)
+                  const nextTaskIndex = group.tasks.findIndex(t => t.status !== 'COMPLETED')
 
-                      {/* Pipeline Steps */}
-                      <div style={{ display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1 }}>
-                        {jobTasks.map((task, i) => {
-                          const isDone = task.status === 'COMPLETED'
-                          const isActive = i === nextTaskIndex
+                  // Progress ring calculations
+                  const circumference = 188.5
+                  const strokeOffset = circumference - (progress.percent / 100) * circumference
 
-                          return (
-                            <div key={task.id} style={{
-                              flex: 1,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center'
-                            }}>
-                              <div style={{
-                                width: '16px',
-                                height: '16px',
-                                borderRadius: '50%',
-                                background: isDone ? '#22c55e' : '#111111',
-                                border: `3px solid ${isDone ? '#22c55e' : isActive ? '#22d3ee' : '#27272a'}`,
-                                transition: 'all 0.3s ease',
-                                boxShadow: isDone ? '0 0 12px rgba(34, 197, 94, 0.5)' : isActive ? '0 0 12px rgba(34, 211, 238, 0.4)' : 'none'
-                              }} />
-                              <div style={{
-                                marginTop: '10px',
-                                fontSize: '10px',
-                                color: isDone ? '#22c55e' : isActive ? '#22d3ee' : '#64748b',
-                                textAlign: 'center',
-                                maxWidth: '70px',
-                                lineHeight: 1.3,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                fontWeight: isDone || isActive ? '600' : '400'
-                              }}>
-                                {getStepLabel(task.title)}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Task Section */}
-                {jobTasks.length > 0 && (
-                  <div style={{ padding: '20px 24px' }}>
-                    {/* Visible Tasks */}
-                    {visibleTasks.map((task, i) => {
-                      const isCompleted = task.status === 'COMPLETED'
-                      const isNext = i === nextTaskIndex && !isCompleted
-
-                      return (
-                        <div
-                          key={task.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '16px',
-                            padding: '14px 0',
-                            borderBottom: '1px solid rgba(148, 163, 184, 0.2)',
-                            transition: 'background 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
-                            e.currentTarget.style.marginLeft = '-24px'
-                            e.currentTarget.style.marginRight = '-24px'
-                            e.currentTarget.style.paddingLeft = '24px'
-                            e.currentTarget.style.paddingRight = '24px'
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent'
-                            e.currentTarget.style.marginLeft = '0'
-                            e.currentTarget.style.marginRight = '0'
-                            e.currentTarget.style.paddingLeft = '0'
-                            e.currentTarget.style.paddingRight = '0'
-                          }}
-                        >
-                          {/* Checkbox */}
-                          <div
-                            onClick={() => toggleTask(task.id)}
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '8px',
-                              border: `2px solid ${isCompleted ? '#22c55e' : '#64748b'}`,
-                              background: isCompleted ? '#22c55e' : 'transparent',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              flexShrink: 0
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isCompleted) {
-                                e.currentTarget.style.borderColor = '#22d3ee'
-                                e.currentTarget.style.background = 'rgba(34, 211, 238, 0.1)'
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isCompleted) {
-                                e.currentTarget.style.borderColor = '#64748b'
-                                e.currentTarget.style.background = 'transparent'
-                              }
-                            }}
-                          >
-                            {isCompleted && (
-                              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" style={{ width: '14px', height: '14px' }}>
-                                <path d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-
-                          {/* Task Content */}
-                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{
-                              fontSize: '14px',
-                              fontWeight: '500',
-                              color: '#f1f5f9',
-                              textDecoration: isCompleted ? 'line-through' : 'none',
-                              opacity: isCompleted ? 0.6 : 1
-                            }}>
-                              {task.title}
-                            </span>
-                            {isNext && (
-                              <span style={{
-                                fontSize: '9px',
-                                padding: '3px 8px',
-                                borderRadius: '6px',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                fontWeight: '600',
-                                background: 'rgba(34, 211, 238, 0.15)',
-                                color: '#22d3ee'
-                              }}>
-                                Next
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-
-                    {/* Hidden Tasks */}
-                    {hiddenTasks.length > 0 && isExpanded && hiddenTasks.map((task, i) => {
-                      const actualIndex = i + 4
-                      const isCompleted = task.status === 'COMPLETED'
-                      const isNext = actualIndex === nextTaskIndex && !isCompleted
-
-                      return (
-                        <div
-                          key={task.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '16px',
-                            padding: '14px 0',
-                            borderBottom: '1px solid rgba(148, 163, 184, 0.2)'
-                          }}
-                        >
-                          <div
-                            onClick={() => toggleTask(task.id)}
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '8px',
-                              border: `2px solid ${isCompleted ? '#22c55e' : '#64748b'}`,
-                              background: isCompleted ? '#22c55e' : 'transparent',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              flexShrink: 0
-                            }}
-                          >
-                            {isCompleted && (
-                              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" style={{ width: '14px', height: '14px' }}>
-                                <path d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{
-                              fontSize: '14px',
-                              fontWeight: '500',
-                              color: '#f1f5f9',
-                              textDecoration: isCompleted ? 'line-through' : 'none',
-                              opacity: isCompleted ? 0.6 : 1
-                            }}>
-                              {task.title}
-                            </span>
-                            {isNext && (
-                              <span style={{
-                                fontSize: '9px',
-                                padding: '3px 8px',
-                                borderRadius: '6px',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                fontWeight: '600',
-                                background: 'rgba(34, 211, 238, 0.15)',
-                                color: '#22d3ee'
-                              }}>
-                                Next
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* Expand Toggle */}
-                {hiddenTasks.length > 0 && (
-                  <div
-                    onClick={() => toggleExpanded(job.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '16px',
-                      color: '#64748b',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      borderTop: '1px solid rgba(148, 163, 184, 0.2)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = '#22d3ee'
-                      e.currentTarget.style.background = 'rgba(34, 211, 238, 0.05)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = '#64748b'
-                      e.currentTarget.style.background = 'transparent'
-                    }}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                  return (
+                    <div
+                      key={group.lineItemId}
                       style={{
-                        width: '18px',
-                        height: '18px',
-                        transition: 'transform 0.3s ease',
-                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                        borderTop: groupIndex > 0 ? '1px solid rgba(148, 163, 184, 0.2)' : 'none'
                       }}
                     >
-                      <path d="M19 9l-7 7-7-7" />
-                    </svg>
-                    <span>{isExpanded ? 'Show less' : `Show ${hiddenTasks.length} more tasks`}</span>
-                  </div>
-                )}
+                      {/* Line Item Header */}
+                      <div style={{
+                        padding: '20px 24px',
+                        background: '#0a0a0a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '20px'
+                      }}>
+                        {/* Progress Ring */}
+                        <div style={{ position: 'relative', width: '64px', height: '64px', flexShrink: 0 }}>
+                          <svg width="64" height="64" style={{ transform: 'rotate(-90deg)' }}>
+                            <circle
+                              cx="32"
+                              cy="32"
+                              r="28"
+                              fill="none"
+                              stroke="#27272a"
+                              strokeWidth="5"
+                            />
+                            <circle
+                              cx="32"
+                              cy="32"
+                              r="28"
+                              fill="none"
+                              stroke="url(#ringGradient)"
+                              strokeWidth="5"
+                              strokeLinecap="round"
+                              strokeDasharray={circumference}
+                              strokeDashoffset={strokeOffset}
+                              style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+                            />
+                          </svg>
+                          <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            fontSize: '14px',
+                            fontWeight: '700',
+                            color: '#f1f5f9'
+                          }}>
+                            {progress.percent}%
+                          </div>
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontSize: '15px',
+                            fontWeight: '600',
+                            color: '#f1f5f9',
+                            marginBottom: '4px'
+                          }}>
+                            {group.lineItemDescription}
+                          </div>
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#64748b',
+                            textTransform: 'uppercase',
+                            letterSpacing: '1px'
+                          }}>
+                            {formatCategoryLabel(group.category)} • {progress.completed}/{progress.total} tasks
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Pipeline Section */}
+                      {group.tasks.length > 0 && (
+                        <div style={{
+                          padding: '24px',
+                          background: '#1d1d1d'
+                        }}>
+                          <div style={{ position: 'relative', padding: '0 10px' }}>
+                            {/* Pipeline Track */}
+                            <div style={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: '20px',
+                              right: '20px',
+                              height: '4px',
+                              background: '#27272a',
+                              borderRadius: '2px',
+                              transform: 'translateY(-50%)',
+                              zIndex: 0
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                height: '100%',
+                                background: 'linear-gradient(90deg, #22d3ee, #a855f7)',
+                                borderRadius: '2px',
+                                width: `${progress.percent}%`,
+                                transition: 'width 0.6s ease',
+                                boxShadow: '0 0 20px rgba(34, 211, 238, 0.4)'
+                              }} />
+                            </div>
+
+                            {/* Pipeline Steps */}
+                            <div style={{ display: 'flex', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                              {group.tasks.map((task, i) => {
+                                const isDone = task.status === 'COMPLETED'
+                                const isActive = i === nextTaskIndex
+
+                                return (
+                                  <div key={task.id} style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center'
+                                  }}>
+                                    <div style={{
+                                      width: '16px',
+                                      height: '16px',
+                                      borderRadius: '50%',
+                                      background: isDone ? '#22c55e' : '#111111',
+                                      border: `3px solid ${isDone ? '#22c55e' : isActive ? '#22d3ee' : '#27272a'}`,
+                                      transition: 'all 0.3s ease',
+                                      boxShadow: isDone ? '0 0 12px rgba(34, 197, 94, 0.5)' : isActive ? '0 0 12px rgba(34, 211, 238, 0.4)' : 'none'
+                                    }} />
+                                    <div style={{
+                                      marginTop: '10px',
+                                      fontSize: '10px',
+                                      color: isDone ? '#22c55e' : isActive ? '#22d3ee' : '#64748b',
+                                      textAlign: 'center',
+                                      maxWidth: '70px',
+                                      lineHeight: 1.3,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.5px',
+                                      fontWeight: isDone || isActive ? '600' : '400'
+                                    }}>
+                                      {getStepLabel(task.title)}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Task List */}
+                      {group.tasks.length > 0 && (
+                        <div style={{ padding: '20px 24px' }}>
+                          {group.tasks.map((task, i) => {
+                            const isCompleted = task.status === 'COMPLETED'
+                            const isNext = i === nextTaskIndex && !isCompleted
+
+                            return (
+                              <div
+                                key={task.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '16px',
+                                  padding: '14px 0',
+                                  borderBottom: i < group.tasks.length - 1 ? '1px solid rgba(148, 163, 184, 0.2)' : 'none',
+                                  transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+                                  e.currentTarget.style.marginLeft = '-24px'
+                                  e.currentTarget.style.marginRight = '-24px'
+                                  e.currentTarget.style.paddingLeft = '24px'
+                                  e.currentTarget.style.paddingRight = '24px'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'transparent'
+                                  e.currentTarget.style.marginLeft = '0'
+                                  e.currentTarget.style.marginRight = '0'
+                                  e.currentTarget.style.paddingLeft = '0'
+                                  e.currentTarget.style.paddingRight = '0'
+                                }}
+                              >
+                                {/* Checkbox */}
+                                <div
+                                  onClick={() => toggleTask(task.id, group.tasks)}
+                                  style={{
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '8px',
+                                    border: `2px solid ${isCompleted ? '#22c55e' : '#64748b'}`,
+                                    background: isCompleted ? '#22c55e' : 'transparent',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    flexShrink: 0
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isCompleted) {
+                                      e.currentTarget.style.borderColor = '#22d3ee'
+                                      e.currentTarget.style.background = 'rgba(34, 211, 238, 0.1)'
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isCompleted) {
+                                      e.currentTarget.style.borderColor = '#64748b'
+                                      e.currentTarget.style.background = 'transparent'
+                                    }
+                                  }}
+                                >
+                                  {isCompleted && (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" style={{ width: '14px', height: '14px' }}>
+                                      <path d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </div>
+
+                                {/* Task Content */}
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <span style={{
+                                    fontSize: '14px',
+                                    fontWeight: '500',
+                                    color: '#f1f5f9',
+                                    textDecoration: isCompleted ? 'line-through' : 'none',
+                                    opacity: isCompleted ? 0.6 : 1
+                                  }}>
+                                    {task.title}
+                                  </span>
+                                  {isNext && (
+                                    <span style={{
+                                      fontSize: '9px',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.5px',
+                                      fontWeight: '600',
+                                      background: 'rgba(34, 211, 238, 0.15)',
+                                      color: '#22d3ee'
+                                    }}>
+                                      Next
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )
           })
