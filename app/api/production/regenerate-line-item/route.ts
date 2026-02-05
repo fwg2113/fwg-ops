@@ -28,16 +28,14 @@ export async function POST(request: NextRequest) {
     // Return result
     if (result.success) {
       return NextResponse.json({
-        success: true,
-        message: `Regenerated ${result.totalTasksCreated} tasks for line item`,
-        ...result
+        ...result,
+        message: `Regenerated ${result.totalTasksCreated} tasks for line item`
       })
     } else {
       return NextResponse.json(
         {
-          success: false,
-          message: 'Task regeneration failed',
-          ...result
+          ...result,
+          message: 'Task regeneration failed'
         },
         { status: 400 }
       )
