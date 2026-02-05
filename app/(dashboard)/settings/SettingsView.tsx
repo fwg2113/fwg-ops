@@ -79,7 +79,17 @@ type TaskPriority = {
   active: boolean
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'statuses' | 'priorities'
+type AutomationSetting = {
+  id: string
+  automation_key: string
+  enabled: boolean
+  label: string
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'statuses' | 'priorities' | 'automations'
 
 export default function SettingsView({
   initialCategories,
@@ -89,7 +99,8 @@ export default function SettingsView({
   initialCallSettings,
   initialTemplates,
   initialTaskStatuses,
-  initialTaskPriorities
+  initialTaskPriorities,
+  initialAutomationSettings
 }: {
   initialCategories: Category[]
   initialMaterials: Material[]
@@ -99,6 +110,7 @@ export default function SettingsView({
   initialTemplates: ProductionTemplate[]
   initialTaskStatuses: TaskStatus[]
   initialTaskPriorities: TaskPriority[]
+  initialAutomationSettings: AutomationSetting[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories] = useState<Category[]>(initialCategories)
@@ -120,6 +132,7 @@ export default function SettingsView({
   const [addingPriority, setAddingPriority] = useState(false)
   const [newStatus, setNewStatus] = useState({ status_key: '', label: '', color: '#64748b', is_complete: false })
   const [newPriority, setNewPriority] = useState({ priority_key: '', label: '', color: '#64748b' })
+  const [automationSettings, setAutomationSettings] = useState<AutomationSetting[]>(initialAutomationSettings)
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'categories', label: 'Categories' },
@@ -128,6 +141,7 @@ export default function SettingsView({
     { key: 'production', label: 'Production Templates' },
     { key: 'statuses', label: 'Task Statuses' },
     { key: 'priorities', label: 'Task Priorities' },
+    { key: 'automations', label: 'Automations' },
     { key: 'calls', label: 'Call Forwarding' },
     { key: 'integrations', label: 'Integrations' }
   ]
@@ -147,15 +161,35 @@ export default function SettingsView({
       .from('call_settings')
       .update({ enabled })
       .eq('id', id)
-    
+
     if (error) {
       console.error('Toggle error:', error)
       alert('Failed to update: ' + error.message)
       return
     }
-    
-    setCallSettings(callSettings.map(c => 
+
+    setCallSettings(callSettings.map(c =>
       c.id === id ? { ...c, enabled } : c
+    ))
+  }
+
+  const toggleAutomation = async (id: string, enabled: boolean) => {
+    const { error } = await supabase
+      .from('automation_settings')
+      .update({
+        enabled,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Automation toggle error:', error)
+      alert('Failed to update automation: ' + error.message)
+      return
+    }
+
+    setAutomationSettings(automationSettings.map(a =>
+      a.id === id ? { ...a, enabled, updated_at: new Date().toISOString() } : a
     ))
   }
 
@@ -1831,6 +1865,127 @@ export default function SettingsView({
                   <button onClick={addTeamPhone} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>Add Phone</button>
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Automations Tab */}
+      {activeTab === 'automations' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(215, 28, 209, 0.05), rgba(168, 85, 247, 0.05))',
+            border: '1px solid rgba(215, 28, 209, 0.2)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '8px'
+          }}>
+            <h3 style={{
+              color: '#f1f5f9',
+              fontSize: '18px',
+              fontWeight: '600',
+              margin: '0 0 8px 0'
+            }}>
+              Production Automations
+            </h3>
+            <p style={{
+              color: '#94a3b8',
+              fontSize: '14px',
+              margin: 0,
+              lineHeight: '1.5'
+            }}>
+              Configure automated workflows to streamline your production process.
+              Toggle each automation on or off based on your needs.
+            </p>
+          </div>
+
+          {automationSettings.length > 0 ? (
+            automationSettings.map((automation) => (
+              <div
+                key={automation.id}
+                style={{
+                  background: '#1d1d1d',
+                  border: '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '12px',
+                  padding: '24px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: '20px'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{
+                      color: '#f1f5f9',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      margin: '0 0 8px 0'
+                    }}>
+                      {automation.label}
+                    </h3>
+                    <p style={{
+                      color: '#64748b',
+                      fontSize: '14px',
+                      margin: 0,
+                      lineHeight: '1.5'
+                    }}>
+                      {automation.description}
+                    </p>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: automation.enabled ? '#22c55e' : '#64748b'
+                    }}>
+                      {automation.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <button
+                      onClick={() => toggleAutomation(automation.id, !automation.enabled)}
+                      style={{
+                        width: '52px',
+                        height: '28px',
+                        borderRadius: '14px',
+                        border: 'none',
+                        background: automation.enabled
+                          ? 'linear-gradient(135deg, #22d3ee, #a855f7)'
+                          : '#374151',
+                        position: 'relative',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      <div style={{
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        background: 'white',
+                        position: 'absolute',
+                        top: '3px',
+                        left: automation.enabled ? '27px' : '3px',
+                        transition: 'left 0.3s ease',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                      }} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{
+              background: '#1d1d1d',
+              borderRadius: '12px',
+              padding: '40px',
+              textAlign: 'center'
+            }}>
+              <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
+                No automations configured. Please run the automation settings migration.
+              </p>
             </div>
           )}
         </div>
