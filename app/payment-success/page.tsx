@@ -61,8 +61,8 @@ export default async function PaymentSuccessPage({
           })
           .eq('id', documentId)
 
-        // Automation #1: Auto-move to production on payment
-        if (isPaidInFull && !invoice.in_production) {
+        // Automation #1: Auto-move to production on payment (any payment amount)
+        if (amount > 0 && !invoice.in_production) {
           const autoProductionEnabled = await isAutomationEnabled('auto_production_on_payment')
 
           if (autoProductionEnabled) {
