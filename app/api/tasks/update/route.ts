@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
+import { isAutomationEnabled } from '../../../lib/automation-settings'
 
 export async function POST(request: Request) {
   try {
@@ -25,6 +26,113 @@ export async function POST(request: Request) {
     if (error) {
       console.error('Supabase error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Automation #2: Customer notification on task completion
+    if (status === 'COMPLETED' && data.line_item_id) {
+      const automationEnabled = await isAutomationEnabled('notify_customer_on_completion')
+
+      if (automationEnabled) {
+        try {
+          // Check if all tasks for this line item are completed
+          const { data: allLineTasks } = await supabase
+            .from('tasks')
+            .select('id, status')
+            .eq('line_item_id', data.line_item_id)
+
+          const allCompleted = allLineTasks?.every(t => t.status === 'COMPLETED')
+
+          if (allCompleted && allLineTasks && allLineTasks.length > 0) {
+            // Get line item and document details
+            const { data: lineItem } = await supabase
+              .from('line_items')
+              .select('id, category, description')
+              .eq('id', data.line_item_id)
+              .single()
+
+            const { data: document } = await supabase
+              .from('documents')
+              .select('id, doc_number, customer_name, customer_phone, customer_email, vehicle_description')
+              .eq('id', data.document_id)
+              .single()
+
+            if (document) {
+              // Send SMS notification if customer has phone
+              if (document.customer_phone) {
+                const twilioSid = process.env.TWILIO_ACCOUNT_SID
+                const twilioToken = process.env.TWILIO_AUTH_TOKEN
+                const twilioPhone = process.env.TWILIO_PHONE_NUMBER
+
+                if (twilioSid && twilioToken && twilioPhone) {
+                  const message = `Hi ${document.customer_name}! Great news - your ${lineItem?.description || 'service'} is complete and ready for pickup! Contact us to schedule: (301) 620-4275. -Frederick Wraps & Graphics`
+
+                  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Basic ${Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64')}`,
+                      'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                      To: document.customer_phone,
+                      From: twilioPhone,
+                      Body: message
+                    })
+                  })
+
+                  console.log(`[Automation] Sent completion SMS to ${document.customer_name} for line item ${lineItem?.description}`)
+                }
+              }
+
+              // Send email notification if customer has email
+              if (document.customer_email) {
+                const resendApiKey = process.env.RESEND_API_KEY
+
+                if (resendApiKey) {
+                  await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${resendApiKey}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      from: 'FWG Ops <quotes@frederickwraps.com>',
+                      to: [document.customer_email],
+                      subject: `Your ${lineItem?.description || 'Service'} is Ready for Pickup!`,
+                      html: `
+                        <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
+                          <h1 style="background: linear-gradient(135deg, #d71cd1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Great News!</h1>
+                          <p>Hi ${document.customer_name},</p>
+                          <p>We're excited to let you know that your <strong>${lineItem?.description || 'service'}</strong> is complete and ready for pickup!</p>
+                          <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                            <p style="margin: 0;"><strong>Invoice #${document.doc_number}</strong></p>
+                            ${document.vehicle_description ? `<p style="margin: 8px 0 0 0; color: #666;">${document.vehicle_description}</p>` : ''}
+                          </div>
+                          <p><strong>Next Steps:</strong></p>
+                          <ul>
+                            <li>Call us to schedule your pickup: <a href="tel:+13016204275">(301) 620-4275</a></li>
+                            <li>Visit us at: 4314 Markell Dr, Frederick, MD 21703</li>
+                          </ul>
+                          <p>We look forward to seeing you soon!</p>
+                          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                            Frederick Wraps & Graphics<br/>
+                            (301) 620-4275<br/>
+                            info@frederickwraps.com
+                          </p>
+                        </div>
+                      `,
+                    }),
+                  })
+
+                  console.log(`[Automation] Sent completion email to ${document.customer_name} for line item ${lineItem?.description}`)
+                }
+              }
+            }
+          }
+        } catch (autoError) {
+          console.error('[Automation] Failed to send completion notification:', autoError)
+          // Don't fail the task update if notification fails
+        }
+      }
     }
 
     return NextResponse.json(data)
