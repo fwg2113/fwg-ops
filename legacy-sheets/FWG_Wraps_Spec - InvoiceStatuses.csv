@@ -1,0 +1,9 @@
+status_key,label,color,sort_order,active
+DRAFT,Draft,#64748b,1,TRUE
+SENT,Sent,#3b82f6,2,TRUE
+VIEWED,Viewed,#8b5cf6,3,TRUE
+PARTIAL,Partial Payment,#f59e0b,4,TRUE
+PAID,Paid,#22c55e,5,TRUE
+IN_PROGRESS,In Progress,#06b6d4,6,TRUE
+COMPLETED,Completed,#10b981,7,TRUE
+CANCELLED,Cancelled,#ef4444,8,TRUE

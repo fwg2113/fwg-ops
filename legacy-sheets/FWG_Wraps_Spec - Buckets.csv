@@ -1,0 +1,6 @@
+bucket_key,label,color,is_active,is_archived,sort_order
+READY_FOR_ACTION,Ready for Action,#f59e0b,TRUE,FALSE,1
+WAITING_ON_CUSTOMER,Waiting on Customer,#3b82f6,TRUE,FALSE,2
+COLD,Cold,#6b7280,TRUE,FALSE,3
+ARCHIVE_WON,Won,#10b981,TRUE,TRUE,4
+ARCHIVE_LOST,Lost,#ef4444,TRUE,TRUE,5

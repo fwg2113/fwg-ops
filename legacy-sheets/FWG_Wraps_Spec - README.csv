@@ -1,0 +1,23 @@
+FWG Wraps Spec - Configuration Guide
+
+This spreadsheet contains all configuration data for the FWG Commercial Wraps system.
+
+SHEETS:
+• VehicleCategories - Vehicle types with size factors and sqft ranges
+"• ProjectTypes - Full Wrap, Partial Wrap, Lettering definitions"
+• DesignScenarios - Customer artwork situations and design fee triggers
+• PricingMatrix - Price ranges by Vehicle × Project combination
+• DesignFees - Design fees by Vehicle × Design Scenario
+• Materials - Material costs and markup (internal reference)
+• Schedule - Business hours
+• ClosedDates - Holidays and blocked dates
+• HELPERS - System configuration values
+
+EDITING GUIDELINES:
+• Changes take effect immediately in the system
+"• Use TRUE/FALSE for boolean columns (active, enabled)"
+• Prices are in dollars (no $ symbol needed)
+• Dates use YYYY-MM-DD format
+
+Created: January 2026
+System: FWG Commercial Wraps Estimator + Dashboard

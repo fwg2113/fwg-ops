@@ -1,0 +1,24 @@
+FWG Operations - Transactional Data
+
+This spreadsheet contains all operational/transactional data for FWG.
+
+SHEETS:
+• Submissions - All estimator submissions and inquiries
+• Quotes - Quote records with status tracking
+• QuoteLineItems - Individual line items for quotes
+• Invoices - Invoice records with payment status
+• InvoiceLineItems - Individual line items for invoices
+• Payments - Payment transaction records
+• Messages - SMS and email correspondence log
+• Tasks - To-do items (auto-generated and manual)
+• CalendarEvents - Linked Google Calendar events
+
+STATUS VALUES:
+
+"Submissions: New, In Progress, Quoted, Won, Lost, Archived"
+"Quotes: Draft, Sent, Viewed, Approved, Declined, Expired, Converted"
+"Invoices: Draft, Sent, Partial, Paid, Void"
+"Tasks: Open, In Progress, Completed, Cancelled"
+
+Created: January 2026
+System: FWG Operations Dashboard

@@ -1,0 +1,3 @@
+automation_key,label,trigger_type,trigger_value,target_field,new_value,active
+AUTO_COMPLETE_INVOICE,Complete invoice when all tasks done,all_tasks_complete,,invoice_status,Completed,TRUE
+AUTO_IN_PROGRESS,Set invoice to In Progress when first task started,any_task_in_progress,,invoice_status,In Progress,TRUE

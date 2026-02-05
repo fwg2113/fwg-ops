@@ -1,0 +1,9 @@
+template_key,category_key,label,description,sort_order,active
+FULL_WRAP_WORKFLOW,FULL_WRAP,Full Wrap Workflow,Complete process for full vehicle wraps,1,TRUE
+PARTIAL_WRAP_WORKFLOW,PARTIAL_WRAP,Partial Wrap Workflow,Process for partial wraps and accents,2,TRUE
+PPF_WORKFLOW,PPF,PPF Installation Workflow,Paint protection film installation process,3,TRUE
+COLOR_CHANGE_WORKFLOW,COLOR_CHANGE,Color Change Workflow,Full color change wrap process,4,TRUE
+STICKERS,STICKERS,Stickers,,5,TRUE
+EMBROIDERY,EMBROIDERY,Embroidery,,6,TRUE
+LABELS_OH_WORKFLOW,LABELS_OH,Labels On Hand,,8,TRUE
+LABELS_OD_WORKFLOW,LABELS_OD,Labels On Demand,,9,TRUE
