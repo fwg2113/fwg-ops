@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { isAutomationEnabled } from '../../../lib/automation-settings'
 
 const buttonStyles = `
   .action-btn {
@@ -1111,13 +1112,52 @@ export default function DocumentDetail({
         .eq('id', doc.id)
       
       if (docError) throw docError
-      
+
+      // Automation #1: Auto-move to production on payment (any payment amount)
+      let automationRan = false
+      if (paymentAmount > 0 && !doc.in_production) {
+        const autoProductionEnabled = await isAutomationEnabled('auto_production_on_payment')
+
+        if (autoProductionEnabled) {
+          try {
+            // Generate production tasks
+            const taskResponse = await fetch('/api/production/generate-tasks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ invoiceId: doc.id })
+            })
+
+            const taskResult = await taskResponse.json()
+
+            if (taskResult.success) {
+              // Move invoice to production
+              await supabase
+                .from('documents')
+                .update({
+                  in_production: true,
+                  bucket: 'IN_PRODUCTION'
+                })
+                .eq('id', doc.id)
+
+              automationRan = true
+              console.log(`[Automation] Moved invoice #${doc.doc_number} to production (${taskResult.totalTasksCreated} tasks created)`)
+              showToast(`Payment recorded! Auto-moved to production (${taskResult.totalTasksCreated} tasks created)`, 'success')
+            }
+          } catch (autoError) {
+            console.error('[Automation] Failed to auto-move to production:', autoError)
+            // Don't fail the payment process if automation fails - continue normally
+          }
+        }
+      }
+
       // Update local state
       setPayments([newPayment, ...payments])
-      setDoc({ 
-        ...doc, 
+      setDoc({
+        ...doc,
+        in_production: automationRan ? true : doc.in_production,
+        bucket: automationRan ? 'IN_PRODUCTION' : doc.bucket,
         status: isPaidInFull ? 'paid' : 'partial',
-        amount_paid: newAmountPaid, 
+        amount_paid: newAmountPaid,
         balance_due: Math.max(0, newBalanceDue),
         paid_at: isPaidInFull ? new Date().toISOString() : doc.paid_at
       })
