@@ -33,6 +33,7 @@ const navSections = [
       { href: '/calendar', label: 'Job', labelGradient: 'Calendar', icon: 'calendar' },
       { href: '/tasks', label: 'Task', labelGradient: 'Board', icon: 'tasks' },
       { href: '/production', label: 'Production', labelGradient: 'Flow', icon: 'layers' },
+      { href: '/analytics', label: 'Production', labelGradient: 'Analytics', icon: 'chart' },
     ]
   },
   {
@@ -122,6 +123,13 @@ const icons: Record<string, React.ReactElement> = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
       <polyline points="22,6 12,13 2,6"></polyline>
+    </svg>
+  ),
+  chart: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <line x1="18" y1="20" x2="18" y2="10"></line>
+      <line x1="12" y1="20" x2="12" y2="4"></line>
+      <line x1="6" y1="20" x2="6" y2="14"></line>
     </svg>
   ),
 }
