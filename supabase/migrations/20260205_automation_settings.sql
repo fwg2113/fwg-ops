@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_automation_settings_key
 
 -- Insert default automation configurations
 INSERT INTO automation_settings (automation_key, enabled, label, description) VALUES
-  ('auto_production_on_payment', false, 'Auto-move to Production on Payment', 'Automatically move invoice to production and generate tasks when invoice is fully paid'),
+  ('auto_production_on_payment', false, 'Auto-move to Production on Payment', 'Automatically move invoice to production and generate tasks when any payment is received (deposit or full payment)'),
   ('notify_customer_on_completion', false, 'Customer Notification on Completion', 'Send SMS/email to customer when all line item tasks are completed')
 ON CONFLICT (automation_key) DO NOTHING;
 
