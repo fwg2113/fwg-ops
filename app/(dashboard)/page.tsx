@@ -30,6 +30,7 @@ export default async function DashboardPage() {
     .from('tasks')
     .select('*')
     .neq('status', 'COMPLETED')
+    .neq('auto_generated', true)
     .order('created_at', { ascending: false })
 
   const { data: pinnedItems } = await supabase
