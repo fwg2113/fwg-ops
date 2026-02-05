@@ -36,7 +36,10 @@ export default async function AnalyticsPage() {
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
       <AnalyticsDashboard
-        completedTasks={completedTasks || []}
+        completedTasks={(completedTasks || []).map(task => ({
+          ...task,
+          line_items: Array.isArray(task.line_items) ? task.line_items[0] : task.line_items
+        }))}
         productionJobs={productionJobs || []}
       />
     </div>
