@@ -598,7 +598,8 @@ export default function DocumentList({
                     {filteredCustomers.map((customer) => (
                       <div
                         key={customer.id}
-                        onClick={() => {
+                        onMouseDown={(e) => {
+                          e.preventDefault()
                           handleCustomerSelect(customer.id)
                           setCustomerSearchTerm(customer.display_name || `${customer.first_name} ${customer.last_name}`)
                           setShowCustomerDropdown(false)
