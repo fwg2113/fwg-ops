@@ -3,6 +3,19 @@
 -- This migration imports all workflows from the legacy Google Sheets system
 -- ============================================================================
 
+-- First, ensure the unique constraint exists on template_tasks
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'template_tasks_template_key_task_key_key'
+  ) THEN
+    ALTER TABLE template_tasks
+    ADD CONSTRAINT template_tasks_template_key_task_key_key
+    UNIQUE (template_key, task_key);
+  END IF;
+END $$;
+
 -- Insert all production templates
 INSERT INTO project_templates (template_key, category_key, label, description, active, sort_order) VALUES
   ('FULL_WRAP_WORKFLOW', 'FULL_WRAP', 'Full Wrap Workflow', 'Complete process for full vehicle wraps', TRUE, 1),
