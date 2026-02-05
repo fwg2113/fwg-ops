@@ -17,6 +17,9 @@ type Task = {
   sort_order?: number
   template_task_key?: string
   auto_generated?: boolean
+  started_at?: string | null
+  time_spent_minutes?: number
+  completed_at?: string | null
   line_items?: {
     id: string
     description: string
@@ -62,7 +65,16 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const [collapsedLineItems, setCollapsedLineItems] = useState<Set<string>>(new Set())
   const [lineItemOrder, setLineItemOrder] = useState<Record<string, string[]>>({})
   const [draggedItem, setDraggedItem] = useState<string | null>(null)
+  const [currentTime, setCurrentTime] = useState(Date.now())
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Update current time every second for timer display
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Category color map (matching calendar colors)
   const getCategoryColor = (category: string): string => {
@@ -202,6 +214,65 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
     }
   }
 
+  // Calculate elapsed time for running timer
+  const getElapsedMinutes = (task: Task): number => {
+    if (!task.started_at) return task.time_spent_minutes || 0
+    const startTime = new Date(task.started_at).getTime()
+    const elapsed = Math.floor((currentTime - startTime) / 1000 / 60)
+    return (task.time_spent_minutes || 0) + elapsed
+  }
+
+  // Format time display
+  const formatTime = (minutes: number): string => {
+    if (minutes === 0) return '0m'
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    if (hours > 0) {
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+    }
+    return `${mins}m`
+  }
+
+  // Start timer for a task
+  const startTimer = async (taskId: string) => {
+    try {
+      await supabase.from('tasks').update({
+        started_at: new Date().toISOString()
+      }).eq('id', taskId)
+
+      // Optimistic update
+      setTasks(prev => prev.map(t =>
+        t.id === taskId ? { ...t, started_at: new Date().toISOString() } : t
+      ))
+    } catch (error) {
+      console.error('Error starting timer:', error)
+    }
+  }
+
+  // Stop timer for a task
+  const stopTimer = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task || !task.started_at) return
+
+    const startTime = new Date(task.started_at).getTime()
+    const elapsedMinutes = Math.floor((Date.now() - startTime) / 1000 / 60)
+    const totalMinutes = (task.time_spent_minutes || 0) + elapsedMinutes
+
+    try {
+      await supabase.from('tasks').update({
+        started_at: null,
+        time_spent_minutes: totalMinutes
+      }).eq('id', taskId)
+
+      // Optimistic update
+      setTasks(prev => prev.map(t =>
+        t.id === taskId ? { ...t, started_at: null, time_spent_minutes: totalMinutes } : t
+      ))
+    } catch (error) {
+      console.error('Error stopping timer:', error)
+    }
+  }
+
   // Get abbreviated step labels
   const getStepLabel = (taskTitle: string): string => {
     const lower = taskTitle.toLowerCase()
@@ -299,17 +370,37 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
 
     const newStatus = task.status === 'COMPLETED' ? 'TODO' : 'COMPLETED'
 
+    // If completing task and timer is running, stop it first
+    let finalTimeSpent = task.time_spent_minutes || 0
+    if (newStatus === 'COMPLETED' && task.started_at) {
+      const startTime = new Date(task.started_at).getTime()
+      const elapsedMinutes = Math.floor((Date.now() - startTime) / 1000 / 60)
+      finalTimeSpent = (task.time_spent_minutes || 0) + elapsedMinutes
+    }
+
     // Optimistic update
     setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, status: newStatus } : t
+      t.id === taskId ? {
+        ...t,
+        status: newStatus,
+        started_at: newStatus === 'COMPLETED' ? null : t.started_at,
+        time_spent_minutes: newStatus === 'COMPLETED' ? finalTimeSpent : t.time_spent_minutes
+      } : t
     ))
 
     // Save to database
     try {
-      await supabase.from('tasks').update({
+      const updates: any = {
         status: newStatus,
         completed_at: newStatus === 'COMPLETED' ? new Date().toISOString() : null
-      }).eq('id', taskId)
+      }
+
+      if (newStatus === 'COMPLETED') {
+        updates.started_at = null
+        updates.time_spent_minutes = finalTimeSpent
+      }
+
+      await supabase.from('tasks').update(updates).eq('id', taskId)
 
       // Check if all tasks in this line item are now completed
       if (newStatus === 'COMPLETED') {
@@ -1011,6 +1102,86 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                                       color: '#22d3ee'
                                     }}>
                                       Next
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Timer Section */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {!isCompleted && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (task.started_at) {
+                                          stopTimer(task.id)
+                                        } else {
+                                          startTimer(task.id)
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '6px 10px',
+                                        background: task.started_at ? 'rgba(239, 68, 68, 0.1)' : 'rgba(168, 85, 247, 0.1)',
+                                        border: `1px solid ${task.started_at ? 'rgba(239, 68, 68, 0.3)' : 'rgba(168, 85, 247, 0.3)'}`,
+                                        borderRadius: '6px',
+                                        color: task.started_at ? '#ef4444' : '#a855f7',
+                                        fontSize: '11px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontWeight: '600',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (task.started_at) {
+                                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
+                                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)'
+                                        } else {
+                                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.2)'
+                                          e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.5)'
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (task.started_at) {
+                                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
+                                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
+                                        } else {
+                                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'
+                                          e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.3)'
+                                        }
+                                      }}
+                                    >
+                                      {task.started_at ? (
+                                        <>
+                                          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '12px', height: '12px' }}>
+                                            <rect x="6" y="4" width="4" height="16" rx="1" />
+                                            <rect x="14" y="4" width="4" height="16" rx="1" />
+                                          </svg>
+                                          {formatTime(getElapsedMinutes(task))}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '12px', height: '12px' }}>
+                                            <path d="M8 5v14l11-7z" />
+                                          </svg>
+                                          {task.time_spent_minutes ? formatTime(task.time_spent_minutes) : 'Start'}
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                  {isCompleted && task.time_spent_minutes && task.time_spent_minutes > 0 && (
+                                    <span style={{
+                                      fontSize: '11px',
+                                      color: '#64748b',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}>
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '12px', height: '12px' }}>
+                                        <circle cx="12" cy="12" r="10" />
+                                        <polyline points="12 6 12 12 16 14" />
+                                      </svg>
+                                      {formatTime(task.time_spent_minutes)}
                                     </span>
                                   )}
                                 </div>
