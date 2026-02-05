@@ -60,7 +60,26 @@ type ProductionTemplate = {
   template_tasks: TemplateTask[]
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production'
+type TaskStatus = {
+  id: string
+  status_key: string
+  label: string
+  color: string
+  is_complete: boolean
+  sort_order: number
+  active: boolean
+}
+
+type TaskPriority = {
+  id: string
+  priority_key: string
+  label: string
+  color: string
+  sort_order: number
+  active: boolean
+}
+
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'statuses' | 'priorities'
 
 export default function SettingsView({
   initialCategories,
@@ -68,7 +87,9 @@ export default function SettingsView({
   initialBuckets,
   calendarConnected,
   initialCallSettings,
-  initialTemplates
+  initialTemplates,
+  initialTaskStatuses,
+  initialTaskPriorities
 }: {
   initialCategories: Category[]
   initialMaterials: Material[]
@@ -76,6 +97,8 @@ export default function SettingsView({
   calendarConnected: boolean
   initialCallSettings: CallSetting[]
   initialTemplates: ProductionTemplate[]
+  initialTaskStatuses: TaskStatus[]
+  initialTaskPriorities: TaskPriority[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories] = useState<Category[]>(initialCategories)
@@ -83,18 +106,28 @@ export default function SettingsView({
   const [buckets] = useState<Bucket[]>(initialBuckets)
   const [callSettings, setCallSettings] = useState<CallSetting[]>(initialCallSettings)
   const [templates, setTemplates] = useState<ProductionTemplate[]>(initialTemplates)
+  const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>(initialTaskStatuses)
+  const [taskPriorities, setTaskPriorities] = useState<TaskPriority[]>(initialTaskPriorities)
   const [showAddPhone, setShowAddPhone] = useState(false)
   const [newPhone, setNewPhone] = useState({ name: '', phone: '' })
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<{ templateId: string; task: TemplateTask } | null>(null)
   const [addingTask, setAddingTask] = useState<string | null>(null)
   const [newTask, setNewTask] = useState({ task_key: '', label: '', default_priority: 'MEDIUM' })
+  const [editingStatus, setEditingStatus] = useState<TaskStatus | null>(null)
+  const [editingPriority, setEditingPriority] = useState<TaskPriority | null>(null)
+  const [addingStatus, setAddingStatus] = useState(false)
+  const [addingPriority, setAddingPriority] = useState(false)
+  const [newStatus, setNewStatus] = useState({ status_key: '', label: '', color: '#64748b', is_complete: false })
+  const [newPriority, setNewPriority] = useState({ priority_key: '', label: '', color: '#64748b' })
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'categories', label: 'Categories' },
     { key: 'materials', label: 'Materials' },
     { key: 'buckets', label: 'Pipeline Buckets' },
     { key: 'production', label: 'Production Templates' },
+    { key: 'statuses', label: 'Task Statuses' },
+    { key: 'priorities', label: 'Task Priorities' },
     { key: 'calls', label: 'Call Forwarding' },
     { key: 'integrations', label: 'Integrations' }
   ]
@@ -246,6 +279,133 @@ export default function SettingsView({
     ))
     setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' })
     setAddingTask(null)
+  }
+
+  const addTaskStatus = async () => {
+    if (!newStatus.status_key.trim() || !newStatus.label.trim()) {
+      alert('Please enter both status key and label')
+      return
+    }
+
+    const maxSortOrder = Math.max(...(taskStatuses.map(s => s.sort_order) || [0]), 0)
+
+    const { data, error } = await supabase
+      .from('task_statuses')
+      .insert({
+        status_key: newStatus.status_key.trim().toUpperCase().replace(/\s+/g, '_'),
+        label: newStatus.label.trim(),
+        color: newStatus.color,
+        is_complete: newStatus.is_complete,
+        sort_order: maxSortOrder + 1,
+        active: true
+      })
+      .select()
+      .single()
+
+    if (error) {
+      alert('Error adding status: ' + error.message)
+      return
+    }
+
+    setTaskStatuses([...taskStatuses, data])
+    setNewStatus({ status_key: '', label: '', color: '#64748b', is_complete: false })
+    setAddingStatus(false)
+  }
+
+  const updateTaskStatus = async (statusId: string, updates: Partial<TaskStatus>) => {
+    const { error } = await supabase
+      .from('task_statuses')
+      .update(updates)
+      .eq('id', statusId)
+
+    if (error) {
+      alert('Error updating status: ' + error.message)
+      return
+    }
+
+    setTaskStatuses(taskStatuses.map(s =>
+      s.id === statusId ? { ...s, ...updates } : s
+    ))
+    setEditingStatus(null)
+  }
+
+  const deleteTaskStatus = async (statusId: string) => {
+    if (!confirm('Delete this status? This may affect existing tasks.')) return
+
+    const { error } = await supabase
+      .from('task_statuses')
+      .delete()
+      .eq('id', statusId)
+
+    if (error) {
+      alert('Error deleting status: ' + error.message)
+      return
+    }
+
+    setTaskStatuses(taskStatuses.filter(s => s.id !== statusId))
+  }
+
+  const addTaskPriority = async () => {
+    if (!newPriority.priority_key.trim() || !newPriority.label.trim()) {
+      alert('Please enter both priority key and label')
+      return
+    }
+
+    const maxSortOrder = Math.max(...(taskPriorities.map(p => p.sort_order) || [0]), 0)
+
+    const { data, error } = await supabase
+      .from('task_priorities')
+      .insert({
+        priority_key: newPriority.priority_key.trim().toUpperCase().replace(/\s+/g, '_'),
+        label: newPriority.label.trim(),
+        color: newPriority.color,
+        sort_order: maxSortOrder + 1,
+        active: true
+      })
+      .select()
+      .single()
+
+    if (error) {
+      alert('Error adding priority: ' + error.message)
+      return
+    }
+
+    setTaskPriorities([...taskPriorities, data])
+    setNewPriority({ priority_key: '', label: '', color: '#64748b' })
+    setAddingPriority(false)
+  }
+
+  const updateTaskPriority = async (priorityId: string, updates: Partial<TaskPriority>) => {
+    const { error } = await supabase
+      .from('task_priorities')
+      .update(updates)
+      .eq('id', priorityId)
+
+    if (error) {
+      alert('Error updating priority: ' + error.message)
+      return
+    }
+
+    setTaskPriorities(taskPriorities.map(p =>
+      p.id === priorityId ? { ...p, ...updates } : p
+    ))
+    setEditingPriority(null)
+  }
+
+  const deleteTaskPriority = async (priorityId: string) => {
+    if (!confirm('Delete this priority? This may affect existing tasks.')) return
+
+    const { error } = await supabase
+      .from('task_priorities')
+      .delete()
+      .eq('id', priorityId)
+
+    if (error) {
+      alert('Error deleting priority: ' + error.message)
+      return
+    }
+
+    setTaskPriorities(taskPriorities.filter(p => p.id !== priorityId))
   }
 
   return (
@@ -842,6 +1002,635 @@ export default function SettingsView({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit Status Modal */}
+      {editingStatus && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            width: '500px',
+            overflow: 'hidden'
+          }}>
+            <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Edit Task Status</h3>
+              <button onClick={() => setEditingStatus(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Status Key</label>
+                <input
+                  type="text"
+                  value={editingStatus.status_key}
+                  disabled
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#282a30',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#64748b',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                <input
+                  type="text"
+                  value={editingStatus.label}
+                  onChange={(e) => setEditingStatus({ ...editingStatus, label: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Color (hex)</label>
+                <input
+                  type="text"
+                  value={editingStatus.color}
+                  onChange={(e) => setEditingStatus({ ...editingStatus, color: e.target.value })}
+                  placeholder="#64748b"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingStatus.is_complete}
+                    onChange={(e) => setEditingStatus({ ...editingStatus, is_complete: e.target.checked })}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span style={{ color: '#94a3b8', fontSize: '13px' }}>Mark tasks with this status as complete</span>
+                </label>
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setEditingStatus(null)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+              <button
+                onClick={() => updateTaskStatus(editingStatus.id, {
+                  label: editingStatus.label,
+                  color: editingStatus.color,
+                  is_complete: editingStatus.is_complete
+                })}
+                style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Status Modal */}
+      {addingStatus && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            width: '500px',
+            overflow: 'hidden'
+          }}>
+            <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Task Status</h3>
+              <button onClick={() => { setAddingStatus(false); setNewStatus({ status_key: '', label: '', color: '#64748b', is_complete: false }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Status Key</label>
+                <input
+                  type="text"
+                  value={newStatus.status_key}
+                  onChange={(e) => setNewStatus({ ...newStatus, status_key: e.target.value })}
+                  placeholder="e.g. IN_REVIEW"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>
+                  Unique identifier (will be converted to UPPERCASE)
+                </p>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                <input
+                  type="text"
+                  value={newStatus.label}
+                  onChange={(e) => setNewStatus({ ...newStatus, label: e.target.value })}
+                  placeholder="e.g. In Review"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Color (hex)</label>
+                <input
+                  type="text"
+                  value={newStatus.color}
+                  onChange={(e) => setNewStatus({ ...newStatus, color: e.target.value })}
+                  placeholder="#64748b"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={newStatus.is_complete}
+                    onChange={(e) => setNewStatus({ ...newStatus, is_complete: e.target.checked })}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span style={{ color: '#94a3b8', fontSize: '13px' }}>Mark tasks with this status as complete</span>
+                </label>
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => { setAddingStatus(false); setNewStatus({ status_key: '', label: '', color: '#64748b', is_complete: false }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+              <button
+                onClick={addTaskStatus}
+                style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+              >
+                Add Status
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Priority Modal */}
+      {editingPriority && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            width: '500px',
+            overflow: 'hidden'
+          }}>
+            <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Edit Task Priority</h3>
+              <button onClick={() => setEditingPriority(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority Key</label>
+                <input
+                  type="text"
+                  value={editingPriority.priority_key}
+                  disabled
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#282a30',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#64748b',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                <input
+                  type="text"
+                  value={editingPriority.label}
+                  onChange={(e) => setEditingPriority({ ...editingPriority, label: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Color (hex)</label>
+                <input
+                  type="text"
+                  value={editingPriority.color}
+                  onChange={(e) => setEditingPriority({ ...editingPriority, color: e.target.value })}
+                  placeholder="#64748b"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setEditingPriority(null)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+              <button
+                onClick={() => updateTaskPriority(editingPriority.id, {
+                  label: editingPriority.label,
+                  color: editingPriority.color
+                })}
+                style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Priority Modal */}
+      {addingPriority && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '16px',
+            width: '500px',
+            overflow: 'hidden'
+          }}>
+            <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Task Priority</h3>
+              <button onClick={() => { setAddingPriority(false); setNewPriority({ priority_key: '', label: '', color: '#64748b' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority Key</label>
+                <input
+                  type="text"
+                  value={newPriority.priority_key}
+                  onChange={(e) => setNewPriority({ ...newPriority, priority_key: e.target.value })}
+                  placeholder="e.g. CRITICAL"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>
+                  Unique identifier (will be converted to UPPERCASE)
+                </p>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                <input
+                  type="text"
+                  value={newPriority.label}
+                  onChange={(e) => setNewPriority({ ...newPriority, label: e.target.value })}
+                  placeholder="e.g. Critical"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Color (hex)</label>
+                <input
+                  type="text"
+                  value={newPriority.color}
+                  onChange={(e) => setNewPriority({ ...newPriority, color: e.target.value })}
+                  placeholder="#64748b"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: '#111111',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => { setAddingPriority(false); setNewPriority({ priority_key: '', label: '', color: '#64748b' }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+              <button
+                onClick={addTaskPriority}
+                style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+              >
+                Add Priority
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Statuses Tab */}
+      {activeTab === 'statuses' && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Task Statuses</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage available task status options</p>
+            </div>
+            <button
+              onClick={() => setAddingStatus(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#d71cd1',
+                border: 'none',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              + Add Status
+            </button>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Order</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Key</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Label</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Color</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Complete?</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Active</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {taskStatuses.length > 0 ? taskStatuses.map((status) => (
+                <tr key={status.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                  <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>{status.sort_order}</td>
+                  <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px', fontFamily: 'monospace' }}>{status.status_key}</td>
+                  <td style={{ padding: '12px 16px', color: '#f1f5f9', fontSize: '14px' }}>{status.label}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '20px', height: '20px', borderRadius: '4px', background: status.color }} />
+                      <span style={{ color: '#94a3b8', fontSize: '13px' }}>{status.color}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      background: status.is_complete ? 'rgba(34, 197, 94, 0.1)' : 'rgba(148, 163, 184, 0.1)',
+                      color: status.is_complete ? '#22c55e' : '#94a3b8'
+                    }}>
+                      {status.is_complete ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      background: status.active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      color: status.active ? '#22c55e' : '#ef4444'
+                    }}>
+                      {status.active ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => setEditingStatus(status)}
+                        style={{
+                          padding: '6px 10px',
+                          background: 'transparent',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '4px',
+                          color: '#94a3b8',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteTaskStatus(status.id)}
+                        style={{
+                          padding: '6px 10px',
+                          background: 'transparent',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: '4px',
+                          color: '#ef4444',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                    No task statuses configured
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Task Priorities Tab */}
+      {activeTab === 'priorities' && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Task Priorities</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage available task priority levels</p>
+            </div>
+            <button
+              onClick={() => setAddingPriority(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#d71cd1',
+                border: 'none',
+                borderRadius: '6px',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              + Add Priority
+            </button>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Order</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Key</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Label</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Color</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Active</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {taskPriorities.length > 0 ? taskPriorities.map((priority) => (
+                <tr key={priority.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                  <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>{priority.sort_order}</td>
+                  <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px', fontFamily: 'monospace' }}>{priority.priority_key}</td>
+                  <td style={{ padding: '12px 16px', color: '#f1f5f9', fontSize: '14px' }}>{priority.label}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '20px', height: '20px', borderRadius: '4px', background: priority.color }} />
+                      <span style={{ color: '#94a3b8', fontSize: '13px' }}>{priority.color}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      background: priority.active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                      color: priority.active ? '#22c55e' : '#ef4444'
+                    }}>
+                      {priority.active ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => setEditingPriority(priority)}
+                        style={{
+                          padding: '6px 10px',
+                          background: 'transparent',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '4px',
+                          color: '#94a3b8',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteTaskPriority(priority.id)}
+                        style={{
+                          padding: '6px 10px',
+                          background: 'transparent',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: '4px',
+                          color: '#ef4444',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                    No task priorities configured
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 

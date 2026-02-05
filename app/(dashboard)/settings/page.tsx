@@ -46,6 +46,16 @@ export default async function SettingsPage() {
     `)
     .order('sort_order', { ascending: true })
 
+  const { data: taskStatuses } = await supabase
+    .from('task_statuses')
+    .select('*')
+    .order('sort_order', { ascending: true })
+
+  const { data: taskPriorities } = await supabase
+    .from('task_priorities')
+    .select('*')
+    .order('sort_order', { ascending: true })
+
   const calendarConnected = !!calendarSettings?.value
 
   return (
@@ -56,6 +66,8 @@ export default async function SettingsPage() {
       calendarConnected={calendarConnected}
       initialCallSettings={callSettings || []}
       initialTemplates={templates || []}
+      initialTaskStatuses={taskStatuses || []}
+      initialTaskPriorities={taskPriorities || []}
     />
   )
 }
