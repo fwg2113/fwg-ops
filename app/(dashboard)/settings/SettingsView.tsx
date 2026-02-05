@@ -40,33 +40,61 @@ type CallSetting = {
   ring_order: number
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls'
+type TemplateTask = {
+  id: string
+  task_key: string
+  label: string
+  default_priority: string
+  sort_order: number
+  active: boolean
+}
 
-export default function SettingsView({ 
-  initialCategories, 
+type ProductionTemplate = {
+  id: string
+  template_key: string
+  category_key: string
+  label: string
+  description: string
+  active: boolean
+  sort_order: number
+  template_tasks: TemplateTask[]
+}
+
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production'
+
+export default function SettingsView({
+  initialCategories,
   initialMaterials,
   initialBuckets,
   calendarConnected,
-  initialCallSettings
-}: { 
+  initialCallSettings,
+  initialTemplates
+}: {
   initialCategories: Category[]
   initialMaterials: Material[]
   initialBuckets: Bucket[]
   calendarConnected: boolean
   initialCallSettings: CallSetting[]
+  initialTemplates: ProductionTemplate[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories] = useState<Category[]>(initialCategories)
   const [materials] = useState<Material[]>(initialMaterials)
   const [buckets] = useState<Bucket[]>(initialBuckets)
   const [callSettings, setCallSettings] = useState<CallSetting[]>(initialCallSettings)
+  const [templates, setTemplates] = useState<ProductionTemplate[]>(initialTemplates)
   const [showAddPhone, setShowAddPhone] = useState(false)
   const [newPhone, setNewPhone] = useState({ name: '', phone: '' })
+  const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null)
+  const [editingTask, setEditingTask] = useState<{ templateId: string; task: TemplateTask } | null>(null)
+  const [addingTask, setAddingTask] = useState<string | null>(null)
+  const [newTask, setNewTask] = useState({ task_key: '', label: '', default_priority: 'MEDIUM' })
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'categories', label: 'Categories' },
     { key: 'materials', label: 'Materials' },
     { key: 'buckets', label: 'Pipeline Buckets' },
+    { key: 'production', label: 'Production Templates' },
     { key: 'calls', label: 'Call Forwarding' },
     { key: 'integrations', label: 'Integrations' }
   ]
@@ -135,13 +163,89 @@ export default function SettingsView({
 
   const removeTeamPhone = async (id: string) => {
     if (!confirm('Remove this phone from call forwarding?')) return
-    
+
     await supabase
       .from('call_settings')
       .delete()
       .eq('id', id)
-    
+
     setCallSettings(callSettings.filter(c => c.id !== id))
+  }
+
+  const updateTemplateTask = async (taskId: string, updates: Partial<TemplateTask>) => {
+    const { error } = await supabase
+      .from('template_tasks')
+      .update(updates)
+      .eq('id', taskId)
+
+    if (error) {
+      alert('Error updating task: ' + error.message)
+      return
+    }
+
+    setTemplates(templates.map(t => ({
+      ...t,
+      template_tasks: t.template_tasks.map(task =>
+        task.id === taskId ? { ...task, ...updates } : task
+      )
+    })))
+    setEditingTask(null)
+  }
+
+  const deleteTemplateTask = async (templateId: string, taskId: string) => {
+    if (!confirm('Delete this task from the template?')) return
+
+    const { error } = await supabase
+      .from('template_tasks')
+      .delete()
+      .eq('id', taskId)
+
+    if (error) {
+      alert('Error deleting task: ' + error.message)
+      return
+    }
+
+    setTemplates(templates.map(t =>
+      t.id === templateId
+        ? { ...t, template_tasks: t.template_tasks.filter(task => task.id !== taskId) }
+        : t
+    ))
+  }
+
+  const addTemplateTask = async (templateId: string, templateKey: string) => {
+    if (!newTask.task_key.trim() || !newTask.label.trim()) {
+      alert('Please enter both task key and label')
+      return
+    }
+
+    const template = templates.find(t => t.id === templateId)
+    const maxSortOrder = Math.max(...(template?.template_tasks.map(t => t.sort_order) || [0]), 0)
+
+    const { data, error } = await supabase
+      .from('template_tasks')
+      .insert({
+        template_key: templateKey,
+        task_key: newTask.task_key.trim().toUpperCase().replace(/\s+/g, '_'),
+        label: newTask.label.trim(),
+        default_priority: newTask.default_priority,
+        sort_order: maxSortOrder + 1,
+        active: true
+      })
+      .select()
+      .single()
+
+    if (error) {
+      alert('Error adding task: ' + error.message)
+      return
+    }
+
+    setTemplates(templates.map(t =>
+      t.id === templateId
+        ? { ...t, template_tasks: [...t.template_tasks, data] }
+        : t
+    ))
+    setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' })
+    setAddingTask(null)
   }
 
   return (
@@ -342,6 +446,402 @@ export default function SettingsView({
               <p style={{ color: '#64748b', padding: '20px' }}>No buckets configured</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Production Templates Tab */}
+      {activeTab === 'production' && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Production Workflow Templates</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage task templates for each service category</p>
+          </div>
+          <div style={{ padding: '12px' }}>
+            {templates.length > 0 ? templates.map((template) => (
+              <div
+                key={template.id}
+                style={{
+                  background: '#282a30',
+                  borderRadius: '8px',
+                  marginBottom: '12px',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Template Header */}
+                <div
+                  onClick={() => setExpandedTemplate(expandedTemplate === template.id ? null : template.id)}
+                  style={{
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <h4 style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: '600', margin: 0 }}>
+                        {template.label}
+                      </h4>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        background: 'rgba(168, 85, 247, 0.1)',
+                        color: '#a855f7',
+                        fontFamily: 'monospace'
+                      }}>
+                        {template.category_key}
+                      </span>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        background: template.active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: template.active ? '#22c55e' : '#ef4444'
+                      }}>
+                        {template.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
+                      {template.description || 'No description'}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ color: '#64748b', fontSize: '13px' }}>
+                      {template.template_tasks?.length || 0} tasks
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: '18px' }}>
+                      {expandedTemplate === template.id ? '▼' : '▶'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Template Tasks */}
+                {expandedTemplate === template.id && (
+                  <div style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <div style={{ padding: '12px 20px', background: '#1d1d1d' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <h5 style={{ color: '#94a3b8', fontSize: '13px', margin: 0, fontWeight: '600' }}>Tasks</h5>
+                        <button
+                          onClick={() => setAddingTask(template.id)}
+                          style={{
+                            padding: '6px 12px',
+                            background: '#d71cd1',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: 'white',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + Add Task
+                        </button>
+                      </div>
+                      {template.template_tasks && template.template_tasks.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {template.template_tasks
+                            .sort((a, b) => a.sort_order - b.sort_order)
+                            .map((task, index) => (
+                            <div
+                              key={task.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '12px 16px',
+                                background: '#282a30',
+                                borderRadius: '6px'
+                              }}
+                            >
+                              <span style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '50%',
+                                background: '#d71cd1',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '12px',
+                                fontWeight: '600'
+                              }}>
+                                {index + 1}
+                              </span>
+                              <div style={{ flex: 1 }}>
+                                <p style={{ color: '#f1f5f9', fontSize: '14px', margin: '0 0 2px 0' }}>
+                                  {task.label}
+                                </p>
+                                <p style={{ color: '#64748b', fontSize: '12px', margin: 0, fontFamily: 'monospace' }}>
+                                  {task.task_key}
+                                </p>
+                              </div>
+                              <span style={{
+                                padding: '4px 10px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                background: task.default_priority === 'HIGH' ? 'rgba(239, 68, 68, 0.1)' :
+                                           task.default_priority === 'MEDIUM' ? 'rgba(245, 158, 11, 0.1)' :
+                                           'rgba(148, 163, 184, 0.1)',
+                                color: task.default_priority === 'HIGH' ? '#ef4444' :
+                                       task.default_priority === 'MEDIUM' ? '#f59e0b' :
+                                       '#94a3b8'
+                              }}>
+                                {task.default_priority}
+                              </span>
+                              <button
+                                onClick={() => setEditingTask({ templateId: template.id, task })}
+                                style={{
+                                  padding: '6px 10px',
+                                  background: 'transparent',
+                                  border: '1px solid rgba(148, 163, 184, 0.2)',
+                                  borderRadius: '4px',
+                                  color: '#94a3b8',
+                                  fontSize: '12px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => deleteTemplateTask(template.id, task.id)}
+                                style={{
+                                  padding: '6px 10px',
+                                  background: 'transparent',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  borderRadius: '4px',
+                                  color: '#ef4444',
+                                  fontSize: '12px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ color: '#64748b', fontSize: '13px', padding: '20px', textAlign: 'center', margin: 0 }}>
+                          No tasks defined for this template
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )) : (
+              <p style={{ color: '#64748b', padding: '40px', textAlign: 'center' }}>
+                No production templates configured
+              </p>
+            )}
+          </div>
+
+          {/* Edit Task Modal */}
+          {editingTask && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000
+            }}>
+              <div style={{
+                background: '#1d1d1d',
+                borderRadius: '16px',
+                width: '500px',
+                overflow: 'hidden'
+              }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Edit Task</h3>
+                  <button onClick={() => setEditingTask(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Task Key</label>
+                    <input
+                      type="text"
+                      value={editingTask.task.task_key}
+                      disabled
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#282a30',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#64748b',
+                        fontSize: '14px',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                    <input
+                      type="text"
+                      value={editingTask.task.label}
+                      onChange={(e) => setEditingTask({
+                        ...editingTask,
+                        task: { ...editingTask.task, label: e.target.value }
+                      })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority</label>
+                    <select
+                      value={editingTask.task.default_priority}
+                      onChange={(e) => setEditingTask({
+                        ...editingTask,
+                        task: { ...editingTask.task, default_priority: e.target.value }
+                      })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px'
+                      }}
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={() => setEditingTask(null)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button
+                    onClick={() => updateTemplateTask(editingTask.task.id, {
+                      label: editingTask.task.label,
+                      default_priority: editingTask.task.default_priority
+                    })}
+                    style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add Task Modal */}
+          {addingTask && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000
+            }}>
+              <div style={{
+                background: '#1d1d1d',
+                borderRadius: '16px',
+                width: '500px',
+                overflow: 'hidden'
+              }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add New Task</h3>
+                  <button onClick={() => { setAddingTask(null); setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Task Key</label>
+                    <input
+                      type="text"
+                      value={newTask.task_key}
+                      onChange={(e) => setNewTask({ ...newTask, task_key: e.target.value })}
+                      placeholder="e.g. PREP_SURFACE"
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>
+                      Unique identifier (will be converted to UPPERCASE)
+                    </p>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                    <input
+                      type="text"
+                      value={newTask.label}
+                      onChange={(e) => setNewTask({ ...newTask, label: e.target.value })}
+                      placeholder="e.g. Prep Surface"
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority</label>
+                    <select
+                      value={newTask.default_priority}
+                      onChange={(e) => setNewTask({ ...newTask, default_priority: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px'
+                      }}
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={() => { setAddingTask(null); setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button
+                    onClick={() => {
+                      const template = templates.find(t => t.id === addingTask)
+                      if (template) addTemplateTask(template.id, template.template_key)
+                    }}
+                    style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+                  >
+                    Add Task
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
