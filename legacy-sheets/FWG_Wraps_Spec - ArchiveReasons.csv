@@ -1,0 +1,6 @@
+reason_key,label,sort_order,active
+COMPETITOR,Went with competitor,1,TRUE
+BUDGET,Budget issues,2,TRUE
+NO_RESPONSE,No response,3,TRUE
+TIMING,Bad timing,4,TRUE
+OTHER,Other,99,TRUE

@@ -1,0 +1,4 @@
+project_key,label,coverage_min_pct,coverage_max_pct,description,includes_design,sort_order,active
+FULL_WRAP,Full Wrap,90,100,Complete vehicle coverage with printed graphics,TRUE,1,TRUE
+PARTIAL_WRAP,Partial Wrap,30,70,"Strategic coverage - hood, doors, tailgate, etc.",TRUE,2,TRUE
+LETTERING,Lettering & Graphics,0,30,"Vinyl lettering, logos, decals - no full panels",FALSE,3,TRUE
