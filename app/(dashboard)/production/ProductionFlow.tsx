@@ -63,7 +63,15 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('invoice-desc')
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set())
-  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<string>>(new Set())
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<string>>(() => {
+    // Initialize with all line item IDs to collapse them by default
+    const lineItemIds = new Set<string>()
+    initialTasks.forEach(task => {
+      const lineItemId = task.line_item_id || 'no-line-item'
+      lineItemIds.add(lineItemId)
+    })
+    return lineItemIds
+  })
   const [lineItemOrder, setLineItemOrder] = useState<Record<string, string[]>>({})
   const [draggedItem, setDraggedItem] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(Date.now())
