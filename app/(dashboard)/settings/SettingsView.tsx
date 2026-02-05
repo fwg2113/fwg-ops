@@ -133,6 +133,7 @@ export default function SettingsView({
   const [newStatus, setNewStatus] = useState({ status_key: '', label: '', color: '#64748b', is_complete: false })
   const [newPriority, setNewPriority] = useState({ priority_key: '', label: '', color: '#64748b' })
   const [automationSettings, setAutomationSettings] = useState<AutomationSetting[]>(initialAutomationSettings)
+  const [editingAutomation, setEditingAutomation] = useState<AutomationSetting | null>(null)
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'categories', label: 'Categories' },
@@ -191,6 +192,35 @@ export default function SettingsView({
     setAutomationSettings(automationSettings.map(a =>
       a.id === id ? { ...a, enabled, updated_at: new Date().toISOString() } : a
     ))
+  }
+
+  const saveAutomation = async () => {
+    if (!editingAutomation) return
+
+    if (!editingAutomation.label.trim()) {
+      alert('Label is required')
+      return
+    }
+
+    const { error } = await supabase
+      .from('automation_settings')
+      .update({
+        label: editingAutomation.label.trim(),
+        description: editingAutomation.description?.trim() || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', editingAutomation.id)
+
+    if (error) {
+      console.error('Error updating automation:', error)
+      alert('Failed to save automation: ' + error.message)
+      return
+    }
+
+    setAutomationSettings(automationSettings.map(a =>
+      a.id === editingAutomation.id ? { ...editingAutomation, updated_at: new Date().toISOString() } : a
+    ))
+    setEditingAutomation(null)
   }
 
   const addTeamPhone = async () => {
@@ -1911,69 +1941,163 @@ export default function SettingsView({
                   transition: 'all 0.2s ease'
                 }}
               >
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  gap: '20px'
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{
-                      color: '#f1f5f9',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      margin: '0 0 8px 0'
-                    }}>
-                      {automation.label}
-                    </h3>
-                    <p style={{
-                      color: '#64748b',
-                      fontSize: '14px',
-                      margin: 0,
-                      lineHeight: '1.5'
-                    }}>
-                      {automation.description}
-                    </p>
+                {editingAutomation?.id === automation.id ? (
+                  /* Edit Mode */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px', fontWeight: '500' }}>
+                        Label
+                      </label>
+                      <input
+                        type="text"
+                        value={editingAutomation.label}
+                        onChange={(e) => setEditingAutomation({ ...editingAutomation, label: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: '#0a0a0a',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '14px'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px', fontWeight: '500' }}>
+                        Description
+                      </label>
+                      <textarea
+                        value={editingAutomation.description || ''}
+                        onChange={(e) => setEditingAutomation({ ...editingAutomation, description: e.target.value })}
+                        rows={3}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          background: '#0a0a0a',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '14px',
+                          fontFamily: 'inherit',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => setEditingAutomation(null)}
+                        style={{
+                          padding: '8px 16px',
+                          background: '#374151',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={saveAutomation}
+                        style={{
+                          padding: '8px 16px',
+                          background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: 'white',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  /* View Mode */
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: '20px'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        color: '#f1f5f9',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        margin: '0 0 8px 0'
+                      }}>
+                        {automation.label}
+                      </h3>
+                      <p style={{
+                        color: '#64748b',
+                        fontSize: '14px',
+                        margin: 0,
+                        lineHeight: '1.5'
+                      }}>
+                        {automation.description}
+                      </p>
+                    </div>
 
-                  {/* Toggle Switch */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      color: automation.enabled ? '#22c55e' : '#64748b'
-                    }}>
-                      {automation.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    <button
-                      onClick={() => toggleAutomation(automation.id, !automation.enabled)}
-                      style={{
-                        width: '52px',
-                        height: '28px',
-                        borderRadius: '14px',
-                        border: 'none',
-                        background: automation.enabled
-                          ? 'linear-gradient(135deg, #22d3ee, #a855f7)'
-                          : '#374151',
-                        position: 'relative',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease'
-                      }}
-                    >
-                      <div style={{
-                        width: '22px',
-                        height: '22px',
-                        borderRadius: '50%',
-                        background: 'white',
-                        position: 'absolute',
-                        top: '3px',
-                        left: automation.enabled ? '27px' : '3px',
-                        transition: 'left 0.3s ease',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
-                      }} />
-                    </button>
+                    {/* Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <button
+                        onClick={() => setEditingAutomation(automation)}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'rgba(100, 116, 139, 0.1)',
+                          border: '1px solid rgba(100, 116, 139, 0.3)',
+                          borderRadius: '6px',
+                          color: '#94a3b8',
+                          fontSize: '13px',
+                          fontWeight: '500',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <span style={{
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: automation.enabled ? '#22c55e' : '#64748b'
+                      }}>
+                        {automation.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      <button
+                        onClick={() => toggleAutomation(automation.id, !automation.enabled)}
+                        style={{
+                          width: '52px',
+                          height: '28px',
+                          borderRadius: '14px',
+                          border: 'none',
+                          background: automation.enabled
+                            ? 'linear-gradient(135deg, #22d3ee, #a855f7)'
+                            : '#374151',
+                          position: 'relative',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        <div style={{
+                          width: '22px',
+                          height: '22px',
+                          borderRadius: '50%',
+                          background: 'white',
+                          position: 'absolute',
+                          top: '3px',
+                          left: automation.enabled ? '27px' : '3px',
+                          transition: 'left 0.3s ease',
+                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                        }} />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ))
           ) : (
