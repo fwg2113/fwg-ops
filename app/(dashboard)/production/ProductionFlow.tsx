@@ -20,6 +20,7 @@ type Task = {
   started_at?: string | null
   time_spent_minutes?: number
   completed_at?: string | null
+  depends_on_task_id?: string | null
   line_items?: {
     id: string
     description: string
@@ -214,6 +215,19 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
     }
   }
 
+  // Check if task is blocked by dependency
+  const isTaskBlocked = (task: Task): boolean => {
+    if (!task.depends_on_task_id) return false
+    const prerequisiteTask = tasks.find(t => t.id === task.depends_on_task_id)
+    return prerequisiteTask?.status !== 'COMPLETED'
+  }
+
+  // Get prerequisite task for a blocked task
+  const getPrerequisiteTask = (task: Task): Task | undefined => {
+    if (!task.depends_on_task_id) return undefined
+    return tasks.find(t => t.id === task.depends_on_task_id)
+  }
+
   // Calculate elapsed time for running timer
   const getElapsedMinutes = (task: Task): number => {
     if (!task.started_at) return task.time_spent_minutes || 0
@@ -367,6 +381,13 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const toggleTask = async (taskId: string, lineItemTasks: Task[]) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
+
+    // Prevent completing blocked tasks
+    if (task.status !== 'COMPLETED' && isTaskBlocked(task)) {
+      const prereq = getPrerequisiteTask(task)
+      alert(`This task is blocked. Please complete "${prereq?.title}" first.`)
+      return
+    }
 
     const newStatus = task.status === 'COMPLETED' ? 'TODO' : 'COMPLETED'
 
@@ -1015,7 +1036,8 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                         <div style={{ padding: '20px 24px' }}>
                           {group.tasks.map((task, i) => {
                             const isCompleted = task.status === 'COMPLETED'
-                            const isNext = i === nextTaskIndex && !isCompleted
+                            const isBlocked = isTaskBlocked(task)
+                            const isNext = i === nextTaskIndex && !isCompleted && !isBlocked
 
                             return (
                               <div
@@ -1045,28 +1067,29 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                               >
                                 {/* Checkbox */}
                                 <div
-                                  onClick={() => toggleTask(task.id, group.tasks)}
+                                  onClick={() => !isBlocked && toggleTask(task.id, group.tasks)}
                                   style={{
                                     width: '24px',
                                     height: '24px',
                                     borderRadius: '8px',
-                                    border: `2px solid ${isCompleted ? '#22c55e' : '#64748b'}`,
-                                    background: isCompleted ? '#22c55e' : 'transparent',
+                                    border: `2px solid ${isCompleted ? '#22c55e' : isBlocked ? '#f59e0b' : '#64748b'}`,
+                                    background: isCompleted ? '#22c55e' : isBlocked ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    cursor: 'pointer',
+                                    cursor: isBlocked ? 'not-allowed' : 'pointer',
                                     transition: 'all 0.2s ease',
-                                    flexShrink: 0
+                                    flexShrink: 0,
+                                    opacity: isBlocked ? 0.7 : 1
                                   }}
                                   onMouseEnter={(e) => {
-                                    if (!isCompleted) {
+                                    if (!isCompleted && !isBlocked) {
                                       e.currentTarget.style.borderColor = '#22d3ee'
                                       e.currentTarget.style.background = 'rgba(34, 211, 238, 0.1)'
                                     }
                                   }}
                                   onMouseLeave={(e) => {
-                                    if (!isCompleted) {
+                                    if (!isCompleted && !isBlocked) {
                                       e.currentTarget.style.borderColor = '#64748b'
                                       e.currentTarget.style.background = 'transparent'
                                     }
@@ -1075,6 +1098,12 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                                   {isCompleted && (
                                     <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" style={{ width: '14px', height: '14px' }}>
                                       <path d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                  {isBlocked && !isCompleted && (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" style={{ width: '12px', height: '12px' }}>
+                                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                     </svg>
                                   )}
                                 </div>
@@ -1086,10 +1115,31 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                                     fontWeight: '500',
                                     color: '#f1f5f9',
                                     textDecoration: isCompleted ? 'line-through' : 'none',
-                                    opacity: isCompleted ? 0.6 : 1
+                                    opacity: isCompleted ? 0.6 : isBlocked ? 0.5 : 1
                                   }}>
                                     {task.title}
                                   </span>
+                                  {isBlocked && (
+                                    <span style={{
+                                      fontSize: '9px',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.5px',
+                                      fontWeight: '600',
+                                      background: 'rgba(245, 158, 11, 0.15)',
+                                      color: '#f59e0b',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}>
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '10px', height: '10px' }}>
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                      </svg>
+                                      Blocked
+                                    </span>
+                                  )}
                                   {isNext && (
                                     <span style={{
                                       fontSize: '9px',
@@ -1108,7 +1158,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
 
                                 {/* Timer Section */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  {!isCompleted && (
+                                  {!isCompleted && !isBlocked && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
