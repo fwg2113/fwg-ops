@@ -40,3 +40,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 legacy-google-sheets/
+legacy-sheets/*\ 2.csv
