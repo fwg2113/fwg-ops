@@ -62,6 +62,31 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const [draggedItem, setDraggedItem] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  // Category color map (matching calendar colors)
+  const getCategoryColor = (category: string): string => {
+    const colors: Record<string, string> = {
+      'PPF': '#ec4899',
+      'FULL_PPF': '#ec4899',
+      'PARTIAL_PPF': '#ec4899',
+      'VINYL_WRAP': '#a855f7',
+      'FULL_WRAP': '#a855f7',
+      'CHROME_DELETE': '#a855f7',
+      'COLOR_CHANGE': '#a855f7',
+      'COMMERCIAL_WRAP': '#a855f7',
+      'WINDOW_TINT': '#f59e0b',
+      'RESIDENTIAL_TINT': '#f59e0b',
+      'COMMERCIAL_TINT': '#f59e0b',
+      'TINT': '#f59e0b',
+      'SIGNAGE': '#14b8a6',
+      'CHANNEL_LETTERS': '#14b8a6',
+      'MONUMENT_SIGN': '#14b8a6',
+      'APPAREL': '#3b82f6',
+      'CERAMIC_COATING': '#22c55e',
+      'DETAILING': '#22c55e'
+    }
+    return colors[category] || '#6b7280' // Gray for unknown
+  }
+
   // Format category label
   const formatCategoryLabel = (category: string): string => {
     const specialCases: Record<string, string> = {
@@ -545,6 +570,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                   const nextTaskIndex = group.tasks.findIndex(t => t.status !== 'COMPLETED')
                   const isCollapsed = collapsedLineItems.has(group.lineItemId)
                   const isDragging = draggedItem === group.lineItemId
+                  const categoryColor = getCategoryColor(group.category)
 
                   // Progress ring calculations
                   const circumference = 188.5
@@ -573,8 +599,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                         display: 'flex',
                         alignItems: 'center',
                         gap: '20px',
-                        borderLeft: '4px solid transparent',
-                        borderImage: 'linear-gradient(180deg, #22d3ee, #a855f7) 1',
+                        borderLeft: `4px solid ${categoryColor}`,
                         transition: 'all 0.2s ease'
                       }}
                       onMouseEnter={(e) => {
@@ -599,12 +624,15 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                               cy="32"
                               r="28"
                               fill="none"
-                              stroke="url(#ringGradient)"
+                              stroke={categoryColor}
                               strokeWidth="5"
                               strokeLinecap="round"
                               strokeDasharray={circumference}
                               strokeDashoffset={strokeOffset}
-                              style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+                              style={{
+                                transition: 'stroke-dashoffset 0.6s ease',
+                                filter: `drop-shadow(0 0 6px ${categoryColor}80)`
+                              }}
                             />
                           </svg>
                           <div style={{
