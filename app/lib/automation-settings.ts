@@ -93,7 +93,7 @@ export async function initializeAutomationSettings(): Promise<void> {
       automation_key: 'auto_production_on_payment',
       enabled: false,
       label: 'Auto-move to Production on Payment',
-      description: 'Automatically move invoice to production and generate tasks when invoice is fully paid'
+      description: 'Automatically move invoice to production and generate tasks when any payment is received (deposit or full payment)'
     },
     {
       automation_key: 'notify_customer_on_completion',
