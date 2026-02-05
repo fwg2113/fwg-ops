@@ -70,7 +70,6 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
       const lineItemId = task.line_item_id || 'no-line-item'
       lineItemIds.add(lineItemId)
     })
-    console.log('Initializing collapsed line items:', lineItemIds)
     return lineItemIds
   })
   const [lineItemOrder, setLineItemOrder] = useState<Record<string, string[]>>({})
@@ -821,7 +820,6 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                   const progress = calculateProgress(group.tasks)
                   const nextTaskIndex = group.tasks.findIndex(t => t.status !== 'COMPLETED')
                   const isCollapsed = collapsedLineItems.has(group.lineItemId)
-                  console.log('Group:', group.lineItemId, 'isCollapsed:', isCollapsed, 'collapsedSet:', collapsedLineItems)
                   const isDragging = draggedItem === group.lineItemId
                   const categoryColor = getCategoryColor(group.category)
 
