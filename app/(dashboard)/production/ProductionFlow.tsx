@@ -56,6 +56,8 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [sortBy, setSortBy] = useState('invoice-desc')
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set())
   const [collapsedLineItems, setCollapsedLineItems] = useState<Set<string>>(new Set())
   const [lineItemOrder, setLineItemOrder] = useState<Record<string, string[]>>({})
@@ -339,8 +341,21 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
     })
   }
 
+  // Calculate job progress
+  const getJobProgress = (jobId: string) => {
+    const jobTasks = tasks.filter(t => t.document_id === jobId)
+    if (jobTasks.length === 0) return { completed: 0, total: 0, percent: 0 }
+    const completed = jobTasks.filter(t => t.status === 'COMPLETED').length
+    return {
+      completed,
+      total: jobTasks.length,
+      percent: Math.round((completed / jobTasks.length) * 100)
+    }
+  }
+
   // Filter jobs
   const filteredJobs = jobs.filter(job => {
+    // Search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase()
       const customerName = (job.customer_name || '').toLowerCase()
@@ -352,15 +367,59 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
       }
     }
 
+    // Category filter
     if (categoryFilter) {
       if (job.category !== categoryFilter) return false
+    }
+
+    // Status filter
+    if (statusFilter) {
+      const progress = getJobProgress(job.id)
+      if (statusFilter === 'not-started' && progress.percent > 0) return false
+      if (statusFilter === 'in-progress' && (progress.percent === 0 || progress.percent === 100)) return false
+      if (statusFilter === 'completed' && progress.percent !== 100) return false
     }
 
     return true
   })
 
+  // Sort jobs
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    switch (sortBy) {
+      case 'customer-asc':
+        return (a.customer_name || '').localeCompare(b.customer_name || '')
+      case 'customer-desc':
+        return (b.customer_name || '').localeCompare(a.customer_name || '')
+      case 'invoice-asc':
+        return a.doc_number - b.doc_number
+      case 'invoice-desc':
+        return b.doc_number - a.doc_number
+      case 'category-asc':
+        return (a.category || '').localeCompare(b.category || '')
+      case 'category-desc':
+        return (b.category || '').localeCompare(a.category || '')
+      case 'progress-asc':
+        return getJobProgress(a.id).percent - getJobProgress(b.id).percent
+      case 'progress-desc':
+        return getJobProgress(b.id).percent - getJobProgress(a.id).percent
+      default:
+        return 0
+    }
+  })
+
   // Get unique categories
   const uniqueCategories = Array.from(new Set(jobs.map(j => j.category).filter(Boolean)))
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm('')
+    setCategoryFilter('')
+    setStatusFilter('')
+    setSortBy('invoice-desc')
+  }
+
+  // Check if any filters are active
+  const hasActiveFilters = searchTerm || categoryFilter || statusFilter || sortBy !== 'invoice-desc'
 
   const stats = {
     total: jobs.length,
@@ -444,7 +503,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', width: '100%', marginTop: '24px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', width: '100%', marginTop: '24px', flexWrap: 'wrap' }}>
           <input
             type="text"
             placeholder="Search by customer, vehicle, or invoice..."
@@ -458,7 +517,8 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
               color: '#f1f5f9',
               fontSize: '14px',
               flex: 1,
-              maxWidth: '300px'
+              minWidth: '250px',
+              maxWidth: '350px'
             }}
           />
           <select
@@ -471,7 +531,8 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
               borderRadius: '10px',
               color: '#f1f5f9',
               fontSize: '14px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              minWidth: '150px'
             }}
           >
             <option value="">All Categories</option>
@@ -479,12 +540,80 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
               <option key={cat} value={cat}>{formatCategoryLabel(cat)}</option>
             ))}
           </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              padding: '10px 14px',
+              background: '#1d1d1d',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              borderRadius: '10px',
+              color: '#f1f5f9',
+              fontSize: '14px',
+              cursor: 'pointer',
+              minWidth: '150px'
+            }}
+          >
+            <option value="">All Status</option>
+            <option value="not-started">Not Started</option>
+            <option value="in-progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            style={{
+              padding: '10px 14px',
+              background: '#1d1d1d',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              borderRadius: '10px',
+              color: '#f1f5f9',
+              fontSize: '14px',
+              cursor: 'pointer',
+              minWidth: '180px'
+            }}
+          >
+            <option value="invoice-desc">Invoice # (Newest)</option>
+            <option value="invoice-asc">Invoice # (Oldest)</option>
+            <option value="customer-asc">Customer (A-Z)</option>
+            <option value="customer-desc">Customer (Z-A)</option>
+            <option value="category-asc">Category (A-Z)</option>
+            <option value="category-desc">Category (Z-A)</option>
+            <option value="progress-asc">Progress (Low-High)</option>
+            <option value="progress-desc">Progress (High-Low)</option>
+          </select>
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              style={{
+                padding: '10px 16px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '10px',
+                color: '#ef4444',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
+              }}
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
       {/* Production Queue */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {filteredJobs.length === 0 ? (
+        {sortedJobs.length === 0 ? (
           <div style={{
             background: '#111111',
             border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -497,11 +626,13 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
-            <div>No jobs in production</div>
-            <div style={{ fontSize: '13px', marginTop: '8px' }}>Jobs appear here when invoices are paid or manually moved to production</div>
+            <div>{hasActiveFilters ? 'No jobs match your filters' : 'No jobs in production'}</div>
+            <div style={{ fontSize: '13px', marginTop: '8px' }}>
+              {hasActiveFilters ? 'Try adjusting your search or filters' : 'Jobs appear here when invoices are paid or manually moved to production'}
+            </div>
           </div>
         ) : (
-          filteredJobs.map(job => {
+          sortedJobs.map(job => {
             const lineItemGroups = getLineItemGroups(job.id)
             const isExpanded = expandedJobs.has(job.id)
 
