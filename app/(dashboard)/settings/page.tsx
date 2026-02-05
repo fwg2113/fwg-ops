@@ -56,6 +56,11 @@ export default async function SettingsPage() {
     .select('*')
     .order('sort_order', { ascending: true })
 
+  const { data: automationSettings } = await supabase
+    .from('automation_settings')
+    .select('*')
+    .order('automation_key', { ascending: true })
+
   const calendarConnected = !!calendarSettings?.value
 
   return (
@@ -68,6 +73,7 @@ export default async function SettingsPage() {
       initialTemplates={templates || []}
       initialTaskStatuses={taskStatuses || []}
       initialTaskPriorities={taskPriorities || []}
+      initialAutomationSettings={automationSettings || []}
     />
   )
 }
