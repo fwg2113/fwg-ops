@@ -57,6 +57,9 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set())
+  const [collapsedLineItems, setCollapsedLineItems] = useState<Set<string>>(new Set())
+  const [lineItemOrder, setLineItemOrder] = useState<Record<string, string[]>>({})
+  const [draggedItem, setDraggedItem] = useState<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Format category label
@@ -92,7 +95,73 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
       group.tasks.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
     })
 
-    return Array.from(groups.values())
+    let groupArray = Array.from(groups.values())
+
+    // Apply custom order if it exists
+    if (lineItemOrder[jobId]) {
+      const order = lineItemOrder[jobId]
+      groupArray.sort((a, b) => {
+        const indexA = order.indexOf(a.lineItemId)
+        const indexB = order.indexOf(b.lineItemId)
+        if (indexA === -1) return 1
+        if (indexB === -1) return -1
+        return indexA - indexB
+      })
+    }
+
+    return groupArray
+  }
+
+  // Toggle line item collapse
+  const toggleLineItemCollapse = (lineItemId: string) => {
+    setCollapsedLineItems(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(lineItemId)) {
+        newSet.delete(lineItemId)
+      } else {
+        newSet.add(lineItemId)
+      }
+      return newSet
+    })
+  }
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, lineItemId: string) => {
+    setDraggedItem(lineItemId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = (e: React.DragEvent, targetLineItemId: string, jobId: string) => {
+    e.preventDefault()
+    if (!draggedItem || draggedItem === targetLineItemId) return
+
+    const groups = getLineItemGroups(jobId)
+    const currentOrder = lineItemOrder[jobId] || groups.map(g => g.lineItemId)
+
+    const draggedIndex = currentOrder.indexOf(draggedItem)
+    const targetIndex = currentOrder.indexOf(targetLineItemId)
+
+    if (draggedIndex === -1 || targetIndex === -1) return
+
+    const newOrder = [...currentOrder]
+    newOrder.splice(draggedIndex, 1)
+    newOrder.splice(targetIndex, 0, draggedItem)
+
+    setLineItemOrder(prev => ({
+      ...prev,
+      [jobId]: newOrder
+    }))
+
+    setDraggedItem(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedItem(null)
   }
 
   // Calculate progress for a line item group
@@ -474,6 +543,8 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                 {lineItemGroups.map((group, groupIndex) => {
                   const progress = calculateProgress(group.tasks)
                   const nextTaskIndex = group.tasks.findIndex(t => t.status !== 'COMPLETED')
+                  const isCollapsed = collapsedLineItems.has(group.lineItemId)
+                  const isDragging = draggedItem === group.lineItemId
 
                   // Progress ring calculations
                   const circumference = 188.5
@@ -482,17 +553,35 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                   return (
                     <div
                       key={group.lineItemId}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, group.lineItemId)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, group.lineItemId, job.id)}
+                      onDragEnd={handleDragEnd}
                       style={{
-                        borderTop: groupIndex > 0 ? '1px solid rgba(148, 163, 184, 0.2)' : 'none'
+                        borderTop: groupIndex > 0 ? '2px solid rgba(148, 163, 184, 0.3)' : 'none',
+                        marginTop: groupIndex > 0 ? '12px' : '0',
+                        opacity: isDragging ? 0.5 : 1,
+                        cursor: 'grab',
+                        transition: 'all 0.2s ease'
                       }}
                     >
                       {/* Line Item Header */}
                       <div style={{
                         padding: '20px 24px',
-                        background: '#0a0a0a',
+                        background: isDragging ? '#1d1d1d' : '#0a0a0a',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '20px'
+                        gap: '20px',
+                        borderLeft: '4px solid transparent',
+                        borderImage: 'linear-gradient(180deg, #22d3ee, #a855f7) 1',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isDragging) e.currentTarget.style.background = '#151515'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isDragging) e.currentTarget.style.background = '#0a0a0a'
                       }}>
                         {/* Progress Ring */}
                         <div style={{ position: 'relative', width: '64px', height: '64px', flexShrink: 0 }}>
@@ -549,10 +638,55 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                             {formatCategoryLabel(group.category)} • {progress.completed}/{progress.total} tasks
                           </div>
                         </div>
+
+                        {/* Collapse/Expand Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleLineItemCollapse(group.lineItemId)
+                          }}
+                          style={{
+                            background: 'rgba(148, 163, 184, 0.1)',
+                            border: '1px solid rgba(148, 163, 184, 0.2)',
+                            borderRadius: '8px',
+                            padding: '8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                            color: '#64748b'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(34, 211, 238, 0.15)'
+                            e.currentTarget.style.borderColor = 'rgba(34, 211, 238, 0.3)'
+                            e.currentTarget.style.color = '#22d3ee'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(148, 163, 184, 0.1)'
+                            e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)'
+                            e.currentTarget.style.color = '#64748b'
+                          }}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              transition: 'transform 0.3s ease',
+                              transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)'
+                            }}
+                          >
+                            <path d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
                       </div>
 
                       {/* Pipeline Section */}
-                      {group.tasks.length > 0 && (
+                      {!isCollapsed && group.tasks.length > 0 && (
                         <div style={{
                           padding: '24px',
                           background: '#1d1d1d'
@@ -627,7 +761,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                       )}
 
                       {/* Task List */}
-                      {group.tasks.length > 0 && (
+                      {!isCollapsed && group.tasks.length > 0 && (
                         <div style={{ padding: '20px 24px' }}>
                           {group.tasks.map((task, i) => {
                             const isCompleted = task.status === 'COMPLETED'
