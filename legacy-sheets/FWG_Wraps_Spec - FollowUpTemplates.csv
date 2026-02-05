@@ -1,0 +1,4 @@
+template_key,label,message_template,sort_order,active
+CHECKING_IN,Just Checking In,"Hi {name}, just checking in on the quote we sent over. Let me know if you have any questions!",1,TRUE
+READY_TO_PROCEED,Ready When You Are,"Hi {name}, wanted to follow up on your quote. We're ready to get started whenever works for you.",2,TRUE
+INCENTIVE,Limited Time Offer,"Hi {name}, we'd love to earn your business! Book within {expiry_days} days and receive {discount}% off.",3,TRUE

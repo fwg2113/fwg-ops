@@ -1,0 +1,6 @@
+scenario_key,label,description,design_fee_applies,requires_upload,sort_order,active,customer_message
+FLEET_MATCH,Fleet Match,Customer has existing wrapped vehicles and design files to match,FALSE,TRUE,1,TRUE,Upload your existing design files and we'll match your fleet.
+PRINT_READY,Print-Ready Artwork,Customer provides complete print-ready design files,FALSE,TRUE,2,TRUE,"Upload your print-ready files (AI, PDF, EPS) and we'll handle production."
+LOGO_VISION,Logo + Vision,"Customer has logo and brand guidelines, needs design work",TRUE,TRUE,3,TRUE,Share your logo and vision - our design team will create concepts.
+LOGO_ONLY,Logo Only,Customer has logo but no design direction,TRUE,TRUE,4,TRUE,Share your logo and we'll design something that fits your brand.
+FROM_SCRATCH,Start from Scratch,Customer needs everything - logo design may be needed too,TRUE,FALSE,5,TRUE,Tell us about your business and we'll create a complete design.

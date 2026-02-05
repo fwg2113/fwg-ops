@@ -1,0 +1,8 @@
+fee_type_key,label,description,default_amount,is_taxable,sort_order,active,notes
+DESIGN,Design Fee,Custom design and artwork creation,150,TRUE,1,TRUE,
+SHIPPING,Shipping,Shipping and handling,0,FALSE,2,TRUE,Amount varies by destination
+DELIVERY,Local Delivery,Local delivery within service area,50,FALSE,3,TRUE,
+RUSH,Rush Fee,Expedited production timeline,0,TRUE,4,TRUE,Typically 25-50% of order
+SETUP,Setup Fee,One-time setup for production,0,TRUE,5,TRUE,
+REVISION,Revision Fee,Additional design revisions beyond included,75,TRUE,6,TRUE,
+OTHER,Other Fee,Miscellaneous fees,0,TRUE,99,TRUE,
