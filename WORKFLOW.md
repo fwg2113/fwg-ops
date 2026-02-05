@@ -66,3 +66,9 @@ Ctrl + C
 Stops the server.
 npm install
 Downloads all the helper code your project needs. Only needed when setting up a new machine or if something breaks.
+
+
+Run these to pull what claude code edits.
+
+git fetch origin
+git merge origin/claude/review-legacy-system-0XVMM

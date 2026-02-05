@@ -1,0 +1,155 @@
+message_id,timestamp,direction,channel,customer_phone,customer_email,customer_name,submission_id,quote_id,invoice_id,message_body,message_sid,status,read,archived
+260110-002,2026-01-10 13:03:05,outbound,sms,13019282827,,,,,,"Hi Brenda, yes we absolutely offer full color change wraps. Do you or she have a color in mind?",SM665916bc818d8e02e40c37ea8fc28725,queued,TRUE,FALSE
+260115-001,2026-01-15 15:29:13,outbound,sms,12404158527,,,,,,"🚐 NEW FWG SUBMISSION
+Cliff John
+SEDAN_COUPE - PARTIAL_WRAP
+$1200 - $2200
+ID: 260115-001",SMbc7863ae6ef8c7ca54a34e5f14e2de9b,queued,TRUE,FALSE
+260115-002,2026-01-15 18:33:04,outbound,sms,12407518588,,,,,,"Hi Joe! Your invoice from Frederick Wraps & Graphics is ready.
+
+Total: $5
+Balance Due: $-30
+
+View & pay: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_invoice&id=260107-002
+
+Questions? Reply to this text or call 240-693-3715",SM88678b51f54df4f6616510c0f678b3d9,queued,TRUE,FALSE
+DEBUG-START,2026-01-16T07:01:24.463Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_1SnAndGv7pFIE6KeunKJ19yO\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1767846376,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-16T07:09:04.982Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SnAlBGv7pFIE6Ke1SrhAcdL\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768392375,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+260116-001,2026-01-16 16:39:12,outbound,sms,12407518588,,,,,,"Hi Quote to Invoice! Your invoice from Frederick Wraps & Graphics is ready.
+
+Total: $3,510
+Balance Due: $3,510
+
+View & pay: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_invoice&id=260116-005
+
+Questions? Reply to this text or call 240-693-3715",SMaadaf0de36bb766c0248691c0fec9db3,queued,TRUE,FALSE
+DEBUG-START,2026-01-17T06:51:13.758Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_1SnAndGv7pFIE6KeunKJ19yO\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1767846376,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-17T07:10:43.556Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SnAlBGv7pFIE6Ke1SrhAcdL\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768392375,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T04:27:26.720Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T04:27:47.389Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T04:47:07.826Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T04:48:53.275Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T04:55:51.181Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T04:56:12.684Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T05:01:33.777Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-START,2026-01-19T05:09:34.427Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T05:09:34.509Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrA3fGv7pFIE6Ke0XFZp4yd"",""object"":""payment_intent"",""amount"":1000,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":1000,""application"":null,""application_fee_amount"":null,""a",,,,,,,,,,
+DEBUG-START,2026-01-19T05:16:47.551Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T05:16:47.650Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrA3fGv7pFIE6Ke0XFZp4yd"",""object"":""payment_intent"",""amount"":1000,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":1000,""application"":null,""application_fee_amount"":null,""a",,,,,,,,,,
+DEBUG-START,2026-01-19T05:28:46.810Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T05:28:46.959Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrA3fGv7pFIE6Ke0XFZp4yd"",""object"":""payment_intent"",""amount"":1000,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":1000,""application"":null,""application_fee_amount"":null,""a",,,,,,,,,,
+DEBUG-START,2026-01-19T09:30:18.443Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T09:30:18.661Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrA3fGv7pFIE6Ke0XFZp4yd"",""object"":""payment_intent"",""amount"":1000,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":1000,""application"":null,""application_fee_amount"":null,""a",,,,,,,,,,
+DEBUG-START,2026-01-19T14:36:37.624Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrJZEGv7pFIE6Ke1XVuIxqB\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768833393,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T14:36:37.840Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrJZEGv7pFIE6Ke1fgeQrgF"",""object"":""payment_intent"",""amount"":378188,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":378188,""application"":null,""application_fee_amount"":nul",,,,,,,,,,
+DEBUG-START,2026-01-19T14:36:59.621Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrJZEGv7pFIE6Ke1XVuIxqB\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768833393,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T14:36:59.796Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrJZEGv7pFIE6Ke1fgeQrgF"",""object"":""payment_intent"",""amount"":378188,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":378188,""application"":null,""application_fee_amount"":nul",,,,,,,,,,
+DEBUG-START,2026-01-19T15:36:06.423Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrJZEGv7pFIE6Ke1XVuIxqB\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768833393,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T15:36:06.586Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrJZEGv7pFIE6Ke1fgeQrgF"",""object"":""payment_intent"",""amount"":378188,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":378188,""application"":null,""application_fee_amount"":nul",,,,,,,,,,
+260119-001,2026-01-19 12:57:44,outbound,sms,12404158527,,,,,,"🧪 TEST from FWG Dashboard
+
+This is a test message. If you received this, SMS is working!
+
+Time: 2026-01-19 12:57:43",SMbba18dc85591fdd64ff47f82fb8e8cc3,queued,TRUE,FALSE
+260119-002,2026-01-19 12:58:24,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbysTITLKIoLLt0ZenH56gVk5zeZiN5cWGdvrpoAFcE/dev?page=customer_document&id=1005",SM9993efba33bdc36bcc639f90ff64628f,queued,TRUE,FALSE
+260119-003,2026-01-19 12:59:50,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM79a1009096cd1d4089d15e43106302bd,queued,TRUE,FALSE
+260119-004,2026-01-19 14:15:14,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM929ca8a63a5756618f4d918c234059ca,queued,TRUE,FALSE
+260119-005,2026-01-19 14:17:34,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM84ac19cc17809d9656caea076b3001d6,queued,TRUE,FALSE
+260119-006,2026-01-19 14:42:40,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM8e5be528ad6997fc8f744f3f0b8aa48a,queued,TRUE,FALSE
+260119-007,2026-01-19 14:53:14,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM1b9e7b332b54cd385b97bd821acf39af,queued,TRUE,FALSE
+260119-008,2026-01-19 15:10:54,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM4ea6daa8ecc36271c1c432dc715dc776,queued,TRUE,FALSE
+260119-009,2026-01-19 15:12:43,outbound,sms,12407518588,,,,,,Frederick Wraps: Your quote for $876 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1003,SM740cf015b5d60afe0ea84fe7cb62f6b4,queued,TRUE,FALSE
+260119-010,2026-01-19 15:27:41,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM39fe7f1d5651d027eaf5f3e2f8790be7,queued,TRUE,FALSE
+260119-011,2026-01-19 15:32:04,outbound,sms,12407518588,,,,,,"Frederick Wraps: Your invoice for $2,820 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1005",SM53a96edbe6b8a6de01da7ce7b69bb907,queued,TRUE,FALSE
+260119-012,2026-01-19 15:52:15,outbound,sms,12407518588,,,,,,Frederick Wraps: Your quote for $876 is ready for review. View here: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1003,SM526998aca8551ab839af3f8aa417e892,queued,TRUE,FALSE
+MSG-1768860255790,2026-01-19T22:04:15.790Z,inbound,web,2407518588,,Cliff John,,1003,,REVISION REQUEST: Please change the color red to blue,,received,TRUE,FALSE
+MSG-1768861174510,2026-01-19T22:19:34.510Z,inbound,web,2407518588,,Cliff John,,1003,,REVISION REQUEST: Test revision request from backend,,received,TRUE,FALSE
+MSG-1768861334747,2026-01-19T22:22:14.747Z,inbound,web,2407518588,,Cliff John,,1003,,REVISION REQUEST: Test revision request from backend,,received,TRUE,FALSE
+260119-013,2026-01-19 17:29:19,outbound,sms,12407518588,,,,,,FWG: We've updated your design. Check it out: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer-document&id=1003,SMb547cdf20cb5531b7fd8c15e25aa14a2,queued,TRUE,FALSE
+260119-014,2026-01-19 17:32:16,outbound,sms,12407518588,,,,,,FWG: We've updated your design. Check it out: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer-document&id=1003,SM0007a04df650c4f3d4c9f711725d0502,queued,TRUE,FALSE
+260119-015,2026-01-19 17:50:57,outbound,sms,12407518588,,,,,,FWG: Do you want light blue or dark blue?,SM24ca6af3d582a2a1d39fc17219356653,queued,TRUE,FALSE
+DEBUG-START,2026-01-19T22:51:21.283Z,doPost called,"{""SmsSid"":""SMf75cf5369b07359f92e62d0c8addb48e"",""ApiVersion"":""2010-04-01"",""MessageSid"":""SMf75cf5369b07359f92e62d0c8addb48e"",""AccountSid"":""AC4abff8430e36f165cf7d20b39f992798"",""ToCountry"":""US"",""To"":""+124","{""contents"":""ToCountry=US&ToState=MD&SmsMessageSid=SMf75cf5369b07359f92e62d0c8addb48e&NumMedia=0&ToCity=&FromZip=20879&SmsSid=SMf75cf5369b07359f92e62d0c8addb48e&FromState=MD&SmsStatus=received&FromCit",,,,,,,,,,
+DEBUG-SMS,2026-01-19T22:51:21.817Z,handleIncomingSMS called,"{""SmsSid"":""SMf75cf5369b07359f92e62d0c8addb48e"",""ApiVersion"":""2010-04-01"",""MessageSid"":""SMf75cf5369b07359f92e62d0c8addb48e"",""AccountSid"":""AC4abff8430e36f165cf7d20b39f992798"",""ToCountry"":""US"",""To"":""+12406933715"",""ToState"":""MD"",""FromCity"":""GAITHERSBURG"",""route"":""incoming_sms"",""ToZip"":"""",""ToCity"":"""",""Sm",,,,,,,,,,,
+260119-016,2026-01-19 17:51:22,inbound,sms,12407518588,,,,,,Light blue please,SMf75cf5369b07359f92e62d0c8addb48e,received,TRUE,FALSE
+260119-017,2026-01-19 17:53:06,outbound,sms,12407518588,,,,,,FWG: Here is an updated version! https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1003,SM1fc896135a755015d22b3382b365c2ac,queued,TRUE,FALSE
+260119-018,2026-01-19 17:54:31,outbound,sms,12407518588,,,,,,FWG: Here is an updated version. 2.0 https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1003,SM8fe1c1131d303e0fe4b13d0d6d575786,queued,TRUE,FALSE
+DEBUG-START,2026-01-19T23:14:27.260Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-19T23:14:27.410Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrA3fGv7pFIE6Ke0XFZp4yd"",""object"":""payment_intent"",""amount"":1000,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":1000,""application"":null,""application_fee_amount"":null,""a",,,,,,,,,,
+260119-019,2026-01-19 19:24:01,outbound,sms,12407518588,,,,,,FWG: No problem,SM1e27b1ed8a6f5c900d58ff3df6b2cc1b,queued,TRUE,FALSE
+DEBUG-START,2026-01-20T13:05:41.597Z,doPost called,"{""MessageSid"":""SM42306210fa6fcc7c8619fd5b08889054"",""ToState"":""MD"",""ToCountry"":""US"",""SmsStatus"":""received"",""AccountSid"":""AC4abff8430e36f165cf7d20b39f992798"",""SmsSid"":""SM42306210fa6fcc7c8619fd5b08889054","{""contents"":""ToCountry=US&ToState=MD&SmsMessageSid=SM42306210fa6fcc7c8619fd5b08889054&NumMedia=0&ToCity=&FromZip=17404&SmsSid=SM42306210fa6fcc7c8619fd5b08889054&FromState=PA&SmsStatus=received&FromCit",,,,,,,,,,
+DEBUG-SMS,2026-01-20T13:05:41.990Z,handleIncomingSMS called,"{""MessageSid"":""SM42306210fa6fcc7c8619fd5b08889054"",""ToState"":""MD"",""ToCountry"":""US"",""SmsStatus"":""received"",""AccountSid"":""AC4abff8430e36f165cf7d20b39f992798"",""SmsSid"":""SM42306210fa6fcc7c8619fd5b08889054"",""route"":""incoming_sms"",""From"":""+17174870970"",""FromCity"":""YORK"",""To"":""+12406933715"",""Body"":""Just to",,,,,,,,,,,
+260120-001,2026-01-20 8:05:44,inbound,sms,17174870970,,,,,,"Just to confirm, 15% on the sides and back windows. 50% windshield with 5% strip. 
+
+There is a white sticker from the dealer on the windshield that can come off too, fyi ",SM42306210fa6fcc7c8619fd5b08889054,received,TRUE,FALSE
+MSG-1768933800291,2026-01-20T18:30:00.291Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+DEBUG-START,2026-01-20T23:31:27.191Z,doPost called,{},"{""contents"":""{\n  \""id\"": \""evt_3SrA3fGv7pFIE6Ke0qYruAtc\"",\n  \""object\"": \""event\"",\n  \""api_version\"": \""2020-08-27\"",\n  \""created\"": 1768796843,\n  \""data\"": {\n    \""object\"": {\n      \""id\"": \",,,,,,,,,,
+DEBUG-STRIPE,2026-01-20T23:31:27.399Z,Stripe event detected,payment_intent.succeeded,"{""id"":""pi_3SrA3fGv7pFIE6Ke0XFZp4yd"",""object"":""payment_intent"",""amount"":1000,""amount_capturable"":0,""amount_details"":{""tip"":{}},""amount_received"":1000,""application"":null,""application_fee_amount"":null,""a",,,,,,,,,,
+MSG-1768957769271,2026-01-21T01:09:29.271Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768959064328,2026-01-21T01:31:04.328Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768959148045,2026-01-21T01:32:28.045Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768959149010,2026-01-21T01:32:29.010Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768960503609,2026-01-21T01:55:03.609Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768960504372,2026-01-21T01:55:04.372Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768960830018,2026-01-21T02:00:30.018Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768960830368,2026-01-21T02:00:30.368Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbysTITLKIoLLt0ZenH56gVk5zeZiN5cWGdvrpoAFcE/dev?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768961050413,2026-01-21T02:04:10.413Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768961050956,2026-01-21T02:04:10.956Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbysTITLKIoLLt0ZenH56gVk5zeZiN5cWGdvrpoAFcE/dev?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768961105582,2026-01-21T02:05:05.582Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768961105924,2026-01-21T02:05:05.924Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbysTITLKIoLLt0ZenH56gVk5zeZiN5cWGdvrpoAFcE/dev?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768961242000,2026-01-21T02:07:22.000Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768961242840,2026-01-21T02:07:22.840Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbysTITLKIoLLt0ZenH56gVk5zeZiN5cWGdvrpoAFcE/dev?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768961466486,2026-01-21T02:11:06.486Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768961467082,2026-01-21T02:11:07.082Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/a/frederickwraps.com/macros/s/AKfycbysTITLKIoLLt0ZenH56gVk5zeZiN5cWGdvrpoAFcE/dev?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768961642557,2026-01-21T02:14:02.557Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768961642879,2026-01-21T02:14:02.879Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768961836047,2026-01-21T02:17:16.047Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768961836746,2026-01-21T02:17:16.746Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768962699211,2026-01-21T02:31:39.211Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768962699677,2026-01-21T02:31:39.677Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. Let me know if you have any questions!
+
+View your quote: https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768963351347,2026-01-21T02:42:31.347Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768963351681,2026-01-21T02:42:31.681Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, We wanted to follow up with you and offer you a one time discount to proceed. 
+
+20% off if you proceed with this quote!
+
+Let me know if you have any questions!
+
+View your quote: https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768963559870,2026-01-21T02:45:59.870Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768963560090,2026-01-21T02:46:00.090Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, We wanted to follow up with you and offer you a one time discount to proceed. 
+
+25% off if you proceed with this quote!
+
+Let me know if you have any questions!
+
+View your quote: https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768964007931,2026-01-21T02:53:27.931Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768964008339,2026-01-21T02:53:28.339Z,outbound,sms,2404158527,,Joe Baum,,,1011,"Hi Joe, just checking in on the quote we sent over. One time offer to proceed ... 25% off.
+
+Let me know if you have any questions!
+
+View your quote: https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1011",,sent,FALSE,FALSE
+MSG-1768964367083,2026-01-21T02:59:27.083Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE
+MSG-1768964367514,2026-01-21T02:59:27.514Z,outbound,sms,2407518588,,Cliff John,,,1003,"Hi Cliff, just checking in on the invoice we sent over. Let me know if you have any questions!
+
+View your invoice: https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec?page=customer_document&id=1003",,sent,FALSE,FALSE
+MSG-1768965295328,2026-01-21T03:14:55.328Z,outbound,sms,,,,,,,,,queued,FALSE,FALSE

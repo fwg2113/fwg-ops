@@ -1,0 +1,8 @@
+day_of_week,enabled,open_time,close_time,max_consultations,notes
+Monday,TRUE,8:00 AM,5:00 PM,3,
+Tuesday,TRUE,8:00 AM,5:00 PM,3,
+Wednesday,TRUE,8:00 AM,5:00 PM,3,
+Thursday,TRUE,8:00 AM,5:00 PM,3,
+Friday,TRUE,8:00 AM,5:00 PM,3,
+Saturday,FALSE,,,0,Closed
+Sunday,FALSE,,,0,Closed

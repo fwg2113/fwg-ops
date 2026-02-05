@@ -1,0 +1,5 @@
+priority_key,label,color,sort_order,active
+LOW,Low,#64748b,1,TRUE
+MEDIUM,Medium,#3b82f6,2,TRUE
+HIGH,High,#f97316,3,TRUE
+URGENT,Urgent,#ef4444,4,TRUE
