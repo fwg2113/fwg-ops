@@ -2626,9 +2626,53 @@ export default function DocumentDetail({
                       {(payment.processing_fee || 0) > 0 && <span style={{ color: '#94a3b8' }}> (incl. ${(payment.processing_fee || 0).toFixed(2)} processing fee)</span>}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: '#22c55e', fontSize: '12px', fontWeight: 500 }}>{payment.status}</div>
-                    <div style={{ color: '#64748b', fontSize: '11px' }}>{formatDate(payment.created_at)}</div>
+                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                    <div>
+                      <div style={{ color: '#22c55e', fontSize: '12px', fontWeight: 500 }}>{payment.status}</div>
+                      <div style={{ color: '#64748b', fontSize: '11px' }}>{formatDate(payment.created_at)}</div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          showToast('Syncing payment to Google Sheets...', 'info')
+                          const response = await fetch('/api/payments/sync-to-sheet', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ paymentId: payment.id })
+                          })
+                          const result = await response.json()
+                          if (result.success) {
+                            showToast(`✓ Synced ${result.rowsAdded} row(s) to Google Sheets`, 'success')
+                          } else {
+                            showToast(`Failed to sync: ${result.error}`, 'error')
+                          }
+                        } catch (err) {
+                          console.error('Error syncing payment:', err)
+                          showToast('Failed to sync payment', 'error')
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 8px',
+                        background: 'rgba(139,92,246,0.1)',
+                        border: '1px solid rgba(139,92,246,0.3)',
+                        borderRadius: '4px',
+                        color: '#a78bfa',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        fontWeight: 500
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="12" y1="18" x2="12" y2="12"/>
+                        <line x1="9" y1="15" x2="15" y2="15"/>
+                      </svg>
+                      Sync to Sheet
+                    </button>
                   </div>
                 </div>
               ))}

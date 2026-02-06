@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { isAutomationEnabled } from '../lib/automation-settings'
+import { syncPaymentToSheet } from '../lib/payment-sheet-sync'
 import PaymentSuccessClient from './PaymentSuccessClient'
 
 export default async function PaymentSuccessPage({ 
@@ -98,8 +99,9 @@ export default async function PaymentSuccessPage({
         const paymentType = session.metadata?.payment_type === 'bank_transfer' ? 'bank_transfer' : 'card'
         const baseAmount = session.metadata?.base_amount ? parseFloat(session.metadata.base_amount) : stripeAmount
         const processingFee = stripeAmount - baseAmount
-        
-        await supabase
+
+        // Insert payment record and get the ID back
+        const { data: paymentRecord, error: paymentError } = await supabase
           .from('payments')
           .insert({
             document_id: documentId,
@@ -111,6 +113,24 @@ export default async function PaymentSuccessPage({
             status: 'completed',
             created_at: new Date().toISOString()
           })
+          .select()
+          .single()
+
+        // Sync payment to Google Sheets
+        if (paymentRecord && !paymentError) {
+          try {
+            const sheetResult = await syncPaymentToSheet(paymentRecord.id)
+            if (sheetResult.success) {
+              console.log(`✓ Payment synced to Google Sheets: ${sheetResult.rowsAdded} rows added (${sheetResult.txnNumbers?.join(', ')})`)
+            } else {
+              console.error(`✗ Failed to sync payment to Google Sheets: ${sheetResult.error}`)
+              // Don't fail the payment process if sheet sync fails
+            }
+          } catch (sheetError) {
+            console.error('✗ Error syncing payment to Google Sheets:', sheetError)
+            // Don't fail the payment process if sheet sync fails
+          }
+        }
 
         // Send notification email to FWG
         if (resendApiKey && isPaidInFull) {
