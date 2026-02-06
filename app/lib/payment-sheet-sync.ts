@@ -33,6 +33,9 @@ interface PaymentWithDetails {
     customer_name: string
     total: number
     amount_paid: number
+    discount_percent: number
+    discount_amount: number
+    subtotal: number
   }
   line_items: LineItem[]
 }
@@ -71,7 +74,10 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
           doc_number,
           customer_name,
           total,
-          amount_paid
+          amount_paid,
+          discount_percent,
+          discount_amount,
+          subtotal
         )
       `)
       .eq('id', paymentId)
@@ -113,15 +119,28 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const dateStr = formatDate(paymentDate)
     const timestampStr = formatTimestamp(paymentDate)
 
+    // Calculate discount multiplier (e.g., 5% discount = 0.95 multiplier)
+    const discountPercent = payment.documents.discount_percent || 0
+    const discountMultiplier = 1 - (discountPercent / 100)
+
     // Calculate proportional split
     const documentTotal = payment.documents.total
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
+    // Calculate the total of all line items after discount
+    const discountedSubtotal = lineItems.reduce((sum, item) => {
+      return sum + (item.line_total * discountMultiplier)
+    }, 0)
+
     // Calculate how much of each line item this payment covers
-    // (proportional based on line item amounts)
+    // (proportional based on line item amounts AFTER discount)
     for (const lineItem of lineItems) {
-      const lineItemProportion = lineItem.line_total / documentTotal
+      // Apply discount to this line item
+      const discountedLineTotal = lineItem.line_total * discountMultiplier
+
+      // Calculate proportion based on discounted amount
+      const lineItemProportion = discountedLineTotal / documentTotal
       const lineItemPaymentAmount = payment.amount * lineItemProportion
 
       // Get sheet category from mapping
