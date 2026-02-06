@@ -91,6 +91,16 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       }
     }
 
+    // Extract document data (Supabase returns documents as array with !inner)
+    const doc = Array.isArray(payment.documents) ? payment.documents[0] : payment.documents
+    if (!doc) {
+      return {
+        success: false,
+        rowsAdded: 0,
+        error: 'Document data not found for payment'
+      }
+    }
+
     // Fetch line items for this document
     const { data: lineItems, error: lineItemsError } = await supabase
       .from('line_items')
@@ -120,11 +130,11 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const timestampStr = formatTimestamp(paymentDate)
 
     // Calculate discount multiplier (e.g., 5% discount = 0.95 multiplier)
-    const discountPercent = payment.documents.discount_percent || 0
+    const discountPercent = doc.discount_percent || 0
     const discountMultiplier = 1 - (discountPercent / 100)
 
     // Calculate proportional split
-    const documentTotal = payment.documents.total
+    const documentTotal = doc.total
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
@@ -161,9 +171,9 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
         account: 'Stripe',
         category: sheetCategory,
         serviceLine: '',
-        customerName: payment.documents.customer_name || 'Unknown',
+        customerName: doc.customer_name || 'Unknown',
         notes: '',
-        invoiceNumber: payment.documents.doc_number || '',
+        invoiceNumber: doc.doc_number || '',
         columnM: '',
         columnN: '',
         columnO: '',
@@ -190,9 +200,9 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
         account: 'Stripe',
         category: 'Payment Processing Fees',
         serviceLine: '',
-        customerName: payment.documents.customer_name || 'Unknown',
+        customerName: doc.customer_name || 'Unknown',
         notes: 'Stripe processing fee',
-        invoiceNumber: payment.documents.doc_number || '',
+        invoiceNumber: doc.doc_number || '',
         columnM: '',
         columnN: '',
         columnO: '',
