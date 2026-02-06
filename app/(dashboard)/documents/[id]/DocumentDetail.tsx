@@ -286,6 +286,10 @@ export default function DocumentDetail({
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [paymentNotes, setPaymentNotes] = useState('')
 
+  // Delete state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   // Revision History state
   const [revisions, setRevisions] = useState<Array<{timestamp: string, from: string, name: string, message: string, sentSms?: boolean}>>(() => {
     try {
@@ -872,6 +876,29 @@ export default function DocumentDetail({
     await appendHistory('Moved to Cold', 'Document moved to cold bucket')
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
     setSaving(false)
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/documents/${doc.id}`, {
+        method: 'DELETE'
+      })
+      const result = await response.json()
+
+      if (result.success) {
+        showToast(`${doc.doc_type} #${doc.doc_number} deleted successfully`, 'success')
+        setShowDeleteModal(false)
+        router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
+      } else {
+        showToast(result.error || 'Failed to delete document', 'error')
+        setShowDeleteModal(false)
+      }
+    } catch (err) {
+      console.error('Delete error:', err)
+      showToast('Failed to delete document', 'error')
+    }
+    setDeleting(false)
   }
 
   const handleOpenScheduleModal = () => {
@@ -1710,7 +1737,26 @@ export default function DocumentDetail({
               if (!isArchived) {
                 buttons.push(<ActionButton key="archive" onClick={() => { setArchiveBucket(doc.status === 'paid' ? 'won' : 'lost'); setArchiveReason(''); setArchiveOtherReason(''); setShowArchiveModal(true) }} disabled={saving} variant="secondary">Archive</ActionButton>)
               }
-              
+
+              // Delete - always show
+              buttons.push(
+                <ActionButton
+                  key="delete"
+                  onClick={() => setShowDeleteModal(true)}
+                  disabled={saving}
+                  variant="secondary"
+                  style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                  </svg>
+                  Delete
+                </ActionButton>
+              )
+
               return buttons
             })()}
           </div>
@@ -3122,6 +3168,64 @@ export default function DocumentDetail({
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <ActionButton onClick={() => setShowArchiveModal(false)} variant="secondary">Cancel</ActionButton>
               <ActionButton onClick={handleArchive} disabled={saving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowDeleteModal(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', width: '100%', maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                  </svg>
+                </div>
+                <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Delete {isQuote ? 'Quote' : 'Invoice'}?</h2>
+              </div>
+              <button onClick={() => setShowDeleteModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ padding: '20px 24px' }}>
+              <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0, lineHeight: '1.6' }}>
+                Are you sure you want to permanently delete <strong style={{ color: '#f1f5f9' }}>{doc.doc_type} #{doc.doc_number}</strong>?
+              </p>
+              <p style={{ color: '#94a3b8', fontSize: '14px', margin: '12px 0 0 0', lineHeight: '1.6' }}>
+                This will delete:
+              </p>
+              <ul style={{ color: '#94a3b8', fontSize: '14px', margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                <li>The document and all its data</li>
+                <li>All line items</li>
+                <li>All associated tasks</li>
+              </ul>
+              {payments.length > 0 && (
+                <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px' }}>
+                  <p style={{ color: '#ef4444', fontSize: '13px', margin: 0, fontWeight: 500 }}>
+                    ⚠️ This document has {payments.length} payment{payments.length > 1 ? 's' : ''}. Delete will fail.
+                  </p>
+                </div>
+              )}
+              <p style={{ color: '#ef4444', fontSize: '13px', margin: '16px 0 0 0', fontWeight: 500 }}>
+                This action cannot be undone.
+              </p>
+            </div>
+
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <ActionButton onClick={() => setShowDeleteModal(false)} variant="secondary" disabled={deleting}>Cancel</ActionButton>
+              <ActionButton
+                onClick={handleDelete}
+                disabled={deleting}
+                variant="secondary"
+                style={{ background: '#ef4444', color: 'white', borderColor: '#ef4444' }}
+              >
+                {deleting ? 'Deleting...' : 'Delete Permanently'}
+              </ActionButton>
             </div>
           </div>
         </div>
