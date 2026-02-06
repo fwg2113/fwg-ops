@@ -1,6 +1,10 @@
 import { supabase } from '../../lib/supabase'
 import DocumentList from '../documents/DocumentList'
 
+// Force dynamic rendering to prevent caching deleted documents
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function QuotesPage() {
   const { data: documents } = await supabase
     .from('documents')
