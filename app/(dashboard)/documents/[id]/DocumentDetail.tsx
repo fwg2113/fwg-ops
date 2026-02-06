@@ -889,7 +889,8 @@ export default function DocumentDetail({
       if (result.success) {
         showToast(`${doc.doc_type} #${doc.doc_number} deleted successfully`, 'success')
         setShowDeleteModal(false)
-        router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
+        // Use window.location for hard refresh to clear cache
+        window.location.href = doc.doc_type === 'quote' ? '/quotes' : '/invoices'
       } else {
         showToast(result.error || 'Failed to delete document', 'error')
         setShowDeleteModal(false)
