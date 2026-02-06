@@ -12,10 +12,10 @@ import { supabase } from '@/app/lib/supabase'
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const documentId = params.id
+    const { id: documentId } = await params
 
     // Check if document exists
     const { data: document, error: docError } = await supabase
