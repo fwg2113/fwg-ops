@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
@@ -63,6 +63,7 @@ export default function DocumentList({
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([])
+  const customerSearchInputRef = useRef<HTMLInputElement>(null)
 
   // Filter customers based on search
   useEffect(() => {
@@ -527,8 +528,8 @@ export default function DocumentList({
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000
-        }} onClick={() => setShowModal(false)}>
-          <div 
+        }}>
+          <div
             style={{
               background: '#111111',
               border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -538,7 +539,6 @@ export default function DocumentList({
               maxHeight: '90vh',
               overflow: 'auto'
             }}
-            onClick={(e) => e.stopPropagation()}
           >
             <div style={{
               padding: '20px 24px',
@@ -565,10 +565,12 @@ export default function DocumentList({
                   Search Existing Customer
                 </label>
                 <input
+                  ref={customerSearchInputRef}
                   type="text"
                   value={customerSearchTerm}
                   onChange={(e) => setCustomerSearchTerm(e.target.value)}
                   onFocus={() => customerSearchTerm.length >= 1 && setShowCustomerDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
                   placeholder="Type to search customers..."
                   style={{
                     width: '100%',
@@ -603,6 +605,8 @@ export default function DocumentList({
                           handleCustomerSelect(customer.id)
                           setCustomerSearchTerm(customer.display_name || `${customer.first_name} ${customer.last_name}`)
                           setShowCustomerDropdown(false)
+                          // Blur the input to prevent it from refocusing and showing dropdown again
+                          customerSearchInputRef.current?.blur()
                         }}
                         style={{
                           padding: '10px 12px',
