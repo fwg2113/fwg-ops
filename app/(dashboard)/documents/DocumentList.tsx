@@ -570,6 +570,7 @@ export default function DocumentList({
                   value={customerSearchTerm}
                   onChange={(e) => setCustomerSearchTerm(e.target.value)}
                   onFocus={() => customerSearchTerm.length >= 1 && setShowCustomerDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
                   placeholder="Type to search customers..."
                   style={{
                     width: '100%',
