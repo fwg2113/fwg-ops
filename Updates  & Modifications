@@ -2,3 +2,4 @@ Modify production flow to load with all the tasks collapsed.
 Add materials to supabase
 Building new quote modal when typing in a customer name to search, the search results work great but when clicking on a name it loads the customer info on first click but a second click is needed to close the customer search results box.
 Need to remove all the up and down arrows on the line items SqFt, Rate, Qty, Price etc. Anyone of them that have those stupid arrows.
+Need payments to be added to a specific google sheet. "TRANSACTIONS" 
