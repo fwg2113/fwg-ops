@@ -1415,12 +1415,12 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   <span style={{ color: '#1a1a1a' }}>{formatCurrency(subtotal)}</span>
                 </div>
                 
-                {feesTotal > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: '#6b7280' }}>Fees</span>
-                    <span style={{ color: '#1a1a1a' }}>{formatCurrency(feesTotal)}</span>
+                {fees.length > 0 && fees.map((fee, index) => (
+                  <div key={index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#6b7280' }}>{fee.description}</span>
+                    <span style={{ color: '#1a1a1a' }}>{formatCurrency(fee.amount)}</span>
                   </div>
-                )}
+                ))}
                 
                 {discountAmount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
