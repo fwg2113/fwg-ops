@@ -14,11 +14,11 @@ import {
 } from './googleSheets'
 import { getSheetCategory } from './category-mapping'
 
-interface LineItemGroup {
-  group_id: string
-  category_key: string
+interface LineItem {
+  id: string
+  category: string
   description: string
-  total: number
+  line_total: number
 }
 
 interface PaymentWithDetails {
@@ -34,7 +34,7 @@ interface PaymentWithDetails {
     total: number
     amount_paid: number
   }
-  line_item_groups: LineItemGroup[]
+  line_items: LineItem[]
 }
 
 /**
@@ -85,10 +85,10 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       }
     }
 
-    // Fetch line item groups for this document
-    const { data: lineItemGroups, error: lineItemsError } = await supabase
-      .from('line_item_groups')
-      .select('group_id, category_key, description, total')
+    // Fetch line items for this document
+    const { data: lineItems, error: lineItemsError } = await supabase
+      .from('line_items')
+      .select('id, category, description, line_total')
       .eq('document_id', payment.document_id)
       .order('sort_order')
 
@@ -100,7 +100,7 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       }
     }
 
-    if (!lineItemGroups || lineItemGroups.length === 0) {
+    if (!lineItems || lineItems.length === 0) {
       return {
         success: false,
         rowsAdded: 0,
@@ -120,12 +120,12 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
 
     // Calculate how much of each line item this payment covers
     // (proportional based on line item amounts)
-    for (const lineItem of lineItemGroups) {
-      const lineItemProportion = lineItem.total / documentTotal
+    for (const lineItem of lineItems) {
+      const lineItemProportion = lineItem.line_total / documentTotal
       const lineItemPaymentAmount = payment.amount * lineItemProportion
 
       // Get sheet category from mapping
-      const sheetCategory = getSheetCategory(lineItem.category_key)
+      const sheetCategory = getSheetCategory(lineItem.category)
 
       // Generate TXN number
       const txnNumber = await getNextTransactionNumber()
