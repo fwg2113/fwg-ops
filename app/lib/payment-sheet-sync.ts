@@ -4,7 +4,7 @@
  * Handles the conversion of payments from Supabase to Google Sheets TRANSACTIONS rows
  */
 
-import { createClient } from '@/app/lib/supabase'
+import { supabase } from '@/app/lib/supabase'
 import {
   appendPaymentRows,
   getNextTransactionNumber,
@@ -56,8 +56,6 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
   error?: string
   txnNumbers?: string[]
 }> {
-  const supabase = createClient()
-
   try {
     // Fetch payment with related data
     const { data: payment, error: paymentError } = await supabase
