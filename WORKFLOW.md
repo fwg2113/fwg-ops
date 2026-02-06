@@ -72,3 +72,52 @@ Run these to pull what claude code edits.
 
 git fetch origin
 git merge origin/claude/review-legacy-system-0XVMM
+
+
+check branch command
+
+git branch --show-current
+
+
+The full workflow:
+When you're ready to deploy:
+
+Step 1: Make sure feature branch is pushed
+
+git checkout claude/review-legacy-system-0XVMM
+git push -u origin claude/review-legacy-system-0XVMM
+
+Step 2: Switch to main and merge
+
+git checkout main
+git pull origin main
+git merge claude/review-legacy-system-0XVMM
+
+Step 3: Push main to GitHub (this is probably the command you run)
+
+git push origin main
+
+Step 4: Vercel automatically deploys
+
+Vercel watches your GitHub repository
+When it sees main branch updated, it automatically starts deploying
+A few seconds later, your production site is live!
+So the command you're running in VS Code is probably git push origin main - and that triggers Vercel to deploy automatically.
+
+Summary of the whole process:
+Testing phase: You're on claude/review-legacy-system-0XVMM branch
+
+I make edits
+You test on localhost:3000
+We confirm it works
+Moving to main: Run these commands
+
+git checkout main
+git pull origin main
+git merge claude/review-legacy-system-0XVMM
+
+Deploy: Run this command (the one you usually run)
+
+git push origin main
+
+Vercel does its magic: Automatically deploys in a few seconds
