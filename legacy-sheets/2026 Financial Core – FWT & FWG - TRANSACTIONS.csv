@@ -1,0 +1,507 @@
+TransactionID,Date,Business,Direction,EventType,Amount,Account,Category,ServiceLine,VendorOrCustomer,JobID,InvoiceID,PaymentID,PaymentMethod,Processor,Memo,PostedBy,PostedAt
+TXN-000001,1/1/2026,FWT,IN,SALE,$190.00,Shopify,Auto Tint Revenue,Tint,Chase Martin,hhmges8lhoal347pr3rvp7b13c@google.com,251230-016,,Credit Card,PayPal,2023 CX-50,frederickwindowtint@gmail.com,1/1/2026 9:00:09
+TXN-000002,1/1/2026,FWT,IN,SALE,$600.00,Venmo,Auto Tint Revenue,Tint,Natalie Riffle,i9osld289tttioc56d8rnafbd4@google.com,260101-003,,Venmo,Venmo,2025 Explorer,frederickwindowtint@gmail.com,1/1/2026 9:30:09
+TXN-000003,1/1/2026,FWT,IN,SALE,$190.00,Shopify,Auto Tint Revenue,Tint,Darnel Jackson,sb4c5abqe2vj986fbsno5p96v4@google.com,260101-001,,Credit Card,PayPal,2026 Palisade,frederickwindowtint@gmail.com,1/1/2026 10:30:09
+TXN-000004,1/1/2026,FWT,IN,SALE,$645.00,Shopify,Auto Tint Revenue,Tint,kate illuminati,nk3hqn5rrv7i0ea97np5kjg6u0@google.com,260101-004,,Credit Card,PayPal,2026 Traverse,frederickwindowtint@gmail.com,1/1/2026 10:45:09
+TXN-000005,1/1/2026,FWT,IN,SALE,$744.00,Shopify,Auto Tint Revenue,Tint,Jonathan Healy,6o3k5egh9j3qnjd42m3phl70d8@google.com,260101-005,,Cash,Cash,2024 Civic,frederickwindowtint@gmail.com,1/1/2026 11:45:09
+TXN-000006,1/1/2026,FWT,IN,SALE,$194.75,Shopify,Auto Tint Revenue,Tint,charles allen,n3i3a9bqo66qthplgh4bmv7f4c@google.com,260101-006,,Cash,Cash,2004 S4,frederickwindowtint@gmail.com,1/1/2026 12:45:09
+TXN-000007,1/2/2026,FWT,IN,SALE,$130.00,Credit Card,Auto Tint Revenue,Tint,Jeff Lee,loke5k6ld6187k2k60fnabe2ak@google.com,260102-007,,Credit Card,Stripe,2025 Pathfinder,frederickwindowtint@gmail.com,1/2/2026 9:41:25
+TXN-000008,1/2/2026,FWT,IN,SALE,$296.00,Credit Card,Auto Tint Revenue,Tint,Ruth Oskoian,co4avdcdtkpq3n9f7t8ctt2ev0@google.com,260102-006,,Credit Card,Stripe,2016 Wrangler,frederickwindowtint@gmail.com,1/2/2026 9:22:09
+TXN-000008,1/2/2026,FWT,OUT,FEE,$4.07,Credit Card,Merchant Fees,Tint,Stripe,loke5k6ld6187k2k60fnabe2ak@google.com,260102-007,,,Stripe,Stripe fee on Invoice 260102-007,frederickwindowtint@gmail.com,1/2/2026 9:41:25
+TXN-000009,1/2/2026,FWT,IN,SALE,$160.00,Credit Card,Auto Tint Revenue,Tint,chris daugherty,hf3rf0obdpedak859sgc58p4n4@google.com,260102-008,,Credit Card,,2026 Model Y,frederickwindowtint@gmail.com,1/2/2026 11:40:27
+TXN-000010,1/2/2026,FWT,OUT,FEE,$4.94,Credit Card,Merchant Fees,Tint,Stripe,hf3rf0obdpedak859sgc58p4n4@google.com,260102-008,,,Stripe,Stripe fee on Invoice 260102-008,frederickwindowtint@gmail.com,1/2/2026 11:40:27
+TXN-000011,1/2/2026,FWT,IN,SALE,$124.10,Venmo,Auto Tint Revenue,Tint,Andrew Wright,ni4cuucfv2u4lcadq75h5j9pe4@google.com,260102-009,,Venmo,,2025 Maverick,frederickwindowtint@gmail.com,1/2/2026 13:17:07
+TXN-000014,1/2/2026,FWT,IN,SALE,$372.00,Credit Card,Auto Tint Revenue,Tint,Thomas Crabb,81mf37qaeh82t93utr08qthrgs@google.com,260102-016,,Credit Card,,2022 Pilot,frederickwindowtint@gmail.com,1/2/2026 15:10:13
+TXN-000015,1/2/2026,FWT,OUT,FEE,$11.09,Credit Card,Merchant Fees,Tint,Stripe,81mf37qaeh82t93utr08qthrgs@google.com,260102-016,,,Stripe,Stripe fee on Invoice 260102-016,frederickwindowtint@gmail.com,1/2/2026 15:10:13
+TXN-000016,1/2/2026,FWT,IN,SALE,$807.00,Credit Card,Auto Tint Revenue,Tint,Humberto  Cabrera,3saqeuotkc1jh3aorpucpob66o@google.com,260102-017,,Credit Card,,2025 Pilot,frederickwindowtint@gmail.com,1/2/2026 15:14:08
+TXN-000017,1/2/2026,FWT,OUT,FEE,$23.70,Credit Card,Merchant Fees,Tint,Stripe,3saqeuotkc1jh3aorpucpob66o@google.com,260102-017,,,Stripe,Stripe fee on Invoice 260102-017,frederickwindowtint@gmail.com,1/2/2026 15:14:08
+TXN-000018,1/2/2026,FWT,IN,SALE,$519.00,Credit Card,Auto Tint Revenue,Tint,Mathew Edgreen,s7evnvlf7gji7beq5rh14tl1us@google.com,260102-019,,Credit Card,,2024 Prius,frederickwindowtint@gmail.com,1/2/2026 15:56:43
+TXN-000019,1/2/2026,FWT,OUT,FEE,$15.35,Credit Card,Merchant Fees,Tint,Stripe,s7evnvlf7gji7beq5rh14tl1us@google.com,260102-019,,,Stripe,Stripe fee on Invoice 260102-019,frederickwindowtint@gmail.com,1/2/2026 15:56:43
+TXN-000020,1/2/2026,FWT,IN,SALE,$665.00,Credit Card + Venmo,Auto Tint Revenue,Tint,DASH EDIT,ehm87etafeesejln5cb4ma9kl4@google.com,260102-018,,Credit Card + Venmo,,2026 Air,frederickwindowtint@gmail.com,1/2/2026 16:01:37
+TXN-000021,1/2/2026,FWG,OUT,EXPENSE,"$2,700.00",PNC FWT Checking,Payroll,,Bronson,,,,,,APPLE CASH SENT MONE CARD8705,frederickwindowtint@gmail.com,1/2/2026 19:02:02
+TXN-000022,1/2/2026,FWG,OUT,EXPENSE,"$2,700.00",PNC FWT Checking,Payroll,,Mason,,,,,,APPLE CASH SENT MONE CARD8705,frederickwindowtint@gmail.com,1/2/2026 19:02:02
+TXN-000023,1/2/2026,FWT,OUT,EXPENSE,"$2,700.00",PNC FWT Checking,Payroll,,Diogo,,,,,,APPLE CASH SENT MONE CARD8705,frederickwindowtint@gmail.com,1/2/2026 19:02:02
+TXN-000024,1/2/2026,FWG,OUT,EXPENSE,$490.00,PNC FWT Checking,Payroll,,Taylor,,,,,,APPLE CASH SENT MONE CARD8705,frederickwindowtint@gmail.com,1/2/2026 19:02:02
+TXN-000032,1/2/2026,SHARED,OUT,EXPENSE,$35.00,PNC Personal,Equipment,,Debit Bk Of Amer Visa,,,,,,ACH DEBIT BK OF AMER VISA,frederickwindowtint@gmail.com,1/2/2026 19:43:29
+TXN-000033,1/1/2026,SHARED,OUT,EXPENSE,"$4,214.77",PNC Personal,Materials - Other,,Online Payment To Xxxxx1144,,,,,,ONLINE PAYMENT TO XXXXX1144,frederickwindowtint@gmail.com,1/2/2026 19:43:29
+TXN-000034,1/3/2026,FWT,IN,SALE,$836.12,Cash,Auto Tint Revenue,Tint,Natasha Rivera-Miles,951tmdlpft001gr963au4out7o@google.com,260103-001,,Cash,,2022 F-150 SuperCrew,frederickwindowtint@gmail.com,1/3/2026 9:17:29
+TXN-000035,1/3/2026,FWT,IN,SALE,$470.00,Credit Card,Auto Tint Revenue,Tint,ashley philemon,t1lagcghn9uvva4m9ahmdps9v0@google.com,260103-002,,Credit Card,,2014 Corolla,frederickwindowtint@gmail.com,1/3/2026 10:09:53
+TXN-000036,1/3/2026,FWT,OUT,FEE,$13.93,Credit Card,Merchant Fees,Tint,Stripe,t1lagcghn9uvva4m9ahmdps9v0@google.com,260103-002,,,Stripe,Stripe fee on Invoice 260103-002,frederickwindowtint@gmail.com,1/3/2026 10:09:53
+TXN-000037,1/3/2026,FWT,IN,SALE,$80.75,Venmo,Auto Tint Revenue,Tint,Shawn Becker,m4tc9kta2gh3jk2qmj0md2atn8@google.com,260103-003,,Venmo,,2024 Yukon,frederickwindowtint@gmail.com,1/3/2026 10:57:52
+TXN-000038,1/3/2026,FWT,IN,SALE,$940.50,Cash,Auto Tint Revenue,Tint,Shawn Kent,2d25tufs4phidjtdf8073p6arq@google.com,260103-004,,Cash,,2026 CF MOTO,frederickwindowtint@gmail.com,1/3/2026 11:32:09
+TXN-000039,1/3/2026,FWT,IN,SALE,$669.40,CashApp,Auto Tint Revenue,Tint,Austin Matthews,elgc7aasllojnv0n8ubfafeqg8@google.com,260103-006,,CashApp,,2019 Passat,frederickwindowtint@gmail.com,1/3/2026 14:58:29
+TXN-000040,1/3/2026,FWT,IN,SALE,$320.00,Credit Card,Auto Tint Revenue,Tint,Joe Ballenger,fnr029mhofa7ckpqfte2jdu9k4@google.com,260103-007,,Credit Card,,2023 Tucson,frederickwindowtint@gmail.com,1/3/2026 15:20:16
+TXN-000041,1/3/2026,FWT,OUT,FEE,$9.58,Credit Card,Merchant Fees,Tint,Stripe,fnr029mhofa7ckpqfte2jdu9k4@google.com,260103-007,,,Stripe,Stripe fee on Invoice 260103-007,frederickwindowtint@gmail.com,1/3/2026 15:20:16
+TXN-000042,1/3/2026,FWT,IN,SALE,$362.31,Cash,Auto Tint Revenue,Tint,LePhonzo Pearson,pftkv40cvkk9dvagluht76p190@google.com,260103-008,,Cash,,2014 ES Sedan,frederickwindowtint@gmail.com,1/3/2026 16:41:04
+TXN-000043,1/3/2026,FWT,IN,SALE,"$1,000.00",Credit Card,Auto Tint Revenue,Tint,Dan Reagan,2qdvgp09srgcsq9bul2b7uce9c@google.com,260103-009,,Credit Card,,2026 Silverado,frederickwindowtint@gmail.com,1/3/2026 17:13:19
+TXN-000044,1/3/2026,FWT,OUT,FEE,$29.30,Credit Card,Merchant Fees,Tint,Stripe,2qdvgp09srgcsq9bul2b7uce9c@google.com,260103-009,,,Stripe,Stripe fee on Invoice 260103-009,frederickwindowtint@gmail.com,1/3/2026 17:13:19
+TXN-000045,1/3/2026,FWT,IN,SALE,$384.75,Cash,Auto Tint Revenue,Tint,Ronaldo Zelaya,4mlep24qido3emdc6mflvo1gm8@google.com,260103-010,,Cash,,2025 F-150,frederickwindowtint@gmail.com,1/3/2026 19:18:50
+TXN-000046,1/3/2026,FWT,IN,SALE,$925.75,Zelle,Auto Tint Revenue,Tint,Phillip zhu,irk3ifmknp6lf2c3f7domq9fnc@google.com,260103-011,,Zelle,,2026 X5,frederickwindowtint@gmail.com,1/5/2026 7:56:37
+TXN-000047,1/5/2026,FWT,IN,SALE,$731.50,Apple Cash,Auto Tint Revenue,Tint,Tesla Test 15,07toga4nbkp1a2ovhold1kb7co@google.com,260105-008,,Apple Cash,,2025 Model 3,frederickwindowtint@gmail.com,1/5/2026 8:51:34
+TXN-000049,1/2/2026,SHARED,OUT,EXPENSE,"$3,182.87",TD Bank,Rent,,M & T Mortgage Mtg Pyt,,,,,,M & T MORTGAGE MTG PYT,frederickwindowtint@gmail.com,1/5/2026 10:48:28
+TXN-000050,1/2/2026,FWG,OUT,EXPENSE,"$1,000.00",TD Bank,Contract Labor,,Avonleigh,,,,,,TD ZELLE SENT 600200K09NDC Zelle AVONLEIGH BROADHURS,frederickwindowtint@gmail.com,1/5/2026 10:48:28
+TXN-000051,1/2/2026,SHARED,OUT,EXPENSE,$500.00,TD Bank,Office Supplies,,Wf Pl Cc Payment Payment,,,,,,WF PL CC PAYMENT PAYMENT,frederickwindowtint@gmail.com,1/5/2026 10:48:28
+TXN-000052,1/3/2026,FWG,OUT,EXPENSE,$12.71,American Express,Shop Supplies,,Amazon,,,,,,Amazon Prime,frederickwindowtint@gmail.com,1/5/2026 10:51:20
+TXN-000053,1/5/2026,FWT,IN,SALE,$964.37,Cash,Auto Tint Revenue,Tint,David Edwards,24vu82uq5joe461fc5v2q3v0pk@google.com,260105-010,,Cash,,2011 Ridgeline,frederickwindowtint@gmail.com,1/5/2026 12:32:05
+TXN-000054,1/5/2026,FWT,IN,SALE,$244.00,,Auto Tint Revenue,Tint,Matthew Estrem,n9bjn4p517nrulc572lr3vn7m8@google.com,260105-011,,,,2026 Palisade,frederickwindowtint@gmail.com,1/5/2026 12:53:41
+TXN-000055,1/5/2026,FWT,IN,SALE,$0.00,,Auto Tint Revenue,Tint,Naman Ashok,ta1o64snmo12an7ia398lkv714@google.com,260105-012,,,,2023 Model Y,frederickwindowtint@gmail.com,1/5/2026 12:56:03
+TXN-000056,1/5/2026,FWT,IN,SALE,$335.00,Credit Card,Auto Tint Revenue,Tint,christopher wekwert,2kkcbjoor9e0aoee16cvquopp0@google.com,260105-013,,Credit Card,,2023 Model Y,frederickwindowtint@gmail.com,1/5/2026 12:59:34
+TXN-000057,1/5/2026,FWT,OUT,FEE,$10.02,Credit Card,Merchant Fees,Tint,Stripe,2kkcbjoor9e0aoee16cvquopp0@google.com,260105-013,,,Stripe,Stripe fee on Invoice 260105-013,frederickwindowtint@gmail.com,1/5/2026 12:59:34
+TXN-000058,1/5/2026,FWT,IN,SALE,$160.00,Credit Card,Auto Tint Revenue,Tint,joseph claxton,tm7pe7b279q0h7f6rb9lt79280@google.com,260105-014,,Credit Card,,2016 Sorento,frederickwindowtint@gmail.com,1/5/2026 14:39:04
+TXN-000059,1/5/2026,FWT,OUT,FEE,$4.94,Credit Card,Merchant Fees,Tint,Stripe,tm7pe7b279q0h7f6rb9lt79280@google.com,260105-014,,,Stripe,Stripe fee on Invoice 260105-014,frederickwindowtint@gmail.com,1/5/2026 14:39:04
+TXN-000060,1/2/2026,FWG,OUT,EXPENSE,$210.00,Venmo - Personal,Contract Labor,,Avonleigh,,,,,,"Avonleigh Broadhurst ""🎁""",frederickwindowtint@gmail.com,1/5/2026 16:25:20
+TXN-000062,1/4/2026,FWT,OUT,EXPENSE,$900.00,Cash,Contract Labor,,Mikey,,,,,,,frederickwindowtint@gmail.com,1/5/2026 16:30:33
+TXN-000063,1/5/2026,FWT,IN,SALE,$263.75,Cash,Auto Tint Revenue,Tint,Rory Sepulveda,4fn7i57psib4p7erl7limjfc74@google.com,260105-016,,Cash,,2026 | Palisade |,frederickwindowtint@gmail.com,1/6/2026 8:53:32
+TXN-000064,1/6/2026,SHARED,OUT,EXPENSE,$60.00,Cash,Food & Drinks,,MR Cheesecakes,,,,,,Joey Birthday Cake. $45 + $15 tip,frederickwindowtint@gmail.com,1/6/2026 9:40:00
+TXN-000065,1/5/2026,SHARED,OUT,EXPENSE,$66.26,Venmo,Food & Drinks,,Payment To Tst*fratellis Italian,,,,,,Payment to TST*FRATELLIS ITALIAN,frederickwindowtint@gmail.com,1/6/2026 10:13:40
+TXN-000066,1/6/2026,FWT,IN,SALE,$445.00,,Auto Tint Revenue,Tint,Chaz Timmons,80skndf7vvtnucs4vlj0l4gs54@google.com,260106-001,,,,2026 | CLE-Class |,frederickwindowtint@gmail.com,1/6/2026 14:18:45
+TXN-000067,1/6/2026,FWT,IN,SALE,$266.25,Credit Card,Auto Tint Revenue,Tint,Shane Robertson,lq4p3p49h9db8tjc81k0acls94@google.com,260106-002,,Credit Card,,2018 Mustang Convertible,frederickwindowtint@gmail.com,1/6/2026 14:21:33
+TXN-000068,1/6/2026,FWT,OUT,FEE,$8.02,Credit Card,Merchant Fees,Tint,Stripe,lq4p3p49h9db8tjc81k0acls94@google.com,260106-002,,,Stripe,Stripe fee on Invoice 260106-002,frederickwindowtint@gmail.com,1/6/2026 14:21:33
+TXN-000069,1/6/2026,FWT,IN,SALE,$813.20,CashApp,Auto Tint Revenue,Tint,Tyler Harrison,t0466fishf98db9diqb16mr23s@google.com,260106-004,,CashApp,,2004 Silverado,frederickwindowtint@gmail.com,1/6/2026 16:46:58
+TXN-000070,1/2/2026,SHARED,OUT,EXPENSE,$500.00,Cash,Professional Services,,Emerita,,,,,,Clean All 4 Units for January,frederickwindowtint@gmail.com,1/6/2026 17:22:17
+TXN-000071,1/2/2026,SHARED,OUT,EXPENSE,$500.00,Cash,Professional Services,,Emerita,,,,,,Clean House - January,frederickwindowtint@gmail.com,1/6/2026 17:22:36
+TXN-000072,1/2/2026,FWT,OUT,EXPENSE,$20.00,Cash,Contract Labor,,Bronson,,,,,,Move Crap from House,frederickwindowtint@gmail.com,1/6/2026 17:23:17
+TXN-000073,1/2/2026,FWT,OUT,EXPENSE,$20.00,Cash,Contract Labor,,Mikey,,,,,,Move Crap from House,frederickwindowtint@gmail.com,1/6/2026 17:23:32
+TXN-000074,1/7/2026,FWT,IN,SALE,$200.00,Credit Card,Auto Tint Revenue,Tint,Patrick Clarke,f445tnu2dmsmdrn81mhsscl8p8@google.com,260107-001,,Credit Card,,2025 Pathfinder,frederickwindowtint@gmail.com,1/7/2026 8:33:44
+TXN-000075,1/7/2026,FWT,OUT,FEE,$6.10,Credit Card,Merchant Fees,Tint,Stripe,f445tnu2dmsmdrn81mhsscl8p8@google.com,260107-001,,,Stripe,Stripe fee on Invoice 260107-001,frederickwindowtint@gmail.com,1/7/2026 8:33:44
+TXN-000076,1/7/2026,FWT,IN,SALE,$300.00,Credit Card,Auto Tint Revenue,Tint,Darnel Jackson,26p1m624r7m4bf9duht5rqn10s@google.com,260107-002,,Credit Card,,2026 Palisade,frederickwindowtint@gmail.com,1/7/2026 10:11:12
+TXN-000077,1/7/2026,FWT,OUT,FEE,$9.00,Credit Card,Merchant Fees,Tint,Stripe,26p1m624r7m4bf9duht5rqn10s@google.com,260107-002,,,Stripe,Stripe fee on Invoice 260107-002,frederickwindowtint@gmail.com,1/7/2026 10:11:12
+TXN-000078,1/7/2026,FWT,IN,SALE,$445.00,Credit Card,Auto Tint Revenue,Tint,Ashley Cartwright,g3vnoiv6jclvt504ue8gmec6b4@google.com,260107-003,,Credit Card,,2014 Patriot,frederickwindowtint@gmail.com,1/7/2026 11:54:22
+TXN-000079,1/7/2026,FWT,OUT,FEE,$13.21,Credit Card,Merchant Fees,Tint,Stripe,g3vnoiv6jclvt504ue8gmec6b4@google.com,260107-003,,,Stripe,Stripe fee on Invoice 260107-003,frederickwindowtint@gmail.com,1/7/2026 11:54:22
+TXN-000080,1/7/2026,SHARED,OUT,EXPENSE,$21.25,Cash,Professional Services,,Able Locksmith,,,,,,Re-Key Unit D,frederickwindowtint@gmail.com,1/7/2026 11:58:13
+TXN-000082,1/6/2026,SHARED,OUT,EXPENSE,$336.00,TD Bank,Utilities,,House Water Bill - 3 Months,,,,,,CHECK 1412,frederickwindowtint@gmail.com,1/7/2026 12:02:05
+TXN-000083,1/6/2026,SHARED,OUT,EXPENSE,$35.98,TD Bank,Excluded Expenses,,Urban Air Monthly Subscription,,,,,,VISA DDA PUR AP 491059 JFI URBAN AIR FREDERIC JUSTIFI AI *,frederickwindowtint@gmail.com,1/7/2026 12:02:05
+TXN-000084,1/7/2026,FWT,IN,SALE,$210.00,,Auto Tint Revenue,Tint,Joshua Vachon,1tu0e9lfrq4v5l1mf4j2rkrgi0@google.com,260107-004,,,,2023 Silverado Crew Cab,frederickwindowtint@gmail.com,1/7/2026 13:29:47
+TXN-000085,1/8/2026,FWT,IN,SALE,$183.00,Zelle,Auto Tint Revenue,Tint,Kim Potts,p00q0s3l7k1rqgrognen6ibl68@google.com,260108-001,,Zelle,,2026 Equinox,frederickwindowtint@gmail.com,1/8/2026 8:41:01
+TXN-000086,1/8/2026,FWT,IN,SALE,$123.50,Zelle,Auto Tint Revenue,Tint,Tim Simmons,0oaucdhfum734cokaqbijl0d0s@google.com,260108-002,,Zelle,,2024 Tacoma Double Cab,frederickwindowtint@gmail.com,1/8/2026 10:30:40
+TXN-000087,1/8/2026,FWT,IN,SALE,$719.75,Venmo,Auto Tint Revenue,Tint,Steve DeSimone,4bncl0cqmn4ndjvclj70rc8bc0@google.com,260108-003,,Venmo,,2026 Sienna,frederickwindowtint@gmail.com,1/8/2026 13:09:33
+TXN-000088,1/7/2026,SHARED,OUT,EXPENSE,$154.70,TD Bank,Miscellaneous,,Kohls CC Payment,,,,,,CAPITAL ONE ARC CHECK PYMT 1413,frederickwindowtint@gmail.com,1/8/2026 15:58:40
+TXN-000090,1/7/2026,SHARED,OUT,EXPENSE,$174.26,TD Bank,Utilities,,Firstenergy Opco-ach,,,,,,FIRSTENERGY OPCO-ACH,frederickwindowtint@gmail.com,1/8/2026 15:58:40
+TXN-000091,1/8/2026,FWT,IN,SALE,$175.00,,Auto Tint Revenue,Tint,Thomas Bray,8r636uad9hhfeqpgqvhs1mnr1k@google.com,260108-004,,,,2017 Altima,frederickwindowtint@gmail.com,1/8/2026 16:24:24
+TXN-000092,1/8/2026,FWT,IN,SALE,$275.00,Credit Card,Auto Tint Revenue,Tint,Carlos Martinez,s94k7a00p25ahuac72g5vq2590@google.com,260108-005,,Credit Card,,2021 TLX,frederickwindowtint@gmail.com,1/8/2026 16:31:24
+TXN-000093,1/8/2026,FWT,OUT,FEE,$8.28,Credit Card,Merchant Fees,Tint,Stripe,s94k7a00p25ahuac72g5vq2590@google.com,260108-005,,,Stripe,Stripe fee on Invoice 260108-005,frederickwindowtint@gmail.com,1/8/2026 16:31:24
+TXN-000094,1/7/2026,SHARED,OUT,EXPENSE,$240.00,TD Bank,Insurance,,Check 1411,,,,,,CHECK 1411,frederickwindowtint@gmail.com,1/8/2026 17:04:49
+TXN-000095,1/7/2026,SHARED,OUT,EXPENSE,"$10,760.00",TD Bank,Rent,,Check 1415,,,,,,CHECK 1415,frederickwindowtint@gmail.com,1/8/2026 17:04:49
+TXN-000096,1/9/2026,FWT,IN,SALE,$183.00,,Auto Tint Revenue,Tint,nicholas mills,lpt76pbs52hk98g1kbjj8551rk@google.com,260109-001,,,,2026 Tundra,frederickwindowtint@gmail.com,1/9/2026 9:17:59
+TXN-000097,1/9/2026,FWT,IN,SALE,$554.50,Credit Card,Auto Tint Revenue,Tint,trampus williams,fe2udhqs151265jp1a4nt007ps@google.com,260109-006,,Credit Card,,2025 Bronco Sport,frederickwindowtint@gmail.com,1/9/2026 13:50:02
+TXN-000098,1/9/2026,FWT,OUT,FEE,$16.38,Credit Card,Merchant Fees,Tint,Stripe,fe2udhqs151265jp1a4nt007ps@google.com,260109-006,,,Stripe,Stripe fee on Invoice 260109-006,frederickwindowtint@gmail.com,1/9/2026 13:50:02
+TXN-000099,1/9/2026,FWT,IN,SALE,$696.00,Zelle,Auto Tint Revenue,Tint,Ronald Diaz,54tlvei126mb1k8b0ai0bmj59o@google.com,260109-007,,Zelle,,2025 Explorer,frederickwindowtint@gmail.com,1/9/2026 14:17:43
+TXN-000100,1/9/2026,FWT,IN,SALE,$85.50,Zelle,Auto Tint Revenue,Tint,MELISSA LONG,lh53h9c2p6m27grfk975sb848c@google.com,260109-008,,Zelle,,2025 Equinox,frederickwindowtint@gmail.com,1/9/2026 14:33:14
+TXN-000101,1/9/2026,FWT,IN,SALE,$229.37,Cash,Auto Tint Revenue,Tint,Meredith Wivell,aufsekhtlqc1chtec79t5csasc@google.com,260109-009,,Cash,,2022 Explorer,frederickwindowtint@gmail.com,1/9/2026 14:42:26
+TXN-000102,1/1/2026,FWG,IN,SALE,"$5,695.00",Printavo,Full Wrap Revenue,Printing,Hunter Davis,,PRINTAVO-3461,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/9/2026 16:27:55
+TXN-000103,1/1/2026,FWG,IN,SALE,$100.00,Printavo,Apparel Revenue,Printing,Cyrus Shornock,,PRINTAVO-3472,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/9/2026 16:27:55
+TXN-000104,1/1/2026,FWG,IN,SALE,$86.20,Printavo,Apparel Revenue,Printing,Mike Powell,,PRINTAVO-3473,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/9/2026 16:27:55
+TXN-000105,1/1/2026,FWG,IN,SALE,$235.32,Printavo,Embroidery Revenue,Printing,Chris Livingston,,PRINTAVO-3474,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/9/2026 16:27:55
+TXN-000106,1/7/2026,FWG,IN,SALE,$250.00,Printavo,Signage Revenue,Printing,Hanna Anwar,,PRINTAVO-3480,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/9/2026 17:04:15
+TXN-000107,1/10/2026,FWT,OUT,EXPENSE,$600.00,Cash,Payroll,,Danny,,,,,,January 1 & 2,frederickwindowtint@gmail.com,1/10/2026 7:52:41
+TXN-000108,1/10/2026,FWT,IN,SALE,$190.00,Credit Card,Auto Tint Revenue,Tint,Lisa Fedders,q8386ipldlh3fu5j6cja8gmm40@google.com,260110-002,,Credit Card,,2024 Yukon,frederickwindowtint@gmail.com,1/10/2026 8:19:13
+TXN-000109,1/10/2026,FWT,OUT,FEE,$5.81,Credit Card,Merchant Fees,Tint,Stripe,q8386ipldlh3fu5j6cja8gmm40@google.com,260110-002,,,Stripe,Stripe fee on Invoice 260110-002,frederickwindowtint@gmail.com,1/10/2026 8:19:13
+TXN-000110,1/10/2026,FWT,IN,SALE,$405.00,Credit Card,Auto Tint Revenue,Tint,David Aranzamendi,inv7l31h5ca6oq83fv6qnamj6o@google.com,260110-004,,Credit Card,,2026 Model Y,frederickwindowtint@gmail.com,1/10/2026 8:23:21
+TXN-000111,1/10/2026,FWT,OUT,FEE,$12.05,Credit Card,Merchant Fees,Tint,Stripe,inv7l31h5ca6oq83fv6qnamj6o@google.com,260110-004,,,Stripe,Stripe fee on Invoice 260110-004,frederickwindowtint@gmail.com,1/10/2026 8:23:21
+TXN-000112,1/10/2026,FWT,IN,SALE,$105.00,Credit Card,Auto Tint Revenue,Tint,ashley cartwright,bbdaasv88acmj4d7k0tl2e28ns@google.com,260110-005,,Credit Card,,2014 Patriot,frederickwindowtint@gmail.com,1/10/2026 9:08:00
+TXN-000113,1/10/2026,FWT,OUT,FEE,$3.35,Credit Card,Merchant Fees,Tint,Stripe,bbdaasv88acmj4d7k0tl2e28ns@google.com,260110-005,,,Stripe,Stripe fee on Invoice 260110-005,frederickwindowtint@gmail.com,1/10/2026 9:08:00
+TXN-000114,1/10/2026,FWT,IN,SALE,$387.50,Credit Card,Auto Tint Revenue,Tint,Cynthia Alfaro,ir07qfchmbuove6mvqrfbbnllo@google.com,260110-006,,Credit Card,,2024 RAV4,frederickwindowtint@gmail.com,1/10/2026 9:20:54
+TXN-000115,1/10/2026,FWT,OUT,FEE,$11.54,Credit Card,Merchant Fees,Tint,Stripe,ir07qfchmbuove6mvqrfbbnllo@google.com,260110-006,,,Stripe,Stripe fee on Invoice 260110-006,frederickwindowtint@gmail.com,1/10/2026 9:20:54
+TXN-000116,1/10/2026,FWT,IN,SALE,$75.00,Credit Card,Auto Tint Revenue,Tint,Cynthia Alfaro,ir07qfchmbuove6mvqrfbbnllo@google.com,260110-007,,Credit Card,,2024 | RAV4 |,frederickwindowtint@gmail.com,1/10/2026 9:36:37
+TXN-000117,1/10/2026,FWT,OUT,FEE,$2.48,Credit Card,Merchant Fees,Tint,Stripe,ir07qfchmbuove6mvqrfbbnllo@google.com,260110-007,,,Stripe,Stripe fee on Invoice 260110-007,frederickwindowtint@gmail.com,1/10/2026 9:36:37
+TXN-000118,1/10/2026,FWT,IN,SALE,$355.00,Credit Card,Auto Tint Revenue,Tint,Gavin Williamson,n1u6kdkoj0mg1cffq25d0qmrqs@google.com,260110-008,,Credit Card,,2022 Corolla,frederickwindowtint@gmail.com,1/10/2026 10:38:48
+TXN-000119,1/10/2026,FWT,OUT,FEE,$10.60,Credit Card,Merchant Fees,Tint,Stripe,n1u6kdkoj0mg1cffq25d0qmrqs@google.com,260110-008,,,Stripe,Stripe fee on Invoice 260110-008,frederickwindowtint@gmail.com,1/10/2026 10:38:48
+TXN-000120,1/10/2026,FWT,IN,SALE,$520.25,Venmo,Auto Tint Revenue,Tint,Ben Lillard,1l8emhbfuig3832qr9a9nsvdts@google.com,260110-009,,Venmo,,2014 Hardtop,frederickwindowtint@gmail.com,1/10/2026 11:02:44
+TXN-000121,1/10/2026,FWT,IN,SALE,$425.25,Venmo,Auto Tint Revenue,Tint,Connor Fortier,hkr7brrg6lp6oungs53vaab1eo@google.com,260110-010,,Venmo,,2023 Elantra Sedan,frederickwindowtint@gmail.com,1/10/2026 11:46:53
+TXN-000122,1/12/2026,FWT,IN,SALE,$128.00,Credit Card,Auto Tint Revenue,Tint,Denise Sailors,rt6gqm3j3b8v9unhiat847oej0@google.com,260112-004,,Credit Card,,2025 Forester,frederickwindowtint@gmail.com,1/12/2026 10:07:14
+TXN-000123,1/12/2026,FWT,OUT,FEE,$4.01,Credit Card,Merchant Fees,Tint,Stripe,rt6gqm3j3b8v9unhiat847oej0@google.com,260112-004,,,Stripe,Stripe fee on Invoice 260112-004,frederickwindowtint@gmail.com,1/12/2026 10:07:14
+TXN-000124,1/12/2026,FWT,IN,SALE,$200.00,Credit Card,Auto Tint Revenue,Tint,stephen johnson,ll7i9bhpen6pvp0o2avdnq53oc@google.com,260112-007,,Credit Card,,2023 Rogue,frederickwindowtint@gmail.com,1/12/2026 10:48:11
+TXN-000125,1/12/2026,FWT,OUT,FEE,$6.10,Credit Card,Merchant Fees,Tint,Stripe,ll7i9bhpen6pvp0o2avdnq53oc@google.com,260112-007,,,Stripe,Stripe fee on Invoice 260112-007,frederickwindowtint@gmail.com,1/12/2026 10:48:11
+TXN-000126,1/12/2026,FWT,IN,SALE,$935.87,Cash,Auto Tint Revenue,Tint,David Edwards,v6jqe1uon0gs4e8o1ob5d2gu94@google.com,260112-009,,Cash,,2010 Odyssey,frederickwindowtint@gmail.com,1/12/2026 11:41:16
+TXN-000127,1/2/2026,FWG,IN,SALE,$450.00,Printavo,Full Wrap Revenue,Printing,Pristine Pavement,,PRINTAVO-3475,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/13/2026 12:01:20
+TXN-000128,1/13/2026,FWT,IN,SALE,$225.00,Credit Card,Auto Tint Revenue,Tint,Dallas Ebanez,lt7vahenblu8r7gqi177g22mjs@google.com,260113-002,,Credit Card,,2021 Highlander,frederickwindowtint@gmail.com,1/13/2026 16:00:37
+TXN-000129,1/13/2026,FWT,OUT,FEE,$6.83,Credit Card,Merchant Fees,Tint,Stripe,lt7vahenblu8r7gqi177g22mjs@google.com,260113-002,,,Stripe,Stripe fee on Invoice 260113-002,frederickwindowtint@gmail.com,1/13/2026 16:00:37
+TXN-000130,1/13/2026,FWT,IN,SALE,$956.00,Credit Card,Auto Tint Revenue,Tint,Dallas Ebanez,v52r3119kqb645mbvaq54lo6ig@google.com,260113-003,,Credit Card,,2017 Accord,frederickwindowtint@gmail.com,1/13/2026 16:10:58
+TXN-000131,1/13/2026,FWT,OUT,FEE,$28.02,Credit Card,Merchant Fees,Tint,Stripe,v52r3119kqb645mbvaq54lo6ig@google.com,260113-003,,,Stripe,Stripe fee on Invoice 260113-003,frederickwindowtint@gmail.com,1/13/2026 16:10:58
+TXN-000132,1/13/2026,FWT,IN,SALE,"$1,133.00",Venmo,Auto Tint Revenue,Tint,Christopher Hinkle,rnq4neoha21khdjt3f3nqju904@google.com,260113-004,,Venmo,,2015 A6,frederickwindowtint@gmail.com,1/13/2026 16:57:50
+TXN-000133,1/14/2026,FWT,IN,SALE,$216.12,Cash,Auto Tint Revenue,Tint,Alex Stick,asrb8darskaptgbf1ghahucj7o@google.com,260114-001,,Cash,,2020 F-250,frederickwindowtint@gmail.com,1/14/2026 8:34:33
+TXN-000134,1/5/2026,FWG,IN,SALE,$397.50,Printavo,Stickers Revenue,Printing,Mike Traxler,,PRINTAVO-3476,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/14/2026 11:09:41
+TXN-000135,1/13/2026,FWG,IN,SALE,$117.13,Printavo,Apparel Revenue,Printing,Richard Kachnycz,,PRINTAVO-3483,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/14/2026 11:09:41
+TXN-000136,1/12/2026,FWT,IN,SALE,"$3,804.00",Credit Card,Flat Glass Revenue,Flat Glass,Emily Harrison,,,,Credit Card,,22 Windows Dental Office,frederickwindowtint@gmail.com,1/14/2026 11:09:41
+TXN-000137,1/14/2026,FWT,IN,SALE,$420.00,Credit Card,Auto Tint Revenue,Tint,Thomas Bray,uiv9sjsqqf0ms78e3kb23vsmeo@google.com,260114-003,,Credit Card,,2017 Altima,frederickwindowtint@gmail.com,1/14/2026 13:33:33
+TXN-000138,1/14/2026,FWT,OUT,FEE,$12.48,Credit Card,Merchant Fees,Tint,Stripe,uiv9sjsqqf0ms78e3kb23vsmeo@google.com,260114-003,,,Stripe,Stripe fee on Invoice 260114-003,frederickwindowtint@gmail.com,1/14/2026 13:33:33
+TXN-000139,1/14/2026,SHARED,OUT,EXPENSE,$50.00,Cash,Contract Labor,,Bronson,,,,,,Lifting heading stuff,frederickwindowtint@gmail.com,1/14/2026 14:03:55
+TXN-000140,1/14/2026,SHARED,OUT,EXPENSE,$50.00,Cash,Contract Labor,,Mikey,,,,,,Lifting heading stuff,frederickwindowtint@gmail.com,1/14/2026 14:04:09
+TXN-000189,1/11/2026,SHARED,OUT,EXPENSE,$247.23,PNC CC,Shop Supplies,,Harbor Freight Tools,,,,,,Harbor Freight Tools,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000190,1/11/2026,SHARED,OUT,EXPENSE,$53.53,PNC CC,Food & Drinks,,Chipotle Mexican Grill,,,,,,Chipotle Mexican Grill,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000191,1/11/2026,SHARED,OUT,EXPENSE,$179.47,PNC CC,Food & Drinks,,Lidl,,,,,,Lidl,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000192,1/11/2026,SHARED,OUT,EXPENSE,$84.00,PNC CC,Excluded Expenses,,Goodwill,,,,,,Goodwill,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000193,1/11/2026,SHARED,OUT,EXPENSE,$436.80,PNC CC,Shop Supplies,,Home Depot,,,,,,The Home Depot,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000194,1/10/2026,SHARED,OUT,EXPENSE,$999.56,PNC CC,Shop Supplies,,Harbor Sales Harborsales.n,,,,,,HARBOR SALES HARBORSALES.NMD,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000195,1/10/2026,SHARED,OUT,EXPENSE,$157.29,PNC CC,Food & Drinks,,Aldi,,,,,,ALDI,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000196,1/10/2026,FWG,OUT,EXPENSE,"$2,468.48",PNC CC,Materials - Vinyl,,Grimco,,,,,,Grimco,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000197,1/10/2026,SHARED,OUT,EXPENSE,$50.00,PNC CC,Excluded Expenses,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCLXX8414 MD,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000199,1/8/2026,SHARED,OUT,EXPENSE,$20.00,PNC CC,Excluded Expenses,,Ssp*frederickgymnasticsclxx8414,,,,,,SSP*FrederickGymnasticsCLXX8414 MD,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000200,1/8/2026,FWG,OUT,EXPENSE,$5.46,PNC CC,Miscellaneous,,Themaincoursemedia.com Frederickwrap,,,,,,THEMAINCOURSEMEDIA.COM FREDERICKWRAPMD,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000202,1/8/2026,FWT,OUT,EXPENSE,$153.25,PNC CC,Materials - Tint Film,,Sagr Products Internation,,,,,,SAGR PRODUCTS INTERNATIONXX-8105 PA,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000205,1/8/2026,SHARED,OUT,EXPENSE,$24.98,PNC CC,Software & Subscriptions,,Sirius,,,,,,Sirius XM,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000206,1/7/2026,SHARED,OUT,EXPENSE,$159.98,PNC CC,Food & Drinks,,Costco,,,,,,Costco,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000207,1/7/2026,SHARED,OUT,EXPENSE,$20.00,PNC CC,Excluded Expenses,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCLXX8414 MD,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000208,1/6/2026,SHARED,OUT,EXPENSE,$20.00,PNC CC,Excluded Expenses,,Ssp*frederickgymnasticsclxx8414,,,,,,SSP*FrederickGymnasticsCLXX8414 MD,frederickwindowtint@gmail.com,1/14/2026 18:32:11
+TXN-000209,1/5/2026,SHARED,OUT,EXPENSE,$305.90,PNC CC,Software & Subscriptions,,Timepayment Corp,,,,,,Timepayment Corp,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000210,1/5/2026,FWT,OUT,EXPENSE,"$5,681.99",PNC CC,Materials - Tint Film,,AutoBahn,,,,,,Vision Quest,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000211,1/3/2026,SHARED,OUT,EXPENSE,$0.99,PNC CC,Software & Subscriptions,,Usiqmentalimpulse,,,,,,USiqmentalimpulse,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000212,1/3/2026,SHARED,OUT,EXPENSE,$19.99,PNC CC,Software & Subscriptions,,Usiqmentalimpulse,,,,,,USiqmentalimpulse,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000213,1/3/2026,SHARED,OUT,EXPENSE,$9.99,PNC CC,Software & Subscriptions,,Usiqmentalimpulse,,,,,,USiqmentalimpulse,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000214,1/3/2026,SHARED,OUT,EXPENSE,$83.80,PNC CC,Food & Drinks,,China Garden Chinese Restaurant,,,,,,China Garden Chinese Restaurant,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000216,1/2/2026,FWG,OUT,EXPENSE,$219.09,PNC CC,Materials - Vinyl,,Grimco,,,,,,Grimco,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000217,1/1/2026,SHARED,OUT,EXPENSE,$149.88,PNC CC,Software & Subscriptions,,Google,,,,,,Google,frederickwindowtint@gmail.com,1/14/2026 18:40:41
+TXN-000218,1/15/2026,FWT,IN,SALE,$152.00,Cash,Auto Tint Revenue,Tint,Zach Carpenter,kjl6lfkpd5amdh1s53fb1spcfs@google.com,260115-001,,Cash,,2024 Ranger,frederickwindowtint@gmail.com,1/15/2026 8:30:21
+TXN-000219,1/15/2026,FWT,IN,SALE,"$1,171.00",Credit Card,Auto Tint Revenue,Tint,Dyron Johnson,ibqim3smhovkpknqgd16dbusbc@google.com,260115-003,,Credit Card,,2022 X3,frederickwindowtint@gmail.com,1/15/2026 10:44:41
+TXN-000220,1/15/2026,FWT,OUT,FEE,$34.26,Credit Card,Merchant Fees,Tint,Stripe,ibqim3smhovkpknqgd16dbusbc@google.com,260115-003,,,Stripe,Stripe fee on Invoice 260115-003,frederickwindowtint@gmail.com,1/15/2026 10:44:41
+TXN-000221,1/15/2026,FWT,IN,SALE,$599.00,Credit Card,Auto Tint Revenue,Tint,Travis Sparkman,i41uepa26qcpdj1v96jm50k9kg@google.com,260115-004,,Credit Card,,2019 1500 Crew Cab,frederickwindowtint@gmail.com,1/15/2026 13:00:11
+TXN-000222,1/15/2026,FWT,OUT,FEE,$17.67,Credit Card,Merchant Fees,Tint,Stripe,i41uepa26qcpdj1v96jm50k9kg@google.com,260115-004,,,Stripe,Stripe fee on Invoice 260115-004,frederickwindowtint@gmail.com,1/15/2026 13:00:11
+TXN-000223,1/1/2026,FWG,IN,SALE,$186.56,Printavo,Full Wrap Revenue,Printing,Franz Echavez,,PRINTAVO-3458,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/15/2026 19:13:35
+TXN-000224,1/1/2026,FWG,IN,SALE,$900.00,Printavo,Full Wrap Revenue,Printing,Deanna Joseph,,PRINTAVO-3464,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/15/2026 19:13:35
+TXN-000225,1/1/2026,FWG,IN,SALE,$513.04,Printavo,Apparel Revenue,Printing,Alexis Earley,,PRINTAVO-3470,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/15/2026 19:13:35
+TXN-000226,1/1/2026,FWG,IN,SALE,$26.50,Printavo,Stickers Revenue,Printing,Justin Carter,,PRINTAVO-3471,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/15/2026 19:13:35
+TXN-000227,1/16/2026,FWT,IN,SALE,$274.00,Credit Card,Auto Tint Revenue,Tint,Vaughn Ripley,s1q8pmgin84m5c9st69stkode0@google.com,260116-002,,Credit Card,,2026 | Crosstrek |,frederickwindowtint@gmail.com,1/16/2026 8:39:29
+TXN-000228,1/16/2026,FWT,OUT,FEE,$8.25,Credit Card,Merchant Fees,Tint,Stripe,s1q8pmgin84m5c9st69stkode0@google.com,260116-002,,,Stripe,Stripe fee on Invoice 260116-002,frederickwindowtint@gmail.com,1/16/2026 8:39:29
+TXN-000229,1/16/2026,FWT,IN,SALE,$848.00,Venmo,Auto Tint Revenue,Tint,Nick Ecker,sukjdpmnprs8qlivm33htmgpeo@google.com,260116-004,,Venmo,,2026 Silverado Crew Cab,frederickwindowtint@gmail.com,1/16/2026 11:25:19
+TXN-000230,1/16/2026,FWT,IN,SALE,$907.25,Venmo,Auto Tint Revenue,Tint,elizabeth ecker,u0fvec066vgtr4jh1okf5dvtmk@google.com,260116-005,,Venmo,,2025 Grand Cherokee,frederickwindowtint@gmail.com,1/16/2026 11:28:54
+TXN-000231,1/16/2026,FWT,IN,SALE,$211.50,Zelle,Auto Tint Revenue,Tint,Erik Costa,76e2u33d170r734ohrbf8im6d4@google.com,260116-006,,Zelle,,2025 Outback,frederickwindowtint@gmail.com,1/16/2026 11:49:12
+TXN-000232,1/16/2026,FWT,IN,SALE,$215.00,Credit Card,Auto Tint Revenue,Tint,Kyle Chacon,caq719h59q16p8sacdp3th9mhk@google.com,260116-007,,Credit Card,,2024 Q8,frederickwindowtint@gmail.com,1/16/2026 13:58:09
+TXN-000233,1/16/2026,FWT,OUT,FEE,$6.54,Credit Card,Merchant Fees,Tint,Stripe,caq719h59q16p8sacdp3th9mhk@google.com,260116-007,,,Stripe,Stripe fee on Invoice 260116-007,frederickwindowtint@gmail.com,1/16/2026 13:58:09
+TXN-000234,1/16/2026,FWT,OUT,EXPENSE,"$1,500.00",Venmo,Payroll,,Danny,,,,,,,frederickwindowtint@gmail.com,1/16/2026 16:41:06
+TXN-000235,1/16/2026,FWT,OUT,EXPENSE,"$1,500.00",FWT Checking,Payroll,,Danny,,,,,,,frederickwindowtint@gmail.com,1/16/2026 16:41:20
+TXN-000236,1/10/2026,FWT,OUT,EXPENSE,"$1,340.00",Cash,Payroll,,Mikey,,,,,,,frederickwindowtint@gmail.com,1/16/2026 16:41:34
+TXN-000237,1/16/2026,FWT,OUT,EXPENSE,"$2,400.00",FWT Checking,Payroll,,Bronson,,,,,,,frederickwindowtint@gmail.com,1/16/2026 16:41:48
+TXN-000238,1/16/2026,FWG,OUT,EXPENSE,"$2,400.00",FWT Checking,Payroll,,Mason,,,,,,,frederickwindowtint@gmail.com,1/16/2026 16:42:00
+TXN-000240,1/15/2026,SHARED,OUT,EXPENSE,$15.00,Venmo - Personal,Miscellaneous,,Amy Nguyen 🎁,,,,,,"Amy Nguyen ""🎁""",frederickwindowtint@gmail.com,1/16/2026 16:46:19
+TXN-000241,1/15/2026,SHARED,OUT,EXPENSE,$15.00,Venmo - Personal,Miscellaneous,,Jolie Ky 🎁,,,,,,"Jolie Ky ""🎁""",frederickwindowtint@gmail.com,1/16/2026 16:46:19
+TXN-000242,1/15/2026,SHARED,OUT,EXPENSE,$19.04,Venmo - Personal,Food & Drinks,,Sam's Club,,,,,,Sam's Club,frederickwindowtint@gmail.com,1/16/2026 16:46:19
+TXN-000243,1/14/2026,SHARED,OUT,EXPENSE,$14.99,Venmo - Personal,Food & Drinks,,Dunkin',,,,,,DD/BR #353305 Q35,frederickwindowtint@gmail.com,1/16/2026 16:46:19
+TXN-000244,1/14/2026,SHARED,OUT,EXPENSE,$6.50,Venmo - Personal,Excluded Expenses,,Hillary Lancaster For Chloe,,,,,,"Hillary Lancaster ""For Chloe!""",frederickwindowtint@gmail.com,1/16/2026 16:46:19
+TXN-000245,1/15/2026,FWG,IN,SALE,"$1,182.54",Printavo,Apparel Revenue,Printing,Brandon Axline,,PRINTAVO-3486,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/16/2026 17:07:46
+TXN-000246,1/16/2026,FWT,OUT,EXPENSE,"$1,350.00",Cash,Payroll,,Mikey,,,,,,,frederickwindowtint@gmail.com,1/16/2026 17:13:09
+TXN-000247,1/13/2026,FWG,OUT,EXPENSE,"$1,300.00",FWT Checking,Payroll,,Taylor,,,,,,,frederickwindowtint@gmail.com,1/16/2026 17:13:34
+TXN-000248,1/17/2026,FWT,IN,SALE,$185.00,Credit Card,Auto Tint Revenue,Tint,jon prettyman,4vb83s32o16iqcran32742m3ns@google.com,260117-001,,Credit Card,,2017 Q7,frederickwindowtint@gmail.com,1/17/2026 8:56:11
+TXN-000249,1/17/2026,FWT,OUT,FEE,$5.67,Credit Card,Merchant Fees,Tint,Stripe,4vb83s32o16iqcran32742m3ns@google.com,260117-001,,,Stripe,Stripe fee on Invoice 260117-001,frederickwindowtint@gmail.com,1/17/2026 8:56:11
+TXN-000250,1/17/2026,FWT,IN,SALE,$145.00,Credit Card,Auto Tint Revenue,Tint,Tom Daly,2elrm6ah84t36tlhjmnv21e18g@google.com,260117-002,,Credit Card,,2016 Rover Range Rover,frederickwindowtint@gmail.com,1/17/2026 8:59:42
+TXN-000251,1/17/2026,FWT,OUT,FEE,$4.51,Credit Card,Merchant Fees,Tint,Stripe,2elrm6ah84t36tlhjmnv21e18g@google.com,260117-002,,,Stripe,Stripe fee on Invoice 260117-002,frederickwindowtint@gmail.com,1/17/2026 8:59:42
+TXN-000252,1/17/2026,FWT,IN,SALE,$190.00,Credit Card,Auto Tint Revenue,Tint,Clayton Burgee,brohnp7s1ra9l7u1r55ss8crq4@google.com,260117-003,,Credit Card,,2023 Colorado Crew Cab,frederickwindowtint@gmail.com,1/17/2026 10:44:26
+TXN-000253,1/17/2026,FWT,OUT,FEE,$5.81,Credit Card,Merchant Fees,Tint,Stripe,brohnp7s1ra9l7u1r55ss8crq4@google.com,260117-003,,,Stripe,Stripe fee on Invoice 260117-003,frederickwindowtint@gmail.com,1/17/2026 10:44:26
+TXN-000254,1/17/2026,FWT,IN,SALE,$234.30,,Auto Tint Revenue,Tint,Brandon Kleinmann,t4qquv9o79qhshd60khjp3i9ak@google.com,260117-004,,,,2020 Silverado,frederickwindowtint@gmail.com,1/17/2026 12:08:53
+TXN-000255,1/17/2026,FWT,IN,SALE,$530.00,Cash,Auto Tint Revenue,Tint,Eric Cava,7qiv80c33apulrp6ciev62j3qo@google.com,260117-005,,Cash,,2025 Telluride,frederickwindowtint@gmail.com,1/17/2026 12:10:34
+TXN-000256,1/17/2026,FWT,IN,SALE,$790.40,Venmo,Auto Tint Revenue,Tint,derek hooverbeet,26m4n7ugra380qrudd0oslo5ps@google.com,260117-007,,Venmo,,2023 Accord,frederickwindowtint@gmail.com,1/17/2026 12:14:09
+TXN-000257,1/17/2026,FWT,IN,SALE,"$1,040.00",Zelle,Auto Tint Revenue,Tint,Amanda Swartwood,fgj9lc9igiogqbnck1mbimpi3k@google.com,260117-010,,Zelle,,2021 Santa Fe,frederickwindowtint@gmail.com,1/17/2026 13:20:44
+TXN-000258,1/17/2026,FWT,IN,SALE,$482.25,Cash,Auto Tint Revenue,Tint,Alexis Cole,1r7m8vhfe25sqnn6qmjebt6tlc@google.com,260117-011,,Cash,,2022 Palisade,frederickwindowtint@gmail.com,1/17/2026 14:42:56
+TXN-000259,1/17/2026,FWT,IN,SALE,$455.00,Credit Card,Auto Tint Revenue,Tint,Brad Gardner,2inh3afgtrp1ir4sqdljiqig3g@google.com,260117-012,,Credit Card,,2026 Emira,frederickwindowtint@gmail.com,1/17/2026 15:15:17
+TXN-000260,1/17/2026,FWT,OUT,FEE,$13.50,Credit Card,Merchant Fees,Tint,Stripe,2inh3afgtrp1ir4sqdljiqig3g@google.com,260117-012,,,Stripe,Stripe fee on Invoice 260117-012,frederickwindowtint@gmail.com,1/17/2026 15:15:17
+TXN-000271,1/15/2026,FWT,OUT,EXPENSE,"$2,505.76",PNC CC,Repairs & Maintenance,,Bmw,,,,,,BMW,frederickwindowtint@gmail.com,1/17/2026 15:57:14
+TXN-000273,1/14/2026,SHARED,OUT,EXPENSE,$20.00,PNC CC,Excluded Expenses,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCLXX8414 MD,frederickwindowtint@gmail.com,1/17/2026 15:57:14
+TXN-000274,1/13/2026,SHARED,OUT,EXPENSE,$73.27,PNC CC,Food & Drinks,,Sam's Club,,,,,,Sam's Club,frederickwindowtint@gmail.com,1/17/2026 15:57:14
+TXN-000275,1/13/2026,SHARED,OUT,EXPENSE,$20.00,PNC CC,Excluded Expenses,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCLXX8414 MD,frederickwindowtint@gmail.com,1/17/2026 15:57:14
+TXN-000276,1/12/2026,SHARED,OUT,EXPENSE,$55.11,PNC CC,Vehicle Expense,,Royal Farms,,,,,,Royal Farms,frederickwindowtint@gmail.com,1/17/2026 15:57:14
+TXN-000277,1/12/2026,FWT,OUT,EXPENSE,$131.81,TD Bank,Miscellaneous,,Td Zelle Sent 601000e0ixcf Zelle Ronald Diaz,,,,,,TD ZELLE SENT 601000E0IXCF Zelle RONALD DIAZ,frederickwindowtint@gmail.com,1/18/2026 11:56:16
+TXN-000278,1/9/2026,SHARED,OUT,EXPENSE,$3.00,TD Bank,Bank Fees,,Paper Statement Fee,,,,,,PAPER STATEMENT FEE,frederickwindowtint@gmail.com,1/18/2026 11:56:16
+TXN-000279,1/17/2026,SHARED,OUT,EXPENSE,$7.00,Venmo - Personal,Miscellaneous,,Eileashasweetbutter Fox,,,,,,"EileashaSWEETBUTTER Fox ""👁️""",frederickwindowtint@gmail.com,1/18/2026 11:57:54
+TXN-000280,1/19/2026,FWT,IN,SALE,$909.75,,Auto Tint Revenue,Tint,Vladimir Estrada,ja8c14k37cue3nrjngri41fgj8@google.com,260119-001,,,,2026 Santa Fe,frederickwindowtint@gmail.com,1/19/2026 8:05:24
+TXN-000281,1/19/2026,FWT,IN,SALE,$0.00,,Auto Tint Revenue,Tint,Phillip Zhu,85kud4lim1gal8e6pvj2vcpvq8@google.com,260119-002,,,,2026 X5,frederickwindowtint@gmail.com,1/19/2026 8:43:49
+TXN-000282,1/19/2026,FWT,IN,SALE,$160.00,,Auto Tint Revenue,Tint,Second Chance Counseling Services,aojjr7pj0b1knmjhvn95tdct50@google.com,260119-003,,,,2025 Sierra,frederickwindowtint@gmail.com,1/19/2026 9:24:58
+TXN-000283,1/19/2026,FWT,IN,SALE,"$1,050.00",Zelle,Auto Tint Revenue,Tint,Barbara Hutchinson,mguvdsr0frnaj4a8pnmqn69lsc@google.com,260119-005,,Zelle,,2026 Crown,frederickwindowtint@gmail.com,1/19/2026 10:42:21
+TXN-000284,1/19/2026,FWT,IN,SALE,$160.00,Credit Card,Auto Tint Revenue,Tint,Sean,aojjr7pj0b1knmjhvn95tdct50@google.com,260119-007,,Credit Card,,2025 Sierra,frederickwindowtint@gmail.com,1/19/2026 11:06:24
+TXN-000285,1/19/2026,FWT,OUT,FEE,$4.94,Credit Card,Merchant Fees,Tint,Stripe,aojjr7pj0b1knmjhvn95tdct50@google.com,260119-007,,,Stripe,Stripe fee on Invoice 260119-007,frederickwindowtint@gmail.com,1/19/2026 11:06:24
+TXN-000286,1/19/2026,FWT,IN,SALE,$160.00,Credit Card,Auto Tint Revenue,Tint,Mike Massa,ve0472a8ahjv1pk8vipf73eiag@google.com,260119-009,,Credit Card,,2026 Silverado,frederickwindowtint@gmail.com,1/19/2026 12:02:00
+TXN-000287,1/19/2026,FWT,OUT,FEE,$4.94,Credit Card,Merchant Fees,Tint,Stripe,ve0472a8ahjv1pk8vipf73eiag@google.com,260119-009,,,Stripe,Stripe fee on Invoice 260119-009,frederickwindowtint@gmail.com,1/19/2026 12:02:00
+TXN-000288,1/19/2026,FWT,IN,SALE,$329.00,Credit Card,Auto Tint Revenue,Tint,Justin Boykin,s751tj370evuda0seln6401ifo@google.com,260119-010,,Credit Card,,2026 Tundra,frederickwindowtint@gmail.com,1/19/2026 12:16:24
+TXN-000289,1/19/2026,FWT,OUT,FEE,$9.84,Credit Card,Merchant Fees,Tint,Stripe,s751tj370evuda0seln6401ifo@google.com,260119-010,,,Stripe,Stripe fee on Invoice 260119-010,frederickwindowtint@gmail.com,1/19/2026 12:16:24
+TXN-000290,1/19/2026,FWT,IN,SALE,$244.00,Venmo,Auto Tint Revenue,Tint,Valerie Brewer,qtguvja36okcc98mi0fk0jb7v4@google.com,260119-011,,Venmo,,2025 Equinox,frederickwindowtint@gmail.com,1/19/2026 12:36:12
+TXN-000291,1/19/2026,FWT,IN,SALE,$511.25,Cash + Credit Card,Auto Tint Revenue,Tint,Peter Vien,cfbp15dggtf0tfnanpnsj9ge68@google.com,260119-012,,Cash + Credit Card,,2017 Yukon XL,frederickwindowtint@gmail.com,1/19/2026 13:02:02
+TXN-000292,1/16/2026,FWG,OUT,EXPENSE,"$2,390.00",Venmo - Personal,Payroll,,Diogo,,,,,,"Diogo Pereira ""🏠""",frederickwindowtint@gmail.com,1/19/2026 17:40:19
+TXN-000293,1/20/2026,FWT,IN,SALE,$175.00,Credit Card,Auto Tint Revenue,Tint,Scott Ragsdale,ii9n0tva4jino7ddrsvjt1b0s8@google.com,260120-004,,Credit Card,,2023 Challenger,frederickwindowtint@gmail.com,1/20/2026 8:29:00
+TXN-000294,1/20/2026,FWT,OUT,FEE,$5.38,Credit Card,Merchant Fees,Tint,Stripe,ii9n0tva4jino7ddrsvjt1b0s8@google.com,260120-004,,,Stripe,Stripe fee on Invoice 260120-004,frederickwindowtint@gmail.com,1/20/2026 8:29:00
+TXN-000295,1/20/2026,FWT,IN,SALE,$190.00,Credit Card,Auto Tint Revenue,Tint,Sean Hayes,djfkbs06j6o3k52m85mv38j7tg@google.com,260120-005,,Credit Card,,2025 Macan,frederickwindowtint@gmail.com,1/20/2026 9:43:33
+TXN-000296,1/20/2026,FWT,OUT,FEE,$5.81,Credit Card,Merchant Fees,Tint,Stripe,djfkbs06j6o3k52m85mv38j7tg@google.com,260120-005,,,Stripe,Stripe fee on Invoice 260120-005,frederickwindowtint@gmail.com,1/20/2026 9:43:33
+TXN-000297,1/20/2026,FWT,IN,SALE,$542.75,Cash,Auto Tint Revenue,Tint,Hayden Lamb,pi2383lpeuu6ht5991ija27hk4@google.com,260120-006,,Cash,,2023 Camry,frederickwindowtint@gmail.com,1/20/2026 11:13:27
+TXN-000298,1/20/2026,FWT,IN,SALE,$400.00,Credit Card,Auto Tint Revenue,Tint,Nathan State Highway,5fgi597hf5bk0clthg267av4k3@google.com,260120-007,,Credit Card,,2026 F-250,frederickwindowtint@gmail.com,1/20/2026 11:15:34
+TXN-000299,1/20/2026,FWT,OUT,FEE,$11.90,Credit Card,Merchant Fees,Tint,Stripe,5fgi597hf5bk0clthg267av4k3@google.com,260120-007,,,Stripe,Stripe fee on Invoice 260120-007,frederickwindowtint@gmail.com,1/20/2026 11:15:34
+TXN-000300,1/20/2026,FWT,IN,SALE,$400.00,Credit Card,Auto Tint Revenue,Tint,Nathan State Highway,102c5s4t4aluibb7m1tufver8o@google.com,260120-008,,Credit Card,,2026 F-250,frederickwindowtint@gmail.com,1/20/2026 11:19:42
+TXN-000301,1/20/2026,FWT,OUT,FEE,$11.90,Credit Card,Merchant Fees,Tint,Stripe,102c5s4t4aluibb7m1tufver8o@google.com,260120-008,,,Stripe,Stripe fee on Invoice 260120-008,frederickwindowtint@gmail.com,1/20/2026 11:19:42
+TXN-000302,1/20/2026,FWT,IN,SALE,$400.00,Credit Card,Auto Tint Revenue,Tint,Nathan State Highway,9mbbecoumnmnjjd0naqiitev3g@google.com,260120-009,,Credit Card,,2026 F-250,frederickwindowtint@gmail.com,1/20/2026 11:20:37
+TXN-000303,1/20/2026,FWT,OUT,FEE,$11.90,Credit Card,Merchant Fees,Tint,Stripe,9mbbecoumnmnjjd0naqiitev3g@google.com,260120-009,,,Stripe,Stripe fee on Invoice 260120-009,frederickwindowtint@gmail.com,1/20/2026 11:20:37
+TXN-000304,1/20/2026,FWT,IN,SALE,$400.00,Credit Card,Auto Tint Revenue,Tint,Nathan State Highway,5rg53ebnqv866omsicush3rcd6@google.com,260120-011,,Credit Card,,2012 Silverado,frederickwindowtint@gmail.com,1/20/2026 11:22:12
+TXN-000305,1/20/2026,FWT,OUT,FEE,$11.90,Credit Card,Merchant Fees,Tint,Stripe,5rg53ebnqv866omsicush3rcd6@google.com,260120-011,,,Stripe,Stripe fee on Invoice 260120-011,frederickwindowtint@gmail.com,1/20/2026 11:22:12
+TXN-000307,1/20/2026,FWT,IN,SALE,$145.00,Zelle,Auto Tint Revenue,Tint,Carlos Orozco,k8stnmoj39p2cll2o9j7v56s60@google.com,260120-012,,Zelle,,2023 Traverse,frederickwindowtint@gmail.com,1/20/2026 13:37:37
+TXN-000308,1/20/2026,FWT,IN,SALE,$770.00,Credit Card,Auto Tint Revenue,Tint,Jonathan Schardt,3cjjhmt30r97pbqsi24ps90mo0@google.com,260120-014,,Credit Card,,2025 Tacoma,frederickwindowtint@gmail.com,1/20/2026 15:45:04
+TXN-000309,1/20/2026,FWT,OUT,FEE,$22.63,Credit Card,Merchant Fees,Tint,Stripe,3cjjhmt30r97pbqsi24ps90mo0@google.com,260120-014,,,Stripe,Stripe fee on Invoice 260120-014,frederickwindowtint@gmail.com,1/20/2026 15:45:04
+TXN-000310,1/20/2026,FWT,IN,SALE,$800.50,Zelle,Auto Tint Revenue,Tint,Omar Chabrier,u65f4nc0pfda3gvtgikckuq43o@google.com,260120-015,,Zelle,,2009 Accord,frederickwindowtint@gmail.com,1/20/2026 15:46:30
+TXN-000311,1/20/2026,FWT,OUT,EXPENSE,$292.25,Cash,Shop Supplies,,44 Tools,,,,,,NOT CASH - FWT PayPal,frederickwindowtint@gmail.com,1/20/2026 16:10:37
+TXN-000313,1/21/2026,FWG,OUT,EXPENSE,$100.00,FWT Checking,Commission,,Diogo,,,,,,Trailer/Barter Commission,frederickwindowtint@gmail.com,1/21/2026 13:37:37
+TXN-000314,1/21/2026,FWG,OUT,EXPENSE,$100.00,FWT Checking,Commission,,Mason,,,,,,Trailer/Barter Commission,frederickwindowtint@gmail.com,1/21/2026 13:37:52
+TXN-000315,1/22/2026,FWT,IN,SALE,$329.00,Credit Card,Auto Tint Revenue,Tint,Justin Boykin,9dsgtv6kv2gcp5cersn7920kj8@google.com,260122-002,,Credit Card,,2026 Sequoia,frederickwindowtint@gmail.com,1/22/2026 8:22:30
+TXN-000316,1/22/2026,FWT,OUT,FEE,$9.84,Credit Card,Merchant Fees,Tint,Stripe,9dsgtv6kv2gcp5cersn7920kj8@google.com,260122-002,,,Stripe,Stripe fee on Invoice 260122-002,frederickwindowtint@gmail.com,1/22/2026 8:22:30
+TXN-000317,1/9/2026,FWT,IN,SALE,$300.00,Credit Card,Flat Glass Revenue,Tint,,9dsgtv6kv2gcp5cersn7920kj8@google.com,260122-002,,,,,frederickwindowtint@gmail.com,1/22/2026 8:22:30
+TXN-000317,1/22/2026,FWT,IN,SALE,$590.00,Credit Card,Flat Glass Revenue,Tint,,9dsgtv6kv2gcp5cersn7920kj8@google.com,260122-002,,,,,frederickwindowtint@gmail.com,1/22/2026 8:22:30
+TXN-000317,1/23/2026,FWT,IN,SALE,$51.30,,Auto Tint Revenue,Tint,Laura  Mcculley,p0qtt8dhkk1sruutbh2onm1ru4@google.com,260123-001,,,,2023 Pathfinder,frederickwindowtint@gmail.com,1/23/2026 8:46:36
+TXN-000318,1/23/2026,FWT,IN,SALE,$350.00,Cash,Auto Tint Revenue,Tint,Scott Ragsdale,f3nldoauahgv5103ojhmm61r60@google.com,260123-003,,Cash,,2023 Challenger Coupe,frederickwindowtint@gmail.com,1/23/2026 12:52:48
+TXN-000319,1/23/2026,FWT,IN,SALE,$20.00,Credit Card,Auto Tint Revenue,Tint,Charlie Jones,i7ko007kg8psntmbi1dh6iil9k@google.com,260123-004,,Credit Card,,2025 Accord,frederickwindowtint@gmail.com,1/23/2026 13:02:15
+TXN-000320,1/23/2026,FWT,OUT,FEE,$0.88,Credit Card,Merchant Fees,Tint,Stripe,i7ko007kg8psntmbi1dh6iil9k@google.com,260123-004,,,Stripe,Stripe fee on Invoice 260123-004,frederickwindowtint@gmail.com,1/23/2026 13:02:15
+TXN-000321,1/23/2026,FWT,IN,SALE,$244.00,Credit Card,Auto Tint Revenue,Tint,Joshua Varnes,mhkvot17pr09vttsu2c5c2afek@google.com,260123-006,,Credit Card,,2026 | MDX |,frederickwindowtint@gmail.com,1/23/2026 13:09:00
+TXN-000322,1/23/2026,FWT,OUT,FEE,$7.38,Credit Card,Merchant Fees,Tint,Stripe,mhkvot17pr09vttsu2c5c2afek@google.com,260123-006,,,Stripe,Stripe fee on Invoice 260123-006,frederickwindowtint@gmail.com,1/23/2026 13:09:00
+TXN-000323,1/23/2026,FWT,IN,SALE,$160.00,Credit Card,Auto Tint Revenue,Tint,Gage Rutledge,0n412sh8chclf4fmgfrqtqdq6o@google.com,260123-008,,Credit Card,,2014 Silverado,frederickwindowtint@gmail.com,1/23/2026 13:38:45
+TXN-000324,1/23/2026,FWT,OUT,FEE,$4.94,Credit Card,Merchant Fees,Tint,Stripe,0n412sh8chclf4fmgfrqtqdq6o@google.com,260123-008,,,Stripe,Stripe fee on Invoice 260123-008,frederickwindowtint@gmail.com,1/23/2026 13:38:45
+TXN-000325,1/22/2026,FWG,IN,SALE,$550.00,Printavo,Full Wrap Revenue,Printing,Elite Security Group-C,,PRINTAVO-3495,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/23/2026 16:18:19
+TXN-000326,1/24/2026,FWT,IN,SALE,$190.00,Credit Card,Auto Tint Revenue,Tint,Daniel Mclelland,ulg6f1b3hvpip3n4crv065ghgg@google.com,260124-001,,Credit Card,,2022 Tiguan,frederickwindowtint@gmail.com,1/24/2026 8:27:54
+TXN-000327,1/24/2026,FWT,OUT,FEE,$5.81,Credit Card,Merchant Fees,Tint,Stripe,ulg6f1b3hvpip3n4crv065ghgg@google.com,260124-001,,,Stripe,Stripe fee on Invoice 260124-001,frederickwindowtint@gmail.com,1/24/2026 8:27:54
+TXN-000328,1/23/2026,SHARED,OUT,EXPENSE,$86.01,Venmo - Personal,Food & Drinks,,Walmart,,,,,,Walmart,frederickwindowtint@gmail.com,1/24/2026 8:52:40
+TXN-000329,1/24/2026,FWG,OUT,EXPENSE,$25.00,FWT Checking,Software & Subscriptions,,EVOLUTION GRAPHICS,,,,,,Paid from FWT PayPal,frederickwindowtint@gmail.com,1/24/2026 8:55:07
+TXN-000330,1/24/2026,FWG,OUT,EXPENSE,$10.91,FWT Checking,Software & Subscriptions,,Celonis Inc,,,,,,Not sure what this is,frederickwindowtint@gmail.com,1/24/2026 9:04:26
+TXN-000331,1/24/2026,FWT,IN,SALE,$205.80,Venmo,Auto Tint Revenue,Tint,Rushabh KAMDAR,fidh9nn9usb2trs2sdfa142si0@google.com,260124-002,,Venmo,,2026 Atlas,frederickwindowtint@gmail.com,1/24/2026 9:11:40
+TXN-000332,1/24/2026,FWT,IN,SALE,$425.25,Zelle,Auto Tint Revenue,Tint,chris carlini,2870mntu77g7mt64c3cq8mce2c@google.com,260124-003,,Zelle,,2025 Jetta,frederickwindowtint@gmail.com,1/24/2026 10:37:44
+TXN-000333,1/24/2026,FWT,IN,SALE,$280.25,Venmo,Auto Tint Revenue,Tint,Corey  Weaver,v3kpp1vrkc4svklroh6h1iuvcc@google.com,260124-004,,Venmo,,2006 9-5 Sedan,frederickwindowtint@gmail.com,1/24/2026 12:19:03
+TXN-000334,1/24/2026,FWT,IN,SALE,$220.00,Credit Card,Auto Tint Revenue,Tint,Thomas Kane,9aceke6etigp4mqoe8eupv3ijk@google.com,260124-005,,Credit Card,,2013 Wrangler 2-Door,frederickwindowtint@gmail.com,1/24/2026 12:32:14
+TXN-000335,1/24/2026,FWT,OUT,FEE,$6.68,Credit Card,Merchant Fees,Tint,Stripe,9aceke6etigp4mqoe8eupv3ijk@google.com,260124-005,,,Stripe,Stripe fee on Invoice 260124-005,frederickwindowtint@gmail.com,1/24/2026 12:32:14
+TXN-000336,1/23/2026,FWT,OUT,EXPENSE,"$1,350.00",Cash,Payroll,,Mikey,,,,,,,frederickwindowtint@gmail.com,1/24/2026 14:32:30
+TXN-000337,1/21/2026,SHARED,OUT,EXPENSE,$349.00,PNC Personal CC,Miscellaneous,,Centerwell Pharmacy,,,,,,Wegovy,frederickwindowtint@gmail.com,1/26/2026 9:57:58
+TXN-000338,1/27/2026,SHARED,OUT,EXPENSE,$50.00,Cash,Professional Services,,MISC,,,,,,Snow removal at house,frederickwindowtint@gmail.com,1/27/2026 9:12:48
+TXN-000339,1/5/2026,FWG,IN,SALE,$47.70,Printavo,Apparel Revenue,Printing,Maria Escobar,,PRINTAVO-3477,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/27/2026 9:44:10
+TXN-000340,1/21/2026,FWG,IN,SALE,$749.65,Printavo,Apparel Revenue,Printing,George Railey,,PRINTAVO-3491,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/27/2026 9:44:10
+TXN-000341,1/27/2026,FWT,IN,SALE,$862.25,Venmo,Auto Tint Revenue,Tint,Bernard Krantz,pgsbg69kk5gteqlu9b4pa3kbd0@google.com,260127-001,,Venmo,,2025 Accord,frederickwindowtint@gmail.com,1/27/2026 12:07:27
+TXN-000342,1/27/2026,SHARED,OUT,EXPENSE,$243.50,PNC Personal Debit,Excluded Expenses,,Frederick Gymnastics,,,,,,,frederickwindowtint@gmail.com,1/27/2026 13:34:14
+TXN-000343,1/25/2026,SHARED,OUT,EXPENSE,$7.00,Venmo - Personal,Excluded Expenses,,Debbie Alston,,,,,,"Debbie Alston ""☕""",frederickwindowtint@gmail.com,1/27/2026 13:36:37
+TXN-000344,1/25/2026,SHARED,OUT,EXPENSE,$1.00,Venmo - Personal,Excluded Expenses,,Jianna Bryan Oops,,,,,,"Jianna Bryan ""Oops""",frederickwindowtint@gmail.com,1/27/2026 13:36:37
+TXN-000345,1/25/2026,SHARED,OUT,EXPENSE,$7.00,Venmo - Personal,Excluded Expenses,,Jianna Bryan Soap,,,,,,"Jianna Bryan ""Soap""",frederickwindowtint@gmail.com,1/27/2026 13:36:37
+TXN-000346,1/24/2026,SHARED,OUT,EXPENSE,$20.00,Venmo - Personal,Professional Services,,Venmo,,,,,,Venmo,frederickwindowtint@gmail.com,1/27/2026 13:36:37
+TXN-000347,1/28/2026,FWT,IN,SALE,$369.97,Zelle,Auto Tint Revenue,Tint,Chad Brooke,rljq76ihk135qgkra37d1dknrs@google.com,260128-001,,Zelle,,2026 Silverado,frederickwindowtint@gmail.com,1/28/2026 10:06:27
+TXN-000348,1/28/2026,FWT,IN,SALE,$520.25,Venmo,Auto Tint Revenue,Tint,Jonathan Oden,nooqq0vsjve272f1ki2eb10se8@google.com,260128-002,,Venmo,,2026 F-250,frederickwindowtint@gmail.com,1/28/2026 12:36:33
+TXN-000349,1/28/2026,FWT,IN,SALE,$80.00,Credit Card,Auto Tint Revenue,Tint,Melissa Griffis,bhmkvrnt877t7lbhv9h4ig2tm8@google.com,260128-003,,Credit Card,,2023 Ascent,frederickwindowtint@gmail.com,1/28/2026 12:46:28
+TXN-000350,1/28/2026,FWT,OUT,FEE,$2.62,Credit Card,Merchant Fees,Tint,Stripe,bhmkvrnt877t7lbhv9h4ig2tm8@google.com,260128-003,,,Stripe,Stripe fee on Invoice 260128-003,frederickwindowtint@gmail.com,1/28/2026 12:46:28
+TXN-000351,2026-01-27,SHARED,OUT,EXPENSE,$25.00,PNC - Personal,Bank Fees,,Bank Fee,,,,,,MONTHLY SERVICE CHARGE KR,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000352,2026-01-26,SHARED,OUT,EXPENSE,$11.99,PNC - Personal,Miscellaneous,,Chu Cke Membership Funpa,,,,,,CHUCKEMEMBERSHIP/FUNPA BHUGGINS@CECE,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000353,2026-01-26,SHARED,OUT,EXPENSE,$0.58,PNC - Personal,Miscellaneous,,CVS,,,,,,www.cvs.com,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000354,2026-01-25,FWG,OUT,EXPENSE,$9.99,PNC - Personal,Miscellaneous,,Rumble Usa Inc,,,,,,FP *RUMBLE USA INC,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000355,2026-01-25,SHARED,OUT,EXPENSE,$9.55,PNC - Personal,Miscellaneous,,CVS,,,,,,www.cvs.com,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000356,2026-01-24,FWT,OUT,EXPENSE,$154.50,PNC - Personal,Software & Subscriptions,,Klaviyo Inc. Software,,,,,,KLAVIYO INC. SOFTWARE KLAVIYO.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000357,2026-01-24,FWG,OUT,EXPENSE,$380.07,PNC - Personal,Software & Subscriptions,,Printavo,,,,,,PRINTAVO PRINTAVO.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000358,2026-01-24,SHARED,OUT,EXPENSE,$95.13,PNC - Personal,Food & Drinks,,Sam's Club,,,,,,SAMSCLUB.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000359,2026-01-23,SHARED,OUT,EXPENSE,$251.00,PNC - Personal,Miscellaneous,,Walmart,,,,,,Walmart,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000360,2026-01-21,SHARED,OUT,EXPENSE,$2.50,PNC - Personal,Food & Drinks,,Chipotle Mexican Grill,,,,,,Chipotle Mexican Grill,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000361,2026-01-21,SHARED,OUT,EXPENSE,$20.00,PNC - Personal,Excluded Expenses,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCL 301-*8414,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000362,2026-01-20,FWG,OUT,EXPENSE,$128.90,PNC - Personal,Shop Supplies,,Make Makemoremoney LLC,,,,,,SP MAKEMOREMONEYLLC MAKEMOREMONEY,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000363,2026-01-20,SHARED,OUT,EXPENSE,$20.00,PNC - Personal,Excluded Expenses,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCL 301-*8414,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000364,2026-01-20,FWT,OUT,EXPENSE,"$2,687.84",PNC - Personal,Materials - Tint Film,,AutoBahn,,,,,,VISION QUEST DIST. AUTOBAHNDEALE,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000365,2026-01-19,SHARED,OUT,EXPENSE,$316.02,PNC - Personal,Miscellaneous,,Comcast,,,,,,Comcast,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000366,2026-01-19,SHARED,OUT,EXPENSE,$164.00,PNC - Personal,Food & Drinks,,Club,,,,,,SAMS CLUB.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000367,2026-01-18,FWG,OUT,EXPENSE,$24.37,PNC - Personal,Software & Subscriptions,,Adobe,,,,,,Adobe Inc 800-*6687,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000368,2026-01-18,SHARED,OUT,EXPENSE,$18.55,PNC - Personal,Miscellaneous,,Home Depot,,,,,,Home Depot,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000369,2026-01-17,SHARED,OUT,EXPENSE,$61.47,PNC - Personal,Utilities,,Guardian Protection,,,,,,ACI*GUARDIAN PROTECTION S,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000370,2026-01-17,FWT,OUT,EXPENSE,$275.59,PNC - Personal,Repairs & Maintenance,,AutoZone,,,,,,AutoZone,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000371,2026-01-17,SHARED,OUT,EXPENSE,$7.88,PNC - Personal,Excluded Expenses,,Dollar Tree,,,,,,Dollar Tree,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000372,2026-01-17,SHARED,OUT,EXPENSE,$34.29,PNC - Personal,Excluded Expenses,,Five Below,,,,,,Five Below,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000373,2026-01-16,SHARED,OUT,EXPENSE,$69.74,PNC - Personal,Food & Drinks,,Chick-fil-a,,,,,,Chick-fil-A,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000374,2026-01-15,SHARED,OUT,EXPENSE,$114.69,PNC - Personal,Food & Drinks,,Sam's Club,,,,,,SAMSCLUB.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000375,2026-01-15,FWG,OUT,EXPENSE,$90.66,PNC - Personal,Software & Subscriptions,,Slack T,,,,,,SLACK T*9738CP4N SLACK.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000376,2026-01-15,SHARED,OUT,EXPENSE,$20.00,PNC - Personal,Excluded Expenses,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCL 301-*8414,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000377,2026-01-14,SHARED,OUT,EXPENSE,$31.38,PNC - Personal,Food & Drinks,,Sam's Club,,,,,,SAMS CLUB.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000378,2026-01-12,SHARED,OUT,EXPENSE,$241.62,PNC - Personal,Food & Drinks,,Club,,,,,,SAMS CLUB.COM,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000379,2026-01-11,SHARED,OUT,EXPENSE,$53.00,PNC - Personal,Miscellaneous,,Tobacco Hut & Vape,,,,,,TOBACCO HUT & VAPE,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000380,2026-01-09,FWG,OUT,EXPENSE,$237.45,PNC - Personal,Equipment,,*0014 Payment Citi Autopay Ach Web-recur,,,,,,*0014 PAYMENT CITI AUTOPAY ACH WEB-RECUR,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000381,2026-01-09,SHARED,OUT,EXPENSE,$101.62,PNC - Personal,Utilities,,Comcast,,,,,,Comcast,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000382,2026-01-08,SHARED,OUT,EXPENSE,$35.00,PNC - Personal,Food & Drinks,,Fogo Bethesda,,,,,,PAR*FOGO BETHESDA,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000383,2026-01-08,FWT,OUT,EXPENSE,"$1,040.00",PNC - Personal,Materials - Tint Film,,Sagr Products Internation,,,,,,SAGR PRODUCTS INTERNATION,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000384,2026-01-08,SHARED,OUT,EXPENSE,$556.49,PNC - Personal,Excluded Expenses,,Value City Furniture,,,,,,VALUE CITY #151,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000385,2026-01-06,SHARED,OUT,EXPENSE,"$5,190.29",PNC - Personal,Miscellaneous,,Amazon Store Card,,,,,,*8117 PAYMENT AMZ_STORECRD_PMT ACH WEB-RECUR,frederickwindowtint@gmail.com,1/28/2026 13:31:22
+TXN-000386,2026-01-28,SHARED,OUT,EXPENSE,$160.03,PNC - Business,Miscellaneous,,Home Depot,,,,,,Home Depot,frederickwindowtint@gmail.com,1/28/2026 14:02:05
+TXN-000387,2026-01-27,SHARED,OUT,EXPENSE,$200.09,PNC - Business,Utilities,,Washington Gas,,,,,,*3783 PAYMENT WASHINGTON GAS CORPORATE ACH,frederickwindowtint@gmail.com,1/28/2026 14:02:49
+TXN-000388,2026-01-27,FWG,OUT,EXPENSE,"$1,225.10",PNC - Business,Equipment,,Equip Financing,,,,,,097-*3532-000 CNTRCT PMTEQUIP FINANCING CORPORATE ACH EQUIP PMT,frederickwindowtint@gmail.com,1/28/2026 14:02:49
+TXN-000389,2026-01-27,SHARED,OUT,EXPENSE,$99.00,PNC - Business,Software & Subscriptions,,APN Bill Pay,,,,,,APNBILLPAY.COM VIS 0125 800-*1577 CA DEBIT CARD PURCHASE *0026,frederickwindowtint@gmail.com,1/28/2026 14:02:49
+TXN-000390,2026-01-27,SHARED,OUT,EXPENSE,$199.00,PNC - Business,Software & Subscriptions,,APN Bill Pay,,,,,,APNBILLPAY.COM VIS 0125 800-*1577 CA DEBIT CARD PURCHASE *0026,frederickwindowtint@gmail.com,1/28/2026 14:02:49
+TXN-000391,2026-01-27,FWG,OUT,EXPENSE,$431.00,PNC - Business,Equipment,,Cust,,,,,,G-DF*1016D174 AUTH PAYMENCMIC -CUST PMT CORPORATE ACH NCMIC PAYME,frederickwindowtint@gmail.com,1/28/2026 14:07:10
+TXN-000392,2026-01-27,FWG,OUT,EXPENSE,$200.00,PNC - Business,Equipment,,Mobile Payment To *4231,,,,,,MOBILE PAYMENT TO *4231,frederickwindowtint@gmail.com,1/28/2026 14:07:10
+TXN-000394,2026-01-27,SHARED,OUT,EXPENSE,$137.15,PNC - Business,Repairs & Maintenance,,Sherwin-Williams,,,,,,Sherwin-Williams,frederickwindowtint@gmail.com,1/28/2026 14:07:10
+TXN-000395,2026-01-27,SHARED,OUT,EXPENSE,$8.47,PNC - Business,Marketing,,TikTok,,,,,,TIKTOK SHOP VIS 0125 TIKTOK.COM CA DEBIT CARD PURCHASE *5025,frederickwindowtint@gmail.com,1/28/2026 14:11:37
+TXN-000396,2026-01-27,SHARED,OUT,EXPENSE,$10.91,PNC - Business,Software & Subscriptions,,Make,,,,,,WWW.MAKE.COM VIS 0124 WWW.MAKE.CO NY RECURRING DEBIT CARD *5025,frederickwindowtint@gmail.com,1/28/2026 14:11:37
+TXN-000399,2026-01-24,FWT,OUT,EXPENSE,$500.00,PNC - Business,Marketing,,Google Ads,,,,,,Google ADS*0260 VIS 0122 650-*0000 CA RECURRING DEBIT CARD *5023,frederickwindowtint@gmail.com,1/28/2026 14:11:37
+TXN-000400,2026-01-24,SHARED,OUT,EXPENSE,$189.42,PNC - Business,Repairs & Maintenance,,Lowe's,,,,,,Lowe's Home Improvement,frederickwindowtint@gmail.com,1/28/2026 14:11:37
+TXN-000401,2026-01-24,FWT,OUT,EXPENSE,$20.09,PNC - Business,Vehicle Expense,,Sheetz,,,,,,Sheetz,frederickwindowtint@gmail.com,1/28/2026 14:16:28
+TXN-000402,2026-01-24,SHARED,OUT,EXPENSE,$10.67,PNC - Business,Software & Subscriptions,,Twilio,,,,,,TWILIO INC TWILIO.COM,frederickwindowtint@gmail.com,1/28/2026 14:16:28
+TXN-000403,2026-01-23,SHARED,OUT,EXPENSE,$22.86,PNC - Business,Software & Subscriptions,,Dnh*godaddy,,,,,,DNH*GODADDY#*3467 VIS 0121 480-*8855 AZ RECURRING DEBIT CARD *5022,frederickwindowtint@gmail.com,1/28/2026 14:16:28
+TXN-000404,2026-01-23,FWG,OUT,EXPENSE,$475.50,PNC - Business,Materials - Apparel,,San Mar,,,,,,San Mar VIS 0121 206-*3200 WA DEBIT CARD PURCHASE *2022,frederickwindowtint@gmail.com,1/28/2026 14:16:28
+TXN-000405,2026-01-22,SHARED,OUT,EXPENSE,$21.78,PNC - Business,Food & Drinks,,McDonald's,,,,,,McDonald's,frederickwindowtint@gmail.com,1/28/2026 14:16:28
+TXN-000406,2026-01-22,SHARED,OUT,EXPENSE,$145.60,PNC - Business,Repairs & Maintenance,,Sherwin-Williams,,,,,,Sherwin-Williams,frederickwindowtint@gmail.com,1/28/2026 14:16:28
+TXN-000407,2026-01-21,FWG,OUT,EXPENSE,$460.32,PNC - Business,Equipment,,A0226 Ach Pmt Amex Epayment Corporate,,,,,,A0226 ACH PMT AMEX EPAYMENT CORPORATE,frederickwindowtint@gmail.com,1/28/2026 14:16:28
+TXN-000408,2026-01-21,SHARED,OUT,EXPENSE,$78.76,PNC - Business,Food & Drinks,,Aldi,,,,,,ALDI *1051 N0120 8705FREDERICK MD POS PURCHASE POS*9701 *0164 FREDERICK,frederickwindowtint@gmail.com,1/28/2026 14:36:17
+TXN-000412,2026-01-21,SHARED,OUT,EXPENSE,$541.00,PNC - Business,Miscellaneous,,Target,,,,,,CKF*1876POS ONLINE PMTTARGET CORPORATE ACH TARGET PMT,frederickwindowtint@gmail.com,1/28/2026 14:36:17
+TXN-000413,2026-01-21,SHARED,OUT,EXPENSE,$46.61,PNC - Business,Food & Drinks,,Chick-fil-a,,,,,,Chick-fil-A,frederickwindowtint@gmail.com,1/28/2026 14:36:17
+TXN-000414,2026-01-21,SHARED,OUT,EXPENSE,$4.93,PNC - Business,Food & Drinks,,Chipotle Mexican Grill,,,,,,Chipotle Mexican Grill,frederickwindowtint@gmail.com,1/28/2026 14:36:17
+TXN-000415,2026-01-21,SHARED,OUT,EXPENSE,$61.48,PNC - Business,Food & Drinks,,Chipotle Mexican Grill,,,,,,Chipotle Mexican Grill,frederickwindowtint@gmail.com,1/28/2026 14:36:17
+TXN-000416,2026-01-21,SHARED,OUT,EXPENSE,$26.50,PNC - Business,Miscellaneous,,Home Depot,,,,,,Home Depot,frederickwindowtint@gmail.com,1/28/2026 14:36:17
+TXN-000417,2026-01-21,SHARED,OUT,EXPENSE,$61.80,PNC - Business,Software & Subscriptions,,OpenAI,,,,,,OPENAI *CHATGPT SUBSCR VIS 0118 OPENAI.COM CA RECURRING DEBIT CARD *5018,frederickwindowtint@gmail.com,1/28/2026 14:40:21
+TXN-000418,2026-01-21,SHARED,OUT,EXPENSE,$257.45,PNC - Business,Software & Subscriptions,,Semrush,,,,,,SEMRUSH,frederickwindowtint@gmail.com,1/28/2026 14:40:21
+TXN-000419,2026-01-21,FWG,OUT,EXPENSE,$10.00,PNC - Business,Software & Subscriptions,,Themaincoursemedia,,,,,,THEMAINCOURSEMEDIA.COM VIS 0119 FREDERICKWR MD DEBIT CARD PURCHASE *0020,frederickwindowtint@gmail.com,1/28/2026 14:40:21
+TXN-000420,2026-01-20,FWG,OUT,EXPENSE,$74.19,PNC - Business,Software & Subscriptions,,Adobe,,,,,,Adobe Inc,frederickwindowtint@gmail.com,1/28/2026 14:40:21
+TXN-000421,2026-01-21,FWG,OUT,EXPENSE,$137.79,PNC - Business,Miscellaneous,,Microsoft,,,,,,MICROSOFT*MICROSOFT 36 MICROSOFT.COM,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000422,2026-01-20,FWT,OUT,EXPENSE,$50.88,PNC - Business,Software & Subscriptions,,Constant,,,,,,CCI*CONSTANT-CONTACT 855-*5506,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000423,2026-01-18,SHARED,OUT,EXPENSE,$41.99,PNC - Business,Vehicle Expense,,Frederick Auto Spa Expres,,,,,,FREDERICK AUTO SPA EXPRES 310-*9027,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000425,2026-01-17,FWG,OUT,EXPENSE,"$1,137.00",PNC - Business,Equipment,,G-8dde*8240e4 Auth Paymegeneva Capital Corporate A,,,,,,G-8DDE*8240E4 AUTH PAYMEGENEVA CAPITAL CORPORATE ACH GENEVA PAYME,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000426,2026-01-17,FWG,OUT,EXPENSE,$662.00,PNC - Business,Equipment,,G-b0c83fc9e52c4 Auth Paymegeneva Capital Corporate,,,,,,G-B0C83FC9E52C4 AUTH PAYMEGENEVA CAPITAL CORPORATE ACH GENEVA PAYME,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000427,2026-01-17,SHARED,OUT,EXPENSE,$207.79,PNC - Business,Repairs & Maintenance,,Sherwin-Williams,,,,,,Sherwin-Williams,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000428,2026-01-16,FWG,OUT,EXPENSE,$276.96,PNC - Business,Equipment,,Equip Financing,,,,,,097-*3153-000 CNTRCT PMTEQUIP FINANCING CORPORATE ACH EQUIP PMT,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000429,2026-01-16,SHARED,OUT,EXPENSE,$22.69,PNC - Business,Food & Drinks,,Chipotle Mexican Grill,,,,,,Chipotle Mexican Grill,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000430,2026-01-16,FWT,OUT,EXPENSE,$500.00,PNC - Business,Marketing,,Google Ads,,,,,,Google ADS*0260 VIS 0114 650-*0000 CA RECURRING DEBIT CARD *5015,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000431,2026-01-16,FWG,OUT,EXPENSE,$201.67,PNC - Business,Materials - Apparel,,San Mar,,,,,,San Mar VIS 0114 206-*3200 WA DEBIT CARD PURCHASE *2015,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000432,2026-01-15,SHARED,OUT,EXPENSE,$11.52,PNC - Business,Bank Fees,,*finance Charge* Cash Adv,,,,,,*FINANCE CHARGE* CASH ADV,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000433,2026-01-15,SHARED,OUT,EXPENSE,$900.00,PNC - Business,Vehicle Expense,,Ckf*1876pos Online Pmtbank Of America Corporate Ac,,,,,,CKF*1876POS ONLINE PMTBANK OF AMERICA CORPORATE ACH BANK PMT,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000434,2026-01-15,SHARED,OUT,EXPENSE,$22.86,PNC - Business,Software & Subscriptions,,Dnh*godaddy,,,,,,DNH*GODADDY#*7001 VIS 0113 480-*8855 AZ RECURRING DEBIT CARD *5014,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000435,2026-01-15,SHARED,OUT,EXPENSE,$22.94,PNC - Business,Food & Drinks,,Giant 0346,,,,,,GIANT 0346 VIS 0113 FREDERICK MD DEBIT CARD PURCHASE *8014,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000436,2026-01-15,FWG,OUT,EXPENSE,$10.59,PNC - Business,Software & Subscriptions,,Paddle.net,,,,,,PADDLE.NET* ERANK VIS 0113 New York NY RECURRING DEBIT CARD *5014,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000437,2026-01-15,FWT,OUT,EXPENSE,$474.00,PNC - Business,Materials - Tint Film,,Sg Solar Gard,,,,,,SG SOLAR GARD 1-858-61 VIS 0113 858-*1164 CA DEBIT CARD PURCHASE *5014,frederickwindowtint@gmail.com,1/28/2026 14:44:13
+TXN-000438,2026-01-17,SHARED,OUT,EXPENSE,$114.44,PNC - Business,Miscellaneous,,Home Depot,,,,,,Home Depot,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000439,2026-01-14,FWG,OUT,EXPENSE,$536.57,PNC - Business,Professional Services,,Indeed Usi26,,,,,,Indeed USI26-*5267 800-*5842,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000440,2026-01-14,SHARED,OUT,EXPENSE,$94.45,PNC - Business,Software & Subscriptions,,Shopify,,,,,,SHOPIFY* *5233 VIS 0113 SHOPIFY.COM IL RECURRING DEBIT CARD *5013,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000441,2026-01-13,SHARED,OUT,EXPENSE,$352.63,PNC - Business,Utilities,,Washington Gas,,,,,,*0853 PAYMENT WASHINGTON GAS CORPORATE ACH,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000442,2026-01-13,FWG,OUT,EXPENSE,$199.50,PNC - Business,Equipment,,Equip Financing,,,,,,097-*5288-000 CNTRCT PMTEQUIP FINANCING CORPORATE ACH EQUIP PMT,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000443,2026-01-13,FWG,OUT,EXPENSE,$177.95,PNC - Business,Software & Subscriptions,,Skillshare,,,,,,SKILLSHARE VIS 0109 SKILLSHARE. NY RECURRING DEBIT CARD *7011,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000444,2026-01-13,FWT,OUT,EXPENSE,$20.86,PNC - Business,Vehicle Expense,,Sheetz,,,,,,Sheetz,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000445,2026-01-12,FWG,OUT,EXPENSE,$82.07,PNC - Business,Professional Services,,Indeed Usi26,,,,,,Indeed USI26-*5550 800-*5842,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000446,2026-01-10,SHARED,OUT,EXPENSE,$60.76,PNC - Business,Food & Drinks,,Domino's,,,,,,Domino's,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000447,2026-01-10,SHARED,OUT,EXPENSE,$41.99,PNC - Business,Vehicle Expense,,Frederick Auto Spa Express Rt 85,,,,,,FREDERICK AUTO SPA EXPRE,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000448,2026-01-10,FWG,OUT,EXPENSE,$1.01,PNC - Business,Miscellaneous,,Main Coursemed The,,,,,,ST-C9X6N4L5R5S5 THEMAINCOUTHEMAINCOURSEMED ACH WEB THEMAINCOURSEMED THEMAINCOU,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000449,2026-01-09,SHARED,OUT,EXPENSE,$134.38,PNC - Business,Software & Subscriptions,,Anthropic,,,,,,CLAUDE.AI SUBSCRIPTION VIS 0107 ANTHROPIC.C CA RECURRING DEBIT CARD *0008,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000450,2026-01-08,FWG,OUT,EXPENSE,$133.00,PNC - Business,Professional Services,,The Design Pals,,,,,,*6126 IAT PAYPALTHE DESIGN PALS ACH WEB THE PAYPAL,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000451,2026-01-08,FWG,OUT,EXPENSE,$411.75,PNC - Business,Equipment,,Equip Financing,,,,,,097-*6626-000 CNTRCT PMTEQUIP FINANCING CORPORATE ACH EQUIP PMT,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000452,2026-01-08,SHARED,OUT,EXPENSE,$15.33,PNC - Business,Food & Drinks,,McDonald's,,,,,,McDonald's,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000453,2026-01-08,FWT,OUT,EXPENSE,$37.00,PNC - Business,Vehicle Expense,,Sheetz,,,,,,Sheetz,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000454,2026-01-08,SHARED,OUT,EXPENSE,$26.82,PNC - Business,Food & Drinks,,Wing N Pizza Shack,,,,,,TST*WING N PIZZA SHACK VIS 0106 Brunswick MD DEBIT CARD PURCHASE *8007,frederickwindowtint@gmail.com,1/28/2026 14:52:32
+TXN-000455,2026-01-14,SHARED,OUT,EXPENSE,$265.00,PNC - Business,Utilities,,Washington Gas,,,,,,CKF*1876POS ONLINE PMTWASHINGTON GAS CORPORATE ACH WASHINGTON PMT,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000456,2026-01-14,SHARED,OUT,EXPENSE,$418.00,PNC - Business,Utilities,,Washington Gas,,,,,,CKF*1876POS ONLINE PMTWASHINGTON GAS CORPORATE ACH WASHINGTON PMT,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000457,2026-01-07,FWG,OUT,EXPENSE,$74.19,PNC - Business,Software & Subscriptions,,Adobe,,,,,,Adobe Inc VIS 0105 800-*6687 CA RECURRING DEBIT CARD *2006,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000458,2026-01-07,FWG,OUT,EXPENSE,$10.59,PNC - Business,Software & Subscriptions,,Adobe,,,,,,Adobe Inc VIS 0105 800-*6687 CA RECURRING DEBIT CARD *5006,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000459,2026-01-07,FWG,OUT,EXPENSE,$74.19,PNC - Business,Software & Subscriptions,,Adobe,,,,,,Adobe Inc VIS 0105 800-*6687 CA RECURRING DEBIT CARD *5006,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000460,2026-01-07,FWG,OUT,EXPENSE,$74.19,PNC - Business,Software & Subscriptions,,Adobe,,,,,,Adobe Inc VIS 0105 800-*6687 CA RECURRING DEBIT CARD *7006,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000461,2026-01-06,FWG,OUT,EXPENSE,$300.00,PNC - Business,Equipment,,Synchrony,,,,,,*2213 PAYMENT SYNCHRONY BANK ACH WEB-RECUR,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000462,2026-01-06,FWG,OUT,EXPENSE,$50.00,PNC - Business,Software & Subscriptions,,*3117 Adp Fees Payroll Corporate Ach,,,,,,*3117 ADP FEES PAYROLL CORPORATE ACH,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000463,2026-01-06,FWG,OUT,EXPENSE,$98.09,PNC - Business,Software & Subscriptions,,*3118 Adp Fees Payroll Corporate Ach,,,,,,*3118 ADP FEES PAYROLL CORPORATE ACH,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000464,2026-01-06,SHARED,OUT,EXPENSE,$108.18,PNC - Business,Utilities,,Washington Gas,,,,,,*8410 PAYMENT WASHINGTON GAS CORPORATE ACH,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000469,2026-01-06,SHARED,OUT,EXPENSE,$25.78,PNC - Business,Food & Drinks,,Chick-fil-a,,,,,,Chick-fil-A,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000470,2026-01-06,SHARED,OUT,EXPENSE,$29.53,PNC - Business,Food & Drinks,,Domino's,,,,,,Domino's,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000471,2026-01-06,FWG,OUT,EXPENSE,$939.03,PNC - Business,Materials - Vinyl,,Tyrrelltech Inc,,,,,,Foxtree Designs PAYMNT COLTYRRELLTECH INC CORPORATE ACH TYRRELLTECH COL,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000472,2026-01-06,SHARED,OUT,EXPENSE,$6.14,PNC - Business,Food & Drinks,,McDonald's,,,,,,McDonald's,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000473,2026-01-06,SHARED,OUT,EXPENSE,$254.97,PNC - Business,Food & Drinks,,Club,,,,,,SAMS CLUB.COM N0103 8705BENTONVILLE AR POS PURCHASE POS*6279 *5622 BENTONVILLE,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000474,2026-01-06,FWG,OUT,EXPENSE,$216.00,PNC - Business,Materials - Apparel,,San Mar,,,,,,San Mar VIS 0103 206-*3200 WA DEBIT CARD PURCHASE *2004,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000475,2026-01-03,FWG,OUT,EXPENSE,$52.99,PNC - Business,Software & Subscriptions,,Adobe,,,,,,Adobe Inc VIS 1231 San Jose CA RECURRING DEBIT CARD *5001,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000476,2026-01-03,SHARED,OUT,EXPENSE,$82.50,PNC - Business,Utilities,,F Fstenrgy,,,,,,CKF*1876POS ONLINE PMTFSTENRGY POTOMAC CORPORATE ACH FSTENRGY PMT,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000477,2026-01-03,SHARED,OUT,EXPENSE,$12.00,PNC - Business,Bank Fees,,Bank Fee,,,,,,SERVICE CHARGE PERIOD ENDING 12/31/2025,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000478,2026-01-03,SHARED,OUT,EXPENSE,$15.00,PNC - Business,Bank Fees,,Bank Fee,,,,,,SERVICE CHARGE PERIOD ENDING 12/31/2025,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000479,2026-01-03,SHARED,OUT,EXPENSE,$23.40,PNC - Business,Bank Fees,,Bank Fee,,,,,,SERVICE CHARGE PERIOD ENDING 12/31/2025,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000480,2026-01-03,SHARED,OUT,EXPENSE,$83.23,PNC - Business,Software & Subscriptions,,Shopify,,,,,,SHOPIFY* *0107 VIS 0101 SHOPIFY.COM IL RECURRING DEBIT CARD *0002,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000481,2026-01-03,FWG,OUT,EXPENSE,$103.54,PNC - Business,Software & Subscriptions,,Svcslightscame Vis,,,,,,SVCSlightscame VIS 0101 g.co/HelpPa CA RECURRING DEBIT CARD *0002,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000482,2026-01-02,SHARED,OUT,EXPENSE,$22.30,PNC - Business,Bank Fees,,*finance Charge*,,,,,,*FINANCE CHARGE*,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000483,2026-01-02,SHARED,OUT,EXPENSE,$43.29,PNC - Business,Bank Fees,,*finance Charge*,,,,,,*FINANCE CHARGE*,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000484,2026-01-01,SHARED,OUT,EXPENSE,$106.00,PNC - Business,Software & Subscriptions,,Anthropic,,,,,,CLAUDE.AI SUBSCRIPTION VIS 1230 ANTHROPIC.C CA RECURRING DEBIT CARD *0365,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000485,2026-01-01,SHARED,OUT,EXPENSE,$53.55,PNC - Business,Software & Subscriptions,,Dnh*godaddy,,,,,,DNH*GODADDY#*7328 VIS 1230 480-*8855 AZ RECURRING DEBIT CARD *5365,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000486,2026-01-01,FWG,OUT,EXPENSE,$50.00,PNC - Business,Professional Services,,Adp 401k,,,,,,K57G6 *3514VV ADP 401K CORPORATE ACH,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000487,2026-01-01,SHARED,OUT,EXPENSE,$11.62,PNC - Business,Marketing,,TikTok,,,,,,TIKTOK SHOP VIS 1230 TIKTOK.COM CA DEBIT CARD PURCHASE *5365,frederickwindowtint@gmail.com,1/28/2026 14:58:22
+TXN-000488,2026-01-03,FWT,OUT,EXPENSE,$323.15,PNC - Business,Marketing,,Google Ads,,,,,,Google ADS*0260 VIS 0101 650-*0000 CA RECURRING DEBIT CARD *5002,frederickwindowtint@gmail.com,1/28/2026 15:00:14
+TXN-000489,1/21/2026,FWG,IN,SALE,$270.00,Printavo,Design Fee Revenue,Printing,Whitney Thompson,,PRINTAVO-3494,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/28/2026 16:19:02
+TXN-000490,1/28/2026,FWT,IN,SALE,$294.97,Zelle,Auto Tint Revenue,Tint,Chad Brooke,0no35141r7jvp13qvcnn3t5ntq@google.com,260128-005,,Zelle,,2022 Traverse,frederickwindowtint@gmail.com,1/29/2026 10:13:51
+TXN-000491,1/29/2026,FWT,IN,SALE,$0.00,,Auto Tint Revenue,Tint,Jackson Norton,bp5uu39udrl12n8rnui5tnvib8@google.com,260129-001,,,,2012 1500 Crew Cab,frederickwindowtint@gmail.com,1/29/2026 15:06:06
+TXN-000492,1/30/2026,FWT,IN,SALE,$190.00,Credit Card,Auto Tint Revenue,Tint,Gaurav Gandhi,av2ji5p6v49e31bj0l4pro75ts@google.com,260130-002,,Credit Card,,2025 Escalade,frederickwindowtint@gmail.com,1/30/2026 8:52:30
+TXN-000493,1/30/2026,FWT,OUT,FEE,$5.81,Credit Card,Merchant Fees,Tint,Stripe,av2ji5p6v49e31bj0l4pro75ts@google.com,260130-002,,,Stripe,Stripe fee on Invoice 260130-002,frederickwindowtint@gmail.com,1/30/2026 8:52:30
+TXN-000494,1/30/2026,FWT,IN,SALE,$220.00,Credit Card,Auto Tint Revenue,Tint,Yakov Yakov,d1pb8fbc6vba024t9rf127g1d8@google.com,260130-004,,Credit Card,,2025 Nautilus,frederickwindowtint@gmail.com,1/30/2026 13:33:59
+TXN-000495,1/30/2026,FWT,OUT,FEE,$6.68,Credit Card,Merchant Fees,Tint,Stripe,d1pb8fbc6vba024t9rf127g1d8@google.com,260130-004,,,Stripe,Stripe fee on Invoice 260130-004,frederickwindowtint@gmail.com,1/30/2026 13:33:59
+TXN-000496,1/28/2026,FWG,IN,SALE,$140.00,Printavo,Design Fee Revenue,Printing,Ronald Mason,,PRINTAVO-3499,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/30/2026 17:31:35
+TXN-000497,1/29/2026,FWG,IN,SALE,$230.00,Printavo,Design Fee Revenue,Printing,Unknown,,PRINTAVO-3500,,Printavo,Printavo,,frederickwindowtint@gmail.com,1/30/2026 17:31:35
+TXN-000498,2026-01-29,FWT,OUT,EXPENSE,"$1,350.00",Cash,Payroll,,Mikey,,,,,,Mikey Pay,frederickwindowtint@gmail.com,1/30/2026 17:39:12
+TXN-000499,2026-01-30,SHARED,OUT,EXPENSE,$204.50,PNC - Business,Utilities,,FirstEnergy,,,,,,*1407 OPCO-ACH FIRSTENERGY ACH DEBIT,frederickwindowtint@gmail.com,1/30/2026 19:15:20
+TXN-000500,2026-01-30,SHARED,OUT,EXPENSE,$112.72,PNC - Business,Utilities,,FirstEnergy,,,,,,*4679 OPCO-ACH FIRSTENERGY ACH DEBIT,frederickwindowtint@gmail.com,1/30/2026 19:15:20
+TXN-000501,2026-01-30,SHARED,OUT,EXPENSE,$251.25,PNC - Business,Miscellaneous,,Home Depot,,,,,,Home Depot,frederickwindowtint@gmail.com,1/30/2026 19:15:20
+TXN-000502,2026-01-30,FWG,OUT,EXPENSE,$307.97,PNC - Business,Software & Subscriptions,,Inksoft Vis,,,,,,INKSOFT VIS 0128 INKSOFT.COM TX RECURRING DEBIT CARD *5029,frederickwindowtint@gmail.com,1/30/2026 19:15:20
+TXN-000503,2026-01-30,FWG,OUT,EXPENSE,$14.00,PNC - Business,Professional Services,,Vecteezy Pro,,,,,,VECTEEZY PRO INST XFER PAYPAL ACH WEB,frederickwindowtint@gmail.com,1/30/2026 19:15:20
+TXN-000504,2026-01-29,SHARED,OUT,EXPENSE,$49.34,PNC - Business,Repairs & Maintenance,,Lowe's,,,,,,Lowe's Home Improvement,frederickwindowtint@gmail.com,1/30/2026 19:15:20
+TXN-000505,2026-01-29,SHARED,OUT,EXPENSE,$29.74,PNC - Business,Food & Drinks,,Roy Rogers Restaurant Vis,,,,,,ROY ROGERS RESTAURANT VIS 0127 FREDERICK MD DEBIT CARD PURCHASE *8028,frederickwindowtint@gmail.com,1/30/2026 19:15:20
+TXN-000506,1/31/2026,FWT,IN,SALE,$375.25,Venmo,Auto Tint Revenue,Tint,David  Lok,ibdhfo16p79pfr3pdbh2uvrkj0@google.com,260131-001,,Venmo,,2024 4Runner,frederickwindowtint@gmail.com,1/31/2026 8:42:36
+TXN-000507,2026-01-30,SHARED,OUT,EXPENSE,$500.00,PNC - Personal,Office Supplies,,Best Buy,,,,,,Best Buy,frederickwindowtint@gmail.com,1/31/2026 10:01:51
+TXN-000508,2026-01-29,FWT,OUT,EXPENSE,$324.45,PNC - Personal,Software & Subscriptions,,Eastman Films LLC,,,,,,EASTMAN FILMS LLC,frederickwindowtint@gmail.com,1/31/2026 10:01:51
+TXN-000509,2026-01-31,SHARED,OUT,EXPENSE,$98.09,PNC - Business,Professional Services,,*0093 Adp Fees Payroll Corporate Ach,,,,,,*0093 ADP FEES PAYROLL CORPORATE ACH,frederickwindowtint@gmail.com,1/31/2026 10:07:08
+TXN-000510,2026-01-31,SHARED,OUT,EXPENSE,$50.00,PNC - Business,Professional Services,,*0094 Adp Fees Payroll Corporate Ach,,,,,,*0094 ADP FEES PAYROLL CORPORATE ACH,frederickwindowtint@gmail.com,1/31/2026 10:07:08
+TXN-000511,2026-01-31,FWG,OUT,EXPENSE,$2.00,PNC - Business,Shipping Fees,,UPS,,,,,,THE UPS STORE 5681 VIS 0129 301-*8825 MD DEBIT CARD PURCHASE *5030,frederickwindowtint@gmail.com,1/31/2026 10:07:08
+TXN-000514,1/31/2026,FWT,IN,SALE,$163.70,Cash,Auto Tint Revenue,Tint,Lauren Dixon,6n1rp0agq35nvffl33a2v6o7ug@google.com,260131-003,,Cash,,2026 Tundra,frederickwindowtint@gmail.com,1/31/2026 12:54:05
+TXN-000515,1/31/2026,FWT,IN,SALE,$163.70,Cash,Auto Tint Revenue,Tint,Lauren Dixon,1lvso6cca8rhre52spgl6mc4ai@google.com,260131-004,,Cash,,2025 PALISADE,frederickwindowtint@gmail.com,1/31/2026 12:55:56
+TXN-000516,1/31/2026,FWT,IN,SALE,$514.99,Zelle,Auto Tint Revenue,Tint,Jake Whitney,55r1q4nblgobd2t04rrde2l4to@google.com,260131-005,,Zelle,,2024 RX,frederickwindowtint@gmail.com,1/31/2026 13:02:09
+TXN-000517,1/31/2026,FWT,IN,SALE,$492.19,Zelle,Auto Tint Revenue,Tint,Jake Whitney,3p4f49eiouai6pueki9b4j7ac8@google.com,260131-006,,Zelle,,2026 Sierra,frederickwindowtint@gmail.com,1/31/2026 13:04:24
+TXN-000518,1/31/2026,FWT,IN,SALE,"$1,261.00",Zelle,Auto Tint Revenue,Tint,Sharon Miranda,b12oq1kl9qmfhoc5pegt5treg8@google.com,260131-007,,Zelle,,2026 Grand Highlander,frederickwindowtint@gmail.com,1/31/2026 15:28:28
+TXN-000519,1/31/2026,FWT,IN,SALE,$840.00,Credit Card,Auto Tint Revenue,Tint,Nathan miles,f5431sjv9lav470ecnb9h39ca0@google.com,260131-008,,Credit Card,,2021 Expedition,frederickwindowtint@gmail.com,1/31/2026 15:32:06
+TXN-000520,1/31/2026,FWT,OUT,FEE,$24.66,Credit Card,Merchant Fees,Tint,Stripe,f5431sjv9lav470ecnb9h39ca0@google.com,260131-008,,,Stripe,Stripe fee on Invoice 260131-008,frederickwindowtint@gmail.com,1/31/2026 15:32:06
+TXN-000521,2026-01-31,SHARED,OUT,EXPENSE,$231.56,PNC - Personal,Utilities,,Comcast,,,,,,Comcast,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000522,2026-01-30,SHARED,OUT,EXPENSE,$500.00,PNC - Personal,Equipment,,Best Buy,,,,,,Best Buy,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000523,2026-01-30,SHARED,OUT,EXPENSE,$704.80,PNC - Personal,Professional Services,,Kaiser Kpmc Mas Kpif Due,,,,,,KAISER KPMC MAS KPIF DUE,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000524,2026-01-30,SHARED,OUT,EXPENSE,$20.00,PNC - Personal,Professional Services,,Kp Mas Call Centers Ext,,,,,,KP MAS CALL CENTERS EXT,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000525,2026-01-29,SHARED,OUT,EXPENSE,$324.45,PNC - Personal,Software & Subscriptions,,Eastman Films LLC,,,,,,EASTMAN FILMS LLC,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000526,2026-01-29,SHARED,OUT,EXPENSE,$19.61,PNC - Personal,Food & Drinks,,Wine Districts,,,,,,WINE DISTRICTS,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000527,2026-01-28,SHARED,OUT,EXPENSE,$349.00,PNC - Personal,Professional Services,,Centerwell Pharmacy,,,,,,CENTERWELL PHARMACY OH 800-*0092,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000528,2026-01-28,SHARED,OUT,EXPENSE,$206.40,PNC - Personal,Food & Drinks,,Club,,,,,,SAMS CLUB.COM,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000529,2026-01-27,SHARED,OUT,EXPENSE,$223.84,PNC - Personal,Food & Drinks,,Club,,,,,,SAMSCLUB.COM,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000530,2026-01-26,SHARED,OUT,EXPENSE,$243.50,PNC - Personal,Professional Services,,Ssp*frederickgymnastics,,,,,,SSP*FrederickGymnasticsCL 301-*8414,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000531,2026-01-02,SHARED,OUT,EXPENSE,$349.00,PNC - Personal,Professional Services,,Centerwell Pharmacy,,,,,,CENTERWELL PHARMACY OH 800-*0092,frederickwindowtint@gmail.com,2/1/2026 9:08:36
+TXN-000532,2026-01-30,SHARED,OUT,EXPENSE,$85.58,TD Bank,Insurance,,Erie Ins Group Eriexpspay,,,,,,ERIE INS GROUP ERIEXPSPAY,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000533,2026-01-29,SHARED,OUT,EXPENSE,$259.68,TD Bank,Utilities,,Firstenergy Opco-ach,,,,,,FIRSTENERGY OPCO-ACH,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000534,2026-01-28,SHARED,OUT,EXPENSE,$798.10,TD Bank,Miscellaneous,,Applecard Gsbank Payment,,,,,,APPLECARD GSBANK PAYMENT,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000535,2026-01-20,FWG,OUT,EXPENSE,"$2,266.50",TD Bank,Sales Tax,,Comp Of Maryland Dir Db Rad,,,,,,COMP OF MARYLAND DIR DB RAD,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000536,2026-01-20,SHARED,OUT,EXPENSE,$10.00,TD Bank,Bank Fees,,Maintenance Fee,,,,,,MAINTENANCE FEE,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000537,2026-01-16,FWG,OUT,EXPENSE,"$2,199.81",TD Bank,Sales Tax,,Comp Of Maryland Dir Db Rad,,,,,,COMP OF MARYLAND DIR DB RAD,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000538,2026-01-16,FWT,OUT,EXPENSE,$400.00,TD Bank,Marketing,,Zelle Joseph J. May,,,,,,TD ZELLE SENT 601600D0BTRY Zelle JOSEPH J. MAY,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000539,2026-01-15,SHARED,OUT,EXPENSE,"$1,138.97",TD Bank,Vehicle Expense,,Educ Sys Fcu Debit Xfed,,,,,,EDUC SYS FCU DEBIT XFED,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000540,2026-01-09,SHARED,OUT,EXPENSE,$10.00,TD Bank,Bank Fees,,Maintenance Fee,,,,,,MAINTENANCE FEE,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000541,2026-01-02,SHARED,OUT,EXPENSE,$154.70,TD Bank,Miscellaneous,,Capital One Crcardpmt,,,,,,CAPITAL ONE CRCARDPMT,frederickwindowtint@gmail.com,2/1/2026 9:13:13
+TXN-000546,2/2/2026,FWT,IN,SALE,$220.00,Credit Card,Auto Tint Revenue,Tint,Michael Schoenian,pn8lj9a7csniu8ss6q1rdrke2c@google.com,260202-002,,Credit Card,,2026 Passport,frederickwindowtint@gmail.com,2/2/2026 10:22:55
+TXN-000547,2/2/2026,FWT,OUT,FEE,$6.68,Credit Card,Merchant Fees,Tint,Stripe,pn8lj9a7csniu8ss6q1rdrke2c@google.com,260202-002,,,Stripe,Stripe fee on Invoice 260202-002,frederickwindowtint@gmail.com,2/2/2026 10:22:55
+TXN-000548,2/2/2026,FWT,IN,SALE,$182.00,Credit Card,Auto Tint Revenue,Tint,Lauren Higgins,u8oq7hpjbee7dostap054pq2vo@google.com,260202-001,,Credit Card,,2024 Trax,frederickwindowtint@gmail.com,2/2/2026 10:23:16
+TXN-000549,2/2/2026,FWT,OUT,FEE,$5.58,Credit Card,Merchant Fees,Tint,Stripe,u8oq7hpjbee7dostap054pq2vo@google.com,260202-001,,,Stripe,Stripe fee on Invoice 260202-001,frederickwindowtint@gmail.com,2/2/2026 10:23:16
+TXN-000550,2/2/2026,FWT,IN,SALE,"$1,200.45",Cash,Auto Tint Revenue,Tint,David Scribner,472gapco3f5jrscpmnbjtl9gfc@google.com,260202-003,,Cash,,2026 Pilot,frederickwindowtint@gmail.com,2/2/2026 11:30:09
+TXN-000551,2/2/2026,FWT,IN,SALE,$500.00,Cash,Auto Tint Revenue,Tint,Eric Darcars,rr2i4bkttue4t6f0rs0iaeqgj8@google.com,260202-004,,Cash,,2026 Tundra,frederickwindowtint@gmail.com,2/2/2026 13:55:56
+TXN-000552,2/2/2026,FWT,IN,SALE,"$1,117.00",Credit Card,Auto Tint Revenue,Tint,James Conley,9ro6oiocmtc1p058m5tqa86v2c@google.com,260202-005,,Credit Card,,2021 Land Cruiser,frederickwindowtint@gmail.com,2/2/2026 16:19:16
+TXN-000553,2/2/2026,FWT,OUT,FEE,$32.69,Credit Card,Merchant Fees,Tint,Stripe,9ro6oiocmtc1p058m5tqa86v2c@google.com,260202-005,,,Stripe,Stripe fee on Invoice 260202-005,frederickwindowtint@gmail.com,2/2/2026 16:19:16
+TXN-000554,2026-02-03,SHARED,OUT,EXPENSE,$234.02,PNC - Business,Utilities,,Fstenrgy Potomac,,,,,,ACH DEBIT FSTENRGY POTOMAC,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000555,2026-02-03,FWG,OUT,EXPENSE,$195.00,PNC - Business,Commission,,Diogo,,,,,,APPLE CASH SENT MO CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000556,2026-02-03,FWG,OUT,EXPENSE,$195.00,PNC - Business,Commission,,Mason,,,,,,APPLE CASH SENT MO CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000557,2026-02-03,FWT,OUT,EXPENSE,$697.00,PNC - Business,Commission,,Bronson,,,,,,APPLE CASH SENT MO CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000558,2026-02-03,FWT,OUT,EXPENSE,"$1,500.00",PNC - Business,Payroll,,Apple Cash Sent Mo Card#8705,,,,,,APPLE CASH SENT MO CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000559,2026-02-03,FWG,OUT,EXPENSE,"$2,400.00",PNC - Business,Payroll,,Diogo,,,,,,APPLE CASH SENT MO CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000560,2026-02-03,FWG,OUT,EXPENSE,"$2,400.00",PNC - Business,Payroll,,Mason,,,,,,APPLE CASH SENT MO CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000561,2026-02-03,FWT,OUT,EXPENSE,"$2,400.00",PNC - Business,Payroll,,Bronson,,,,,,APPLE CASH SENT MO CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000562,2026-02-03,FWG,OUT,EXPENSE,$52.99,PNC - Business,Software & Subscriptions,,Adobe,,,,,,Adobe Inc CARD#7795,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000563,2026-02-03,FWT,OUT,EXPENSE,"$1,611.67",PNC - Business,Repairs & Maintenance,,Euro Motorcars Ger,,,,,,EURO MOTORCARS GER CARD#1568,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000564,2026-02-03,FWT,OUT,EXPENSE,$369.27,PNC - Business,Marketing,,Google Ads,,,,,,Google ADS*0260 CARD#8705,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000565,2026-02-03,SHARED,OUT,EXPENSE,$12.00,PNC - Business,Bank Fees,,Bank Fee,,,,,,SERVICE CHARGE PERIOD,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000566,2026-02-03,SHARED,OUT,EXPENSE,$15.00,PNC - Business,Bank Fees,,Bank Fee,,,,,,SERVICE CHARGE PERIOD,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000567,2026-02-03,SHARED,OUT,EXPENSE,$15.00,PNC - Business,Bank Fees,,Bank Fee,,,,,,SERVICE CHARGE PERIOD,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000568,2026-02-03,SHARED,OUT,EXPENSE,$52.50,PNC - Business,Bank Fees,,Bank Fee,,,,,,SERVICE CHARGE PERIOD,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000569,2026-02-03,SHARED,OUT,EXPENSE,$83.23,PNC - Business,Software & Subscriptions,,Shopify,,,,,,SHOPIFY* *4033 CARD#3440,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000570,2026-02-03,SHARED,OUT,EXPENSE,$104.35,PNC - Business,Software & Subscriptions,,Svcslightsca,,,,,,SVCSlightsca CARD#3440,frederickwindowtint@gmail.com,2/3/2026 8:07:32
+TXN-000571,2/3/2026,FWT,IN,SALE,$120.00,Credit Card,Auto Tint Revenue,Tint,Mike Hawaii,3ja1fu6itu8tdsqafautdqr7c8@google.com,260203-001,,Credit Card,,2025 F-250 Regular Cab,frederickwindowtint@gmail.com,2/3/2026 9:31:19
+TXN-000572,2/3/2026,FWT,OUT,FEE,$3.78,Credit Card,Merchant Fees,Tint,Stripe,3ja1fu6itu8tdsqafautdqr7c8@google.com,260203-001,,,Stripe,Stripe fee on Invoice 260203-001,frederickwindowtint@gmail.com,2/3/2026 9:31:19
+TXN-000573,2/3/2026,FWT,IN,SALE,$698.10,Credit Card,Auto Tint Revenue,Tint,Jennifer Hunt,lomgqc21jqmhqudt8kkihu2l5g@google.com,260203-002,,Credit Card,,2014 4-Series,frederickwindowtint@gmail.com,2/3/2026 12:06:45
+TXN-000574,2/3/2026,FWT,OUT,FEE,$20.54,Credit Card,Merchant Fees,Tint,Stripe,lomgqc21jqmhqudt8kkihu2l5g@google.com,260203-002,,,Stripe,Stripe fee on Invoice 260203-002,frederickwindowtint@gmail.com,2/3/2026 12:06:45
+TXN-000575,2/3/2026,FWT,IN,SALE,$160.00,Credit Card,Auto Tint Revenue,Tint,Carsie Mitchell,06a3q3cmo0lm5l1ec90utlhsjk@google.com,260203-004,,Credit Card,,2015 Expedition,frederickwindowtint@gmail.com,2/3/2026 13:11:12
+TXN-000576,2/3/2026,FWT,OUT,FEE,$4.94,Credit Card,Merchant Fees,Tint,Stripe,06a3q3cmo0lm5l1ec90utlhsjk@google.com,260203-004,,,Stripe,Stripe fee on Invoice 260203-004,frederickwindowtint@gmail.com,2/3/2026 13:11:12
+TXN-000577,2/3/2026,FWG,IN,SALE,$250.00,Printavo,Vinyl Graphics Revenue,Printing,Justin Jones,,PRINTAVO-3488,,Printavo,Printavo,,frederickwindowtint@gmail.com,2/3/2026 13:23:29
+TXN-000578,2/3/2026,FWT,IN,SALE,$612.75,Cash + Venmo,Auto Tint Revenue,Tint,Jonathan Gilbart,h5kovjhks11euc2nod23ao8gcg@google.com,260203-005,,Cash + Venmo,,2014 Expedition,frederickwindowtint@gmail.com,2/3/2026 15:11:39
+TXN-000579,2/3/2026,FWT,IN,SALE,$60.00,Credit Card,Auto Tint Revenue,Tint,david aghajanian,uv6j2cc1lqn0gbk2grl5vfr1ts@google.com,260203-006,,Credit Card,,2023 Model Y,frederickwindowtint@gmail.com,2/3/2026 16:11:11
+TXN-000580,2/3/2026,FWT,OUT,FEE,$2.04,Credit Card,Merchant Fees,Tint,Stripe,uv6j2cc1lqn0gbk2grl5vfr1ts@google.com,260203-006,,,Stripe,Stripe fee on Invoice 260203-006,frederickwindowtint@gmail.com,2/3/2026 16:11:11
+TXN-000581,2/4/2026,FWT,IN,SALE,$630.00,Credit Card,Auto Tint Revenue,Tint,Austin Malpass,dbo2gq3mcdbqvf1p04le7l0dbo@google.com,260204-001,,Credit Card,,2023 Silverado,frederickwindowtint@gmail.com,2/4/2026 10:22:47
+TXN-000582,2/4/2026,FWT,OUT,FEE,$18.57,Credit Card,Merchant Fees,Tint,Stripe,dbo2gq3mcdbqvf1p04le7l0dbo@google.com,260204-001,,,Stripe,Stripe fee on Invoice 260204-001,frederickwindowtint@gmail.com,2/4/2026 10:22:47
+TXN-000583,2/4/2026,FWT,IN,SALE,$473.44,Zelle,Auto Tint Revenue,Tint,Julie Rogers,h0u06he5rn7u4d85h0nb9cbisk@google.com,260204-002,,Zelle,,2026 Traverse,frederickwindowtint@gmail.com,2/4/2026 12:53:30
+TXN-000584,2026-02-04,FWT,OUT,EXPENSE,$360.00,Cash,Commission,,Danny,,,,,,January Commission,frederickwindowtint@gmail.com,2/4/2026 12:55:04
+TXN-000584,2/4/2026,FWT,IN,SALE,$190.00,Cash,Auto Tint Revenue,Tint,Chris Fennell,rtqdd61lv172jqofhsa0u1d4js@google.com,260204-003,,Cash,,2026 Tundra CrewMax,frederickwindowtint@gmail.com,2/4/2026 12:55:04
+TXN-000585,2/4/2026,FWT,IN,SALE,$190.00,Cash,Auto Tint Revenue,Tint,Chris Fennell,926bgfmk401i0l19kg59fbg6d0@google.com,260204-004,,Cash,,2025 4Runner,frederickwindowtint@gmail.com,2/4/2026 12:57:41
+TXN-000586,2/4/2026,FWT,IN,SALE,$0.00,Gift Certificate,Auto Tint Revenue,Tint,liam randow,g72op0rjq0iji38d067f1js5ks@google.com,260204-005,,Gift Certificate,,2016 F-150,frederickwindowtint@gmail.com,2/4/2026 13:54:03
+TXN-000587,2/4/2026,FWT,IN,SALE,$354.00,CashApp,Auto Tint Revenue,Tint,Rodrigue Tchokouatou,r44u53q47q7plnnvt3gsc8n55g@google.com,260204-006,,CashApp,,2020 Camry,frederickwindowtint@gmail.com,2/4/2026 15:58:28
+TXN-000588,2/1/2026,FWG,IN,SALE,$117.50,Printavo,Embroidery Revenue,Printing,Hunter Davis,,PRINTAVO-3501,,Printavo,Printavo,,frederickwindowtint@gmail.com,2/4/2026 16:01:22
+TXN-000589,2026-02-04,FWT,OUT,EXPENSE,"$1,340.00",Cash,Payroll,,Mikey,,,,,,Pay,frederickwindowtint@gmail.com,2/4/2026 16:54:41
+TXN-000590,2/5/2026,FWT,IN,SALE,$502.20,Cash,Auto Tint Revenue,Tint,Robert Bryant,d11f679iquc6n3h0ubf1nvmbgs@google.com,260205-001,,Cash,,2015 Grand Cherokee,frederickwindowtint@gmail.com,2/5/2026 9:39:20
+TXN-000591,2/5/2026,FWT,IN,SALE,$604.25,CashApp,Auto Tint Revenue,Tint,Cameron Helmick,22a16j57lq5a3rl4g22e4mk3j8@google.com,260205-002,,CashApp,,2017 Cruze,frederickwindowtint@gmail.com,2/5/2026 11:52:02
+TXN-000592,2/5/2026,FWT,IN,SALE,$436.52,Cash,Auto Tint Revenue,Tint,Jennifer Rice,3ntos0tgkb16al2fbgm52hmhqf@google.com,260205-003,,Cash,,2018 F250,frederickwindowtint@gmail.com,2/5/2026 14:25:11
+TXN-000593,2/5/2026,FWT,IN,SALE,$712.32,Cash + Venmo,Auto Tint Revenue,Tint,Jennifer Rice,ies1r72ibcgsmpdl4vpf95ksa4@google.com,260205-004,,Cash + Venmo,,2021 IS Sedan,frederickwindowtint@gmail.com,2/5/2026 14:28:06
+TXN-000594,2/5/2026,FWG,IN,SALE,"$2,992.50",Printavo,Partial Wrap Revenue,Printing,Samantha Stotler,,PRINTAVO-3485,,Printavo,Printavo,,frederickwindowtint@gmail.com,2/5/2026 16:36:14
+TXN-000595,2/6/2026,FWT,IN,SALE,$338.20,Zelle,Auto Tint Revenue,Tint,Zoe Higgins,m0l75cis4g33vsp242abcm45dg@google.com,260206-001,,Zelle,,2019 Elantra,frederickwindowtint@gmail.com,2/6/2026 9:27:48
+TXN-000596,2/6/2026,FWT,IN,SALE,$946.00,Credit Card,Auto Tint Revenue,Tint,Stephen Butera,gr08ichupv629vuga9o0upb8h8@google.com,260206-003,,Credit Card,,2024 CR-V,frederickwindowtint@gmail.com,2/6/2026 13:22:19
+TXN-000597,2/6/2026,FWT,OUT,FEE,$27.73,Credit Card,Merchant Fees,Tint,Stripe,gr08ichupv629vuga9o0upb8h8@google.com,260206-003,,,Stripe,Stripe fee on Invoice 260206-003,frederickwindowtint@gmail.com,2/6/2026 13:22:19
+TXN-000598,2/6/2026,FWT,IN,SALE,$270.00,Credit Card,Auto Tint Revenue,Tint,Harrison Saye,0q4dm3feg8pi17589pl6lidbl8@google.com,260206-004,,Credit Card,,2005 Ranger Regular Cab,frederickwindowtint@gmail.com,2/6/2026 13:27:10
+TXN-000599,2/6/2026,FWT,OUT,FEE,$8.13,Credit Card,Merchant Fees,Tint,Stripe,0q4dm3feg8pi17589pl6lidbl8@google.com,260206-004,,,Stripe,Stripe fee on Invoice 260206-004,frederickwindowtint@gmail.com,2/6/2026 13:27:10
