@@ -162,6 +162,13 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     // This handles both full payments (100%) and partial payments (e.g., 50% deposit)
     const paymentPercentage = payment.amount / doc.total
 
+    console.log('=== PAYMENT SYNC DEBUG ===')
+    console.log('Payment amount:', payment.amount)
+    console.log('Document total:', doc.total)
+    console.log('Payment percentage:', paymentPercentage)
+    console.log('Discount percent:', discountPercent)
+    console.log('Discount multiplier:', discountMultiplier)
+
     // Process each line item - apply discount first, then payment percentage
     for (const lineItem of lineItems || []) {
       // Apply discount to get the actual line item amount
@@ -169,6 +176,11 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
 
       // Apply payment percentage (e.g., 50% for a deposit)
       const lineItemPaymentAmount = discountedLineTotal * paymentPercentage
+
+      console.log(`Line item: ${lineItem.description}`)
+      console.log(`  Original: $${lineItem.line_total}`)
+      console.log(`  After discount: $${discountedLineTotal}`)
+      console.log(`  Payment amount: $${lineItemPaymentAmount}`)
 
       // Get sheet category from mapping
       const sheetCategory = getSheetCategory(lineItem.category)
