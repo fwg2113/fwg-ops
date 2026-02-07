@@ -160,10 +160,14 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
 
     // Calculate tax from line items (6% of line items after discount)
     // Tax is not stored in doc.tax_amount, so we calculate it
+    // IMPORTANT: Tax only applies to line items, NOT to fees
     const lineItemsTotal = (lineItems || []).reduce((sum, item) => sum + item.line_total, 0)
     const discountedLineItemsTotal = lineItemsTotal * discountMultiplier
     const taxRate = 0.06 // 6% sales tax
     const calculatedTax = discountedLineItemsTotal * taxRate
+
+    // Calculate fees total for debug output
+    const feesTotal = fees.reduce((sum, fee) => sum + fee.amount, 0)
 
     // Calculate the grand total including tax (doc.total is pre-tax subtotal)
     const grandTotal = doc.total + calculatedTax
@@ -176,9 +180,10 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     console.log('Payment amount:', payment.amount)
     console.log('Document total (pre-tax):', doc.total)
     console.log('Line items total:', lineItemsTotal)
+    console.log('Fees total:', feesTotal)
     console.log('Discounted line items total:', discountedLineItemsTotal)
-    console.log('Calculated tax (6%):', calculatedTax)
-    console.log('Grand total (with tax):', grandTotal)
+    console.log('Calculated tax (6% of line items ONLY):', calculatedTax)
+    console.log('Grand total (line items + fees + tax):', grandTotal)
     console.log('Payment percentage:', paymentPercentage)
     console.log('Discount percent:', discountPercent)
     console.log('Discount multiplier:', discountMultiplier)
