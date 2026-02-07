@@ -42,6 +42,7 @@ interface PaymentWithDetails {
     discount_percent: number
     discount_amount: number
     subtotal: number
+    tax_amount: number
     fees?: Fee[] | string
   }
   line_items: LineItem[]
@@ -85,6 +86,7 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
           discount_percent,
           discount_amount,
           subtotal,
+          tax_amount,
           fees
         )
       `)
@@ -156,27 +158,17 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
-    // Calculate the total of all line items after discount
-    const lineItemsTotal = (lineItems || []).reduce((sum, item) => {
-      return sum + (item.line_total * discountMultiplier)
-    }, 0)
+    // Calculate what percentage of the total invoice this payment represents
+    // This handles both full payments (100%) and partial payments (e.g., 50% deposit)
+    const paymentPercentage = payment.amount / doc.total
 
-    // Calculate the total of all fees (fees are not discounted)
-    const feesTotal = fees.reduce((sum, fee) => sum + fee.amount, 0)
-
-    // Combined total for proportional calculations
-    const combinedTotal = lineItemsTotal + feesTotal
-
-    // Calculate how much of each line item this payment covers
-    // (proportional based on line item amounts AFTER discount)
+    // Process each line item - apply discount first, then payment percentage
     for (const lineItem of lineItems || []) {
-      // Apply discount to this line item
+      // Apply discount to get the actual line item amount
       const discountedLineTotal = lineItem.line_total * discountMultiplier
 
-      // Calculate proportion based on this line item's share of combined total
-      // Then apply that proportion to the actual payment amount
-      const lineItemProportion = discountedLineTotal / combinedTotal
-      const lineItemPaymentAmount = payment.amount * lineItemProportion
+      // Apply payment percentage (e.g., 50% for a deposit)
+      const lineItemPaymentAmount = discountedLineTotal * paymentPercentage
 
       // Get sheet category from mapping
       const sheetCategory = getSheetCategory(lineItem.category)
@@ -211,10 +203,10 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     }
 
     // Process fees (design fees, rush fees, etc.) as revenue rows
+    // Fees are NOT discounted, but ARE subject to payment percentage
     for (const fee of fees) {
-      // Calculate proportion based on this fee's share of combined total
-      const feeProportion = fee.amount / combinedTotal
-      const feePaymentAmount = payment.amount * feeProportion
+      // Apply payment percentage to fee amount
+      const feePaymentAmount = fee.amount * paymentPercentage
 
       // Generate TXN number
       const txnNumber = await getNextTransactionNumber()
@@ -243,6 +235,38 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       }
 
       lineItemRows.push(row)
+    }
+
+    // Add sales tax as an OUT expense row (if tax > 0)
+    const taxAmount = doc.tax_amount || 0
+    if (taxAmount > 0) {
+      const taxPaymentAmount = taxAmount * paymentPercentage
+
+      const taxTxnNumber = await getNextTransactionNumber()
+      txnNumbers.push(taxTxnNumber)
+
+      const taxRow: PaymentRowData = {
+        txnNumber: taxTxnNumber,
+        date: dateStr,
+        business: 'FWG',
+        direction: 'OUT',
+        eventType: 'Expense',
+        amount: Math.round(taxPaymentAmount * 100) / 100,
+        account: 'Stripe',
+        category: 'Sales Tax',
+        serviceLine: '',
+        customerName: doc.customer_name || 'Unknown',
+        notes: 'Sales tax collected',
+        invoiceNumber: doc.doc_number || '',
+        columnM: '',
+        columnN: '',
+        columnO: '',
+        lineItemDescription: 'Sales tax',
+        columnQ: '',
+        timestamp: timestampStr
+      }
+
+      lineItemRows.push(taxRow)
     }
 
     // Add Stripe processing fee as a separate expense row (if fee > 0)
