@@ -133,8 +133,6 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const discountPercent = doc.discount_percent || 0
     const discountMultiplier = 1 - (discountPercent / 100)
 
-    // Calculate proportional split
-    const documentTotal = doc.total
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
@@ -155,6 +153,7 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
   })
 
     // Calculate the total of all line items after discount
+    // This is the base for proportional calculations (excludes fees/tax)
     const discountedSubtotal = lineItems.reduce((sum, item) => {
       return sum + (item.line_total * discountMultiplier)
     }, 0)
@@ -165,9 +164,16 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       // Apply discount to this line item
       const discountedLineTotal = lineItem.line_total * discountMultiplier
 
+<<<<<<< HEAD
       // Calculate proportion based on discounted amount
       const lineItemProportion = discountedLineTotal / documentTotal
       const lineItemPaymentAmount = basePaymentAmount * lineItemProportion
+=======
+      // Calculate proportion based on this line item's share of total line items
+      // Then apply that proportion to the actual payment amount
+      const lineItemProportion = discountedLineTotal / discountedSubtotal
+      const lineItemPaymentAmount = payment.amount * lineItemProportion
+>>>>>>> claude/stripe-sheets-integration-uzP7c
 
       // Get sheet category from mapping
       const sheetCategory = getSheetCategory(lineItem.category)
