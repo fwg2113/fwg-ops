@@ -158,13 +158,18 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
+    // Calculate the grand total including tax (doc.total is pre-tax subtotal)
+    const grandTotal = doc.total + (doc.tax_amount || 0)
+
     // Calculate what percentage of the total invoice this payment represents
     // This handles both full payments (100%) and partial payments (e.g., 50% deposit)
-    const paymentPercentage = payment.amount / doc.total
+    const paymentPercentage = payment.amount / grandTotal
 
     console.log('=== PAYMENT SYNC DEBUG ===')
     console.log('Payment amount:', payment.amount)
-    console.log('Document total:', doc.total)
+    console.log('Document total (pre-tax):', doc.total)
+    console.log('Tax amount:', doc.tax_amount)
+    console.log('Grand total (with tax):', grandTotal)
     console.log('Payment percentage:', paymentPercentage)
     console.log('Discount percent:', discountPercent)
     console.log('Discount multiplier:', discountMultiplier)
