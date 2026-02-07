@@ -142,9 +142,17 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const baseTxnNumber = await getNextTransactionNumber()
     const baseTxnNum = parseInt(baseTxnNumber.replace('TXN-', ''), 10)
     let currentTxnNum = baseTxnNum
-
     // Calculate base payment amount (exclude Stripe fee for splitting)
     const basePaymentAmount = payment.amount - (payment.processing_fee || 0)
+
+    // ADD THIS:
+    console.log('DEBUG:', {
+    paymentAmount: payment.amount,
+    processingFee: payment.processing_fee,
+    basePaymentAmount,
+    documentTotal,
+    lineItemCount: lineItems.length
+  })
 
     // Calculate the total of all line items after discount
     const discountedSubtotal = lineItems.reduce((sum, item) => {
