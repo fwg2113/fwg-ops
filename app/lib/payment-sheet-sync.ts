@@ -300,8 +300,13 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       lineItemRows.push(taxRow)
     }
 
-    // Add Stripe processing fee as a separate expense row (if fee > 0)
-    if (payment.processing_fee && payment.processing_fee > 0) {
+    // Add Stripe processing fee as a separate expense row
+    // Calculate fee if not stored: 2.5% + $0.30 per transaction
+    const stripeFee = payment.processing_fee && payment.processing_fee > 0
+      ? payment.processing_fee
+      : (payment.amount * 0.025) + 0.30
+
+    if (stripeFee > 0) {
       const feeTxnNumber = await getNextTransactionNumber()
       txnNumbers.push(feeTxnNumber)
 
@@ -311,7 +316,7 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
         business: 'FWG',
         direction: 'OUT',
         eventType: 'Expense',
-        amount: Math.round(payment.processing_fee * 100) / 100,
+        amount: Math.round(stripeFee * 100) / 100,
         account: 'Stripe',
         category: 'Payment Processing Fees',
         serviceLine: '',
