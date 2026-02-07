@@ -318,7 +318,7 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
         eventType: 'Expense',
         amount: Math.round(stripeFee * 100) / 100,
         account: 'Stripe',
-        category: 'Payment Processing Fees',
+        category: 'Merchant Fees',
         serviceLine: '',
         customerName: doc.customer_name || 'Unknown',
         notes: 'Stripe processing fee',
