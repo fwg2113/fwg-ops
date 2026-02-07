@@ -158,8 +158,15 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
+    // Calculate tax from line items (6% of line items after discount)
+    // Tax is not stored in doc.tax_amount, so we calculate it
+    const lineItemsTotal = (lineItems || []).reduce((sum, item) => sum + item.line_total, 0)
+    const discountedLineItemsTotal = lineItemsTotal * discountMultiplier
+    const taxRate = 0.06 // 6% sales tax
+    const calculatedTax = discountedLineItemsTotal * taxRate
+
     // Calculate the grand total including tax (doc.total is pre-tax subtotal)
-    const grandTotal = doc.total + (doc.tax_amount || 0)
+    const grandTotal = doc.total + calculatedTax
 
     // Calculate what percentage of the total invoice this payment represents
     // This handles both full payments (100%) and partial payments (e.g., 50% deposit)
@@ -168,7 +175,9 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     console.log('=== PAYMENT SYNC DEBUG ===')
     console.log('Payment amount:', payment.amount)
     console.log('Document total (pre-tax):', doc.total)
-    console.log('Tax amount:', doc.tax_amount)
+    console.log('Line items total:', lineItemsTotal)
+    console.log('Discounted line items total:', discountedLineItemsTotal)
+    console.log('Calculated tax (6%):', calculatedTax)
     console.log('Grand total (with tax):', grandTotal)
     console.log('Payment percentage:', paymentPercentage)
     console.log('Discount percent:', discountPercent)
@@ -255,9 +264,9 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     }
 
     // Add sales tax as an OUT expense row (if tax > 0)
-    const taxAmount = doc.tax_amount || 0
-    if (taxAmount > 0) {
-      const taxPaymentAmount = taxAmount * paymentPercentage
+    // Use calculated tax since doc.tax_amount is not populated
+    if (calculatedTax > 0) {
+      const taxPaymentAmount = calculatedTax * paymentPercentage
 
       const taxTxnNumber = await getNextTransactionNumber()
       txnNumbers.push(taxTxnNumber)
