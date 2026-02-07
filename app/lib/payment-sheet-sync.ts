@@ -21,6 +21,12 @@ interface LineItem {
   line_total: number
 }
 
+interface Fee {
+  amount: number
+  fee_type: string
+  description: string
+}
+
 interface PaymentWithDetails {
   id: string
   document_id: string
@@ -36,6 +42,8 @@ interface PaymentWithDetails {
     discount_percent: number
     discount_amount: number
     subtotal: number
+    tax_amount: number
+    fees?: Fee[] | string
   }
   line_items: LineItem[]
 }
@@ -77,7 +85,9 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
           amount_paid,
           discount_percent,
           discount_amount,
-          subtotal
+          subtotal,
+          tax_amount,
+          fees
         )
       `)
       .eq('id', paymentId)
@@ -116,11 +126,23 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       }
     }
 
-    if (!lineItems || lineItems.length === 0) {
+    // Parse fees from document
+    let fees: Fee[] = []
+    try {
+      if (doc.fees) {
+        fees = typeof doc.fees === 'string' ? JSON.parse(doc.fees) : doc.fees
+      }
+    } catch (error) {
+      console.warn('Failed to parse fees:', error)
+      fees = []
+    }
+
+    // Check if we have at least line items OR fees
+    if ((!lineItems || lineItems.length === 0) && (!fees || fees.length === 0)) {
       return {
         success: false,
         rowsAdded: 0,
-        error: 'No line items found for this document'
+        error: 'No line items or fees found for this document'
       }
     }
 
@@ -136,44 +158,48 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
-    // Get the starting TXN number (only call API once)
-    const baseTxnNumber = await getNextTransactionNumber()
-    const baseTxnNum = parseInt(baseTxnNumber.replace('TXN-', ''), 10)
-    let currentTxnNum = baseTxnNum
-    // Calculate base payment amount (exclude Stripe fee for splitting)
-    const basePaymentAmount = payment.amount - (payment.processing_fee || 0)
+    // Calculate tax from line items (6% of line items after discount)
+    // Tax is not stored in doc.tax_amount, so we calculate it
+    // IMPORTANT: Tax only applies to line items, NOT to fees
+    const lineItemsTotal = (lineItems || []).reduce((sum, item) => sum + item.line_total, 0)
+    const discountedLineItemsTotal = lineItemsTotal * discountMultiplier
+    const taxRate = 0.06 // 6% sales tax
+    const calculatedTax = discountedLineItemsTotal * taxRate
 
-    // ADD THIS:
-    console.log('DEBUG:', {
-    paymentAmount: payment.amount,
-    processingFee: payment.processing_fee,
-    basePaymentAmount,
-    documentTotal,
-    lineItemCount: lineItems.length
-  })
+    // Calculate fees total for debug output
+    const feesTotal = fees.reduce((sum, fee) => sum + fee.amount, 0)
 
-    // Calculate the total of all line items after discount
-    // This is the base for proportional calculations (excludes fees/tax)
-    const discountedSubtotal = lineItems.reduce((sum, item) => {
-      return sum + (item.line_total * discountMultiplier)
-    }, 0)
+    // Calculate the grand total including tax (doc.total is pre-tax subtotal)
+    const grandTotal = doc.total + calculatedTax
 
-    // Calculate how much of each line item this payment covers
-    // (proportional based on line item amounts AFTER discount)
-    for (const lineItem of lineItems) {
-      // Apply discount to this line item
+    // Calculate what percentage of the total invoice this payment represents
+    // This handles both full payments (100%) and partial payments (e.g., 50% deposit)
+    const paymentPercentage = payment.amount / grandTotal
+
+    console.log('=== PAYMENT SYNC DEBUG ===')
+    console.log('Payment amount:', payment.amount)
+    console.log('Document total (pre-tax):', doc.total)
+    console.log('Line items total:', lineItemsTotal)
+    console.log('Fees total:', feesTotal)
+    console.log('Discounted line items total:', discountedLineItemsTotal)
+    console.log('Calculated tax (6% of line items ONLY):', calculatedTax)
+    console.log('Grand total (line items + fees + tax):', grandTotal)
+    console.log('Payment percentage:', paymentPercentage)
+    console.log('Discount percent:', discountPercent)
+    console.log('Discount multiplier:', discountMultiplier)
+
+    // Process each line item - apply discount first, then payment percentage
+    for (const lineItem of lineItems || []) {
+      // Apply discount to get the actual line item amount
       const discountedLineTotal = lineItem.line_total * discountMultiplier
 
-<<<<<<< HEAD
-      // Calculate proportion based on discounted amount
-      const lineItemProportion = discountedLineTotal / documentTotal
-      const lineItemPaymentAmount = basePaymentAmount * lineItemProportion
-=======
-      // Calculate proportion based on this line item's share of total line items
-      // Then apply that proportion to the actual payment amount
-      const lineItemProportion = discountedLineTotal / discountedSubtotal
-      const lineItemPaymentAmount = payment.amount * lineItemProportion
->>>>>>> claude/stripe-sheets-integration-uzP7c
+      // Apply payment percentage (e.g., 50% for a deposit)
+      const lineItemPaymentAmount = discountedLineTotal * paymentPercentage
+
+      console.log(`Line item: ${lineItem.description}`)
+      console.log(`  Original: $${lineItem.line_total}`)
+      console.log(`  After discount: $${discountedLineTotal}`)
+      console.log(`  Payment amount: $${lineItemPaymentAmount}`)
 
       // Get sheet category from mapping
       const sheetCategory = getSheetCategory(lineItem.category)
@@ -208,9 +234,81 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       lineItemRows.push(row)
     }
 
-    // Add Stripe processing fee as a separate expense row (if fee > 0)
-    if (payment.processing_fee && payment.processing_fee > 0) {
-      const feeTxnNumber = `TXN-${String(currentTxnNum).padStart(5, '0')}`
+    // Process fees (design fees, rush fees, etc.) as revenue rows
+    // Fees are NOT discounted, but ARE subject to payment percentage
+    for (const fee of fees) {
+      // Apply payment percentage to fee amount
+      const feePaymentAmount = fee.amount * paymentPercentage
+
+      // Generate TXN number
+      const txnNumber = await getNextTransactionNumber()
+      txnNumbers.push(txnNumber)
+
+      // Create row for fee - map to "Other Revenue"
+      const row: PaymentRowData = {
+        txnNumber,
+        date: dateStr,
+        business: 'FWG',
+        direction: 'IN',
+        eventType: 'Sale',
+        amount: Math.round(feePaymentAmount * 100) / 100,
+        account: 'Stripe',
+        category: 'Other Revenue', // All fees mapped to Other Revenue
+        serviceLine: '',
+        customerName: doc.customer_name || 'Unknown',
+        notes: '',
+        invoiceNumber: doc.doc_number || '',
+        columnM: '',
+        columnN: '',
+        columnO: '',
+        lineItemDescription: fee.description || `${fee.fee_type} Fee`,
+        columnQ: '',
+        timestamp: timestampStr
+      }
+
+      lineItemRows.push(row)
+    }
+
+    // Add sales tax as an OUT expense row (if tax > 0)
+    // Use calculated tax since doc.tax_amount is not populated
+    if (calculatedTax > 0) {
+      const taxPaymentAmount = calculatedTax * paymentPercentage
+
+      const taxTxnNumber = await getNextTransactionNumber()
+      txnNumbers.push(taxTxnNumber)
+
+      const taxRow: PaymentRowData = {
+        txnNumber: taxTxnNumber,
+        date: dateStr,
+        business: 'FWG',
+        direction: 'OUT',
+        eventType: 'Expense',
+        amount: Math.round(taxPaymentAmount * 100) / 100,
+        account: 'Stripe',
+        category: 'Sales Tax',
+        serviceLine: '',
+        customerName: doc.customer_name || 'Unknown',
+        notes: 'Sales tax collected',
+        invoiceNumber: doc.doc_number || '',
+        columnM: '',
+        columnN: '',
+        columnO: '',
+        lineItemDescription: 'Sales tax',
+        columnQ: '',
+        timestamp: timestampStr
+      }
+
+      lineItemRows.push(taxRow)
+    }
+
+    // Add Stripe processing fee as a separate expense row
+    // Calculate fee if not stored: 2.5% + $0.30 per transaction
+    const stripeFee = payment.processing_fee && payment.processing_fee > 0
+      ? payment.processing_fee
+      : (payment.amount * 0.025) + 0.30
+
+    if (stripeFee > 0) {
+      const feeTxnNumber = await getNextTransactionNumber()
       txnNumbers.push(feeTxnNumber)
       currentTxnNum++
 
@@ -220,9 +318,9 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
         business: 'FWG',
         direction: 'OUT',
         eventType: 'Expense',
-        amount: Math.round(payment.processing_fee * 100) / 100,
+        amount: Math.round(stripeFee * 100) / 100,
         account: 'Stripe',
-        category: 'Payment Processing Fees',
+        category: 'Merchant Fees',
         serviceLine: '',
         customerName: doc.customer_name || 'Unknown',
         notes: 'Stripe processing fee',
