@@ -21,6 +21,12 @@ interface LineItem {
   line_total: number
 }
 
+interface Fee {
+  amount: number
+  fee_type: string
+  description: string
+}
+
 interface PaymentWithDetails {
   id: string
   document_id: string
@@ -36,6 +42,7 @@ interface PaymentWithDetails {
     discount_percent: number
     discount_amount: number
     subtotal: number
+    fees?: Fee[] | string
   }
   line_items: LineItem[]
 }
@@ -77,7 +84,8 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
           amount_paid,
           discount_percent,
           discount_amount,
-          subtotal
+          subtotal,
+          fees
         )
       `)
       .eq('id', paymentId)
@@ -116,11 +124,23 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
       }
     }
 
-    if (!lineItems || lineItems.length === 0) {
+    // Parse fees from document
+    let fees: Fee[] = []
+    try {
+      if (doc.fees) {
+        fees = typeof doc.fees === 'string' ? JSON.parse(doc.fees) : doc.fees
+      }
+    } catch (error) {
+      console.warn('Failed to parse fees:', error)
+      fees = []
+    }
+
+    // Check if we have at least line items OR fees
+    if ((!lineItems || lineItems.length === 0) && (!fees || fees.length === 0)) {
       return {
         success: false,
         rowsAdded: 0,
-        error: 'No line items found for this document'
+        error: 'No line items or fees found for this document'
       }
     }
 
@@ -137,20 +157,25 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const txnNumbers: string[] = []
 
     // Calculate the total of all line items after discount
-    // This is the base for proportional calculations (excludes fees/tax)
-    const discountedSubtotal = lineItems.reduce((sum, item) => {
+    const lineItemsTotal = (lineItems || []).reduce((sum, item) => {
       return sum + (item.line_total * discountMultiplier)
     }, 0)
 
+    // Calculate the total of all fees (fees are not discounted)
+    const feesTotal = fees.reduce((sum, fee) => sum + fee.amount, 0)
+
+    // Combined total for proportional calculations
+    const combinedTotal = lineItemsTotal + feesTotal
+
     // Calculate how much of each line item this payment covers
     // (proportional based on line item amounts AFTER discount)
-    for (const lineItem of lineItems) {
+    for (const lineItem of lineItems || []) {
       // Apply discount to this line item
       const discountedLineTotal = lineItem.line_total * discountMultiplier
 
-      // Calculate proportion based on this line item's share of total line items
+      // Calculate proportion based on this line item's share of combined total
       // Then apply that proportion to the actual payment amount
-      const lineItemProportion = discountedLineTotal / discountedSubtotal
+      const lineItemProportion = discountedLineTotal / combinedTotal
       const lineItemPaymentAmount = payment.amount * lineItemProportion
 
       // Get sheet category from mapping
@@ -178,6 +203,41 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
         columnN: '',
         columnO: '',
         lineItemDescription: lineItem.description || '',
+        columnQ: '',
+        timestamp: timestampStr
+      }
+
+      lineItemRows.push(row)
+    }
+
+    // Process fees (design fees, rush fees, etc.) as revenue rows
+    for (const fee of fees) {
+      // Calculate proportion based on this fee's share of combined total
+      const feeProportion = fee.amount / combinedTotal
+      const feePaymentAmount = payment.amount * feeProportion
+
+      // Generate TXN number
+      const txnNumber = await getNextTransactionNumber()
+      txnNumbers.push(txnNumber)
+
+      // Create row for fee - map to "Other Revenue"
+      const row: PaymentRowData = {
+        txnNumber,
+        date: dateStr,
+        business: 'FWG',
+        direction: 'IN',
+        eventType: 'Sale',
+        amount: Math.round(feePaymentAmount * 100) / 100,
+        account: 'Stripe',
+        category: 'Other Revenue', // All fees mapped to Other Revenue
+        serviceLine: '',
+        customerName: doc.customer_name || 'Unknown',
+        notes: '',
+        invoiceNumber: doc.doc_number || '',
+        columnM: '',
+        columnN: '',
+        columnO: '',
+        lineItemDescription: fee.description || `${fee.fee_type} Fee`,
         columnQ: '',
         timestamp: timestampStr
       }
