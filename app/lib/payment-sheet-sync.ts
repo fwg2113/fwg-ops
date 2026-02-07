@@ -138,6 +138,14 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
+    // Get the starting TXN number (only call API once)
+    const baseTxnNumber = await getNextTransactionNumber()
+    const baseTxnNum = parseInt(baseTxnNumber.replace('TXN-', ''), 10)
+    let currentTxnNum = baseTxnNum
+
+    // Calculate base payment amount (exclude Stripe fee for splitting)
+    const basePaymentAmount = payment.amount - (payment.processing_fee || 0)
+
     // Calculate the total of all line items after discount
     const discountedSubtotal = lineItems.reduce((sum, item) => {
       return sum + (item.line_total * discountMultiplier)
@@ -151,14 +159,15 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
 
       // Calculate proportion based on discounted amount
       const lineItemProportion = discountedLineTotal / documentTotal
-      const lineItemPaymentAmount = payment.amount * lineItemProportion
+      const lineItemPaymentAmount = basePaymentAmount * lineItemProportion
 
       // Get sheet category from mapping
       const sheetCategory = getSheetCategory(lineItem.category)
 
-      // Generate TXN number
-      const txnNumber = await getNextTransactionNumber()
+      // Generate TXN number (increment locally)
+      const txnNumber = `TXN-${String(currentTxnNum).padStart(5, '0')}`
       txnNumbers.push(txnNumber)
+      currentTxnNum++
 
       // Create row
       const row: PaymentRowData = {
@@ -187,8 +196,9 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
 
     // Add Stripe processing fee as a separate expense row (if fee > 0)
     if (payment.processing_fee && payment.processing_fee > 0) {
-      const feeTxnNumber = await getNextTransactionNumber()
+      const feeTxnNumber = `TXN-${String(currentTxnNum).padStart(5, '0')}`
       txnNumbers.push(feeTxnNumber)
+      currentTxnNum++
 
       const feeRow: PaymentRowData = {
         txnNumber: feeTxnNumber,
