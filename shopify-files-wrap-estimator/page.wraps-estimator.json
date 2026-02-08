@@ -1,0 +1,25 @@
+{
+  "sections": {
+    "main": {
+      "type": "rich-text",
+      "blocks": {
+        "custom_liquid_estimator": {
+          "type": "custom_liquid",
+          "settings": {
+            "custom_liquid": "{{ 'fwg-wraps.css' | asset_url | stylesheet_tag }}\n<div id=\"fwg-estimator\"></div>\n<script src=\"{{ 'fwg-wraps.js' | asset_url }}\" defer></script>"
+          }
+        }
+      },
+      "block_order": [
+        "custom_liquid_estimator"
+      ],
+      "settings": {
+        "is_fullwidth": true,
+        "height": "regular"
+      }
+    }
+  },
+  "order": [
+    "main"
+  ]
+}
