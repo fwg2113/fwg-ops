@@ -158,6 +158,11 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const lineItemRows: PaymentRowData[] = []
     const txnNumbers: string[] = []
 
+    // Get the starting transaction number for this batch
+    const firstTxnStr = await getNextTransactionNumber()
+    // Extract the numeric part from "TXN-00123" format
+    let currentTxnNum = parseInt(firstTxnStr.replace('TXN-', ''), 10)
+
     // Calculate tax from line items (6% of line items after discount)
     // Tax is not stored in doc.tax_amount, so we calculate it
     // IMPORTANT: Tax only applies to line items, NOT to fees
