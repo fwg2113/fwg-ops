@@ -121,3 +121,6 @@ Deploy: Run this command (the one you usually run)
 git push origin main
 
 Vercel does its magic: Automatically deploys in a few seconds
+
+
+claude/stripe-sheets-integration-uzP7c
