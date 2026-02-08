@@ -1,0 +1,688 @@
+/**
+ * ============================================================================
+ * FWG COMMERCIAL WRAPS ESTIMATOR - fwg-wraps.css
+ * Frederick Window Graphics
+ * ============================================================================
+ */
+
+/* ============================================================================
+   CSS VARIABLES
+   ============================================================================ */
+
+.fwg-estimator {
+  --fwg-primary: #f97316;
+  --fwg-primary-dark: #ea580c;
+  --fwg-primary-soft: rgba(249, 115, 22, 0.1);
+  
+  --fwg-bg: #ffffff;
+  --fwg-bg-alt: #f8fafc;
+  --fwg-surface: #ffffff;
+  --fwg-border: #e2e8f0;
+  --fwg-border-hover: #cbd5e1;
+  
+  --fwg-text: #1e293b;
+  --fwg-text-secondary: #64748b;
+  --fwg-text-muted: #94a3b8;
+  
+  --fwg-success: #22c55e;
+  --fwg-error: #ef4444;
+  
+  --fwg-radius-sm: 8px;
+  --fwg-radius-md: 12px;
+  --fwg-radius-lg: 16px;
+  
+  --fwg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --fwg-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --fwg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.15);
+  
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--fwg-text);
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ============================================================================
+   PROGRESS BAR
+   ============================================================================ */
+
+.fwg-progress {
+  margin-bottom: 32px;
+}
+
+.fwg-progress-bar {
+  height: 4px;
+  background: var(--fwg-border);
+  border-radius: 2px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.fwg-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--fwg-primary), var(--fwg-primary-dark));
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.fwg-progress-steps {
+  display: flex;
+  justify-content: space-between;
+}
+
+.fwg-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.fwg-progress-step .step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--fwg-bg-alt);
+  border: 2px solid var(--fwg-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fwg-text-muted);
+  transition: all 0.2s ease;
+}
+
+.fwg-progress-step .step-label {
+  font-size: 12px;
+  color: var(--fwg-text-muted);
+  text-align: center;
+}
+
+.fwg-progress-step.active .step-number {
+  background: var(--fwg-primary);
+  border-color: var(--fwg-primary);
+  color: white;
+}
+
+.fwg-progress-step.active .step-label {
+  color: var(--fwg-primary);
+  font-weight: 500;
+}
+
+.fwg-progress-step.completed .step-number {
+  background: var(--fwg-success);
+  border-color: var(--fwg-success);
+  color: white;
+}
+
+.fwg-progress-step.completed .step-number::after {
+  content: '✓';
+  font-size: 14px;
+}
+
+.fwg-progress-step.completed .step-number span {
+  display: none;
+}
+
+/* ============================================================================
+   STEPS
+   ============================================================================ */
+
+.fwg-steps-container {
+  min-height: 400px;
+}
+
+.fwg-step {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.fwg-step.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fwg-step-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--fwg-text);
+}
+
+.fwg-step-subtitle {
+  font-size: 16px;
+  color: var(--fwg-text-secondary);
+  margin-bottom: 24px;
+}
+
+/* ============================================================================
+   CARDS (Selection)
+   ============================================================================ */
+
+.fwg-vehicle-grid,
+.fwg-project-grid,
+.fwg-scenario-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.fwg-vehicle-grid {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.fwg-project-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.fwg-scenario-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+@media (max-width: 600px) {
+  .fwg-project-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fwg-card {
+  background: var(--fwg-surface);
+  border: 2px solid var(--fwg-border);
+  border-radius: var(--fwg-radius-md);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.fwg-card:hover {
+  border-color: var(--fwg-border-hover);
+  box-shadow: var(--fwg-shadow-sm);
+}
+
+.fwg-card.selected {
+  border-color: var(--fwg-primary);
+  background: var(--fwg-primary-soft);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.fwg-card-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.fwg-card-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fwg-text);
+  margin-bottom: 4px;
+}
+
+.fwg-card-examples,
+.fwg-card-description {
+  font-size: 12px;
+  color: var(--fwg-text-muted);
+  line-height: 1.4;
+}
+
+.fwg-card-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: var(--fwg-primary-soft);
+  color: var(--fwg-primary);
+  border-radius: var(--fwg-radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ============================================================================
+   VEHICLE DETAILS
+   ============================================================================ */
+
+.fwg-vehicle-details {
+  background: var(--fwg-bg-alt);
+  border-radius: var(--fwg-radius-md);
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.fwg-vehicle-details h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* ============================================================================
+   FORMS
+   ============================================================================ */
+
+.fwg-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.fwg-form-group {
+  margin-bottom: 16px;
+}
+
+.fwg-form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fwg-text);
+  margin-bottom: 6px;
+}
+
+.fwg-form-group input,
+.fwg-form-group select,
+.fwg-form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--fwg-border);
+  border-radius: var(--fwg-radius-sm);
+  font-size: 14px;
+  color: var(--fwg-text);
+  background: var(--fwg-surface) !important;
+  background-image: none !important;
+  transition: border-color 0.15s ease;
+}
+
+.fwg-form-group input:focus,
+.fwg-form-group select:focus,
+.fwg-form-group textarea:focus {
+  outline: none;
+  border-color: var(--fwg-primary);
+}
+
+.fwg-form-group input::placeholder,
+.fwg-form-group textarea::placeholder {
+  color: var(--fwg-text-muted);
+}
+
+.fwg-form-help {
+  font-size: 12px;
+  color: var(--fwg-text-muted);
+  margin-top: 6px;
+}
+
+.fwg-required {
+  color: var(--fwg-error);
+}
+
+.fwg-optional {
+  color: var(--fwg-text-muted);
+  font-weight: 400;
+}
+
+/* Quantity Selector */
+.fwg-quantity-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fwg-quantity-selector input {
+  width: 60px;
+  text-align: center;
+  padding: 8px;
+}
+
+.fwg-qty-btn {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--fwg-border);
+  background: var(--fwg-surface);
+  border-radius: var(--fwg-radius-sm);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fwg-qty-btn:hover {
+  border-color: var(--fwg-primary);
+  color: var(--fwg-primary);
+}
+
+/* Contact Options */
+.fwg-contact-options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fwg-radio-card {
+  flex: 1;
+  min-width: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  border: 2px solid var(--fwg-border);
+  border-radius: var(--fwg-radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fwg-radio-card:hover {
+  border-color: var(--fwg-border-hover);
+}
+
+.fwg-radio-card:has(input:checked) {
+  border-color: var(--fwg-primary);
+  background: var(--fwg-primary-soft);
+}
+
+.fwg-radio-card input {
+  display: none;
+}
+
+.fwg-radio-icon {
+  font-size: 24px;
+}
+
+.fwg-radio-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ============================================================================
+   PRICE PREVIEW
+   ============================================================================ */
+
+.fwg-price-preview {
+  background: linear-gradient(135deg, var(--fwg-primary-soft), rgba(249, 115, 22, 0.05));
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: var(--fwg-radius-md);
+  padding: 20px;
+  text-align: center;
+  margin-top: 24px;
+}
+
+.fwg-price-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fwg-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.fwg-price-range {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fwg-text);
+}
+
+.fwg-price-note {
+  font-size: 12px;
+  color: var(--fwg-text-secondary);
+  margin-top: 8px;
+}
+
+.fwg-price-breakdown {
+  text-align: left;
+}
+
+.fwg-price-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(249, 115, 22, 0.1);
+  font-size: 14px;
+}
+
+.fwg-price-line:last-child {
+  border-bottom: none;
+}
+
+.fwg-price-total {
+  font-weight: 700;
+  font-size: 16px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 2px solid var(--fwg-primary);
+}
+
+/* ============================================================================
+   SUMMARY
+   ============================================================================ */
+
+.fwg-summary {
+  background: var(--fwg-bg-alt);
+  border-radius: var(--fwg-radius-md);
+  padding: 20px;
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.fwg-summary h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--fwg-text);
+}
+
+.fwg-summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--fwg-border);
+}
+
+.fwg-summary-row:last-child {
+  border-bottom: none;
+}
+
+.fwg-summary-label {
+  font-size: 14px;
+  color: var(--fwg-text-secondary);
+}
+
+.fwg-summary-value {
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+
+.fwg-summary-value small {
+  display: block;
+  font-weight: 400;
+  color: var(--fwg-text-muted);
+  font-size: 12px;
+}
+
+.fwg-summary-total {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 2px solid var(--fwg-primary);
+}
+
+.fwg-summary-total .fwg-summary-label,
+.fwg-summary-total .fwg-summary-value {
+  font-weight: 700;
+  color: var(--fwg-text);
+  font-size: 16px;
+}
+
+/* ============================================================================
+   NAVIGATION
+   ============================================================================ */
+
+.fwg-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--fwg-border);
+}
+
+/* ============================================================================
+   BUTTONS
+   ============================================================================ */
+
+.fwg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: var(--fwg-radius-md);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.fwg-btn-primary {
+  background: linear-gradient(135deg, var(--fwg-primary), var(--fwg-primary-dark));
+  color: white;
+}
+
+.fwg-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4);
+}
+
+.fwg-btn-secondary {
+  background: var(--fwg-surface);
+  color: var(--fwg-text);
+  border: 2px solid var(--fwg-border);
+}
+
+.fwg-btn-secondary:hover {
+  border-color: var(--fwg-text-muted);
+}
+
+.fwg-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.fwg-btn-submit {
+  width: 100%;
+  padding: 18px 32px;
+  font-size: 18px;
+  background: linear-gradient(135deg, var(--fwg-primary), var(--fwg-primary-dark));
+  color: white;
+}
+
+.fwg-submit-container {
+  margin-top: 24px;
+}
+
+.fwg-submit-note {
+  text-align: center;
+  font-size: 13px;
+  color: var(--fwg-text-muted);
+  margin-top: 12px;
+}
+
+/* ============================================================================
+   SUCCESS STATE
+   ============================================================================ */
+
+.fwg-success {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.fwg-success-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+}
+
+.fwg-success h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.fwg-success p {
+  font-size: 16px;
+  color: var(--fwg-text-secondary);
+  margin-bottom: 8px;
+}
+
+.fwg-success-id {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 8px 16px;
+  background: var(--fwg-bg-alt);
+  border-radius: var(--fwg-radius-sm);
+  font-size: 14px;
+  font-family: monospace;
+  color: var(--fwg-text-secondary);
+}
+
+.fwg-success-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 32px;
+  flex-wrap: wrap;
+}
+
+/* ============================================================================
+   SPINNER
+   ============================================================================ */
+
+.fwg-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 600px) {
+  .fwg-estimator {
+    padding: 12px;
+  }
+  
+  .fwg-step-title {
+    font-size: 20px;
+  }
+  
+  .fwg-progress-step .step-label {
+    display: none;
+  }
+  
+  .fwg-vehicle-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .fwg-form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .fwg-nav {
+    flex-direction: column-reverse;
+    gap: 12px;
+  }
+  
+  .fwg-nav .fwg-btn {
+    width: 100%;
+  }
+}
