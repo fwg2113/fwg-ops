@@ -137,10 +137,11 @@ const DESIGN_LABELS: Record<string, string> = {
   'FROM_SCRATCH': 'Start from Scratch'
 }
 
-const STATUS_OPTIONS = ['new', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
+const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   'new': { bg: 'rgba(234, 179, 8, 0.15)', color: '#eab308' },
+  'contacted': { bg: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' },
   'in_progress': { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' },
   'quoted': { bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' },
   'converted': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
@@ -240,12 +241,10 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
   const router = useRouter()
   const [status, setStatus] = useState(submission.status || 'new')
   const [notes, setNotes] = useState(submission.notes || '')
-  const [quickMessage, setQuickMessage] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveLabel, setSaveLabel] = useState('Save Changes')
   const [convertLabel, setConvertLabel] = useState('')
-  const [sendingSms, setSendingSms] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error') => {
@@ -335,41 +334,6 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
     }
   }
 
-  const handleSendSms = async () => {
-    if (!submission.customer_phone) {
-      showToast('No phone number on file', 'error')
-      return
-    }
-    if (!quickMessage.trim()) {
-      showToast('Please enter a message', 'error')
-      return
-    }
-    if (!confirm(`Send this message to ${formatPhone(submission.customer_phone)}?\n\n${quickMessage}`)) return
-
-    setSendingSms(true)
-    try {
-      const res = await fetch('/api/sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: submission.customer_phone,
-          message: quickMessage,
-          submissionId: submission.id
-        })
-      })
-      const data = await res.json()
-      if (data.ok || data.success) {
-        setQuickMessage('')
-        showToast('Message sent!', 'success')
-      } else {
-        showToast('Error: ' + (data.error || 'Failed to send'), 'error')
-      }
-    } catch {
-      showToast('Network error', 'error')
-    }
-    setSendingSms(false)
-  }
-
   const contactPillStyle = (active: boolean): React.CSSProperties => ({
     display: 'inline-flex',
     alignItems: 'center',
@@ -429,6 +393,18 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          {submission.customer_phone && (
+            <button
+              onClick={() => router.push(`/messages?phone=${encodeURIComponent(submission.customer_phone)}`)}
+              style={{
+                ...btnBaseStyle,
+                background: '#3b82f6',
+                color: 'white'
+              }}
+            >
+              <MessageIcon /> Send Message
+            </button>
+          )}
           <button
             onClick={handleConvertToQuote}
             disabled={convertLabel === 'Creating...'}
@@ -667,48 +643,6 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 boxSizing: 'border-box'
               }}
             />
-          </div>
-        </div>
-
-        {/* Quick Message - Full Width */}
-        <div style={{ ...sectionStyle, gridColumn: '1 / -1' }}>
-          <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
-            <MessageIcon /> Quick Message
-          </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <input
-              id="quick-message-input"
-              type="text"
-              value={quickMessage}
-              onChange={(e) => setQuickMessage(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendSms()}
-              placeholder="Type a message to send via SMS..."
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                background: '#1d1d1d',
-                color: '#f1f5f9',
-                fontSize: '14px'
-              }}
-            />
-            <button
-              onClick={handleSendSms}
-              disabled={sendingSms}
-              style={{
-                ...btnBaseStyle,
-                background: '#282a30',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                color: '#f1f5f9'
-              }}
-            >
-              <SendIcon />
-              {sendingSms ? 'Sending...' : 'Send SMS'}
-            </button>
-          </div>
-          <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
-            Message will be sent to {submission.customer_phone ? formatPhone(submission.customer_phone) : 'no phone on file'}
           </div>
         </div>
       </div>
