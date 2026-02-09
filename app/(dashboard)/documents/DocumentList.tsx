@@ -376,9 +376,11 @@ export default function DocumentList({
       <div style={{
         background: '#1d1d1d',
         borderRadius: '12px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch'
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
               <th style={{ padding: '14px 16px', textAlign: 'left', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -401,9 +403,20 @@ export default function DocumentList({
                 const isViewed = !!doc.viewed_at && doc.status !== 'approved' && doc.status !== 'paid'
 
                 return (
-                  <tr 
+                  <tr
                     key={doc.id}
-                    style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}
+                    onClick={() => router.push(`/documents/${doc.id}`)}
+                    style={{
+                      borderBottom: '1px solid rgba(148, 163, 184, 0.05)',
+                      cursor: 'pointer',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(148, 163, 184, 0.05)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent'
+                    }}
                   >
                     <td style={{ padding: '14px 16px', color: '#f1f5f9', fontSize: '14px', fontWeight: 500 }}>
                       {doc.doc_number}
