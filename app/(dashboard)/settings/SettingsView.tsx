@@ -89,7 +89,35 @@ type AutomationSetting = {
   updated_at: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'statuses' | 'priorities' | 'automations'
+type VehicleCategory = {
+  id: number
+  category_key: string
+  label: string
+  size_factor: string
+  base_sqft_min: number
+  base_sqft_max: number
+  sort_order: number
+  active: boolean
+  notes: string
+}
+
+type ProjectType = {
+  id: number
+  project_key: string
+  label: string
+}
+
+type PricingRow = {
+  id: number
+  category_key: string
+  project_key: string
+  price_min: number
+  price_max: number
+  typical_price: number
+  notes: string
+}
+
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'statuses' | 'priorities' | 'automations' | 'estimator'
 
 export default function SettingsView({
   initialCategories,
@@ -101,7 +129,10 @@ export default function SettingsView({
   initialTemplates,
   initialTaskStatuses,
   initialTaskPriorities,
-  initialAutomationSettings
+  initialAutomationSettings,
+  initialVehicleCategories,
+  initialProjectTypes,
+  initialPricingMatrix
 }: {
   initialCategories: Category[]
   initialMaterials: Material[]
@@ -113,6 +144,9 @@ export default function SettingsView({
   initialTaskStatuses: TaskStatus[]
   initialTaskPriorities: TaskPriority[]
   initialAutomationSettings: AutomationSetting[]
+  initialVehicleCategories: VehicleCategory[]
+  initialProjectTypes: ProjectType[]
+  initialPricingMatrix: PricingRow[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories] = useState<Category[]>(initialCategories)
@@ -136,6 +170,23 @@ export default function SettingsView({
   const [newPriority, setNewPriority] = useState({ priority_key: '', label: '', color: '#64748b' })
   const [automationSettings, setAutomationSettings] = useState<AutomationSetting[]>(initialAutomationSettings)
   const [editingAutomation, setEditingAutomation] = useState<AutomationSetting | null>(null)
+  const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>(initialVehicleCategories)
+  const [projectTypes] = useState<ProjectType[]>(initialProjectTypes)
+  const [pricingMatrix, setPricingMatrix] = useState<PricingRow[]>(initialPricingMatrix)
+  const [editingVehicle, setEditingVehicle] = useState<VehicleCategory | null>(null)
+  const [editingPricing, setEditingPricing] = useState<PricingRow | null>(null)
+  const [savingEstimator, setSavingEstimator] = useState(false)
+  const [addingVehicle, setAddingVehicle] = useState(false)
+  const [newVehicle, setNewVehicle] = useState({
+    category_key: '',
+    label: '',
+    size_factor: '',
+    base_sqft_min: 0,
+    base_sqft_max: 0,
+    sort_order: 0,
+    notes: '',
+    pricing: {} as Record<string, { price_min: number; price_max: number; typical_price: number }>
+  })
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'categories', label: 'Categories' },
@@ -144,10 +195,175 @@ export default function SettingsView({
     { key: 'production', label: 'Production Templates' },
     { key: 'statuses', label: 'Task Statuses' },
     { key: 'priorities', label: 'Task Priorities' },
+    { key: 'estimator', label: 'Estimator Config' },
     { key: 'automations', label: 'Automations' },
     { key: 'calls', label: 'Call Forwarding' },
     { key: 'integrations', label: 'Integrations' }
   ]
+
+  const addVehicleCategory = async () => {
+    if (!newVehicle.category_key.trim() || !newVehicle.label.trim()) {
+      alert('Please enter both a key and label')
+      return
+    }
+    setSavingEstimator(true)
+    try {
+      // Create the vehicle category
+      const res = await fetch('/api/estimator/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'estimator_vehicle_categories',
+          data: {
+            category_key: newVehicle.category_key.trim().toUpperCase().replace(/\s+/g, '_'),
+            label: newVehicle.label.trim(),
+            size_factor: newVehicle.size_factor || 'medium',
+            base_sqft_min: newVehicle.base_sqft_min || 0,
+            base_sqft_max: newVehicle.base_sqft_max || 0,
+            sort_order: newVehicle.sort_order || vehicleCategories.length + 1,
+            active: true,
+            notes: newVehicle.notes || ''
+          }
+        })
+      })
+      const json = await res.json()
+      if (!json.ok) {
+        alert('Error creating category: ' + json.error)
+        setSavingEstimator(false)
+        return
+      }
+      const createdVehicle = json.data
+
+      // Create pricing rows for each project type
+      const newPricingRows: PricingRow[] = []
+      for (const pt of projectTypes) {
+        const p = newVehicle.pricing[pt.project_key] || { price_min: 0, price_max: 0, typical_price: 0 }
+        const pRes = await fetch('/api/estimator/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: 'estimator_pricing',
+            data: {
+              category_key: createdVehicle.category_key,
+              project_key: pt.project_key,
+              price_min: p.price_min,
+              price_max: p.price_max,
+              typical_price: p.typical_price,
+              notes: ''
+            }
+          })
+        })
+        const pJson = await pRes.json()
+        if (pJson.ok) newPricingRows.push(pJson.data)
+      }
+
+      setVehicleCategories([...vehicleCategories, createdVehicle])
+      setPricingMatrix([...pricingMatrix, ...newPricingRows])
+      setAddingVehicle(false)
+      setNewVehicle({
+        category_key: '', label: '', size_factor: '', base_sqft_min: 0, base_sqft_max: 0,
+        sort_order: 0, notes: '',
+        pricing: {}
+      })
+    } catch (e: any) {
+      alert('Error: ' + e.message)
+    }
+    setSavingEstimator(false)
+  }
+
+  const deleteVehicleCategory = async (vehicle: VehicleCategory) => {
+    if (!confirm(`Delete "${vehicle.label}" and all its pricing data? This cannot be undone.`)) return
+    setSavingEstimator(true)
+    try {
+      // Delete pricing rows first
+      const pricingRows = pricingMatrix.filter(p => p.category_key === vehicle.category_key)
+      for (const row of pricingRows) {
+        await fetch('/api/estimator/settings', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'estimator_pricing', id: row.id })
+        })
+      }
+      // Delete the category
+      const res = await fetch('/api/estimator/settings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: 'estimator_vehicle_categories', id: vehicle.id })
+      })
+      const json = await res.json()
+      if (json.ok) {
+        setVehicleCategories(vehicleCategories.filter(v => v.id !== vehicle.id))
+        setPricingMatrix(pricingMatrix.filter(p => p.category_key !== vehicle.category_key))
+      } else {
+        alert('Error deleting: ' + json.error)
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message)
+    }
+    setSavingEstimator(false)
+  }
+
+  const saveVehicleCategory = async (vehicle: VehicleCategory) => {
+    setSavingEstimator(true)
+    try {
+      const res = await fetch('/api/estimator/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'estimator_vehicle_categories',
+          id: vehicle.id,
+          data: {
+            label: vehicle.label,
+            notes: vehicle.notes,
+            sort_order: vehicle.sort_order,
+            active: vehicle.active,
+            size_factor: vehicle.size_factor,
+            base_sqft_min: vehicle.base_sqft_min,
+            base_sqft_max: vehicle.base_sqft_max
+          }
+        })
+      })
+      const json = await res.json()
+      if (json.ok) {
+        setVehicleCategories(vehicleCategories.map(v => v.id === vehicle.id ? { ...v, ...vehicle } : v))
+        setEditingVehicle(null)
+      } else {
+        alert('Error saving: ' + json.error)
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message)
+    }
+    setSavingEstimator(false)
+  }
+
+  const savePricingRow = async (row: PricingRow) => {
+    setSavingEstimator(true)
+    try {
+      const res = await fetch('/api/estimator/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'estimator_pricing',
+          id: row.id,
+          data: {
+            price_min: row.price_min,
+            price_max: row.price_max,
+            typical_price: row.typical_price
+          }
+        })
+      })
+      const json = await res.json()
+      if (json.ok) {
+        setPricingMatrix(pricingMatrix.map(p => p.id === row.id ? { ...p, ...row } : p))
+        setEditingPricing(null)
+      } else {
+        alert('Error saving: ' + json.error)
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message)
+    }
+    setSavingEstimator(false)
+  }
 
   const formatPhone = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '')
@@ -2112,6 +2328,298 @@ export default function SettingsView({
               <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
                 No automations configured. Please run the automation settings migration.
               </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Estimator Config Tab */}
+      {activeTab === 'estimator' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Vehicle Categories */}
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Vehicle Categories</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>These appear on the Shopify estimator for customers to select</p>
+            </div>
+            <button onClick={() => {
+              setNewVehicle({
+                category_key: '', label: '', size_factor: 'medium', base_sqft_min: 0, base_sqft_max: 0,
+                sort_order: vehicleCategories.length + 1, notes: '',
+                pricing: Object.fromEntries(projectTypes.map(pt => [pt.project_key, { price_min: 0, price_max: 0, typical_price: 0 }]))
+              })
+              setAddingVehicle(true)
+            }} style={{
+              padding: '8px 16px', background: '#d71cd1', border: 'none', borderRadius: '6px',
+              color: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer'
+            }}>+ Add Category</button>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Order</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Label</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Key</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Size</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Notes</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Active</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vehicleCategories.length > 0 ? vehicleCategories.map((v) => (
+                  <tr key={v.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>{v.sort_order}</td>
+                    <td style={{ padding: '12px 16px', color: '#f1f5f9', fontSize: '14px', fontWeight: '500' }}>{v.label}</td>
+                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '12px', fontFamily: 'monospace' }}>{v.category_key}</td>
+                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>{v.size_factor}</td>
+                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '13px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.notes || '-'}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <span style={{
+                        padding: '4px 8px', borderRadius: '4px', fontSize: '12px',
+                        background: v.active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        color: v.active ? '#22c55e' : '#ef4444'
+                      }}>{v.active ? 'Yes' : 'No'}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => setEditingVehicle({ ...v })} style={{
+                          padding: '6px 10px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '4px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer'
+                        }}>Edit</button>
+                        <button onClick={() => deleteVehicleCategory(v)} style={{
+                          padding: '6px 10px', background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: '4px', color: '#ef4444', fontSize: '12px', cursor: 'pointer'
+                        }}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No vehicle categories found. Run the migration SQL first.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pricing Matrix */}
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Pricing Matrix</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Price ranges shown to customers on the estimator (per vehicle per project type)</p>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Vehicle</th>
+                    {projectTypes.map(pt => (
+                      <th key={pt.project_key} style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>{pt.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {vehicleCategories.filter(v => v.active).map((v) => (
+                    <tr key={v.category_key} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                      <td style={{ padding: '12px 16px', color: '#f1f5f9', fontSize: '14px', fontWeight: '500', whiteSpace: 'nowrap' }}>{v.label}</td>
+                      {projectTypes.map(pt => {
+                        const row = pricingMatrix.find(p => p.category_key === v.category_key && p.project_key === pt.project_key)
+                        if (!row) return <td key={pt.project_key} style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>-</td>
+                        return (
+                          <td key={pt.project_key} style={{ padding: '8px 12px', textAlign: 'center' }}>
+                            <div
+                              onClick={() => setEditingPricing({ ...row })}
+                              style={{
+                                padding: '8px 12px', background: '#282a30', borderRadius: '6px', cursor: 'pointer',
+                                border: '1px solid transparent', transition: 'border-color 0.15s'
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(215, 28, 209, 0.4)')}
+                              onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'transparent')}
+                            >
+                              <span style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: '500' }}>
+                                ${row.price_min.toLocaleString()} - ${row.price_max.toLocaleString()}
+                              </span>
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+{/* Add Vehicle Modal */}
+          {addingVehicle && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '600px', maxHeight: '90vh', overflow: 'auto' }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#1d1d1d', zIndex: 1 }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Vehicle Category</h3>
+                  <button onClick={() => setAddingVehicle(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>x</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Category Key</label>
+                      <input type="text" value={newVehicle.category_key} onChange={(e) => setNewVehicle({ ...newVehicle, category_key: e.target.value })} placeholder="e.g. MINIVAN" style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', fontFamily: 'monospace' }} />
+                      <p style={{ color: '#64748b', fontSize: '11px', margin: '4px 0 0 0' }}>Auto-uppercased, no spaces</p>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label (shown to customers)</label>
+                      <input type="text" value={newVehicle.label} onChange={(e) => setNewVehicle({ ...newVehicle, label: e.target.value })} placeholder="e.g. Minivan" style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Notes (shown under label on estimator)</label>
+                    <input type="text" value={newVehicle.notes} onChange={(e) => setNewVehicle({ ...newVehicle, notes: e.target.value })} placeholder="e.g. Odyssey, Sienna, Pacifica" style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Size Factor</label>
+                      <select value={newVehicle.size_factor} onChange={(e) => setNewVehicle({ ...newVehicle, size_factor: e.target.value })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}>
+                        <option value="small">Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                        <option value="x-large">X-Large</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Sort Order</label>
+                      <input type="number" value={newVehicle.sort_order} onChange={(e) => setNewVehicle({ ...newVehicle, sort_order: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+
+                  {/* Pricing Section */}
+                  <div style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)', paddingTop: '20px', marginTop: '8px' }}>
+                    <h4 style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: '600', margin: '0 0 16px 0' }}>Pricing by Project Type</h4>
+                    {projectTypes.map(pt => {
+                      const p = newVehicle.pricing[pt.project_key] || { price_min: 0, price_max: 0, typical_price: 0 }
+                      return (
+                        <div key={pt.project_key} style={{ marginBottom: '16px', padding: '16px', background: '#282a30', borderRadius: '8px' }}>
+                          <p style={{ color: '#d71cd1', fontSize: '13px', fontWeight: '600', margin: '0 0 12px 0' }}>{pt.label}</p>
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ display: 'block', color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Min ($)</label>
+                              <input type="number" value={p.price_min} onChange={(e) => setNewVehicle({
+                                ...newVehicle,
+                                pricing: { ...newVehicle.pricing, [pt.project_key]: { ...p, price_min: parseInt(e.target.value) || 0 } }
+                              })} style={{ width: '100%', padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px' }} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ display: 'block', color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Max ($)</label>
+                              <input type="number" value={p.price_max} onChange={(e) => setNewVehicle({
+                                ...newVehicle,
+                                pricing: { ...newVehicle.pricing, [pt.project_key]: { ...p, price_max: parseInt(e.target.value) || 0 } }
+                              })} style={{ width: '100%', padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px' }} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ display: 'block', color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Typical ($)</label>
+                              <input type="number" value={p.typical_price} onChange={(e) => setNewVehicle({
+                                ...newVehicle,
+                                pricing: { ...newVehicle.pricing, [pt.project_key]: { ...p, typical_price: parseInt(e.target.value) || 0 } }
+                              })} style={{ width: '100%', padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px', position: 'sticky', bottom: 0, background: '#1d1d1d' }}>
+                  <button onClick={() => setAddingVehicle(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button onClick={addVehicleCategory} disabled={savingEstimator} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500, opacity: savingEstimator ? 0.6 : 1 }}>
+                    {savingEstimator ? 'Creating...' : 'Create Category'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Vehicle Modal */}
+          {editingVehicle && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Edit Vehicle Category</h3>
+                  <button onClick={() => setEditingVehicle(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>x</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Key</label>
+                    <input type="text" value={editingVehicle.category_key} disabled style={{ width: '100%', padding: '10px 14px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#64748b', fontSize: '14px', fontFamily: 'monospace' }} />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label (shown to customers)</label>
+                    <input type="text" value={editingVehicle.label} onChange={(e) => setEditingVehicle({ ...editingVehicle, label: e.target.value })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Notes (shown under label)</label>
+                    <input type="text" value={editingVehicle.notes || ''} onChange={(e) => setEditingVehicle({ ...editingVehicle, notes: e.target.value })} placeholder="e.g. Camry, Accord, Mustang" style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Size Factor</label>
+                      <input type="text" value={editingVehicle.size_factor || ''} onChange={(e) => setEditingVehicle({ ...editingVehicle, size_factor: e.target.value })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Sort Order</label>
+                      <input type="number" value={editingVehicle.sort_order} onChange={(e) => setEditingVehicle({ ...editingVehicle, sort_order: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editingVehicle.active} onChange={(e) => setEditingVehicle({ ...editingVehicle, active: e.target.checked })} style={{ width: '16px', height: '16px' }} />
+                      <span style={{ color: '#94a3b8', fontSize: '13px' }}>Active (visible on estimator)</span>
+                    </label>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={() => setEditingVehicle(null)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button onClick={() => saveVehicleCategory(editingVehicle)} disabled={savingEstimator} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500, opacity: savingEstimator ? 0.6 : 1 }}>
+                    {savingEstimator ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Pricing Modal */}
+          {editingPricing && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '450px', overflow: 'hidden' }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: '0 0 4px 0' }}>Edit Pricing</h3>
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+                      {vehicleCategories.find(v => v.category_key === editingPricing.category_key)?.label || editingPricing.category_key}
+                      {' / '}
+                      {projectTypes.find(p => p.project_key === editingPricing.project_key)?.label || editingPricing.project_key}
+                    </p>
+                  </div>
+                  <button onClick={() => setEditingPricing(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>x</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Min Price ($)</label>
+                      <input type="number" value={editingPricing.price_min} onChange={(e) => setEditingPricing({ ...editingPricing, price_min: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Max Price ($)</label>
+                      <input type="number" value={editingPricing.price_max} onChange={(e) => setEditingPricing({ ...editingPricing, price_max: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Typical Price ($)</label>
+                    <input type="number" value={editingPricing.typical_price} onChange={(e) => setEditingPricing({ ...editingPricing, typical_price: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={() => setEditingPricing(null)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button onClick={() => savePricingRow(editingPricing)} disabled={savingEstimator} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500, opacity: savingEstimator ? 0.6 : 1 }}>
+                    {savingEstimator ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

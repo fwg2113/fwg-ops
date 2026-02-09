@@ -19,6 +19,7 @@ interface LineItem {
   category: string
   description: string
   line_total: number
+  taxable?: boolean
 }
 
 interface Fee {
@@ -114,7 +115,7 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     // Fetch line items for this document
     const { data: lineItems, error: lineItemsError } = await supabase
       .from('line_items')
-      .select('id, category, description, line_total')
+      .select('id, category, description, line_total, taxable')
       .eq('document_id', payment.document_id)
       .order('sort_order')
 
@@ -163,13 +164,14 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     // Extract the numeric part from "TXN-00123" format
     let currentTxnNum = parseInt(firstTxnStr.replace('TXN-', ''), 10)
 
-    // Calculate tax from line items (6% of line items after discount)
-    // Tax is not stored in doc.tax_amount, so we calculate it
-    // IMPORTANT: Tax only applies to line items, NOT to fees
+    // Calculate tax from line items (6% of TAXABLE line items after discount)
+    // IMPORTANT: Tax only applies to line items marked as taxable, NOT to fees
     const lineItemsTotal = (lineItems || []).reduce((sum, item) => sum + item.line_total, 0)
+    const taxableLineItemsTotal = (lineItems || []).filter(item => item.taxable).reduce((sum, item) => sum + item.line_total, 0)
     const discountedLineItemsTotal = lineItemsTotal * discountMultiplier
+    const discountedTaxableTotal = taxableLineItemsTotal * discountMultiplier
     const taxRate = 0.06 // 6% sales tax
-    const calculatedTax = discountedLineItemsTotal * taxRate
+    const calculatedTax = discountedTaxableTotal * taxRate
 
     // Calculate fees total for debug output
     const feesTotal = fees.reduce((sum, fee) => sum + fee.amount, 0)
@@ -177,9 +179,16 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     // Calculate the grand total including tax (doc.total is pre-tax subtotal)
     const grandTotal = doc.total + calculatedTax
 
+    // Calculate the net payment amount (excluding card processing fee surcharge)
+    // payment.amount includes the card fee the customer paid, but that fee isn't invoice revenue
+    const isCard = payment.payment_method === 'card' || payment.payment_method === 'card_present'
+    const netPaymentAmount = isCard
+      ? Math.round(((payment.amount - 0.30) / 1.029) * 100) / 100
+      : payment.amount
+
     // Calculate what percentage of the total invoice this payment represents
     // This handles both full payments (100%) and partial payments (e.g., 50% deposit)
-    const paymentPercentage = payment.amount / grandTotal
+    const paymentPercentage = netPaymentAmount / grandTotal
 
     console.log('=== PAYMENT SYNC DEBUG ===')
     console.log('Payment amount:', payment.amount)
@@ -189,6 +198,7 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     console.log('Discounted line items total:', discountedLineItemsTotal)
     console.log('Calculated tax (6% of line items ONLY):', calculatedTax)
     console.log('Grand total (line items + fees + tax):', grandTotal)
+    console.log('Net payment amount:', netPaymentAmount)
     console.log('Payment percentage:', paymentPercentage)
     console.log('Discount percent:', discountPercent)
     console.log('Discount multiplier:', discountMultiplier)
@@ -307,10 +317,11 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     }
 
     // Add Stripe processing fee as a separate expense row
-    // Calculate fee if not stored: 2.5% + $0.30 per transaction
-    const stripeFee = payment.processing_fee && payment.processing_fee > 0
-      ? payment.processing_fee
-      : (payment.amount * 0.025) + 0.30
+    // Always calculate fee - stored processing_fee is unreliable (known bug where it equals payment amount)
+    const isCardPayment = payment.payment_method === 'card' || payment.payment_method === 'card_present'
+    const stripeFee = isCardPayment
+      ? Math.round(((netPaymentAmount * 0.029) + 0.30) * 100) / 100
+      : 0 // Bank/ACH transfers have no processing fee
 
     if (stripeFee > 0) {
       const feeTxnNumber = await getNextTransactionNumber()
