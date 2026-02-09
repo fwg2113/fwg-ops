@@ -40,12 +40,13 @@ export async function POST(request: Request) {
     console.log('Insert error:', insertError)
 
     // Build dial - escape & as &amp; for XML
-    const numbers = teamPhones.map(p => `<Number>${p.phone}</Number>`).join('\n    ')
-    const actionUrl = `https://ops.frederickwraps.com/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
+    const screenUrl = 'https://fwg-ops.vercel.app/api/voice/screen'
+    const numbers = teamPhones.map(p => `<Number url="${screenUrl}">${p.phone}</Number>`).join('\n    ')
+    const actionUrl = `https://fwg-ops.vercel.app/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${to}" timeout="12" action="${actionUrl}">
+  <Dial callerId="${to}" timeout="25" answerOnBridge="true" action="${actionUrl}">
     ${numbers}
   </Dial>
 </Response>`
