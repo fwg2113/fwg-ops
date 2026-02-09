@@ -2340,7 +2340,6 @@ export default function SettingsView({
                 <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>These appear on the Shopify estimator for customers to select</p>
               </div>
             <button onClick={() => {
-              console.log('Add Category clicked')
               setNewVehicle({
                 category_key: '', label: '', size_factor: 'medium', base_sqft_min: 0, base_sqft_max: 0,
                 sort_order: vehicleCategories.length + 1, notes: '',
@@ -2446,7 +2445,6 @@ export default function SettingsView({
             </div>
           </div>
 
-          {addingVehicle && console.log('addingVehicle is TRUE, modal should render')}
           {/* Add Vehicle Modal */}
           {addingVehicle && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
