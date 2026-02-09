@@ -546,10 +546,51 @@ export default function DocumentDetail({
   }
 
   const [linkCopied, setLinkCopied] = useState(false)
-  const handleCopyLink = () => { 
+  const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id)
     setLinkCopied(true)
     setTimeout(() => setLinkCopied(false), 2000)
+  }
+
+  // Navigate to Message Hub with customer phone pre-filled
+  const handleOpenMessageHub = () => {
+    if (customerPhone) {
+      router.push(`/messages?to=${encodeURIComponent(customerPhone)}`)
+    }
+  }
+
+  // Initiate a call from Twilio number to customer
+  const [calling, setCalling] = useState(false)
+  const handleCallCustomer = async () => {
+    if (!customerPhone || calling) return
+
+    if (!confirm(`Call ${doc.customer_name} at ${customerPhone}?`)) return
+
+    setCalling(true)
+    try {
+      const response = await fetch('/api/voice/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: customerPhone,
+          customerName: doc.customer_name || 'Customer',
+          documentId: doc.id
+        })
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        alert('Call initiated! Your phone will ring first, then we\'ll connect you to the customer.')
+      } else {
+        alert(`Failed to initiate call: ${result.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error initiating call:', error)
+      alert('Failed to initiate call. Please try again.')
+    } finally {
+      setCalling(false)
+    }
   }
 
   const [refreshing, setRefreshing] = useState(false)
@@ -1690,7 +1731,31 @@ export default function DocumentDetail({
               
               // Copy Link - always show
               buttons.push(<ActionButton key="copy" onClick={handleCopyLink} variant="secondary">{linkCopied ? 'Copied!' : 'Copy Link'}</ActionButton>)
-              
+
+              // Message Button - show if customer has phone
+              if (customerPhone) {
+                buttons.push(
+                  <ActionButton key="message" onClick={handleOpenMessageHub} variant="secondary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    Message
+                  </ActionButton>
+                )
+              }
+
+              // Call Button - show if customer has phone
+              if (customerPhone) {
+                buttons.push(
+                  <ActionButton key="call" onClick={handleCallCustomer} variant="secondary" style={{ color: '#22c55e', borderColor: 'rgba(34, 197, 94, 0.3)' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
+                    Call
+                  </ActionButton>
+                )
+              }
+
               if (isQuote) {
                 // Send (unless declined/expired/archived)
                 if (doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
