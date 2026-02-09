@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const pageToken = searchParams.get('pageToken') || undefined
   const q = searchParams.get('q') || undefined
-  const label = searchParams.get('label') || 'INBOX'
+  const label = searchParams.get('label') || ''
   const maxResults = parseInt(searchParams.get('maxResults') || '25')
 
   try {
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       maxResults,
       pageToken,
       q,
-      labelIds: [label],
+      ...(label ? { labelIds: [label] } : {}),
     })
 
     if (!threadList.threads?.length) {
