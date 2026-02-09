@@ -788,7 +788,13 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
             </div>
           </div>
         ) : (
-          sortedJobs.map(job => {
+          sortedJobs
+            .filter(job => {
+              // Only show jobs that have at least one line item group with tasks
+              const lineItemGroups = getLineItemGroups(job.id)
+              return lineItemGroups.length > 0
+            })
+            .map(job => {
             const lineItemGroups = getLineItemGroups(job.id)
             const isExpanded = expandedJobs.has(job.id)
 
