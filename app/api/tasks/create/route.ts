@@ -17,7 +17,7 @@ export async function POST(request: Request) {
         notes: notes || null,
         created_at: new Date().toISOString()
       }])
-      .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes')
+      .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes, started_at, time_spent_minutes, line_item_id, document_id')
       .single()
 
     if (error) {
