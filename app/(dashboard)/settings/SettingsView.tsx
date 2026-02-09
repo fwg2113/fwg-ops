@@ -232,7 +232,7 @@ export default function SettingsView({
         setSavingEstimator(false)
         return
       }
-      const createdVehicle = json.data
+      const createdVehicle = json.record
 
       // Create pricing rows for each project type
       const newPricingRows: PricingRow[] = []
@@ -254,7 +254,7 @@ export default function SettingsView({
           })
         })
         const pJson = await pRes.json()
-        if (pJson.ok) newPricingRows.push(pJson.data)
+        if (pJson.ok) newPricingRows.push(pJson.record)
       }
 
       setVehicleCategories([...vehicleCategories, createdVehicle])
@@ -278,17 +278,13 @@ export default function SettingsView({
       // Delete pricing rows first
       const pricingRows = pricingMatrix.filter(p => p.category_key === vehicle.category_key)
       for (const row of pricingRows) {
-        await fetch('/api/estimator/settings', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'estimator_pricing', id: row.id })
+        await fetch(`/api/estimator/settings?table=estimator_pricing&id=${row.id}`, {
+          method: 'DELETE'
         })
       }
       // Delete the category
-      const res = await fetch('/api/estimator/settings', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table: 'estimator_vehicle_categories', id: vehicle.id })
+      const res = await fetch(`/api/estimator/settings?table=estimator_vehicle_categories&id=${vehicle.id}`, {
+        method: 'DELETE'
       })
       const json = await res.json()
       if (json.ok) {
@@ -2338,11 +2334,13 @@ export default function SettingsView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Vehicle Categories */}
           <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Vehicle Categories</h3>
-              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>These appear on the Shopify estimator for customers to select</p>
-            </div>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Vehicle Categories</h3>
+                <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>These appear on the Shopify estimator for customers to select</p>
+              </div>
             <button onClick={() => {
+              console.log('Add Category clicked')
               setNewVehicle({
                 category_key: '', label: '', size_factor: 'medium', base_sqft_min: 0, base_sqft_max: 0,
                 sort_order: vehicleCategories.length + 1, notes: '',
@@ -2353,26 +2351,26 @@ export default function SettingsView({
               padding: '8px 16px', background: '#d71cd1', border: 'none', borderRadius: '6px',
               color: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer'
             }}>+ Add Category</button>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Order</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Label</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Key</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Size</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Notes</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Active</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Actions</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600', width: '50px' }}>Order</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Label</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Key</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600', width: '90px' }}>Size</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: '600', width: '60px' }}>Active</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b', fontSize: '12px', fontWeight: '600', width: '130px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {vehicleCategories.length > 0 ? vehicleCategories.map((v) => (
                   <tr key={v.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
-                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>{v.sort_order}</td>
-                    <td style={{ padding: '12px 16px', color: '#f1f5f9', fontSize: '14px', fontWeight: '500' }}>{v.label}</td>
-                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '12px', fontFamily: 'monospace' }}>{v.category_key}</td>
-                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>{v.size_factor}</td>
-                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '13px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.notes || '-'}</td>
+                    <td style={{ padding: '10px 12px', color: '#94a3b8', fontSize: '13px' }}>{v.sort_order}</td>
+                    <td style={{ padding: '10px 12px', color: '#f1f5f9', fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.label}</td>
+                    <td style={{ padding: '10px 12px', color: '#64748b', fontSize: '11px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.category_key}</td>
+                    <td style={{ padding: '10px 12px', color: '#94a3b8', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.size_factor}</td>
+                    
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       <span style={{
                         padding: '4px 8px', borderRadius: '4px', fontSize: '12px',
@@ -2394,7 +2392,7 @@ export default function SettingsView({
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No vehicle categories found. Run the migration SQL first.</td></tr>
+                  <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No vehicle categories found. Run the migration SQL first.</td></tr>
                 )}
               </tbody>
             </table>
@@ -2407,7 +2405,7 @@ export default function SettingsView({
               <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Price ranges shown to customers on the estimator (per vehicle per project type)</p>
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
                     <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b', fontSize: '12px', fontWeight: '600' }}>Vehicle</th>
@@ -2418,7 +2416,7 @@ export default function SettingsView({
                 </thead>
                 <tbody>
                   {vehicleCategories.filter(v => v.active).map((v) => (
-                    <tr key={v.category_key} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                    <tr key={v.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
                       <td style={{ padding: '12px 16px', color: '#f1f5f9', fontSize: '14px', fontWeight: '500', whiteSpace: 'nowrap' }}>{v.label}</td>
                       {projectTypes.map(pt => {
                         const row = pricingMatrix.find(p => p.category_key === v.category_key && p.project_key === pt.project_key)
@@ -2448,7 +2446,8 @@ export default function SettingsView({
             </div>
           </div>
 
-{/* Add Vehicle Modal */}
+          {addingVehicle && console.log('addingVehicle is TRUE, modal should render')}
+          {/* Add Vehicle Modal */}
           {addingVehicle && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
               <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '600px', maxHeight: '90vh', overflow: 'auto' }}>
@@ -2484,7 +2483,7 @@ export default function SettingsView({
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Sort Order</label>
-                      <input type="number" value={newVehicle.sort_order} onChange={(e) => setNewVehicle({ ...newVehicle, sort_order: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                      <input type="text" inputMode="numeric" value={newVehicle.sort_order} onChange={(e) => setNewVehicle({ ...newVehicle, sort_order: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
                     </div>
                   </div>
 
@@ -2499,21 +2498,21 @@ export default function SettingsView({
                           <div style={{ display: 'flex', gap: '12px' }}>
                             <div style={{ flex: 1 }}>
                               <label style={{ display: 'block', color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Min ($)</label>
-                              <input type="number" value={p.price_min} onChange={(e) => setNewVehicle({
+                              <input type="text" inputMode="numeric" value={p.price_min} onChange={(e) => setNewVehicle({
                                 ...newVehicle,
                                 pricing: { ...newVehicle.pricing, [pt.project_key]: { ...p, price_min: parseInt(e.target.value) || 0 } }
                               })} style={{ width: '100%', padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px' }} />
                             </div>
                             <div style={{ flex: 1 }}>
                               <label style={{ display: 'block', color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Max ($)</label>
-                              <input type="number" value={p.price_max} onChange={(e) => setNewVehicle({
+                              <input type="text" inputMode="numeric" value={p.price_max} onChange={(e) => setNewVehicle({
                                 ...newVehicle,
                                 pricing: { ...newVehicle.pricing, [pt.project_key]: { ...p, price_max: parseInt(e.target.value) || 0 } }
                               })} style={{ width: '100%', padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px' }} />
                             </div>
                             <div style={{ flex: 1 }}>
                               <label style={{ display: 'block', color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Typical ($)</label>
-                              <input type="number" value={p.typical_price} onChange={(e) => setNewVehicle({
+                              <input type="text" inputMode="numeric" value={p.typical_price} onChange={(e) => setNewVehicle({
                                 ...newVehicle,
                                 pricing: { ...newVehicle.pricing, [pt.project_key]: { ...p, typical_price: parseInt(e.target.value) || 0 } }
                               })} style={{ width: '100%', padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px' }} />
@@ -2562,7 +2561,7 @@ export default function SettingsView({
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Sort Order</label>
-                      <input type="number" value={editingVehicle.sort_order} onChange={(e) => setEditingVehicle({ ...editingVehicle, sort_order: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                      <input type="text" inputMode="numeric" value={editingVehicle.sort_order} onChange={(e) => setEditingVehicle({ ...editingVehicle, sort_order: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
                     </div>
                   </div>
                   <div style={{ marginBottom: '16px' }}>
@@ -2601,16 +2600,16 @@ export default function SettingsView({
                   <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Min Price ($)</label>
-                      <input type="number" value={editingPricing.price_min} onChange={(e) => setEditingPricing({ ...editingPricing, price_min: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                      <input type="text" inputMode="numeric" value={editingPricing.price_min} onChange={(e) => setEditingPricing({ ...editingPricing, price_min: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Max Price ($)</label>
-                      <input type="number" value={editingPricing.price_max} onChange={(e) => setEditingPricing({ ...editingPricing, price_max: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                      <input type="text" inputMode="numeric" value={editingPricing.price_max} onChange={(e) => setEditingPricing({ ...editingPricing, price_max: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
                     </div>
                   </div>
                   <div style={{ marginBottom: '16px' }}>
                     <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Typical Price ($)</label>
-                    <input type="number" value={editingPricing.typical_price} onChange={(e) => setEditingPricing({ ...editingPricing, typical_price: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
+                    <input type="text" inputMode="numeric" value={editingPricing.typical_price} onChange={(e) => setEditingPricing({ ...editingPricing, typical_price: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
                   </div>
                 </div>
                 <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
