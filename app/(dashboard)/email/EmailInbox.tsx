@@ -59,70 +59,36 @@ type GmailLabel = {
   textColor: string | null
 }
 
-// ─── Icons (Gmail-style, thinner strokes) ────────────────
-const SearchIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
-)
-const SendIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-)
-const ComposeIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-)
-const ReplyIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></svg>
-)
-const ArchiveIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" /></svg>
-)
-const TrashIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-)
-const UnreadIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></svg>
-)
-const AttachmentIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
-)
-const RefreshIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" /></svg>
-)
-const BackIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><path d="M19 12H5" /><polyline points="12 19 5 12 12 5" /></svg>
-)
-const ExpandIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
-)
-const CollapseIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><polyline points="18 15 12 9 6 15" /></svg>
-)
-const InboxIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></svg>
-)
-const SentIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-)
-const StarIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-)
-const DraftIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-)
-const TrashNavIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-)
-const LabelIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+// ─── Gmail Material Icons (outlined style) ───────────────
+const Icon = ({ d, size = 20 }: { d: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d={d} /></svg>
 )
 
-// ─── Label colors ────────────────────────────────────────
-const LABEL_COLORS: Record<string, string> = {
-  DRAFT: '#f59e0b',
-  STARRED: '#eab308',
+// Gmail's actual material icon paths
+const ICONS = {
+  inbox: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h3.56c.69 1.19 1.97 2 3.45 2s2.75-.81 3.45-2H19v3zm0-5h-4.99c0 1.1-.9 2-2 2s-2-.9-2-2H5V5h14v9z',
+  send: 'M3.4 20.4l17.45-7.48c.81-.35.81-1.49 0-1.84L3.4 3.6c-.66-.29-1.39.2-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z',
+  compose: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+  archive: 'M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z',
+  trash: 'M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z',
+  markUnread: 'M18.83 7h-2.6L10.5 4 4.77 7H2v2h2v13h16V9h2V7h-3.17zM10.5 6.12L13.36 7H7.64l2.86-1.88zM18 20H6V9h12v11zm-8-9H8v2h2v-2zm0 4H8v2h2v-2zm4-4h-2v2h2v-2zm0 4h-2v2h2v-2z',
+  star: 'M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z',
+  draft: 'M21.99 8c0-.72-.37-1.35-.94-1.7L12 1 2.95 6.3C2.38 6.65 2 7.28 2 8v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2l-.01-10zM12 13L3.74 7.84 12 3l8.26 4.84L12 13z',
+  label: 'M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16zM16 17H5V7h11l3.55 5L16 17z',
+  search: 'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+  refresh: 'M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
+  back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+  expand: 'M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z',
+  collapse: 'M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z',
+  reply: 'M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z',
+  attachment: 'M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z',
+  checkbox: 'M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z',
+  checkboxChecked: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+  selectAll: 'M3 5h2V3c-1.1 0-2 .9-2 2zm0 8h2v-2H3v2zm4 8h2v-2H7v2zM3 9h2V7H3v2zm10-6h-2v2h2V3zm6 0v2h2c0-1.1-.9-2-2-2zM5 21v-2H3c0 1.1.9 2 2 2zm-2-4h2v-2H3v2zM9 3H7v2h2V3zm2 18h2v-2h-2v2zm8-8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2zm0-12h2V7h-2v2zm0 8h2v-2h-2v2zm-4 4h2v-2h-2v2zm0-16h2V3h-2v2z',
 }
 
-const SYSTEM_LABELS = ['INBOX', 'SENT', 'DRAFT', 'STARRED', 'IMPORTANT', 'SPAM', 'TRASH', 'UNREAD',
-  'CATEGORY_PERSONAL', 'CATEGORY_SOCIAL', 'CATEGORY_PROMOTIONS', 'CATEGORY_UPDATES', 'CATEGORY_FORUMS']
+const SYSTEM_LABELS = new Set(['INBOX', 'SENT', 'DRAFT', 'STARRED', 'IMPORTANT', 'SPAM', 'TRASH', 'UNREAD',
+  'CATEGORY_PERSONAL', 'CATEGORY_SOCIAL', 'CATEGORY_PROMOTIONS', 'CATEGORY_UPDATES', 'CATEGORY_FORUMS'])
 
 // ─── Helpers ─────────────────────────────────────────────
 const parseEmailAddress = (raw: string) => {
@@ -141,10 +107,9 @@ const getInitials = (name: string) => {
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / 86400000)
-  if (diffDays === 0 && date.getDate() === now.getDate()) return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' })
+  const diff = Math.floor((now.getTime() - date.getTime()) / 86400000)
+  if (diff === 0 && date.getDate() === now.getDate()) return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (diff < 7) return date.toLocaleDateString([], { weekday: 'short' })
   if (date.getFullYear() === now.getFullYear()) return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
   return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
 }
@@ -161,91 +126,7 @@ const formatSize = (bytes: number) => {
   return `${(bytes / 1048576).toFixed(1)} MB`
 }
 
-const getCustomLabels = (labelIds: string[]) => {
-  return labelIds.filter(l => !SYSTEM_LABELS.includes(l))
-}
-
-// ─── Styles ──────────────────────────────────────────────
-const S = {
-  page: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', height: 'calc(100vh - 90px)', display: 'flex' as const, borderRadius: '16px', overflow: 'hidden', border: '1px solid #e0e0e0' },
-  sidebar: { width: '200px', background: '#f6f8fc', borderRight: '1px solid #e0e0e0', display: 'flex' as const, flexDirection: 'column' as const, flexShrink: 0, overflowY: 'auto' as const },
-  sidebarCompose: { padding: '16px 16px 8px' },
-  composeBtn: { width: '100%', padding: '12px 24px', background: '#c2e7ff', border: 'none', borderRadius: '16px', color: '#001d35', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
-  navItem: (active: boolean) => ({
-    display: 'flex' as const, alignItems: 'center' as const, gap: '12px',
-    padding: '8px 16px', margin: '1px 8px', borderRadius: '20px', cursor: 'pointer',
-    background: active ? '#d3e3fd' : 'transparent',
-    color: active ? '#001d35' : '#444746', fontSize: '14px', fontWeight: active ? 600 : 400,
-    border: 'none', width: 'calc(100% - 16px)', textAlign: 'left' as const,
-  }),
-  labelSection: { padding: '12px 16px 4px', fontSize: '11px', fontWeight: 600, color: '#444746', textTransform: 'uppercase' as const, letterSpacing: '0.5px' },
-  main: { flex: 1, background: '#ffffff', display: 'flex' as const, flexDirection: 'column' as const, overflow: 'hidden', minWidth: 0 },
-  toolbar: { display: 'flex' as const, alignItems: 'center' as const, gap: '8px', padding: '8px 16px', borderBottom: '1px solid #e0e0e0', background: '#ffffff' },
-  toolbarBtn: { padding: '8px', background: 'transparent', border: 'none', borderRadius: '50%', color: '#5f6368', cursor: 'pointer', display: 'flex' as const, alignItems: 'center' as const },
-  searchBar: { flex: 1, maxWidth: '720px', position: 'relative' as const },
-  searchInput: { width: '100%', padding: '10px 14px 10px 42px', background: '#eaf1fb', border: 'none', borderRadius: '24px', color: '#202124', fontSize: '14px', outline: 'none' },
-  threadRow: (isHovered: boolean, isUnread: boolean) => ({
-    display: 'flex' as const, alignItems: 'center' as const,
-    padding: '0', cursor: 'pointer', borderBottom: '1px solid #f0f0f0',
-    background: isHovered ? '#f2f6fc' : isUnread ? '#f2f6fc' : '#ffffff',
-    overflow: 'hidden' as const,
-  }),
-  threadSender: (isUnread: boolean) => ({
-    width: '200px', padding: '12px 8px 12px 16px', flexShrink: 0, overflow: 'hidden' as const,
-    fontSize: '14px', fontWeight: isUnread ? 700 : 400,
-    color: isUnread ? '#202124' : '#5f6368',
-    whiteSpace: 'nowrap' as const, textOverflow: 'ellipsis' as const,
-    display: 'block' as const,
-  }),
-  threadSubject: (isUnread: boolean) => ({
-    fontSize: '14px', fontWeight: isUnread ? 700 : 400, color: '#202124',
-    whiteSpace: 'nowrap' as const, flexShrink: 0,
-  }),
-  threadSnippet: { fontSize: '14px', color: '#5f6368', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
-  threadDate: (isUnread: boolean) => ({
-    fontSize: '12px', fontWeight: isUnread ? 700 : 400,
-    color: isUnread ? '#202124' : '#5f6368',
-  }),
-  hoverAction: { padding: '6px', background: 'transparent', border: 'none', borderRadius: '50%', color: '#5f6368', cursor: 'pointer', display: 'flex' as const, alignItems: 'center' as const },
-  badge: (color: string) => ({
-    fontSize: '11px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px',
-    background: color, color: '#fff', whiteSpace: 'nowrap' as const, flexShrink: 0,
-  }),
-  customLabel: { fontSize: '11px', fontWeight: 500, padding: '1px 6px', borderRadius: '4px', background: '#e8eaed', color: '#5f6368', whiteSpace: 'nowrap' as const, flexShrink: 0 },
-  // Thread detail
-  detailHeader: { padding: '12px 16px', borderBottom: '1px solid #e0e0e0', display: 'flex' as const, alignItems: 'center' as const, gap: '8px', background: '#ffffff' },
-  detailSubject: { color: '#202124', fontSize: '22px', fontWeight: 400, margin: 0, flex: 1 },
-  detailToolBtn: { padding: '8px', background: 'transparent', border: 'none', borderRadius: '50%', color: '#5f6368', cursor: 'pointer', display: 'flex' as const, alignItems: 'center' as const },
-  // Message
-  msgCollapsed: (isHovered: boolean) => ({
-    display: 'flex' as const, alignItems: 'center' as const, gap: '14px',
-    padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0',
-    background: isHovered ? '#f5f5f5' : '#ffffff',
-  }),
-  msgExpanded: { borderBottom: '1px solid #e0e0e0', background: '#ffffff' },
-  msgAvatar: (isFWG: boolean) => ({
-    width: '40px', height: '40px', borderRadius: '50%',
-    background: isFWG ? '#d71cd1' : '#1a73e8',
-    color: '#ffffff', display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    fontSize: '14px', fontWeight: 600, flexShrink: 0,
-  }),
-  msgBody: { padding: '0 20px 20px 74px', color: '#202124', fontSize: '14px', lineHeight: '1.6' },
-  attachmentCard: {
-    display: 'flex' as const, alignItems: 'center' as const, gap: '10px',
-    padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', cursor: 'pointer',
-    border: '1px solid #e0e0e0', maxWidth: '240px',
-  },
-  // Compose
-  composeField: { display: 'flex' as const, alignItems: 'center' as const, gap: '12px', borderBottom: '1px solid #e0e0e0', padding: '10px 20px' },
-  composeLabel: { color: '#5f6368', fontSize: '14px', width: '50px' },
-  composeInput: { flex: 1, padding: '6px 0', background: 'transparent', border: 'none', color: '#202124', fontSize: '14px', outline: 'none' },
-  composeBody: { flex: 1, padding: '16px 20px', color: '#202124', fontSize: '14px', lineHeight: '1.6', border: 'none', outline: 'none', resize: 'none' as const, background: 'transparent' },
-  sendBtn: (disabled: boolean) => ({
-    padding: '10px 24px', background: disabled ? '#ccc' : '#0b57d0', border: 'none', borderRadius: '20px',
-    color: '#ffffff', fontSize: '14px', fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
-    display: 'flex' as const, alignItems: 'center' as const, gap: '8px',
-  }),
-}
+const getCustomLabels = (labelIds: string[]) => labelIds.filter(l => !SYSTEM_LABELS.has(l))
 
 // ─── Component ───────────────────────────────────────────
 export default function EmailInbox() {
@@ -261,6 +142,7 @@ export default function EmailInbox() {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [aliases, setAliases] = useState<Alias[]>([])
   const [labelMap, setLabelMap] = useState<Record<string, GmailLabel>>({})
+  const [allLabels, setAllLabels] = useState<GmailLabel[]>([])
   const [showCompose, setShowCompose] = useState(false)
   const [showReply, setShowReply] = useState(false)
   const [composeTo, setComposeTo] = useState('')
@@ -277,6 +159,7 @@ export default function EmailInbox() {
   const [hoveredThread, setHoveredThread] = useState<string | null>(null)
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const threadEndRef = useRef<HTMLDivElement>(null)
 
   // Load aliases + labels
@@ -298,8 +181,13 @@ export default function EmailInbox() {
         const data = await res.json()
         if (data.labels) {
           const map: Record<string, GmailLabel> = {}
-          data.labels.forEach((l: GmailLabel) => { map[l.id] = l })
+          const userLabels: GmailLabel[] = []
+          data.labels.forEach((l: GmailLabel) => {
+            map[l.id] = l
+            if (l.type === 'user') userLabels.push(l)
+          })
           setLabelMap(map)
+          setAllLabels(userLabels.sort((a, b) => a.name.localeCompare(b.name)))
         }
       } catch (err) { console.error('Failed to load labels:', err) }
     })()
@@ -317,7 +205,7 @@ export default function EmailInbox() {
       const data = await res.json()
       if (data.error) { setError(data.error); return }
       if (append) setThreads(prev => [...prev, ...(data.threads || [])])
-      else setThreads(data.threads || [])
+      else { setThreads(data.threads || []); setSelected(new Set()) }
       setNextPageToken(data.nextPageToken)
     } catch (err: any) { setError(err.message) }
     setLoading(false)
@@ -348,11 +236,7 @@ export default function EmailInbox() {
     if (threadDetail) setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }, [threadDetail])
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearchQuery(search); setSelectedThreadId(null); setThreadDetail(null)
-  }
-
+  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); setSearchQuery(search); setSelectedThreadId(null); setThreadDetail(null) }
   const handleRefresh = () => { setRefreshing(true); loadThreads() }
 
   const openCompose = () => {
@@ -396,37 +280,63 @@ export default function EmailInbox() {
     setSending(false)
   }
 
+  // Bulk + single actions
+  const modifyThread = async (threadId: string, add?: string[], remove?: string[]) => {
+    await fetch(`/api/gmail/threads/${threadId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addLabelIds: add, removeLabelIds: remove }),
+    })
+  }
+
   const markAsUnread = async (threadId: string) => {
-    try {
-      await fetch(`/api/gmail/threads/${threadId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addLabelIds: ['UNREAD'] }),
-      })
-      setThreads(prev => prev.map(t => t.id === threadId ? { ...t, isUnread: true } : t))
-      if (selectedThreadId === threadId) { setSelectedThreadId(null); setThreadDetail(null) }
-    } catch (err) { console.error('Mark unread failed:', err) }
+    await modifyThread(threadId, ['UNREAD'])
+    setThreads(prev => prev.map(t => t.id === threadId ? { ...t, isUnread: true } : t))
+    if (selectedThreadId === threadId) { setSelectedThreadId(null); setThreadDetail(null) }
   }
 
   const archiveThread = async (threadId: string) => {
-    try {
-      await fetch(`/api/gmail/threads/${threadId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ removeLabelIds: ['INBOX'] }),
-      })
-      setThreads(prev => prev.filter(t => t.id !== threadId))
-      if (selectedThreadId === threadId) { setSelectedThreadId(null); setThreadDetail(null) }
-    } catch (err) { console.error('Archive failed:', err) }
+    await modifyThread(threadId, undefined, ['INBOX'])
+    setThreads(prev => prev.filter(t => t.id !== threadId))
+    setSelected(prev => { const n = new Set(prev); n.delete(threadId); return n })
+    if (selectedThreadId === threadId) { setSelectedThreadId(null); setThreadDetail(null) }
   }
 
   const trashThread = async (threadId: string) => {
-    try {
-      await fetch(`/api/gmail/threads/${threadId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] }),
-      })
-      setThreads(prev => prev.filter(t => t.id !== threadId))
-      if (selectedThreadId === threadId) { setSelectedThreadId(null); setThreadDetail(null) }
-    } catch (err) { console.error('Trash failed:', err) }
+    await modifyThread(threadId, ['TRASH'], ['INBOX'])
+    setThreads(prev => prev.filter(t => t.id !== threadId))
+    setSelected(prev => { const n = new Set(prev); n.delete(threadId); return n })
+    if (selectedThreadId === threadId) { setSelectedThreadId(null); setThreadDetail(null) }
+  }
+
+  const bulkArchive = async () => {
+    const ids = Array.from(selected)
+    await Promise.all(ids.map(id => modifyThread(id, undefined, ['INBOX'])))
+    setThreads(prev => prev.filter(t => !selected.has(t.id)))
+    setSelected(new Set())
+  }
+
+  const bulkTrash = async () => {
+    const ids = Array.from(selected)
+    await Promise.all(ids.map(id => modifyThread(id, ['TRASH'], ['INBOX'])))
+    setThreads(prev => prev.filter(t => !selected.has(t.id)))
+    setSelected(new Set())
+  }
+
+  const bulkMarkUnread = async () => {
+    const ids = Array.from(selected)
+    await Promise.all(ids.map(id => modifyThread(id, ['UNREAD'])))
+    setThreads(prev => prev.map(t => selected.has(t.id) ? { ...t, isUnread: true } : t))
+    setSelected(new Set())
+  }
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+
+  const toggleSelectAll = () => {
+    if (selected.size === threads.length) setSelected(new Set())
+    else setSelected(new Set(threads.map(t => t.id)))
   }
 
   const toggleMessage = (msgId: string) => {
@@ -437,108 +347,163 @@ export default function EmailInbox() {
     })
   }
 
-  // ─── Sidebar Nav Items ─────────────────────────────────
+  const resolveLabelName = (id: string) => labelMap[id]?.name || id
+
+  // Nav items
   const navItems = [
-    { key: 'INBOX', label: 'Inbox', icon: <InboxIcon /> },
-    { key: 'SENT', label: 'Sent', icon: <SentIcon /> },
-    { key: 'STARRED', label: 'Starred', icon: <StarIcon /> },
-    { key: 'DRAFT', label: 'Drafts', icon: <DraftIcon /> },
-    { key: 'TRASH', label: 'Trash', icon: <TrashNavIcon /> },
+    { key: 'INBOX', label: 'Inbox', icon: ICONS.inbox },
+    { key: 'SENT', label: 'Sent', icon: ICONS.send },
+    { key: 'STARRED', label: 'Starred', icon: ICONS.star },
+    { key: 'DRAFT', label: 'Drafts', icon: ICONS.draft },
+    { key: 'TRASH', label: 'Trash', icon: ICONS.trash },
   ]
 
-  // Extract unique custom labels from threads, resolve names
-  const allCustomLabels = Array.from(new Set(threads.flatMap(t => getCustomLabels(t.labelIds))))
-    .map(id => ({ id, name: labelMap[id]?.name || id }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  // ─── RENDER ────────────────────────────────────────────
 
-  // ─── Thread List ───────────────────────────────────────
+  // Thread list
   const renderThreadList = () => (
     <>
       {/* Toolbar */}
-      <div style={S.toolbar}>
-        <button onClick={handleRefresh} disabled={refreshing} style={S.toolbarBtn} title="Refresh"><RefreshIcon /></button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 8px', borderBottom: '1px solid #e0e0e0', minHeight: '48px' }}>
+        {/* Select all checkbox */}
+        <button onClick={toggleSelectAll} title={selected.size === threads.length ? 'Deselect all' : 'Select all'}
+          style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}>
+          <Icon d={selected.size > 0 && selected.size === threads.length ? ICONS.checkboxChecked : selected.size > 0 ? ICONS.selectAll : ICONS.checkbox} size={20} />
+        </button>
+
+        {selected.size > 0 ? (
+          /* Bulk actions */
+          <>
+            <span style={{ fontSize: '13px', color: '#5f6368', padding: '0 8px' }}>{selected.size} selected</span>
+            <button onClick={bulkArchive} title="Archive" style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}><Icon d={ICONS.archive} /></button>
+            <button onClick={bulkTrash} title="Delete" style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}><Icon d={ICONS.trash} /></button>
+            <button onClick={bulkMarkUnread} title="Mark as unread" style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}><Icon d={ICONS.markUnread} /></button>
+          </>
+        ) : (
+          <>
+            <button onClick={handleRefresh} disabled={refreshing} title="Refresh"
+              style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}>
+              <Icon d={ICONS.refresh} />
+            </button>
+          </>
+        )}
+
         <div style={{ flex: 1 }} />
-        <form onSubmit={handleSearch} style={S.searchBar}>
-          <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }}><SearchIcon /></div>
+        <form onSubmit={handleSearch} style={{ position: 'relative', width: '100%', maxWidth: '500px' }}>
+          <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#5f6368' }}><Icon d={ICONS.search} size={18} /></div>
           <input type="text" placeholder="Search mail" value={search} onChange={(e) => setSearch(e.target.value)}
-            style={S.searchInput} />
+            style={{ width: '100%', padding: '8px 12px 8px 40px', background: '#eaf1fb', border: 'none', borderRadius: '24px', color: '#202124', fontSize: '14px', outline: 'none' }} />
         </form>
-        <div style={{ flex: 1 }} />
       </div>
 
       {/* Threads */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: '#5f6368' }}>Loading...</div>
         ) : error ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#d93025' }}>{error}</div>
         ) : threads.length === 0 ? (
           <div style={{ padding: '80px', textAlign: 'center', color: '#5f6368' }}>
-            <div style={{ marginBottom: '12px', opacity: 0.4 }}><InboxIcon /></div>
-            {searchQuery ? 'No results for your search' : 'Nothing here'}
+            {searchQuery ? 'No results' : 'Nothing here'}
           </div>
         ) : (
           <>
             {threads.map(thread => {
               const sender = parseEmailAddress(thread.from)
               const isHovered = hoveredThread === thread.id
+              const isSelected = selected.has(thread.id)
               const customLabels = getCustomLabels(thread.labelIds)
               const hasDraft = thread.labelIds.includes('DRAFT')
+
               return (
                 <div key={thread.id}
                   onMouseEnter={() => setHoveredThread(thread.id)}
                   onMouseLeave={() => setHoveredThread(null)}
                   onClick={() => selectThread(thread.id)}
-                  style={{ ...S.threadRow(isHovered, thread.isUnread), overflow: 'hidden' }}>
+                  style={{
+                    display: 'flex', alignItems: 'center', height: '40px',
+                    cursor: 'pointer', borderBottom: '1px solid #f0f0f0',
+                    background: isSelected ? '#c2dbff' : isHovered ? '#f2f6fc' : thread.isUnread ? '#f2f6fc' : '#fff',
+                    overflow: 'hidden',
+                  }}>
+                  {/* Checkbox */}
+                  <div onClick={(e) => toggleSelect(thread.id, e)}
+                    style={{ width: '40px', display: 'flex', justifyContent: 'center', flexShrink: 0, color: '#5f6368' }}>
+                    <Icon d={isSelected ? ICONS.checkboxChecked : ICONS.checkbox} size={18} />
+                  </div>
 
-                  {/* Sender */}
-                  <div style={{ ...S.threadSender(thread.isUnread), minWidth: '160px', maxWidth: '200px' }}>
+                  {/* Sender - fixed width, truncated */}
+                  <div style={{
+                    width: '180px', flexShrink: 0, fontSize: '14px', paddingRight: '12px',
+                    fontWeight: thread.isUnread ? 700 : 400, color: thread.isUnread ? '#202124' : '#5f6368',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
                     {sender.name}
                   </div>
 
-                  {/* Subject + labels + snippet - KEY: overflow hidden + minWidth 0 */}
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', padding: '12px 0', minWidth: 0, overflow: 'hidden' }}>
-                    {/* Custom labels */}
-                    {customLabels.map(l => {
-                      const lbl = labelMap[l]
-                      const displayName = lbl ? lbl.name.replace(/\//g, ' / ') : l
-                      return (
-                        <span key={l} style={S.customLabel}>{displayName}</span>
-                      )
-                    })}
+                  {/* Subject + labels + snippet - MUST truncate */}
+                  <div style={{
+                    flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '4px',
+                    overflow: 'hidden',
+                  }}>
+                    {customLabels.slice(0, 2).map(l => (
+                      <span key={l} style={{
+                        fontSize: '11px', padding: '1px 5px', borderRadius: '3px',
+                        background: '#e8eaed', color: '#5f6368', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                        {resolveLabelName(l)}
+                      </span>
+                    ))}
                     {hasDraft && (
-                      <span style={{ ...S.badge('#f59e0b'), fontSize: '10px' }}>DRAFT</span>
+                      <span style={{ fontSize: '11px', padding: '1px 5px', borderRadius: '3px', background: '#fef3c7', color: '#92400e', whiteSpace: 'nowrap', flexShrink: 0 }}>Draft</span>
                     )}
-                    <span style={{ ...S.threadSubject(thread.isUnread), overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{
+                      fontSize: '14px', fontWeight: thread.isUnread ? 700 : 400, color: '#202124',
+                      whiteSpace: 'nowrap', flexShrink: 0, maxWidth: '40%', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
                       {thread.subject}
                     </span>
                     {thread.messageCount > 1 && (
-                      <span style={{ fontSize: '12px', color: '#5f6368', flexShrink: 0 }}>&nbsp;({thread.messageCount})</span>
+                      <span style={{ fontSize: '12px', color: '#5f6368', flexShrink: 0 }}>({thread.messageCount})</span>
                     )}
-                    <span style={{ color: '#5f6368', flexShrink: 0 }}>&nbsp;-&nbsp;</span>
-                    <span style={{ ...S.threadSnippet, minWidth: 0, flex: 1 }}>{thread.snippet}</span>
+                    <span style={{ color: '#5f6368', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                      &nbsp;- {thread.snippet}
+                    </span>
                   </div>
 
-                  {/* Attachment + date / hover actions */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 12px', flexShrink: 0 }}>
-                    {thread.hasAttachments && !isHovered && <AttachmentIcon />}
+                  {/* Right side: date or hover actions */}
+                  <div style={{ width: '100px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', paddingRight: '8px' }}>
                     {isHovered ? (
-                      <div style={{ display: 'flex', gap: '2px' }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => archiveThread(thread.id)} title="Archive" style={S.hoverAction}><ArchiveIcon /></button>
-                        <button onClick={() => trashThread(thread.id)} title="Trash" style={S.hoverAction}><TrashIcon /></button>
-                        <button onClick={() => markAsUnread(thread.id)} title="Mark as unread" style={S.hoverAction}><UnreadIcon /></button>
+                      <div style={{ display: 'flex', gap: '0' }} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => archiveThread(thread.id)} title="Archive"
+                          style={{ padding: '6px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}>
+                          <Icon d={ICONS.archive} size={18} />
+                        </button>
+                        <button onClick={() => trashThread(thread.id)} title="Delete"
+                          style={{ padding: '6px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}>
+                          <Icon d={ICONS.trash} size={18} />
+                        </button>
+                        <button onClick={() => markAsUnread(thread.id)} title="Mark as unread"
+                          style={{ padding: '6px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}>
+                          <Icon d={ICONS.markUnread} size={18} />
+                        </button>
                       </div>
                     ) : (
-                      <span style={S.threadDate(thread.isUnread)}>{formatDate(thread.date)}</span>
+                      <>
+                        {thread.hasAttachments && <span style={{ color: '#5f6368', marginRight: '6px', display: 'flex' }}><Icon d={ICONS.attachment} size={16} /></span>}
+                        <span style={{ fontSize: '12px', fontWeight: thread.isUnread ? 700 : 400, color: thread.isUnread ? '#202124' : '#5f6368', whiteSpace: 'nowrap' }}>
+                          {formatDate(thread.date)}
+                        </span>
+                      </>
                     )}
                   </div>
                 </div>
               )
             })}
             {nextPageToken && (
-              <div style={{ textAlign: 'center', padding: '16px' }}>
+              <div style={{ textAlign: 'center', padding: '12px' }}>
                 <button onClick={() => loadThreads(nextPageToken, true)}
-                  style={{ padding: '8px 24px', background: '#f8f9fa', border: '1px solid #dadce0', borderRadius: '20px', color: '#1a73e8', fontSize: '14px', cursor: 'pointer' }}>
+                  style={{ padding: '8px 24px', background: '#fff', border: '1px solid #dadce0', borderRadius: '20px', color: '#1a73e8', fontSize: '14px', cursor: 'pointer' }}>
                   Load more
                 </button>
               </div>
@@ -549,106 +514,94 @@ export default function EmailInbox() {
     </>
   )
 
-  // ─── Thread Detail ─────────────────────────────────────
+  // Thread detail
   const renderThreadDetail = () => {
     if (!threadDetail) return null
     return (
       <>
-        {/* Detail toolbar */}
-        <div style={S.detailHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 8px', borderBottom: '1px solid #e0e0e0', minHeight: '48px' }}>
           <button onClick={() => { setSelectedThreadId(null); setThreadDetail(null); setShowReply(false) }}
-            style={S.detailToolBtn} title="Back to inbox"><BackIcon /></button>
-          <button onClick={() => archiveThread(threadDetail.id)} style={S.detailToolBtn} title="Archive"><ArchiveIcon /></button>
-          <button onClick={() => trashThread(threadDetail.id)} style={S.detailToolBtn} title="Trash"><TrashIcon /></button>
-          <button onClick={() => markAsUnread(threadDetail.id)} style={S.detailToolBtn} title="Mark as unread"><UnreadIcon /></button>
+            style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }} title="Back">
+            <Icon d={ICONS.back} />
+          </button>
+          <button onClick={() => archiveThread(threadDetail.id)} style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }} title="Archive"><Icon d={ICONS.archive} /></button>
+          <button onClick={() => trashThread(threadDetail.id)} style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }} title="Delete"><Icon d={ICONS.trash} /></button>
+          <button onClick={() => markAsUnread(threadDetail.id)} style={{ padding: '8px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }} title="Mark as unread"><Icon d={ICONS.markUnread} /></button>
           <div style={{ flex: 1 }} />
-          <span style={{ color: '#5f6368', fontSize: '12px' }}>
-            {threadDetail.messages.length} of {threadDetail.messages.length}
+          <span style={{ color: '#5f6368', fontSize: '12px', paddingRight: '8px' }}>
+            {threadDetail.messages.length} message{threadDetail.messages.length !== 1 ? 's' : ''}
           </span>
         </div>
 
         {/* Subject */}
-        <div style={{ padding: '16px 20px 8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h1 style={S.detailSubject}>{threadDetail.subject}</h1>
-          {/* Labels */}
-          {threadDetail.messages[0] && getCustomLabels(threadDetail.messages[0].labelIds).map(l => {
-            const lbl = labelMap[l]
-            const displayName = lbl ? lbl.name : l
-            return (
-              <span key={l} style={{ ...S.customLabel, fontSize: '12px', padding: '2px 8px' }}>
-                {displayName}
-              </span>
-            )
-          })}
-          <span style={{ background: '#e8eaed', color: '#5f6368', fontSize: '12px', padding: '2px 8px', borderRadius: '4px' }}>Inbox</span>
+        <div style={{ padding: '14px 60px 6px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <h1 style={{ color: '#202124', fontSize: '22px', fontWeight: 400, margin: 0 }}>{threadDetail.subject}</h1>
+          {threadDetail.messages[0] && getCustomLabels(threadDetail.messages[0].labelIds).map(l => (
+            <span key={l} style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', background: '#e8eaed', color: '#5f6368' }}>{resolveLabelName(l)}</span>
+          ))}
+          <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', background: '#e8eaed', color: '#5f6368' }}>Inbox</span>
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {threadDetail.messages.map((msg, idx) => {
             const sender = parseEmailAddress(msg.from)
             const recipients = parseEmailAddress(msg.to)
             const isExpanded = expandedMessages.has(msg.id)
             const isFromFWG = sender.email.includes('frederickwraps')
-            const isLast = idx === threadDetail.messages.length - 1
             const isMsgHovered = hoveredMsg === msg.id
 
             if (!isExpanded) {
-              // Collapsed message row (like Gmail)
               return (
                 <div key={msg.id}
                   onMouseEnter={() => setHoveredMsg(msg.id)}
                   onMouseLeave={() => setHoveredMsg(null)}
                   onClick={() => toggleMessage(msg.id)}
-                  style={S.msgCollapsed(isMsgHovered)}>
-                  {/* Avatar */}
-                  <div style={S.msgAvatar(isFromFWG)}>{getInitials(sender.name)}</div>
-                  {/* Name */}
-                  <span style={{ fontWeight: 600, color: '#202124', fontSize: '14px', width: '180px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sender.name}
+                  style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 20px 10px 60px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', background: isMsgHovered ? '#f5f5f5' : '#fff' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isFromFWG ? '#d71cd1' : '#1a73e8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 600, flexShrink: 0 }}>
+                    {getInitials(sender.name)}
+                  </div>
+                  <span style={{ fontWeight: 600, color: '#202124', fontSize: '14px', width: '160px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sender.name}</span>
+                  <span style={{ color: '#5f6368', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                    {msg.body?.replace(/<[^>]*>/g, '').substring(0, 140)}
                   </span>
-                  {/* Snippet */}
-                  <span style={{ color: '#5f6368', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                    {msg.body?.replace(/<[^>]*>/g, '').substring(0, 120)}
-                  </span>
-                  {/* Date */}
-                  <span style={{ color: '#5f6368', fontSize: '12px', flexShrink: 0, marginLeft: '8px' }}>
-                    {formatFullDate(msg.date)}
-                  </span>
+                  {msg.attachments.length > 0 && <span style={{ color: '#5f6368', flexShrink: 0, display: 'flex' }}><Icon d={ICONS.attachment} size={16} /></span>}
+                  <span style={{ color: '#5f6368', fontSize: '12px', flexShrink: 0 }}>{formatFullDate(msg.date)}</span>
                 </div>
               )
             }
 
-            // Expanded message
             return (
-              <div key={msg.id} style={S.msgExpanded}>
-                {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', padding: '16px 20px 12px' }}>
-                  <div style={S.msgAvatar(isFromFWG)}>{getInitials(sender.name)}</div>
-                  <div style={{ flex: 1 }}>
+              <div key={msg.id} style={{ borderBottom: '1px solid #e0e0e0', background: '#fff' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', padding: '16px 20px 12px 60px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isFromFWG ? '#d71cd1' : '#1a73e8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 600, flexShrink: 0 }}>
+                    {getInitials(sender.name)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div>
                         <span style={{ fontWeight: 600, color: '#202124', fontSize: '14px' }}>{sender.name}</span>
-                        <span style={{ color: '#5f6368', fontSize: '12px', marginLeft: '8px' }}>&lt;{sender.email}&gt;</span>
+                        <span style={{ color: '#5f6368', fontSize: '12px', marginLeft: '6px' }}>&lt;{sender.email}&gt;</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         <span style={{ color: '#5f6368', fontSize: '12px' }}>{formatFullDate(msg.date)}</span>
-                        <button onClick={(e) => { e.stopPropagation(); toggleMessage(msg.id) }} style={S.detailToolBtn}><CollapseIcon /></button>
+                        <button onClick={(e) => { e.stopPropagation(); toggleMessage(msg.id) }}
+                          style={{ padding: '4px', background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', display: 'flex', borderRadius: '50%' }}>
+                          <Icon d={ICONS.collapse} size={18} />
+                        </button>
                       </div>
                     </div>
                     <div style={{ color: '#5f6368', fontSize: '12px', marginTop: '2px' }}>
-                      to {recipients.name || recipients.email}
-                      {msg.cc && <span>, cc: {msg.cc}</span>}
+                      to {recipients.name || recipients.email}{msg.cc && <span>, cc: {msg.cc}</span>}
                     </div>
                   </div>
                 </div>
 
-                {/* Body */}
-                <div style={S.msgBody} dangerouslySetInnerHTML={{ __html: msg.body }} />
+                <div style={{ padding: '0 20px 20px 114px', color: '#202124', fontSize: '14px', lineHeight: '1.6', overflowX: 'auto' }}
+                  dangerouslySetInnerHTML={{ __html: msg.body }} />
 
-                {/* Attachments */}
                 {msg.attachments.length > 0 && (
-                  <div style={{ padding: '0 20px 16px 74px' }}>
+                  <div style={{ padding: '0 20px 16px 114px' }}>
                     <div style={{ fontSize: '12px', color: '#5f6368', marginBottom: '8px' }}>
                       {msg.attachments.length} attachment{msg.attachments.length !== 1 ? 's' : ''}
                     </div>
@@ -657,10 +610,8 @@ export default function EmailInbox() {
                         const isImage = att.mimeType.startsWith('image/')
                         const url = `/api/gmail/attachment/${msg.id}?attachmentId=${encodeURIComponent(att.attachmentId)}&filename=${encodeURIComponent(att.filename)}&mimeType=${encodeURIComponent(att.mimeType)}`
                         return (
-                          <div key={i} onClick={(e) => {
-                            e.stopPropagation()
-                            if (isImage) setLightboxUrl(url); else window.open(url, '_blank')
-                          }} style={S.attachmentCard}>
+                          <div key={i} onClick={(e) => { e.stopPropagation(); if (isImage) setLightboxUrl(url); else window.open(url, '_blank') }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e0e0e0', maxWidth: '240px' }}>
                             {isImage ? (
                               <div style={{ width: '40px', height: '40px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
                                 <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -685,13 +636,12 @@ export default function EmailInbox() {
           })}
           <div ref={threadEndRef} />
 
-          {/* Reply area */}
-          <div style={{ padding: '16px 20px 24px 74px' }}>
+          <div style={{ padding: '16px 20px 24px 114px' }}>
             {showReply ? (
-              <div style={{ border: '1px solid #dadce0', borderRadius: '12px', overflow: 'hidden', background: '#ffffff' }}>
+              <div style={{ border: '1px solid #dadce0', borderRadius: '12px', overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: '#202124', fontSize: '14px' }}>Reply to {composeTo}</span>
-                  <button onClick={() => setShowReply(false)} style={{ background: 'transparent', border: 'none', color: '#5f6368', cursor: 'pointer', fontSize: '16px' }}>x</button>
+                  <button onClick={() => setShowReply(false)} style={{ background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', fontSize: '16px' }}>x</button>
                 </div>
                 <div style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
@@ -701,23 +651,21 @@ export default function EmailInbox() {
                       {aliases.map(a => <option key={a.email} value={a.email}>{a.displayName ? `${a.displayName} <${a.email}>` : a.email}</option>)}
                     </select>
                   </div>
-                  <textarea value={composeBody} onChange={(e) => setComposeBody(e.target.value)}
-                    placeholder="Write your reply..." autoFocus
+                  <textarea value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder="Write your reply..." autoFocus
                     style={{ width: '100%', minHeight: '120px', padding: '10px', border: '1px solid #dadce0', borderRadius: '6px', color: '#202124', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', background: '#fff' }} />
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                    <button onClick={handleSend} disabled={sending || !composeBody.trim()} style={S.sendBtn(sending || !composeBody.trim())}>
-                      <SendIcon /> {sending ? 'Sending...' : 'Send'}
+                    <button onClick={handleSend} disabled={sending || !composeBody.trim()}
+                      style={{ padding: '10px 24px', background: sending || !composeBody.trim() ? '#ccc' : '#0b57d0', border: 'none', borderRadius: '20px', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: sending || !composeBody.trim() ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Icon d={ICONS.send} size={16} /> {sending ? 'Sending...' : 'Send'}
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={openReply}
-                  style={{ padding: '10px 24px', border: '1px solid #dadce0', borderRadius: '20px', background: '#ffffff', color: '#202124', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ReplyIcon /> Reply
-                </button>
-              </div>
+              <button onClick={openReply}
+                style={{ padding: '10px 24px', border: '1px solid #dadce0', borderRadius: '20px', background: '#fff', color: '#202124', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon d={ICONS.reply} size={18} /> Reply
+              </button>
             )}
           </div>
         </div>
@@ -725,92 +673,108 @@ export default function EmailInbox() {
     )
   }
 
-  // ─── Compose View ──────────────────────────────────────
+  // Compose
   const renderCompose = () => (
     <>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ color: '#202124', fontSize: '18px', fontWeight: 400, margin: 0 }}>New Message</h2>
-        <button onClick={() => setShowCompose(false)} style={{ background: 'transparent', border: 'none', color: '#5f6368', cursor: 'pointer', fontSize: '20px' }}>x</button>
+        <button onClick={() => setShowCompose(false)} style={{ background: 'none', border: 'none', color: '#5f6368', cursor: 'pointer', fontSize: '20px' }}>x</button>
       </div>
-      <div style={S.composeField}>
-        <label style={S.composeLabel}>From</label>
-        <select value={composeFrom} onChange={(e) => setComposeFrom(e.target.value)}
-          style={{ ...S.composeInput, cursor: 'pointer' }}>
-          {aliases.map(a => <option key={a.email} value={a.email}>{a.displayName ? `${a.displayName} <${a.email}>` : a.email}</option>)}
-        </select>
-      </div>
-      <div style={S.composeField}>
-        <label style={S.composeLabel}>To</label>
-        <input type="text" value={composeTo} onChange={(e) => setComposeTo(e.target.value)} placeholder="Recipients" style={S.composeInput} />
-      </div>
-      <div style={S.composeField}>
-        <label style={S.composeLabel}>Cc</label>
-        <input type="text" value={composeCc} onChange={(e) => setComposeCc(e.target.value)} placeholder="" style={S.composeInput} />
-      </div>
-      <div style={S.composeField}>
-        <label style={S.composeLabel}>Subject</label>
-        <input type="text" value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder="" style={S.composeInput} />
-      </div>
+      {[
+        { label: 'From', type: 'select', value: composeFrom, onChange: setComposeFrom },
+        { label: 'To', value: composeTo, onChange: setComposeTo, placeholder: 'Recipients' },
+        { label: 'Cc', value: composeCc, onChange: setComposeCc, placeholder: '' },
+        { label: 'Subject', value: composeSubject, onChange: setComposeSubject, placeholder: '' },
+      ].map((f, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid #e0e0e0', padding: '10px 20px' }}>
+          <label style={{ color: '#5f6368', fontSize: '14px', width: '50px' }}>{f.label}</label>
+          {f.type === 'select' ? (
+            <select value={f.value} onChange={(e) => f.onChange(e.target.value)}
+              style={{ flex: 1, padding: '6px 0', background: 'transparent', border: 'none', color: '#202124', fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
+              {aliases.map(a => <option key={a.email} value={a.email}>{a.displayName ? `${a.displayName} <${a.email}>` : a.email}</option>)}
+            </select>
+          ) : (
+            <input type="text" value={f.value} onChange={(e) => f.onChange(e.target.value)} placeholder={f.placeholder}
+              style={{ flex: 1, padding: '6px 0', background: 'transparent', border: 'none', color: '#202124', fontSize: '14px', outline: 'none' }} />
+          )}
+        </div>
+      ))}
       <textarea value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder=""
-        style={S.composeBody as any} />
+        style={{ flex: 1, padding: '16px 20px', color: '#202124', fontSize: '14px', lineHeight: '1.6', border: 'none', outline: 'none', resize: 'none', background: 'transparent' }} />
       <div style={{ padding: '12px 20px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={handleSend} disabled={sending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim()}
-          style={S.sendBtn(sending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim())}>
-          <SendIcon /> {sending ? 'Sending...' : 'Send'}
+          style={{ padding: '10px 24px', background: sending || !composeTo.trim() || !composeSubject.trim() || !composeBody.trim() ? '#ccc' : '#0b57d0', border: 'none', borderRadius: '20px', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: sending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Icon d={ICONS.send} size={16} /> {sending ? 'Sending...' : 'Send'}
         </button>
       </div>
     </>
   )
 
-  // ─── Render ────────────────────────────────────────────
+  // ─── MAIN RENDER ───────────────────────────────────────
   return (
-    <div style={S.page}>
-      {/* Left sidebar */}
-      <div style={S.sidebar}>
-        <div style={S.sidebarCompose}>
-          <button onClick={openCompose} style={S.composeBtn}>
-            <ComposeIcon /> Compose
+    <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', height: 'calc(100vh - 90px)', display: 'flex', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e0e0e0' }}>
+      {/* Sidebar */}
+      <div style={{ width: '220px', background: '#f6f8fc', borderRight: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 14px 8px' }}>
+          <button onClick={openCompose}
+            style={{ width: '100%', padding: '12px 20px', background: '#c2e7ff', border: 'none', borderRadius: '16px', color: '#001d35', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+            <Icon d={ICONS.compose} size={18} /> Compose
           </button>
         </div>
-        <nav style={{ flex: 1, paddingTop: '4px' }}>
-          {navItems.map(item => (
-            <button key={item.key} onClick={() => {
-              setLabel(item.key); setSelectedThreadId(null); setThreadDetail(null)
-              setSearchQuery(''); setSearch(''); setShowCompose(false)
-            }} style={S.navItem(label === item.key)}>
-              <span style={{ display: 'flex', alignItems: 'center', color: label === item.key ? '#001d35' : '#444746' }}>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+        <nav style={{ flex: 1, overflowY: 'auto', paddingTop: '4px' }}>
+          {navItems.map(item => {
+            const isActive = label === item.key && !searchQuery
+            return (
+              <button key={item.key} onClick={() => {
+                setLabel(item.key); setSelectedThreadId(null); setThreadDetail(null)
+                setSearchQuery(''); setSearch(''); setShowCompose(false); setSelected(new Set())
+              }} style={{
+                display: 'flex', alignItems: 'center', gap: '14px',
+                padding: '6px 16px', margin: '1px 8px', borderRadius: '20px', cursor: 'pointer',
+                background: isActive ? '#d3e3fd' : 'transparent',
+                color: isActive ? '#001d35' : '#444746', fontSize: '14px', fontWeight: isActive ? 700 : 400,
+                border: 'none', width: 'calc(100% - 16px)', textAlign: 'left',
+              }}>
+                <span style={{ display: 'flex', color: isActive ? '#001d35' : '#444746' }}><Icon d={item.icon} /></span>
+                {item.label}
+              </button>
+            )
+          })}
 
-          {/* Custom labels */}
-          {allCustomLabels.length > 0 && (
+          {/* ALL user labels */}
+          {allLabels.length > 0 && (
             <>
-              <div style={S.labelSection}>Labels</div>
-              {allCustomLabels.map(l => (
-                <button key={l.id} onClick={() => {
-                  setSearchQuery(`label:${l.name}`); setSearch(`label:${l.name}`)
-                  setSelectedThreadId(null); setThreadDetail(null)
-                }} style={{
-                  ...S.navItem(searchQuery === `label:${l.name}`),
-                  fontSize: '13px',
-                }}>
-                  <span style={{ display: 'flex', alignItems: 'center', color: '#444746' }}><LabelIcon /></span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
-                </button>
-              ))}
+              <div style={{ padding: '16px 16px 6px', fontSize: '11px', fontWeight: 600, color: '#444746', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Labels</div>
+              {allLabels.map(l => {
+                const isActive = searchQuery === `label:${l.name}`
+                return (
+                  <button key={l.id} onClick={() => {
+                    setSearchQuery(`label:${l.name}`); setSearch(`label:${l.name}`)
+                    setSelectedThreadId(null); setThreadDetail(null); setSelected(new Set())
+                  }} style={{
+                    display: 'flex', alignItems: 'center', gap: '14px',
+                    padding: '4px 16px', margin: '0 8px', borderRadius: '20px', cursor: 'pointer',
+                    background: isActive ? '#d3e3fd' : 'transparent',
+                    color: isActive ? '#001d35' : '#444746', fontSize: '13px', fontWeight: isActive ? 600 : 400,
+                    border: 'none', width: 'calc(100% - 16px)', textAlign: 'left',
+                    overflow: 'hidden',
+                  }}>
+                    <span style={{ display: 'flex', color: '#444746', flexShrink: 0 }}><Icon d={ICONS.label} size={18} /></span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
+                  </button>
+                )
+              })}
             </>
           )}
         </nav>
       </div>
 
-      {/* Main content */}
-      <div style={S.main}>
+      {/* Main */}
+      <div style={{ flex: 1, background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         {showCompose ? renderCompose() :
          selectedThreadId && threadDetail ? renderThreadDetail() :
-         loadingThread ? (
-           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5f6368' }}>Loading...</div>
-         ) : renderThreadList()}
+         loadingThread ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5f6368' }}>Loading...</div> :
+         renderThreadList()}
       </div>
 
       {/* Lightbox */}
