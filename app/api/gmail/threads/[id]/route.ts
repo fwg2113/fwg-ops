@@ -58,3 +58,49 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const accessToken = await getGmailAccessToken()
+  if (!accessToken) {
+    return NextResponse.json({ error: 'Gmail not connected' }, { status: 401 })
+  }
+
+  const { id: threadId } = await params
+
+  try {
+    const body = await request.json()
+    const { messageId, addLabelIds, removeLabelIds } = body
+
+    // If messageId provided, modify that specific message
+    // Otherwise, modify all messages in the thread
+    if (messageId) {
+      await modifyMessage(
+        accessToken,
+        messageId,
+        addLabelIds || undefined,
+        removeLabelIds || undefined
+      )
+    } else {
+      // Get all messages in thread and modify each
+      const thread = await getThread(accessToken, threadId)
+      await Promise.all(
+        thread.messages.map((m: any) =>
+          modifyMessage(
+            accessToken,
+            m.id,
+            addLabelIds || undefined,
+            removeLabelIds || undefined
+          )
+        )
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Gmail modify error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
