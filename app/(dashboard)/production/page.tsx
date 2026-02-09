@@ -27,7 +27,7 @@ export default async function ProductionPage() {
     console.error('Error fetching production jobs:', jobsError)
   }
 
-  // Fetch production tasks for these jobs
+  // Fetch production tasks for these jobs (excluding archived)
   const jobIds = productionJobs?.map(j => j.id) || []
   const { data: tasks } = await supabase
     .from('tasks')
@@ -41,6 +41,7 @@ export default async function ProductionPage() {
     `)
     .in('document_id', jobIds)
     .eq('auto_generated', true)
+    .or('archived.is.null,archived.eq.false')
     .order('sort_order', { ascending: true })
 
   return (
