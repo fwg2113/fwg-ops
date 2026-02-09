@@ -96,6 +96,7 @@ export default function SettingsView({
   initialMaterials,
   initialBuckets,
   calendarConnected,
+  gmailConnected,
   initialCallSettings,
   initialTemplates,
   initialTaskStatuses,
@@ -106,6 +107,7 @@ export default function SettingsView({
   initialMaterials: Material[]
   initialBuckets: Bucket[]
   calendarConnected: boolean
+  gmailConnected: boolean
   initialCallSettings: CallSetting[]
   initialTemplates: ProductionTemplate[]
   initialTaskStatuses: TaskStatus[]
@@ -2207,6 +2209,43 @@ export default function SettingsView({
                   }}
                 >
                   Connect Google Calendar
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Gmail</h3>
+                <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Read and send email from info@frederickwraps.com</p>
+              </div>
+              {gmailConnected ? (
+                <span style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  color: '#22c55e'
+                }}>
+                  Connected
+                </span>
+              ) : (
+                <button
+                  onClick={() => window.location.href = '/api/gmail/auth'}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#3b82f6',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Connect Gmail
                 </button>
               )}
             </div>

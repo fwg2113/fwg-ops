@@ -61,7 +61,14 @@ export default async function SettingsPage() {
     .select('*')
     .order('automation_key', { ascending: true })
 
+  const { data: gmailSettings } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'google_gmail_tokens')
+    .single()
+
   const calendarConnected = !!calendarSettings?.value
+  const gmailConnected = !!gmailSettings?.value
 
   return (
     <SettingsView
@@ -69,6 +76,7 @@ export default async function SettingsPage() {
       initialMaterials={materials || []}
       initialBuckets={buckets || []}
       calendarConnected={calendarConnected}
+      gmailConnected={gmailConnected}
       initialCallSettings={callSettings || []}
       initialTemplates={templates || []}
       initialTaskStatuses={taskStatuses || []}
