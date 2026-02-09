@@ -105,6 +105,8 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
   }
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
+    console.log('[TaskBoard] Updating task status:', { taskId, newStatus })
+
     // Optimistic update
     setTasks(tasks.map(task =>
       task.id === taskId ? { ...task, status: newStatus } : task
@@ -116,12 +118,18 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
       body: JSON.stringify({ taskId, status: newStatus })
     })
 
+    console.log('[TaskBoard] API response status:', response.status, response.ok)
+
     if (!response.ok) {
       // Revert on error
+      console.error('[TaskBoard] Failed to update task, reverting')
       setTasks(initialTasks)
       alert('Failed to update task')
     } else {
+      const result = await response.json()
+      console.log('[TaskBoard] Task updated successfully:', result)
       // Refresh server component data to ensure persistence
+      console.log('[TaskBoard] Calling router.refresh()')
       router.refresh()
     }
   }
@@ -160,6 +168,8 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
 
     if (editingTask) {
       // Update existing task
+      console.log('[TaskBoard] Updating task via modal:', { taskId: editingTask.id, ...modalData })
+
       const response = await fetch('/api/tasks/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,30 +179,44 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
         })
       })
 
+      console.log('[TaskBoard] Update response status:', response.status, response.ok)
+
       if (response.ok) {
         const updatedTask = await response.json()
+        console.log('[TaskBoard] Task updated via modal:', updatedTask)
         setTasks(tasks.map(t => t.id === editingTask.id ? { ...t, ...modalData } : t))
         setShowModal(false)
         // Refresh server component data to ensure persistence
+        console.log('[TaskBoard] Calling router.refresh() after update')
         router.refresh()
       } else {
+        const errorText = await response.text()
+        console.error('[TaskBoard] Failed to update task:', errorText)
         alert('Failed to update task')
       }
     } else {
       // Create new task
+      console.log('[TaskBoard] Creating new task:', modalData)
+
       const response = await fetch('/api/tasks/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(modalData)
       })
 
+      console.log('[TaskBoard] Create response status:', response.status, response.ok)
+
       if (response.ok) {
         const createdTask = await response.json()
+        console.log('[TaskBoard] Task created:', createdTask)
         setTasks([createdTask, ...tasks])
         setShowModal(false)
         // Refresh server component data to ensure persistence
+        console.log('[TaskBoard] Calling router.refresh() after create')
         router.refresh()
       } else {
+        const errorText = await response.text()
+        console.error('[TaskBoard] Failed to create task:', errorText)
         alert('Failed to create task')
       }
     }

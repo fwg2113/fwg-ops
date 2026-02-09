@@ -7,6 +7,8 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { taskId, status, title, description, priority, due_date, notes } = body
 
+    console.log('[API /tasks/update] Received request:', { taskId, status, title, description, priority, due_date, notes })
+
     // Build update object with only provided fields
     const updateData: any = {}
     if (status !== undefined) updateData.status = status
@@ -16,6 +18,8 @@ export async function POST(request: Request) {
     if (due_date !== undefined) updateData.due_date = due_date || null
     if (notes !== undefined) updateData.notes = notes
 
+    console.log('[API /tasks/update] Updating task with data:', updateData)
+
     const { data, error } = await supabase
       .from('tasks')
       .update(updateData)
@@ -24,9 +28,11 @@ export async function POST(request: Request) {
       .single()
 
     if (error) {
-      console.error('Supabase error:', error)
+      console.error('[API /tasks/update] Supabase error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    console.log('[API /tasks/update] Task updated successfully:', data)
 
     // Automation #2: Customer notification on task completion
     if (status === 'COMPLETED' && data.line_item_id) {
