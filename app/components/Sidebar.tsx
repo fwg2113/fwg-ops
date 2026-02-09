@@ -24,7 +24,7 @@ const navSections = [
     items: [
       { href: '/messages', label: 'Message', labelGradient: 'Hub', icon: 'chat' },
       { href: '/customers', label: 'Customer', labelGradient: 'Database', icon: 'users' },
-      { href: '/email-templates', label: 'Email', labelGradient: 'Templates', icon: 'mail', badge: 'Soon' },
+      { href: '/email', label: 'Email', labelGradient: 'Inbox', icon: 'mail' },
     ]
   },
   {
