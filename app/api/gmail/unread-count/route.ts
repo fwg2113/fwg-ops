@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getGmailClient } from '@/app/lib/gmail'
+import { getGmailAccessToken } from '@/app/lib/gmail'
 
 export async function GET() {
   try {
-    const gmail = await getGmailClient()
+    const accessToken = await getGmailAccessToken()
 
-    // Use labels.get for INBOX which includes unread count directly
-    const res = await gmail.users.labels.get({
-      userId: 'me',
-      id: 'INBOX',
-    })
+    const res = await fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
 
-    const count = res.data.threadsUnread || 0
+    const data = await res.json()
+    const count = data.threadsUnread || 0
 
     return NextResponse.json({ count })
   } catch (err: any) {
