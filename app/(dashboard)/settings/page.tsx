@@ -67,6 +67,19 @@ export default async function SettingsPage() {
     .eq('key', 'google_gmail_tokens')
     .single()
 
+  // Estimator config
+  let estimatorData = { vehicleCategories: [], projectTypes: [], pricingMatrix: [] }
+  try {
+    const base = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'
+    const res = await fetch(`${base}/api/estimator/settings`, { cache: 'no-store' })
+    if (res.ok) {
+      const json = await res.json()
+      if (json.ok) estimatorData = json
+    }
+  } catch (e) {
+    console.error('Failed to fetch estimator settings:', e)
+  }
+
   const calendarConnected = !!calendarSettings?.value
   const gmailConnected = !!gmailSettings?.value
 
@@ -82,6 +95,9 @@ export default async function SettingsPage() {
       initialTaskStatuses={taskStatuses || []}
       initialTaskPriorities={taskPriorities || []}
       initialAutomationSettings={automationSettings || []}
+      initialVehicleCategories={estimatorData.vehicleCategories || []}
+      initialProjectTypes={estimatorData.projectTypes || []}
+      initialPricingMatrix={estimatorData.pricingMatrix || []}
     />
   )
 }
