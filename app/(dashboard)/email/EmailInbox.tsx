@@ -51,6 +51,14 @@ type Alias = {
   isDefault: boolean
 }
 
+type GmailLabel = {
+  id: string
+  name: string
+  type: string
+  color: string | null
+  textColor: string | null
+}
+
 // ─── Icons (Gmail-style, thinner strokes) ────────────────
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
@@ -171,7 +179,7 @@ const S = {
     border: 'none', width: 'calc(100% - 16px)', textAlign: 'left' as const,
   }),
   labelSection: { padding: '12px 16px 4px', fontSize: '11px', fontWeight: 600, color: '#444746', textTransform: 'uppercase' as const, letterSpacing: '0.5px' },
-  main: { flex: 1, background: '#ffffff', display: 'flex' as const, flexDirection: 'column' as const, overflow: 'hidden' },
+  main: { flex: 1, background: '#ffffff', display: 'flex' as const, flexDirection: 'column' as const, overflow: 'hidden', minWidth: 0 },
   toolbar: { display: 'flex' as const, alignItems: 'center' as const, gap: '8px', padding: '8px 16px', borderBottom: '1px solid #e0e0e0', background: '#ffffff' },
   toolbarBtn: { padding: '8px', background: 'transparent', border: 'none', borderRadius: '50%', color: '#5f6368', cursor: 'pointer', display: 'flex' as const, alignItems: 'center' as const },
   searchBar: { flex: 1, maxWidth: '720px', position: 'relative' as const },
@@ -180,12 +188,14 @@ const S = {
     display: 'flex' as const, alignItems: 'center' as const,
     padding: '0', cursor: 'pointer', borderBottom: '1px solid #f0f0f0',
     background: isHovered ? '#f2f6fc' : isUnread ? '#f2f6fc' : '#ffffff',
+    overflow: 'hidden' as const,
   }),
   threadSender: (isUnread: boolean) => ({
     width: '200px', padding: '12px 8px 12px 16px', flexShrink: 0, overflow: 'hidden' as const,
     fontSize: '14px', fontWeight: isUnread ? 700 : 400,
     color: isUnread ? '#202124' : '#5f6368',
     whiteSpace: 'nowrap' as const, textOverflow: 'ellipsis' as const,
+    display: 'block' as const,
   }),
   threadSubject: (isUnread: boolean) => ({
     fontSize: '14px', fontWeight: isUnread ? 700 : 400, color: '#202124',
@@ -250,6 +260,7 @@ export default function EmailInbox() {
   const [label, setLabel] = useState('INBOX')
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [aliases, setAliases] = useState<Alias[]>([])
+  const [labelMap, setLabelMap] = useState<Record<string, GmailLabel>>({})
   const [showCompose, setShowCompose] = useState(false)
   const [showReply, setShowReply] = useState(false)
   const [composeTo, setComposeTo] = useState('')
@@ -268,7 +279,7 @@ export default function EmailInbox() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const threadEndRef = useRef<HTMLDivElement>(null)
 
-  // Load aliases
+  // Load aliases + labels
   useEffect(() => {
     (async () => {
       try {
@@ -280,6 +291,17 @@ export default function EmailInbox() {
           if (primary) setComposeFrom(primary.email)
         }
       } catch (err) { console.error('Failed to load aliases:', err) }
+    })()
+    ;(async () => {
+      try {
+        const res = await fetch('/api/gmail/labels')
+        const data = await res.json()
+        if (data.labels) {
+          const map: Record<string, GmailLabel> = {}
+          data.labels.forEach((l: GmailLabel) => { map[l.id] = l })
+          setLabelMap(map)
+        }
+      } catch (err) { console.error('Failed to load labels:', err) }
     })()
   }, [])
 
@@ -424,8 +446,10 @@ export default function EmailInbox() {
     { key: 'TRASH', label: 'Trash', icon: <TrashNavIcon /> },
   ]
 
-  // Extract unique custom labels from threads
-  const allCustomLabels = Array.from(new Set(threads.flatMap(t => getCustomLabels(t.labelIds)))).sort()
+  // Extract unique custom labels from threads, resolve names
+  const allCustomLabels = Array.from(new Set(threads.flatMap(t => getCustomLabels(t.labelIds))))
+    .map(id => ({ id, name: labelMap[id]?.name || id }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   // ─── Thread List ───────────────────────────────────────
   const renderThreadList = () => (
@@ -465,32 +489,34 @@ export default function EmailInbox() {
                   onMouseEnter={() => setHoveredThread(thread.id)}
                   onMouseLeave={() => setHoveredThread(null)}
                   onClick={() => selectThread(thread.id)}
-                  style={S.threadRow(isHovered, thread.isUnread)}>
+                  style={{ ...S.threadRow(isHovered, thread.isUnread), overflow: 'hidden' }}>
 
                   {/* Sender */}
-                  <div style={S.threadSender(thread.isUnread)}>
+                  <div style={{ ...S.threadSender(thread.isUnread), minWidth: '160px', maxWidth: '200px' }}>
                     {sender.name}
                   </div>
 
-                  {/* Subject + labels + snippet */}
+                  {/* Subject + labels + snippet - KEY: overflow hidden + minWidth 0 */}
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', padding: '12px 0', minWidth: 0, overflow: 'hidden' }}>
                     {/* Custom labels */}
-                    {customLabels.map(l => (
-                      <span key={l} style={S.customLabel}>
-                        {l.replace('Label_', '').replace(/_/g, '/')}
-                      </span>
-                    ))}
+                    {customLabels.map(l => {
+                      const lbl = labelMap[l]
+                      const displayName = lbl ? lbl.name.replace(/\//g, ' / ') : l
+                      return (
+                        <span key={l} style={S.customLabel}>{displayName}</span>
+                      )
+                    })}
                     {hasDraft && (
                       <span style={{ ...S.badge('#f59e0b'), fontSize: '10px' }}>DRAFT</span>
                     )}
-                    <span style={S.threadSubject(thread.isUnread)}>
+                    <span style={{ ...S.threadSubject(thread.isUnread), overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {thread.subject}
                     </span>
                     {thread.messageCount > 1 && (
                       <span style={{ fontSize: '12px', color: '#5f6368', flexShrink: 0 }}>&nbsp;({thread.messageCount})</span>
                     )}
                     <span style={{ color: '#5f6368', flexShrink: 0 }}>&nbsp;-&nbsp;</span>
-                    <span style={S.threadSnippet}>{thread.snippet}</span>
+                    <span style={{ ...S.threadSnippet, minWidth: 0, flex: 1 }}>{thread.snippet}</span>
                   </div>
 
                   {/* Attachment + date / hover actions */}
@@ -545,11 +571,15 @@ export default function EmailInbox() {
         <div style={{ padding: '16px 20px 8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <h1 style={S.detailSubject}>{threadDetail.subject}</h1>
           {/* Labels */}
-          {threadDetail.messages[0] && getCustomLabels(threadDetail.messages[0].labelIds).map(l => (
-            <span key={l} style={{ ...S.customLabel, fontSize: '12px', padding: '2px 8px' }}>
-              {l.replace('Label_', '').replace(/_/g, '/')}
-            </span>
-          ))}
+          {threadDetail.messages[0] && getCustomLabels(threadDetail.messages[0].labelIds).map(l => {
+            const lbl = labelMap[l]
+            const displayName = lbl ? lbl.name : l
+            return (
+              <span key={l} style={{ ...S.customLabel, fontSize: '12px', padding: '2px 8px' }}>
+                {displayName}
+              </span>
+            )
+          })}
           <span style={{ background: '#e8eaed', color: '#5f6368', fontSize: '12px', padding: '2px 8px', borderRadius: '4px' }}>Inbox</span>
         </div>
 
@@ -758,15 +788,15 @@ export default function EmailInbox() {
             <>
               <div style={S.labelSection}>Labels</div>
               {allCustomLabels.map(l => (
-                <button key={l} onClick={() => {
-                  setSearchQuery(`label:${l}`); setSearch(`label:${l}`)
+                <button key={l.id} onClick={() => {
+                  setSearchQuery(`label:${l.name}`); setSearch(`label:${l.name}`)
                   setSelectedThreadId(null); setThreadDetail(null)
                 }} style={{
-                  ...S.navItem(searchQuery === `label:${l}`),
+                  ...S.navItem(searchQuery === `label:${l.name}`),
                   fontSize: '13px',
                 }}>
                   <span style={{ display: 'flex', alignItems: 'center', color: '#444746' }}><LabelIcon /></span>
-                  {l.replace('Label_', '').replace(/_/g, '/')}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
                 </button>
               ))}
             </>
