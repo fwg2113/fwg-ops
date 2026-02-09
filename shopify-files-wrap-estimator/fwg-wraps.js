@@ -20,7 +20,7 @@
   
   const CONFIG = {
     // Apps Script Web App URL (UPDATE THIS after deploying)
-    apiUrl: 'https://script.google.com/macros/s/AKfycbywYEttdw_AVHNjJHIbvB0OTRW2RlpNsJ0Uuse5Xz0LaDKLhxT8jAhd0gO0GXOoQhcj/exec',
+    apiUrl: 'https://fwg-ops.vercel.app',
     
     // Vehicle Categories
     vehicleCategories: [
@@ -197,7 +197,7 @@
    */
   async function fetchBulkData() {
     try {
-      const response = await fetch(`${CONFIG.apiUrl}?route=bulk_data`, {
+      const response = await fetch(`${CONFIG.apiUrl}/api/estimator/config`, {
         method: 'GET',
         cache: 'no-cache'
       });
@@ -918,7 +918,6 @@
     
     // Build submission data
     const data = {
-      route: 'new_submission',
       source: 'estimator',
       customer_name: state.customerName,
       customer_email: state.customerEmail,
@@ -943,17 +942,10 @@
     };
     
     try {
-  // Build URL params (GET request avoids CORS issues)
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(data)) {
-    if (value !== null && value !== undefined && value !== '') {
-      params.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
-    }
-  }
-  
-  const response = await fetch(`${CONFIG.apiUrl}?${params.toString()}`, {
-    method: 'GET',
-    cache: 'no-cache'
+  const response = await fetch(`${CONFIG.apiUrl}/api/estimator/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
   });
   
   const result = await response.json();
