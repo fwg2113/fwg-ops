@@ -120,6 +120,9 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
       // Revert on error
       setTasks(initialTasks)
       alert('Failed to update task')
+    } else {
+      // Refresh server component data to ensure persistence
+      router.refresh()
     }
   }
 
@@ -170,6 +173,8 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
         const updatedTask = await response.json()
         setTasks(tasks.map(t => t.id === editingTask.id ? { ...t, ...modalData } : t))
         setShowModal(false)
+        // Refresh server component data to ensure persistence
+        router.refresh()
       } else {
         alert('Failed to update task')
       }
@@ -185,6 +190,8 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
         const createdTask = await response.json()
         setTasks([createdTask, ...tasks])
         setShowModal(false)
+        // Refresh server component data to ensure persistence
+        router.refresh()
       } else {
         alert('Failed to create task')
       }
@@ -204,6 +211,8 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
     if (response.ok) {
       setTasks(tasks.filter(t => t.id !== editingTask.id))
       setShowModal(false)
+      // Refresh server component data to ensure persistence
+      router.refresh()
     } else {
       alert('Failed to delete task')
     }
