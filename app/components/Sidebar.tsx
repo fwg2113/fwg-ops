@@ -39,7 +39,7 @@ const navSections = [
   {
     title: 'ACCOUNT',
     items: [
-      { href: '/settings', label: 'System', labelGradient: 'Settings', icon: 'cog' },
+      { href: '/settings', label: 'System', labelGradient: 'Settings', icon: 'cog', badge: '' },
     ]
   }
 ]
@@ -232,7 +232,7 @@ export default function Sidebar() {
                   <span style={{ fontSize: '14px', fontWeight: 500, color: '#e5e7eb', flex: 1 }}>
                     {item.label}{item.labelGradient && <span style={gradientStyle}> {item.labelGradient}</span>}
                   </span>
-                  {item.badge && (
+                  {'badge' in item && item.badge && (
                     <span style={{
                       fontSize: '11px',
                       fontWeight: 600,
