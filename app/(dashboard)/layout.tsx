@@ -8,7 +8,7 @@ export default function DashboardLayout({
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#111111' }}>
       <Sidebar />
-      <main style={{ flex: 1, marginLeft: '240px', padding: '24px' }}>
+      <main style={{ flex: 1, marginLeft: '240px', padding: '24px', minWidth: 0, overflowX: 'hidden' }}>
         {children}
       </main>
     </div>
