@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState, useEffect, useCallback } from 'react'
 
 const navSections = [
   {
@@ -22,9 +23,9 @@ const navSections = [
   {
     title: 'COMMUNICATION',
     items: [
-      { href: '/messages', label: 'Message', labelGradient: 'Hub', icon: 'chat' },
       { href: '/customers', label: 'Customer', labelGradient: 'Database', icon: 'users' },
-      { href: '/email', label: 'Email', labelGradient: 'Inbox', icon: 'mail' },
+      { href: '/messages', label: 'Message', labelGradient: 'Hub', icon: 'chat', badgeKey: 'messages' },
+      { href: '/email', label: 'Email', labelGradient: 'Inbox', icon: 'mail', badgeKey: 'email' },
     ]
   },
   {
@@ -136,6 +137,39 @@ const icons: Record<string, React.ReactElement> = {
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number }>({ messages: 0, email: 0 })
+
+  const fetchUnreadCounts = useCallback(async () => {
+    try {
+      // Fetch SMS unread count
+      const msgRes = await fetch('/api/messages/unread-count')
+      const msgData = await msgRes.json()
+
+      // Fetch Gmail unread count
+      const emailRes = await fetch('/api/gmail/unread-count')
+      const emailData = await emailRes.json()
+
+      setUnreadCounts({
+        messages: msgData.count || 0,
+        email: emailData.count || 0,
+      })
+    } catch (err) {
+      console.error('Failed to fetch unread counts:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchUnreadCounts()
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchUnreadCounts, 60000)
+    // Also refresh on window focus
+    const handleFocus = () => fetchUnreadCounts()
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [fetchUnreadCounts])
 
   const handleLogout = () => {
     document.cookie = 'fwg_auth=; path=/; max-age=0'
@@ -210,6 +244,7 @@ export default function Sidebar() {
             )}
             {section.items.map((item) => {
               const isActive = pathname === item.href
+              const badgeCount = 'badgeKey' in item ? unreadCounts[item.badgeKey as keyof typeof unreadCounts] : 0
               return (
                 <Link
                   key={item.href}
@@ -232,6 +267,24 @@ export default function Sidebar() {
                   <span style={{ fontSize: '14px', fontWeight: 500, color: '#e5e7eb', flex: 1 }}>
                     {item.label}{item.labelGradient && <span style={gradientStyle}> {item.labelGradient}</span>}
                   </span>
+                  {badgeCount > 0 && (
+                    <span style={{
+                      minWidth: '20px',
+                      height: '20px',
+                      padding: '0 6px',
+                      borderRadius: '999px',
+                      background: '#d71cd1',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      lineHeight: 1,
+                    }}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
                   {'badge' in item && item.badge && (
                     <span style={{
                       fontSize: '11px',
@@ -261,7 +314,7 @@ export default function Sidebar() {
             background: '#22d3ee',
             boxShadow: '0 0 8px #22d3ee'
           }}></div>
-          <span style={{ fontSize: '12px', color: '#6b7280' }}>FWG Ops • Active</span>
+          <span style={{ fontSize: '12px', color: '#6b7280' }}>FWG Ops - Active</span>
         </div>
         <button
           onClick={handleLogout}
