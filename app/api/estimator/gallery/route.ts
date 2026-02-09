@@ -17,6 +17,9 @@ const s3 = new S3Client({
   },
 });
 
+// Folder structure: gallery/{VEHICLE_CATEGORY}/{PROJECT_TYPE}/filename.jpg
+// Example: gallery/CARGO_VAN_LG/FULL_WRAP/transit-blue.jpg
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -36,19 +39,23 @@ export async function GET(request: Request) {
     const result = await s3.send(command);
     const contents = result.Contents || [];
 
+    // Group by project type subfolder
     const photosByType: Record<string, Array<{ url: string; filename: string }>> = {};
 
     for (const obj of contents) {
       if (!obj.Key) continue;
 
+      // Key format: gallery/CARGO_VAN_LG/FULL_WRAP/photo.jpg
       const parts = obj.Key.replace(prefix, '').split('/');
-      if (parts.length < 2) continue;
+      if (parts.length < 2) continue; // skip if not in a subfolder
 
-      const projectType = parts[0];
+      const projectType = parts[0]; // FULL_WRAP, PARTIAL_WRAP, etc.
       const filename = parts.slice(1).join('/');
 
+      // Skip folders themselves and hidden files
       if (!filename || filename.startsWith('.')) continue;
 
+      // Only include image files
       const ext = filename.toLowerCase().split('.').pop();
       if (!['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext || '')) continue;
 
@@ -62,6 +69,7 @@ export async function GET(request: Request) {
       });
     }
 
+    // Sort photos within each type by filename
     for (const type of Object.keys(photosByType)) {
       photosByType[type].sort((a, b) => a.filename.localeCompare(b.filename));
     }
