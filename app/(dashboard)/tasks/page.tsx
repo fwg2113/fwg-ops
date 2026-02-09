@@ -9,7 +9,7 @@ export default async function TasksPage() {
   // Fetch all tasks
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('*')
+    .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes')
     .order('created_at', { ascending: false })
 
   console.log('[TasksPage] Fetched tasks:', tasks?.length || 0, 'tasks')
