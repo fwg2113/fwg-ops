@@ -52,7 +52,8 @@ const P = {
   compose: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
   archive: 'M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z',
   trash: 'M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z',
-  unread: 'M18.83 7h-2.6L10.5 4 4.77 7H2v2h2v13h16V9h2V7h-3.17zM10.5 6.12L13.36 7H7.64l2.86-1.88zM18 20H6V9h12v11zm-8-9H8v2h2v-2zm0 4H8v2h2v-2zm4-4h-2v2h2v-2zm0 4h-2v2h2v-2z',
+  unreadMark: 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z',
+  unreadOpen: 'M21.99 8c0-.72-.37-1.35-.94-1.7L12 1 2.95 6.3C2.38 6.65 2 7.28 2 8v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2l-.01-10zm-2 0v.01L12 13 4 8l8-4.68L19.99 8zM4 18V10l8 5 8-5v8H4z',
   starOff: 'M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z',
   starOn: 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
   draft: 'M21.99 8c0-.72-.37-1.35-.94-1.7L12 1 2.95 6.3C2.38 6.65 2 7.28 2 8v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2l-.01-10zM12 13L3.74 7.84 12 3l8.26 4.84L12 13z',
@@ -108,7 +109,7 @@ export default function EmailInbox() {
   const [lightbox, setLightbox] = useState<string|null>(null)
   const [sel, setSel] = useState<Set<string>>(new Set())
   const endRef = useRef<HTMLDivElement>(null)
-  const PER_PAGE = 30
+  const PER_PAGE = 50
 
   useEffect(() => {
     (async () => {
@@ -122,7 +123,8 @@ export default function EmailInbox() {
   const loadThreads = useCallback(async (pageToken?: string) => {
     setLoading(true); setErr(null)
     try {
-      const p = new URLSearchParams({ label, maxResults: String(PER_PAGE) })
+      const p = new URLSearchParams({ maxResults: String(PER_PAGE) })
+      if (label) p.set('label', label)
       if (pageToken) p.set('pageToken', pageToken)
       if (searchQ) p.set('q', searchQ)
       const r = await fetch(`/api/gmail/threads?${p}`)
@@ -192,14 +194,14 @@ export default function EmailInbox() {
   }
   const doArchive = async (id: string) => { await modify(id,undefined,['INBOX']); setThreads(p=>p.filter(t=>t.id!==id)); setSel(p=>{const n=new Set(p);n.delete(id);return n}); if(selThread===id){setSelThread(null);setDetail(null)} }
   const doTrash = async (id: string) => { await modify(id,['TRASH'],['INBOX']); setThreads(p=>p.filter(t=>t.id!==id)); setSel(p=>{const n=new Set(p);n.delete(id);return n}); if(selThread===id){setSelThread(null);setDetail(null)} }
-  const doUnread = async (id: string) => { await modify(id,['UNREAD']); setThreads(p=>p.map(t=>t.id===id?{...t,isUnread:true}:t)); if(selThread===id){setSelThread(null);setDetail(null)} }
+  const doUnread = async (id: string) => { await modify(id,['UNREAD']); setThreads(p=>p.map(t=>t.id===id?{...t,isUnread:true}:t)); if(selThread===id){setSelThread(null);setDetail(null)}; window.dispatchEvent(new Event('unread-counts-changed')) }
   const doStar = async (id: string, starred: boolean) => {
     if(starred) await modify(id,undefined,['STARRED']); else await modify(id,['STARRED'])
     setThreads(p=>p.map(t=>t.id===id?{...t,labelIds:starred?t.labelIds.filter(l=>l!=='STARRED'):[...t.labelIds,'STARRED']}:t))
   }
   const bulkArchive = async () => { await Promise.all(Array.from(sel).map(id=>modify(id,undefined,['INBOX']))); setThreads(p=>p.filter(t=>!sel.has(t.id))); setSel(new Set()) }
   const bulkTrash = async () => { await Promise.all(Array.from(sel).map(id=>modify(id,['TRASH'],['INBOX']))); setThreads(p=>p.filter(t=>!sel.has(t.id))); setSel(new Set()) }
-  const bulkUnread = async () => { await Promise.all(Array.from(sel).map(id=>modify(id,['UNREAD']))); setThreads(p=>p.map(t=>sel.has(t.id)?{...t,isUnread:true}:t)); setSel(new Set()) }
+  const bulkUnread = async () => { await Promise.all(Array.from(sel).map(id=>modify(id,['UNREAD']))); setThreads(p=>p.map(t=>sel.has(t.id)?{...t,isUnread:true}:t)); setSel(new Set()); window.dispatchEvent(new Event('unread-counts-changed')) }
 
   const toggleSel = (id: string, e: React.MouseEvent) => { e.stopPropagation(); setSel(p=>{const n=new Set(p);if(n.has(id))n.delete(id);else n.add(id);return n}) }
   const toggleAll = () => { sel.size===threads.length ? setSel(new Set()) : setSel(new Set(threads.map(t=>t.id))) }
@@ -207,7 +209,7 @@ export default function EmailInbox() {
   const resLabel = (id: string) => labelMap[id]?.name || id
 
   const navItems = [
-    {k:'INBOX',l:'Inbox',i:P.inbox},{k:'SENT',l:'Sent',i:P.send},{k:'STARRED',l:'Starred',i:P.starOff},{k:'DRAFT',l:'Drafts',i:P.draft},{k:'TRASH',l:'Trash',i:P.trash},
+    {k:'INBOX',l:'Inbox',i:P.inbox},{k:'SENT',l:'Sent',i:P.send},{k:'STARRED',l:'Starred',i:P.starOff},{k:'DRAFT',l:'Drafts',i:P.draft},{k:'TRASH',l:'Trash',i:P.trash},{k:'',l:'All Mail',i:P.draft},
   ]
 
   const startIdx = (currentPage - 1) * PER_PAGE + 1
@@ -227,7 +229,7 @@ export default function EmailInbox() {
           <>
             <button onClick={bulkArchive} title="Archive" style={ib(false)}><I d={P.archive} sz={18}/></button>
             <button onClick={bulkTrash} title="Delete" style={ib(false)}><I d={P.trash} sz={18}/></button>
-            <button onClick={bulkUnread} title="Mark unread" style={ib(false)}><I d={P.unread} sz={18}/></button>
+            <button onClick={bulkUnread} title="Mark unread" style={ib(false)}><I d={P.unreadOpen} sz={18}/></button>
           </>
         ) : (
           <button onClick={()=>loadThreads()} title="Refresh" style={ib(false)}><I d={P.refresh} sz={18}/></button>
@@ -301,7 +303,7 @@ export default function EmailInbox() {
                   <div style={{display:'flex',gap:0}} onClick={e=>e.stopPropagation()}>
                     <button onClick={()=>doArchive(t.id)} title="Archive" style={{padding:'4px',background:'none',border:'none',color:'#5f6368',cursor:'pointer',display:'flex',borderRadius:'50%'}}><I d={P.archive} sz={16}/></button>
                     <button onClick={()=>doTrash(t.id)} title="Delete" style={{padding:'4px',background:'none',border:'none',color:'#5f6368',cursor:'pointer',display:'flex',borderRadius:'50%'}}><I d={P.trash} sz={16}/></button>
-                    <button onClick={()=>doUnread(t.id)} title="Mark unread" style={{padding:'4px',background:'none',border:'none',color:'#5f6368',cursor:'pointer',display:'flex',borderRadius:'50%'}}><I d={P.unread} sz={16}/></button>
+                    <button onClick={()=>doUnread(t.id)} title="Mark unread" style={{padding:'4px',background:'none',border:'none',color:'#5f6368',cursor:'pointer',display:'flex',borderRadius:'50%'}}><I d={P.unreadOpen} sz={16}/></button>
                   </div>
                 ) : (
                   <>
@@ -325,7 +327,7 @@ export default function EmailInbox() {
           <button onClick={()=>{setSelThread(null);setDetail(null);setShowReply(false)}} style={ib(false)} title="Back"><I d={P.back} sz={18}/></button>
           <button onClick={()=>doArchive(detail.id)} style={ib(false)} title="Archive"><I d={P.archive} sz={18}/></button>
           <button onClick={()=>doTrash(detail.id)} style={ib(false)} title="Delete"><I d={P.trash} sz={18}/></button>
-          <button onClick={()=>doUnread(detail.id)} style={ib(false)} title="Mark unread"><I d={P.unread} sz={18}/></button>
+          <button onClick={()=>doUnread(detail.id)} style={ib(false)} title="Mark unread"><I d={P.unreadMark} sz={18}/></button>
           <div style={{flex:1}}/>
           <span style={{color:'#5f6368',fontSize:'12px',paddingRight:'8px'}}>{detail.messages.length} message{detail.messages.length!==1?'s':''}</span>
         </div>
@@ -489,12 +491,15 @@ export default function EmailInbox() {
               <>
                 <div style={{padding:'12px 14px 4px',fontSize:'10px',fontWeight:600,color:'#444746',textTransform:'uppercase',letterSpacing:'0.5px'}}>Labels</div>
                 {allLabels.map(l=>{
-                  const act=searchQ===`label:${l.name}`
+                  const act=label===l.id&&!searchQ
+                  const parts=l.name.split('/')
+                  const depth=parts.length-1
+                  const displayName=parts[parts.length-1]
                   return (
-                    <button key={l.id} onClick={()=>{setSearchQ(`label:${l.name}`);setSearch(`label:${l.name}`);setSelThread(null);setDetail(null);setSel(new Set())}}
-                      style={{display:'flex',alignItems:'center',gap:'12px',padding:'3px 14px',margin:'0 6px',borderRadius:'16px',cursor:'pointer',background:act?'#d3e3fd':'transparent',color:act?'#001d35':'#444746',fontSize:'12px',fontWeight:act?600:400,border:'none',width:'calc(100% - 12px)',textAlign:'left',overflow:'hidden'}}>
-                      <span style={{display:'flex',flexShrink:0}}><I d={P.label} sz={16}/></span>
-                      <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.name}</span>
+                    <button key={l.id} onClick={()=>{setLabel(l.id);setSearchQ('');setSearch('');setSelThread(null);setDetail(null);setSel(new Set())}}
+                      style={{display:'flex',alignItems:'center',gap:'8px',padding:'3px 14px',margin:'0 6px',borderRadius:'16px',cursor:'pointer',background:act?'#d3e3fd':'transparent',color:act?'#001d35':'#444746',fontSize:'12px',fontWeight:act?600:400,border:'none',width:'calc(100% - 12px)',textAlign:'left',overflow:'hidden',paddingLeft:`${14+depth*16}px`}}>
+                      <span style={{display:'flex',flexShrink:0}}><I d={P.label} sz={depth>0?14:16}/></span>
+                      <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{displayName}</span>
                     </button>
                   )
                 })}
