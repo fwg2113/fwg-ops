@@ -6,10 +6,11 @@ import TaskBoard from './TaskBoard'
 export default async function TasksPage() {
   console.log('[TasksPage] Fetching tasks from Supabase...')
 
-  // Fetch all tasks
+  // Fetch all tasks (excluding archived)
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes, started_at, time_spent_minutes, line_item_id, document_id')
+    .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes, started_at, time_spent_minutes, line_item_id, document_id, archived')
+    .or('archived.is.null,archived.eq.false')
     .order('created_at', { ascending: false })
 
   console.log('[TasksPage] Fetched tasks:', tasks?.length || 0, 'tasks')

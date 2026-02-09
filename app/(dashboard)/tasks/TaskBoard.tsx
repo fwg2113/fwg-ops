@@ -15,6 +15,7 @@ type Task = {
   submission_id?: string | null
   quote_id?: string | null
   notes?: string | null
+  archived?: boolean | null
 }
 
 type Document = {
@@ -242,6 +243,35 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
     }
   }
 
+  const handleArchiveCompleted = async () => {
+    const completedTasks = tasks.filter(t => t.status === 'COMPLETED')
+
+    if (completedTasks.length === 0) {
+      alert('No completed tasks to archive')
+      return
+    }
+
+    if (!confirm(`Archive ${completedTasks.length} completed task${completedTasks.length > 1 ? 's' : ''}?`)) return
+
+    console.log('[TaskBoard] Archiving completed tasks:', completedTasks.length)
+
+    const response = await fetch('/api/tasks/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskIds: completedTasks.map(t => t.id) })
+    })
+
+    if (response.ok) {
+      console.log('[TaskBoard] Tasks archived successfully')
+      setTasks(tasks.filter(t => t.status !== 'COMPLETED'))
+      router.refresh()
+    } else {
+      const errorText = await response.text()
+      console.error('[TaskBoard] Failed to archive tasks:', errorText)
+      alert('Failed to archive tasks')
+    }
+  }
+
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId)
     e.dataTransfer.effectAllowed = 'move'
@@ -352,6 +382,40 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
             </svg>
             Add Task
           </button>
+
+          {/* Archive Completed Button - Only show when there are completed tasks */}
+          {stats.completed > 0 && (
+            <button
+              onClick={handleArchiveCompleted}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: '500',
+                background: '#22c55e',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#16a34a'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#22c55e'
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+              Archive {stats.completed} Completed
+            </button>
+          )}
 
           {/* View Toggle */}
           <div style={{
