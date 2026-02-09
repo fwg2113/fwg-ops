@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 
+// Dismissed actions are stored in localStorage
+const DISMISSED_ACTIONS_KEY = 'command-center-dismissed-actions'
+
 type Task = {
   id: string
   title: string
@@ -160,6 +163,13 @@ const formatCategoryLabel = (category: string): string => {
 export default function CommandCenter({ initialData }: { initialData: DashboardData }) {
   const router = useRouter()
   const [data, setData] = useState(initialData)
+  const [dismissedActions, setDismissedActions] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(DISMISSED_ACTIONS_KEY)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    }
+    return new Set()
+  })
   const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>(initialData.pinnedItems)
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false)
@@ -358,7 +368,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     return Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24))
   }
 
-  const actionItems = buildActionItems()
+  const actionItems = buildActionItems().filter(item => !dismissedActions.has(item.id))
   const waitingItems = getWaitingItems()
   const waitingTotal = waitingItems.reduce((sum, q) => sum + (q.total || 0), 0)
 
@@ -402,7 +412,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   // Complete a task
   const completeTask = async (taskId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
-    
+
     await supabase
       .from('tasks')
       .update({ status: 'COMPLETED', completed_at: new Date().toISOString() })
@@ -413,6 +423,26 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       tasks: data.tasks.map(t => t.id === taskId ? { ...t, status: 'COMPLETED' } : t)
     })
     setShowTaskDetailModal(false)
+  }
+
+  // Complete/dismiss any action item
+  const completeActionItem = (item: ActionItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+
+    // For tasks, actually mark as completed in database
+    if (item.type === 'task') {
+      completeTask(item.data.id, e)
+    } else {
+      // For other items, just dismiss them from the UI
+      const newDismissed = new Set(dismissedActions)
+      newDismissed.add(item.id)
+      setDismissedActions(newDismissed)
+
+      // Save to localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DISMISSED_ACTIONS_KEY, JSON.stringify(Array.from(newDismissed)))
+      }
+    }
   }
 
   // Create new task
@@ -563,7 +593,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
                     const type = item.type === 'submission' ? 'submission' : item.type === 'task' ? 'task' : item.data.doc_type
                     togglePin(type, item.data.id, e)
                   }}
-                  onComplete={(e) => item.type === 'task' && completeTask(item.data.id, e)}
+                  onComplete={(e) => completeActionItem(item, e)}
                   onClick={() => handleItemClick(item)}
                   getActionBadgeStyle={getActionBadgeStyle}
                   getActionLabel={getActionLabel}
@@ -596,7 +626,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
                   const type = item.type === 'submission' ? 'submission' : item.type === 'task' ? 'task' : item.data.doc_type
                   togglePin(type, item.data.id, e)
                 }}
-                onComplete={(e) => item.type === 'task' && completeTask(item.data.id, e)}
+                onComplete={(e) => completeActionItem(item, e)}
                 onClick={() => handleItemClick(item)}
                 getActionBadgeStyle={getActionBadgeStyle}
                 getActionLabel={getActionLabel}
@@ -1189,14 +1219,13 @@ function ActionItemRow({
         <PinIcon pinned={isPinned} />
       </button>
 
-      {/* Complete Button (for tasks) */}
-      {item.type === 'task' && (
-        <button
-          onClick={onComplete}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#64748b',
+      {/* Complete Button (for all items) */}
+      <button
+        onClick={onComplete}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: '#64748b',
             cursor: 'pointer',
             padding: '6px',
             borderRadius: '6px',
@@ -1207,7 +1236,6 @@ function ActionItemRow({
         >
           <CheckIcon />
         </button>
-      )}
 
       {/* Arrow */}
       <div style={{ color: '#64748b', flexShrink: 0 }}>
