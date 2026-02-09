@@ -44,7 +44,7 @@ export async function POST(request: Request) {
         'line_items[0][price_data][product_data][description]': doc.project_description || `Payment for ${doc.customer_name}`,
         'line_items[0][price_data][unit_amount]': Math.round(amount * 100).toString(),
         'line_items[0][quantity]': '1',
-        'customer_email': doc.customer_email || '',
+        ...(doc.customer_email ? { 'customer_email': doc.customer_email } : {}),
         'metadata[document_id]': documentId,
         'metadata[doc_number]': doc.doc_number?.toString() || '',
         'metadata[base_amount]': doc.balance_due?.toString() || amount.toString(),
