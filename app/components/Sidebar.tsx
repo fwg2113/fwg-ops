@@ -164,10 +164,13 @@ export default function Sidebar() {
     const interval = setInterval(fetchUnreadCounts, 60000)
     // Also refresh on window focus
     const handleFocus = () => fetchUnreadCounts()
+    const handleUnreadChange = () => fetchUnreadCounts()
     window.addEventListener('focus', handleFocus)
+    window.addEventListener('unread-counts-changed', handleUnreadChange)
     return () => {
       clearInterval(interval)
       window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('unread-counts-changed', handleUnreadChange)
     }
   }, [fetchUnreadCounts])
 

@@ -162,6 +162,7 @@ export default function EmailInbox() {
       setDetail(d)
       if (d.messages?.length) setExpanded(new Set([d.messages[d.messages.length-1].id]))
       setThreads(prev => prev.map(t => t.id === id ? {...t, isUnread: false} : t))
+      window.dispatchEvent(new Event('unread-counts-changed'))
     } catch(e:any) { setErr(e.message) }
     setLoadingDetail(false)
   }
