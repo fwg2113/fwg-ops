@@ -1709,10 +1709,10 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#be1e2d" strokeWidth="2">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
               </svg>
-              (240) 770-5424
+              (240) 693-3715
             </a>
             <a 
-              href="mailto:joe@frederickwraps.com"
+              href="mailto:info@frederickwraps.com"
               style={{
                 flex: 1,
                 display: 'flex',
@@ -1733,7 +1733,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
-              joe@frederickwraps.com
+              info@frederickwraps.com
             </a>
           </div>
         </div>
@@ -1769,7 +1769,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           <div style={{ display: 'flex', justifyContent: 'center', gap: '24px' }}>
             <a href="https://frederickwraps.com" style={{ color: '#be1e2d', fontSize: '13px', textDecoration: 'none' }}>Website</a>
             <a href="tel:+12407705424" style={{ color: '#be1e2d', fontSize: '13px', textDecoration: 'none' }}>Call Us</a>
-            <a href="mailto:joe@frederickwraps.com" style={{ color: '#be1e2d', fontSize: '13px', textDecoration: 'none' }}>Email</a>
+            <a href="mailto:info@frederickwraps.com" style={{ color: '#be1e2d', fontSize: '13px', textDecoration: 'none' }}>Email</a>
           </div>
         </div>
       </div>
