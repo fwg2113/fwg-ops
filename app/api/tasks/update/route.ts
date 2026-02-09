@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       .from('tasks')
       .update(updateData)
       .eq('id', taskId)
-      .select()
+      .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes')
       .single()
 
     if (error) {
