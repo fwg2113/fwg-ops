@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/lib/supabase'
+import { autoCompleteActions } from '@/app/lib/customer/actionGenerator'
 
 export async function POST(request: Request) {
   try {
@@ -55,8 +56,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    // Auto-complete customer actions triggered by approval
+    await autoCompleteActions(documentId, 'approved')
+
+    return NextResponse.json({
+      success: true,
       document: data,
       converted: doc.doc_type === 'quote' && convertToInvoice
     })
