@@ -331,11 +331,16 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     }
   }
 
-  // Archive a document
+  // Archive a document (save current status/bucket for restore)
   const archiveDocument = async (docId: string, reason: 'won' | 'cold') => {
+    const doc = [...data.quotes, ...data.invoices].find(d => d.id === docId)
     const bucketValue = reason === 'won' ? 'ARCHIVE_WON' : 'COLD'
     const statusValue = reason === 'won' ? 'archived' : undefined
-    const update: any = { bucket: bucketValue }
+    const update: any = {
+      bucket: bucketValue,
+      pre_archive_status: doc?.status || null,
+      pre_archive_bucket: doc?.bucket || null
+    }
     if (statusValue) update.status = statusValue
     await supabase.from('documents').update(update).eq('id', docId)
     setData(d => ({
@@ -347,9 +352,13 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     router.refresh()
   }
 
-  // Archive a submission
+  // Archive a submission (save current status for restore)
   const archiveSubmission = async (subId: string) => {
-    await supabase.from('submissions').update({ status: 'archived' }).eq('id', subId)
+    const sub = data.submissions.find(s => s.id === subId)
+    await supabase.from('submissions').update({
+      status: 'archived',
+      pre_archive_status: sub?.status || 'new'
+    }).eq('id', subId)
     setData(d => ({ ...d, submissions: d.submissions.filter(s => s.id !== subId) }))
     setShowArchiveModal(null)
     router.refresh()

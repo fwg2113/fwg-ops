@@ -17,6 +17,8 @@ type ArchivedDoc = {
   created_at: string
   paid_at?: string
   bucket: string
+  pre_archive_status?: string
+  pre_archive_bucket?: string
 }
 
 type ArchivedSub = {
@@ -29,6 +31,7 @@ type ArchivedSub = {
   price_range_max: number
   created_at: string
   status: string
+  pre_archive_status?: string
 }
 
 const formatCategory = (cat: string): string => {
@@ -64,12 +67,27 @@ export default function ArchiveView({ completedDocs, coldDocs, archivedSubs }: {
     bucket: 'COLD'
   }))])
 
-  // Restore a document from archive back to active
+  // Restore a document from archive back to its pre-archive state
   const restoreDocument = async (docId: string, docType: string) => {
     if (docType === 'submission') {
-      await supabase.from('submissions').update({ status: 'new' }).eq('id', docId)
+      // Find the submission to get pre-archive status
+      const sub = archivedSubs.find(s => s.id === docId)
+      const restoreStatus = sub?.pre_archive_status || 'new'
+      await supabase.from('submissions').update({
+        status: restoreStatus,
+        pre_archive_status: null
+      }).eq('id', docId)
     } else {
-      await supabase.from('documents').update({ bucket: null, status: 'draft' }).eq('id', docId)
+      // Find the document to get pre-archive status/bucket
+      const doc = [...completedDocs, ...coldDocs].find(d => d.id === docId)
+      const restoreStatus = doc?.pre_archive_status || 'draft'
+      const restoreBucket = doc?.pre_archive_bucket || null
+      await supabase.from('documents').update({
+        status: restoreStatus,
+        bucket: restoreBucket,
+        pre_archive_status: null,
+        pre_archive_bucket: null
+      }).eq('id', docId)
     }
     router.refresh()
   }

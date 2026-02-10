@@ -117,7 +117,30 @@ type PricingRow = {
   notes: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'statuses' | 'priorities' | 'automations' | 'estimator'
+type CustomerWorkflowStep = {
+  id: string
+  template_key: string
+  step_key: string
+  label: string
+  description: string | null
+  default_priority: string
+  sort_order: number
+  auto_complete_on_status: string | null
+  active: boolean
+}
+
+type CustomerWorkflowTemplate = {
+  id: string
+  template_key: string
+  category_key: string
+  label: string
+  description: string | null
+  active: boolean
+  sort_order: number
+  customer_workflow_steps: CustomerWorkflowStep[]
+}
+
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator'
 
 export default function SettingsView({
   initialCategories,
@@ -132,7 +155,8 @@ export default function SettingsView({
   initialAutomationSettings,
   initialVehicleCategories,
   initialProjectTypes,
-  initialPricingMatrix
+  initialPricingMatrix,
+  initialCustomerWorkflows
 }: {
   initialCategories: Category[]
   initialMaterials: Material[]
@@ -147,6 +171,7 @@ export default function SettingsView({
   initialVehicleCategories: VehicleCategory[]
   initialProjectTypes: ProjectType[]
   initialPricingMatrix: PricingRow[]
+  initialCustomerWorkflows: CustomerWorkflowTemplate[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories] = useState<Category[]>(initialCategories)
@@ -176,6 +201,15 @@ export default function SettingsView({
   const [editingVehicle, setEditingVehicle] = useState<VehicleCategory | null>(null)
   const [editingPricing, setEditingPricing] = useState<PricingRow | null>(null)
   const [savingEstimator, setSavingEstimator] = useState(false)
+  // Customer Workflows state
+  const [customerWorkflows, setCustomerWorkflows] = useState<CustomerWorkflowTemplate[]>(initialCustomerWorkflows)
+  const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null)
+  const [editingWorkflowStep, setEditingWorkflowStep] = useState<{ templateId: string; templateKey: string; step: CustomerWorkflowStep } | null>(null)
+  const [addingWorkflowStep, setAddingWorkflowStep] = useState<{ templateId: string; templateKey: string } | null>(null)
+  const [newWorkflowStep, setNewWorkflowStep] = useState({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' })
+  const [propagating, setPropagating] = useState<string | null>(null)
+  const [propagateResult, setPropagateResult] = useState<{ templateKey: string; message: string } | null>(null)
+
   const [addingVehicle, setAddingVehicle] = useState(false)
   const [newVehicle, setNewVehicle] = useState({
     category_key: '',
@@ -193,6 +227,7 @@ export default function SettingsView({
     { key: 'materials', label: 'Materials' },
     { key: 'buckets', label: 'Pipeline Buckets' },
     { key: 'production', label: 'Production Templates' },
+    { key: 'workflows', label: 'Customer Workflows' },
     { key: 'statuses', label: 'Task Statuses' },
     { key: 'priorities', label: 'Task Priorities' },
     { key: 'estimator', label: 'Estimator Config' },
@@ -557,6 +592,107 @@ export default function SettingsView({
     ))
     setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' })
     setAddingTask(null)
+  }
+
+  // ---- Customer Workflow Step CRUD ----
+
+  const addWorkflowStep = async (templateId: string, templateKey: string) => {
+    if (!newWorkflowStep.step_key.trim() || !newWorkflowStep.label.trim()) {
+      alert('Please enter both step key and label')
+      return
+    }
+
+    const wf = customerWorkflows.find(w => w.id === templateId)
+    const maxSort = Math.max(...(wf?.customer_workflow_steps.map(s => s.sort_order) || [0]), 0)
+
+    const { data, error } = await supabase
+      .from('customer_workflow_steps')
+      .insert({
+        template_key: templateKey,
+        step_key: newWorkflowStep.step_key.trim().toUpperCase().replace(/\s+/g, '_'),
+        label: newWorkflowStep.label.trim(),
+        description: newWorkflowStep.description.trim() || null,
+        default_priority: newWorkflowStep.default_priority,
+        sort_order: maxSort + 1,
+        auto_complete_on_status: newWorkflowStep.auto_complete_on_status.trim() || null,
+        active: true
+      })
+      .select()
+      .single()
+
+    if (error) {
+      alert('Error adding step: ' + error.message)
+      return
+    }
+
+    setCustomerWorkflows(customerWorkflows.map(w =>
+      w.id === templateId
+        ? { ...w, customer_workflow_steps: [...w.customer_workflow_steps, data] }
+        : w
+    ))
+    setNewWorkflowStep({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' })
+    setAddingWorkflowStep(null)
+  }
+
+  const updateWorkflowStep = async (stepId: string, templateId: string, updates: Partial<CustomerWorkflowStep>) => {
+    const { error } = await supabase
+      .from('customer_workflow_steps')
+      .update(updates)
+      .eq('id', stepId)
+
+    if (error) {
+      alert('Error updating step: ' + error.message)
+      return
+    }
+
+    setCustomerWorkflows(customerWorkflows.map(w => ({
+      ...w,
+      customer_workflow_steps: w.customer_workflow_steps.map(s =>
+        s.id === stepId ? { ...s, ...updates } : s
+      )
+    })))
+    setEditingWorkflowStep(null)
+  }
+
+  const deleteWorkflowStep = async (templateId: string, stepId: string) => {
+    if (!confirm('Delete this step from the workflow? This will NOT remove completed actions from existing documents.')) return
+
+    const { error } = await supabase
+      .from('customer_workflow_steps')
+      .delete()
+      .eq('id', stepId)
+
+    if (error) {
+      alert('Error deleting step: ' + error.message)
+      return
+    }
+
+    setCustomerWorkflows(customerWorkflows.map(w =>
+      w.id === templateId
+        ? { ...w, customer_workflow_steps: w.customer_workflow_steps.filter(s => s.id !== stepId) }
+        : w
+    ))
+  }
+
+  const propagateWorkflowChanges = async (templateKey: string) => {
+    setPropagating(templateKey)
+    setPropagateResult(null)
+    try {
+      const res = await fetch('/api/customer-actions/propagate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateKey })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error)
+      setPropagateResult({
+        templateKey,
+        message: `Updated ${result.updated} actions, added ${result.added} new, removed ${result.removed} across ${result.totalDocuments} documents`
+      })
+    } catch (err: any) {
+      setPropagateResult({ templateKey, message: 'Error: ' + (err.message || 'Failed to propagate') })
+    }
+    setPropagating(null)
   }
 
   const addTaskStatus = async () => {
@@ -1275,6 +1411,309 @@ export default function SettingsView({
                     style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
                   >
                     Add Task
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Customer Workflows Tab */}
+      {activeTab === 'workflows' && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Customer Workflow Templates</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage Action Center workflow steps for each service category. Use &quot;Save &amp; Push to Live&quot; to update all existing documents.</p>
+          </div>
+          <div style={{ padding: '12px' }}>
+            {customerWorkflows.length > 0 ? customerWorkflows.map((wf) => (
+              <div key={wf.id} style={{ background: '#282a30', borderRadius: '8px', marginBottom: '12px', overflow: 'hidden' }}>
+                {/* Workflow Header */}
+                <div
+                  onClick={() => setExpandedWorkflow(expandedWorkflow === wf.id ? null : wf.id)}
+                  style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <h4 style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: '600', margin: 0 }}>{wf.label}</h4>
+                      <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', background: 'rgba(6,182,212,0.1)', color: '#06b6d4', fontFamily: 'monospace' }}>
+                        {wf.category_key}
+                      </span>
+                      <span style={{
+                        padding: '4px 8px', borderRadius: '4px', fontSize: '11px',
+                        background: wf.active ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                        color: wf.active ? '#22c55e' : '#ef4444'
+                      }}>
+                        {wf.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>{wf.description || 'No description'}</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ color: '#64748b', fontSize: '13px' }}>
+                      {wf.customer_workflow_steps?.length || 0} steps
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: '18px' }}>
+                      {expandedWorkflow === wf.id ? '\u25BC' : '\u25B6'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Workflow Steps */}
+                {expandedWorkflow === wf.id && (
+                  <div style={{ borderTop: '1px solid rgba(148,163,184,0.1)' }}>
+                    <div style={{ padding: '12px 20px', background: '#1d1d1d' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <h5 style={{ color: '#94a3b8', fontSize: '13px', margin: 0, fontWeight: '600' }}>Workflow Steps</h5>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => propagateWorkflowChanges(wf.template_key)}
+                            disabled={propagating === wf.template_key}
+                            style={{
+                              padding: '6px 12px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)',
+                              borderRadius: '6px', color: '#22c55e', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                              opacity: propagating === wf.template_key ? 0.5 : 1
+                            }}
+                          >
+                            {propagating === wf.template_key ? 'Pushing...' : 'Save & Push to Live'}
+                          </button>
+                          <button
+                            onClick={() => setAddingWorkflowStep({ templateId: wf.id, templateKey: wf.template_key })}
+                            style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                          >
+                            + Add Step
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Propagate result message */}
+                      {propagateResult && propagateResult.templateKey === wf.template_key && (
+                        <div style={{
+                          padding: '10px 14px', marginBottom: '12px', borderRadius: '8px', fontSize: '13px',
+                          background: propagateResult.message.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+                          color: propagateResult.message.startsWith('Error') ? '#ef4444' : '#22c55e',
+                          border: `1px solid ${propagateResult.message.startsWith('Error') ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)'}`
+                        }}>
+                          {propagateResult.message}
+                        </div>
+                      )}
+
+                      {wf.customer_workflow_steps && wf.customer_workflow_steps.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {wf.customer_workflow_steps
+                            .sort((a, b) => a.sort_order - b.sort_order)
+                            .map((step, index) => (
+                            <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#282a30', borderRadius: '6px' }}>
+                              <span style={{
+                                width: '24px', height: '24px', borderRadius: '50%', background: '#06b6d4', color: 'white',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '600', flexShrink: 0
+                              }}>
+                                {index + 1}
+                              </span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ color: '#f1f5f9', fontSize: '14px', margin: '0 0 2px 0' }}>{step.label}</p>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  <span style={{ color: '#64748b', fontSize: '12px', fontFamily: 'monospace' }}>{step.step_key}</span>
+                                  {step.auto_complete_on_status && (
+                                    <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(168,85,247,0.1)', color: '#a855f7' }}>
+                                      auto: {step.auto_complete_on_status}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span style={{
+                                padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', flexShrink: 0,
+                                background: step.default_priority === 'HIGH' ? 'rgba(239,68,68,0.1)' : step.default_priority === 'MEDIUM' ? 'rgba(245,158,11,0.1)' : 'rgba(148,163,184,0.1)',
+                                color: step.default_priority === 'HIGH' ? '#ef4444' : step.default_priority === 'MEDIUM' ? '#f59e0b' : '#94a3b8'
+                              }}>
+                                {step.default_priority}
+                              </span>
+                              <button
+                                onClick={() => setEditingWorkflowStep({ templateId: wf.id, templateKey: wf.template_key, step })}
+                                style={{ padding: '6px 10px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => deleteWorkflowStep(wf.id, step.id)}
+                                style={{ padding: '6px 10px', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: '#ef4444', fontSize: '12px', cursor: 'pointer' }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ color: '#64748b', fontSize: '13px', padding: '20px', textAlign: 'center', margin: 0 }}>
+                          No steps defined for this workflow
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )) : (
+              <p style={{ color: '#64748b', padding: '40px', textAlign: 'center' }}>
+                No customer workflow templates configured
+              </p>
+            )}
+          </div>
+
+          {/* Edit Workflow Step Modal */}
+          {editingWorkflowStep && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Edit Workflow Step</h3>
+                  <button onClick={() => setEditingWorkflowStep(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Step Key</label>
+                    <input type="text" value={editingWorkflowStep.step.step_key} disabled
+                      style={{ width: '100%', padding: '10px 14px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#64748b', fontSize: '14px', fontFamily: 'monospace' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                    <input type="text" value={editingWorkflowStep.step.label}
+                      onChange={e => setEditingWorkflowStep({ ...editingWorkflowStep, step: { ...editingWorkflowStep.step, label: e.target.value } })}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Description</label>
+                    <input type="text" value={editingWorkflowStep.step.description || ''}
+                      onChange={e => setEditingWorkflowStep({ ...editingWorkflowStep, step: { ...editingWorkflowStep.step, description: e.target.value || null } })}
+                      placeholder="Optional description"
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority</label>
+                    <select value={editingWorkflowStep.step.default_priority}
+                      onChange={e => setEditingWorkflowStep({ ...editingWorkflowStep, step: { ...editingWorkflowStep.step, default_priority: e.target.value } })}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Auto-complete on Status</label>
+                    <select value={editingWorkflowStep.step.auto_complete_on_status || ''}
+                      onChange={e => setEditingWorkflowStep({ ...editingWorkflowStep, step: { ...editingWorkflowStep.step, auto_complete_on_status: e.target.value || null } })}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    >
+                      <option value="">None (manual)</option>
+                      <option value="draft">Draft</option>
+                      <option value="sent">Sent</option>
+                      <option value="viewed">Viewed</option>
+                      <option value="approved">Approved</option>
+                      <option value="partial">Partial Payment</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                    <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>
+                      Step auto-completes when document reaches this status
+                    </p>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Sort Order</label>
+                    <input type="number" value={editingWorkflowStep.step.sort_order}
+                      onChange={e => setEditingWorkflowStep({ ...editingWorkflowStep, step: { ...editingWorkflowStep.step, sort_order: parseInt(e.target.value) || 0 } })}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={() => setEditingWorkflowStep(null)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button
+                    onClick={() => updateWorkflowStep(editingWorkflowStep.step.id, editingWorkflowStep.templateId, {
+                      label: editingWorkflowStep.step.label,
+                      description: editingWorkflowStep.step.description,
+                      default_priority: editingWorkflowStep.step.default_priority,
+                      auto_complete_on_status: editingWorkflowStep.step.auto_complete_on_status,
+                      sort_order: editingWorkflowStep.step.sort_order
+                    })}
+                    style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add Workflow Step Modal */}
+          {addingWorkflowStep && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Workflow Step</h3>
+                  <button onClick={() => { setAddingWorkflowStep(null); setNewWorkflowStep({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Step Key</label>
+                    <input type="text" value={newWorkflowStep.step_key}
+                      onChange={e => setNewWorkflowStep({ ...newWorkflowStep, step_key: e.target.value })}
+                      placeholder="e.g. SEND_INVOICE"
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', fontFamily: 'monospace' }}
+                    />
+                    <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>Unique identifier (auto-converted to UPPERCASE)</p>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                    <input type="text" value={newWorkflowStep.label}
+                      onChange={e => setNewWorkflowStep({ ...newWorkflowStep, label: e.target.value })}
+                      placeholder="e.g. Send Invoice"
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Description</label>
+                    <input type="text" value={newWorkflowStep.description}
+                      onChange={e => setNewWorkflowStep({ ...newWorkflowStep, description: e.target.value })}
+                      placeholder="Optional description"
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority</label>
+                    <select value={newWorkflowStep.default_priority}
+                      onChange={e => setNewWorkflowStep({ ...newWorkflowStep, default_priority: e.target.value })}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Auto-complete on Status</label>
+                    <select value={newWorkflowStep.auto_complete_on_status}
+                      onChange={e => setNewWorkflowStep({ ...newWorkflowStep, auto_complete_on_status: e.target.value })}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    >
+                      <option value="">None (manual)</option>
+                      <option value="draft">Draft</option>
+                      <option value="sent">Sent</option>
+                      <option value="viewed">Viewed</option>
+                      <option value="approved">Approved</option>
+                      <option value="partial">Partial Payment</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button onClick={() => { setAddingWorkflowStep(null); setNewWorkflowStep({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button
+                    onClick={() => addWorkflowStep(addingWorkflowStep.templateId, addingWorkflowStep.templateKey)}
+                    style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
+                  >
+                    Add Step
                   </button>
                 </div>
               </div>
