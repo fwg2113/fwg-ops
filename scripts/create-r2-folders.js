@@ -31,8 +31,7 @@ const s3 = new S3Client({
 // Vehicle categories (simplified for gallery)
 const VEHICLE_CATEGORIES = [
   'SEDAN_COUPE',
-  'SMALL_SUV',
-  'LARGE_SUV',
+  'SUV',           // Single category for all SUVs
   'PICKUP',        // Covers both PICKUP_STD and PICKUP_HD
   'CARGO_VAN',     // Covers both CARGO_VAN_SM and CARGO_VAN_LG
   'BOX_TRUCK',     // Covers both BOX_TRUCK_SM and BOX_TRUCK_LG

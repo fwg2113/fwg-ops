@@ -30,6 +30,8 @@ const s3 = new S3Client({
 
 // Old folders to delete (replaced by simplified structure)
 const OLD_FOLDERS = [
+  'gallery/SMALL_SUV/',
+  'gallery/LARGE_SUV/',
   'gallery/CARGO_VAN_SM/',
   'gallery/CARGO_VAN_LG/',
   'gallery/PICKUP_STD/',

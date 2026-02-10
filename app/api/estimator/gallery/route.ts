@@ -21,12 +21,15 @@ const s3 = new S3Client({
 // Example: gallery/CARGO_VAN/FULL_WRAP/transit-blue.jpg
 //
 // Category mapping (database categories → gallery folders):
+// - SMALL_SUV, LARGE_SUV → SUV
 // - CARGO_VAN_SM, CARGO_VAN_LG → CARGO_VAN
 // - PICKUP_STD, PICKUP_HD → PICKUP
 // - BOX_TRUCK_SM, BOX_TRUCK_LG → BOX_TRUCK
 
 function mapVehicleCategory(category: string): string {
   const mapping: Record<string, string> = {
+    'SMALL_SUV': 'SUV',
+    'LARGE_SUV': 'SUV',
     'CARGO_VAN_SM': 'CARGO_VAN',
     'CARGO_VAN_LG': 'CARGO_VAN',
     'PICKUP_STD': 'PICKUP',
