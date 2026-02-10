@@ -11,6 +11,7 @@ export default async function DashboardPage() {
     .select('*')
     .eq('doc_type', 'quote')
     .neq('status', 'archived')
+    .not('bucket', 'in', '("ARCHIVE_WON","ARCHIVE_LOST")')
     .order('created_at', { ascending: false })
 
   const { data: invoices } = await supabase
@@ -18,12 +19,13 @@ export default async function DashboardPage() {
     .select('*')
     .eq('doc_type', 'invoice')
     .neq('status', 'archived')
+    .not('bucket', 'in', '("ARCHIVE_WON","ARCHIVE_LOST")')
     .order('created_at', { ascending: false })
 
   const { data: submissions } = await supabase
     .from('submissions')
     .select('*')
-    .in('status', ['new', 'contacted', 'quoted'])
+    .not('status', 'in', '("converted","lost","archived")')
     .order('created_at', { ascending: false })
 
   const { data: tasks } = await supabase
@@ -33,11 +35,40 @@ export default async function DashboardPage() {
     .neq('auto_generated', true)
     .order('created_at', { ascending: false })
 
+  // Fetch ALL customer actions (TODO + COMPLETED) for workflow timeline
   const { data: customerActions } = await supabase
     .from('customer_actions')
-    .select('*, documents:document_id(id, customer_name, doc_number, doc_type, total, vehicle_description, project_description, category)')
-    .eq('status', 'TODO')
+    .select('*, documents:document_id(id, customer_name, doc_number, doc_type, total, vehicle_description, project_description, category, status)')
     .order('sort_order', { ascending: true })
+
+  // Fetch production task stats for in-production documents
+  const inProductionIds = [
+    ...((quotes || []).filter(q => q.in_production).map(q => q.id)),
+    ...((invoices || []).filter(i => i.in_production).map(i => i.id))
+  ]
+
+  let productionStatus: Record<string, { total: number; completed: number }> = {}
+  if (inProductionIds.length > 0) {
+    const { data: prodTasks } = await supabase
+      .from('tasks')
+      .select('document_id, status')
+      .eq('auto_generated', true)
+      .or('archived.is.null,archived.eq.false')
+      .in('document_id', inProductionIds)
+
+    if (prodTasks) {
+      for (const t of prodTasks) {
+        if (!t.document_id) continue
+        if (!productionStatus[t.document_id]) {
+          productionStatus[t.document_id] = { total: 0, completed: 0 }
+        }
+        productionStatus[t.document_id].total++
+        if (t.status === 'COMPLETED') {
+          productionStatus[t.document_id].completed++
+        }
+      }
+    }
+  }
 
   const { data: pinnedItems } = await supabase
     .from('pinned_items')
@@ -91,6 +122,7 @@ export default async function DashboardPage() {
     submissions: submissions || [],
     tasks: tasks || [],
     customerActions: customerActions || [],
+    productionStatus,
     pinnedItems: pinnedItems || [],
     metrics: {
       monthlyRevenue: liveMetrics.fwgMtdTotal,

@@ -141,6 +141,59 @@ export async function POST(request: Request) {
       }
     }
 
+    // Automation #3: Production complete → Action Center handoff
+    // When ALL production tasks for a document are complete, create NOTIFY_COMPLETION customer action
+    if (status === 'COMPLETED' && data.document_id) {
+      try {
+        const { data: allDocTasks } = await supabase
+          .from('tasks')
+          .select('id, status')
+          .eq('document_id', data.document_id)
+          .eq('auto_generated', true)
+          .or('archived.is.null,archived.eq.false')
+
+        const allDone = allDocTasks && allDocTasks.length > 0 && allDocTasks.every(t => t.status === 'COMPLETED')
+
+        if (allDone) {
+          // Check if a NOTIFY_COMPLETION action already exists for this document
+          const { data: existingNotify } = await supabase
+            .from('customer_actions')
+            .select('id')
+            .eq('document_id', data.document_id)
+            .eq('step_key', 'NOTIFY_COMPLETION')
+            .eq('status', 'TODO')
+
+          if (!existingNotify || existingNotify.length === 0) {
+            // Get document category to find the right template
+            const { data: doc } = await supabase
+              .from('documents')
+              .select('category')
+              .eq('id', data.document_id)
+              .single()
+
+            const templateKey = doc?.category ? `${doc.category}_CUSTOMER` : 'OTHER_CUSTOMER'
+
+            await supabase.from('customer_actions').insert({
+              document_id: data.document_id,
+              template_key: templateKey,
+              step_key: 'NOTIFY_COMPLETION',
+              title: 'Notify customer - production complete',
+              description: 'All production tasks are done. Notify the customer their order is ready.',
+              status: 'TODO',
+              priority: 'HIGH',
+              sort_order: 100,
+              auto_complete_on_status: null,
+              auto_generated: true
+            })
+
+            console.log(`[Automation] Created NOTIFY_COMPLETION action for document ${data.document_id}`)
+          }
+        }
+      } catch (autoError) {
+        console.error('[Automation] Failed to create production-complete action:', autoError)
+      }
+    }
+
     return NextResponse.json(data)
   } catch (error) {
     console.error('Error updating task:', error)
