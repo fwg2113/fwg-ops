@@ -108,6 +108,7 @@ type Document = {
   valid_until: string | null; attachments?: Attachment[]; in_production: boolean; fees?: Fee[] | string
   followup_count?: number; last_followup_at?: string; revision_history_json?: any; discount_note?: string
   options_mode?: boolean; options_json?: QuoteOption[]; history_log?: HistoryEntry[]
+  fulfillment_type?: string; fulfillment_details?: any
 }
 
 type HistoryEntry = {
@@ -288,6 +289,9 @@ export default function DocumentDetail({
 
   // Delete state
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showFulfillmentModal, setShowFulfillmentModal] = useState(false)
+  const [fulfillmentType, setFulfillmentType] = useState(doc.fulfillment_type || '')
+  const [fulfillmentDetails, setFulfillmentDetails] = useState(doc.fulfillment_details || {})
   const [deleting, setDeleting] = useState(false)
 
   // Revision History state
@@ -916,6 +920,18 @@ export default function DocumentDetail({
     setDoc({ ...doc, bucket: 'COLD' })
     await appendHistory('Moved to Cold', 'Document moved to cold bucket')
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
+    setSaving(false)
+  }
+
+  const handleSaveFulfillment = async () => {
+    setSaving(true)
+    await supabase.from('documents').update({
+      fulfillment_type: fulfillmentType || null,
+      fulfillment_details: fulfillmentDetails
+    }).eq('id', doc.id)
+    setDoc({ ...doc, fulfillment_type: fulfillmentType, fulfillment_details: fulfillmentDetails })
+    await appendHistory('Fulfillment Updated', `Set to ${fulfillmentType ? fulfillmentType.replace(/_/g, ' ') : 'none'}`)
+    setShowFulfillmentModal(false)
     setSaving(false)
   }
 
@@ -1783,6 +1799,10 @@ export default function DocumentDetail({
                 // Follow Up (if sent, not paid/void/archived)
                 if (hasBeenSent && !isArchived && doc.status !== 'paid' && doc.status !== 'void') {
                   buttons.push(<ActionButton key="followup" onClick={handleOpenFollowUpModal} variant="secondary">Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}</ActionButton>)
+                }
+                // Fulfillment Type (unless archived)
+                if (!isArchived) {
+                  buttons.push(<ActionButton key="fulfillment" onClick={() => setShowFulfillmentModal(true)} variant="secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>{doc.fulfillment_type ? doc.fulfillment_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : 'Set Fulfillment'}</ActionButton>)
                 }
                 // Schedule It (unless archived)
                 if (!isArchived) {
@@ -3234,6 +3254,148 @@ export default function DocumentDetail({
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <ActionButton onClick={() => setShowArchiveModal(false)} variant="secondary">Cancel</ActionButton>
               <ActionButton onClick={handleArchive} disabled={saving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fulfillment Type Modal */}
+      {showFulfillmentModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowFulfillmentModal(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Fulfillment Method</h2>
+              <button onClick={() => setShowFulfillmentModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Type Selection */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {([
+                  { key: 'on_site_pickup', label: 'On-Site Pickup', desc: 'Customer picks up at our location', icon: '\uD83C\uDFE2' },
+                  { key: 'on_site_service', label: 'On-Site Service', desc: 'We service at customer location', icon: '\uD83D\uDEE0\uFE0F' },
+                  { key: 'pickup_and_delivery', label: 'Pickup & Delivery', desc: 'We pick up and deliver back', icon: '\uD83D\uDE9A' },
+                  { key: 'shipping', label: 'Shipping', desc: 'Ship completed product', icon: '\uD83D\uDCE6' },
+                ] as const).map(opt => (
+                  <button key={opt.key} onClick={() => setFulfillmentType(opt.key)} style={{
+                    padding: '14px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left',
+                    border: fulfillmentType === opt.key ? '2px solid #d71cd1' : '2px solid rgba(148,163,184,0.15)',
+                    background: fulfillmentType === opt.key ? 'rgba(215,28,209,0.08)' : '#1d1d1d',
+                    transition: 'all 0.15s'
+                  }}>
+                    <div style={{ fontSize: '20px', marginBottom: '6px' }}>{opt.icon}</div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: fulfillmentType === opt.key ? '#d71cd1' : '#f1f5f9', marginBottom: '2px' }}>{opt.label}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Type-specific fields */}
+              {fulfillmentType === 'on_site_service' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: '#1a1a1a', borderRadius: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Service Address</label>
+                    <input type="text" value={fulfillmentDetails.service_address || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, service_address: e.target.value })}
+                      placeholder="Address for on-site service" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Drop-off Date</label>
+                      <input type="date" value={fulfillmentDetails.dropoff_date || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, dropoff_date: e.target.value })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Pickup Date</label>
+                      <input type="date" value={fulfillmentDetails.pickup_date || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, pickup_date: e.target.value })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Service Fee ($)</label>
+                    <input type="number" value={fulfillmentDetails.service_fee || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, service_fee: parseFloat(e.target.value) || 0 })}
+                      placeholder="0" style={{ width: '120px', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                </div>
+              )}
+
+              {fulfillmentType === 'pickup_and_delivery' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: '#1a1a1a', borderRadius: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Pickup Address</label>
+                    <input type="text" value={fulfillmentDetails.pickup_address || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, pickup_address: e.target.value })}
+                      placeholder="Address to pick up from" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Delivery Address</label>
+                    <input type="text" value={fulfillmentDetails.delivery_address || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, delivery_address: e.target.value })}
+                      placeholder="Address to deliver to" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Pickup Date</label>
+                      <input type="date" value={fulfillmentDetails.pickup_date || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, pickup_date: e.target.value })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Delivery Date</label>
+                      <input type="date" value={fulfillmentDetails.delivery_date || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, delivery_date: e.target.value })}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Pickup Fee ($)</label>
+                      <input type="number" value={fulfillmentDetails.pickup_fee || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, pickup_fee: parseFloat(e.target.value) || 0 })}
+                        placeholder="0" style={{ width: '120px', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Delivery Fee ($)</label>
+                      <input type="number" value={fulfillmentDetails.delivery_fee || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, delivery_fee: parseFloat(e.target.value) || 0 })}
+                        placeholder="0" style={{ width: '120px', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {fulfillmentType === 'shipping' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: '#1a1a1a', borderRadius: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Shipping Address</label>
+                    <input type="text" value={fulfillmentDetails.shipping_address || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_address: e.target.value })}
+                      placeholder="Full shipping address" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Shipping Method</label>
+                      <input type="text" value={fulfillmentDetails.shipping_method || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_method: e.target.value })}
+                        placeholder="e.g., USPS Priority" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Shipping Fee ($)</label>
+                      <input type="number" value={fulfillmentDetails.shipping_fee || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_fee: parseFloat(e.target.value) || 0 })}
+                        placeholder="0" style={{ width: '120px', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Tracking Number</label>
+                    <input type="text" value={fulfillmentDetails.tracking_number || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, tracking_number: e.target.value })}
+                      placeholder="Tracking # (optional)" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                </div>
+              )}
+
+              {fulfillmentType === 'on_site_pickup' && (
+                <div style={{ padding: '16px', background: '#1a1a1a', borderRadius: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Notes</label>
+                    <textarea value={fulfillmentDetails.notes || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, notes: e.target.value })}
+                      placeholder="Any pickup instructions..." rows={2} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px', resize: 'vertical' }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => setShowFulfillmentModal(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSaveFulfillment} disabled={saving} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>Save Fulfillment</button>
             </div>
           </div>
         </div>

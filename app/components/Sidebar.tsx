@@ -40,6 +40,7 @@ const navSections = [
   {
     title: 'ACCOUNT',
     items: [
+      { href: '/archive', label: 'Project', labelGradient: 'Archive', icon: 'archive' },
       { href: '/settings', label: 'System', labelGradient: 'Settings', icon: 'cog', badge: '' },
     ]
   }
@@ -124,6 +125,13 @@ const icons: Record<string, React.ReactElement> = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
       <polyline points="22,6 12,13 2,6"></polyline>
+    </svg>
+  ),
+  archive: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <polyline points="21 8 21 21 3 21 3 8"></polyline>
+      <rect x="1" y="3" width="22" height="5"></rect>
+      <line x1="10" y1="12" x2="14" y2="12"></line>
     </svg>
   ),
   chart: (
