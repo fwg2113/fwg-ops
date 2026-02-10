@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/app/lib/supabase'
+import { autoCompleteActions } from '@/app/lib/customer/actionGenerator'
 import twilio from 'twilio'
 
 const twilioClient = twilio(
@@ -74,6 +75,9 @@ export async function POST(request: NextRequest) {
     } catch (smsError) {
       console.error('SMS error:', smsError)
     }
+
+    // Auto-complete customer actions triggered by this status change
+    await autoCompleteActions(documentId, 'option_selected').catch(() => {})
 
     return NextResponse.json({ success: true })
   } catch (error) {

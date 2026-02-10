@@ -4,9 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 
-// Dismissed actions are stored in localStorage
-const DISMISSED_ACTIONS_KEY = 'command-center-dismissed-actions'
-
 type Task = {
   id: string
   title: string
@@ -63,10 +60,36 @@ type Submission = {
   created_at: string
 }
 
+type CustomerAction = {
+  id: string
+  document_id: string | null
+  submission_id: string | null
+  template_key: string
+  step_key: string
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  sort_order: number
+  auto_complete_on_status: string | null
+  created_at: string
+  completed_at: string | null
+  documents?: {
+    id: string
+    customer_name: string
+    doc_number: number
+    doc_type: string
+    total: number
+    vehicle_description?: string
+    project_description?: string
+    category?: string
+  } | null
+}
+
 type ActionItem = {
   id: string
-  type: 'submission' | 'quote' | 'invoice' | 'task'
-  actionType: 'new-lead' | 'followup' | 'schedule' | 'convert' | 'send' | 'task' | 'revision' | 'payment-received' | 'option-selected'
+  type: 'customer-action' | 'submission' | 'task'
+  actionType: string
   customer: string
   details: string
   amount: number
@@ -84,6 +107,7 @@ type DashboardData = {
   invoices: Document[]
   submissions: Submission[]
   tasks: Task[]
+  customerActions: CustomerAction[]
   pinnedItems: PinnedItem[]
   metrics: {
     monthlyRevenue: number
@@ -163,13 +187,6 @@ const formatCategoryLabel = (category: string): string => {
 export default function CommandCenter({ initialData }: { initialData: DashboardData }) {
   const router = useRouter()
   const [data, setData] = useState(initialData)
-  const [dismissedActions, setDismissedActions] = useState<Set<string>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(DISMISSED_ACTIONS_KEY)
-      return stored ? new Set(JSON.parse(stored)) : new Set()
-    }
-    return new Set()
-  })
   const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>(initialData.pinnedItems)
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false)
@@ -189,13 +206,53 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     setTimeout(() => setIsRefreshing(false), 1000)
   }
 
-  // Build action items from all data sources
+  // Map step_key to display action type
+  const stepKeyToActionType: Record<string, string> = {
+    'REVIEW_AND_CATEGORIZE': 'new-lead',
+    'SEND_QUOTE': 'send',
+    'FOLLOW_UP_QUOTE': 'followup',
+    'COLLECT_PAYMENT': 'collect-payment',
+    'SCHEDULE_JOB': 'schedule',
+    'NOTIFY_COMPLETION': 'notify-complete'
+  }
+
+  const priorityToNumeric: Record<string, number> = {
+    'URGENT': 100,
+    'HIGH': 80,
+    'MEDIUM': 50,
+    'LOW': 20
+  }
+
+  // Build action items from customer_actions + submissions + manual tasks
   const buildActionItems = (): ActionItem[] => {
     const items: ActionItem[] = []
 
-    // New submissions (new leads)
+    // Customer actions from DB (primary source for document-related items)
+    data.customerActions.forEach(ca => {
+      const doc = ca.documents
+      const actionType = stepKeyToActionType[ca.step_key] || ca.step_key.toLowerCase()
+      const numericPriority = priorityToNumeric[ca.priority] || 50
+
+      items.push({
+        id: `action-${ca.id}`,
+        type: 'customer-action',
+        actionType,
+        customer: doc?.customer_name || ca.title,
+        details: ca.title + (doc ? ` - ${doc.vehicle_description || doc.project_description || ''}` : ''),
+        amount: doc?.total || 0,
+        priority: numericPriority,
+        data: { ...ca, document: doc }
+      })
+    })
+
+    // New submissions that don't yet have customer actions (backward compat)
+    const submissionIdsWithActions = new Set(
+      data.customerActions
+        .filter(ca => ca.submission_id)
+        .map(ca => ca.submission_id)
+    )
     data.submissions
-      .filter(s => s.status === 'new')
+      .filter(s => s.status === 'new' && !submissionIdsWithActions.has(s.id))
       .forEach(s => {
         items.push({
           id: `submission-${s.id}`,
@@ -204,125 +261,12 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           customer: s.customer_name,
           details: [s.vehicle_year, s.vehicle_make, s.vehicle_model].filter(Boolean).join(' ') + (s.project_type ? ' - ' + formatCategoryLabel(s.project_type) : '') || 'New submission',
           amount: s.price_range_max || 0,
-          priority: 100, // New leads are high priority
+          priority: 100,
           data: s
         })
       })
 
-      
-    // Quotes needing action
-    data.quotes.forEach(q => {
-      // Option selected - customer chose an option, need to finalize quote
-      if (q.status?.toLowerCase() === 'option_selected') {
-        let selectedOption = ''
-        if (q.notes) {
-          const match = q.notes.match(/Selected: (.+)/m)
-          if (match) selectedOption = match[1]
-        }
-        items.push({
-          id: `quote-${q.id}`,
-          type: 'quote',
-          actionType: 'option-selected',
-          customer: q.customer_name,
-          details: selectedOption || 'Customer selected an option',
-          amount: q.total || 0,
-          priority: 92,
-          data: q
-        })
-        return
-      }
-      // Revision requested - needs response
-      if (q.status?.toLowerCase() === 'revision_requested') {
-        let revisionMessage = ''
-        let contactPref = 'sms'
-        if (q.revision_history_json) {
-          try {
-            const history = typeof q.revision_history_json === 'string' 
-              ? JSON.parse(q.revision_history_json) 
-              : q.revision_history_json
-            if (Array.isArray(history) && history.length > 0) {
-              const latest = history[history.length - 1]
-              revisionMessage = latest.message?.substring(0, 50) + (latest.message?.length > 50 ? '...' : '')
-              contactPref = latest.contactPreference || 'sms'
-            }
-          } catch (e) {}
-        }
-        items.push({
-          id: `quote-${q.id}`,
-          type: 'quote',
-          actionType: 'revision',
-          customer: q.customer_name,
-          details: revisionMessage || 'Revision requested',
-          amount: q.total || 0,
-          priority: 95,
-          data: { ...q, contactPreference: contactPref }
-        })
-        return
-      }
-      // Draft quotes - need to send
-      if (q.status?.toLowerCase() === 'draft') {
-        items.push({
-          id: `quote-${q.id}`,
-          type: 'quote',
-          actionType: 'send',
-          customer: q.customer_name,
-          details: (q.vehicle_description || q.project_description || (q.category ? formatCategoryLabel(q.category) : '') || 'Quote') + ' - ' + (q.status || ''),
-          amount: q.total || 0,
-          priority: 50,
-          data: q
-        })
-      }
-      // Approved quotes - convert to invoice
-      if (q.status?.toLowerCase() === 'approved') {
-        items.push({
-          id: `quote-${q.id}`,
-          type: 'quote',
-          actionType: 'convert',
-          customer: q.customer_name,
-          details: (q.vehicle_description || q.project_description || (q.category ? formatCategoryLabel(q.category) : '') || 'Quote') + ' - ' + (q.status || ''),
-          amount: q.total || 0,
-          priority: 90,
-          data: q
-        })
-      }
-      // Sent quotes needing follow-up (sent > 3 days ago, not viewed)
-      if (q.status?.toLowerCase() === 'sent' && q.sent_at) {
-        const sentDate = new Date(q.sent_at)
-        const daysSinceSent = (Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24)
-        if (daysSinceSent > 3) {
-          items.push({
-            id: `quote-${q.id}`,
-            type: 'quote',
-            actionType: 'followup',
-            customer: q.customer_name,
-            details: (q.vehicle_description || q.project_description || (q.category ? formatCategoryLabel(q.category) : '') || 'Quote') + ' - ' + (q.status || ''),
-            amount: q.total || 0,
-            priority: 60 + Math.min(daysSinceSent, 30),
-            data: q
-          })
-        }
-      }
-    })
-
-    // Invoices needing action
-    data.invoices.forEach(inv => {
-      // Paid or partial invoices without a scheduled job - need to schedule
-      if ((inv.status?.toLowerCase() === 'paid' || inv.status?.toLowerCase() === 'partial') && !inv.event_id && !inv.hasScheduledEvent) {
-        const isPartial = inv.status?.toLowerCase() === 'partial'
-        items.push({
-          id: `invoice-${inv.id}`,
-          type: 'invoice',
-          actionType: 'schedule',
-          customer: inv.customer_name,
-          details: (isPartial ? 'Deposit Received - ' : '') + (inv.vehicle_description || inv.project_description || (inv.category ? formatCategoryLabel(inv.category) : '') || 'Invoice'),
-          amount: inv.total || 0,
-          priority: 95,
-          data: inv
-        })
-      }
-    })
-
-    // Tasks
+    // Manual tasks (unchanged)
     data.tasks
       .filter(t => t.status !== 'COMPLETED')
       .forEach(t => {
@@ -368,7 +312,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     return Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24))
   }
 
-  const actionItems = buildActionItems().filter(item => !dismissedActions.has(item.id))
+  const actionItems = buildActionItems()
   const waitingItems = getWaitingItems()
   const waitingTotal = waitingItems.reduce((sum, q) => sum + (q.total || 0), 0)
 
@@ -404,6 +348,13 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       setShowTaskDetailModal(true)
     } else if (item.type === 'submission') {
       router.push(`/submissions?id=${item.data.id}`)
+    } else if (item.type === 'customer-action') {
+      const doc = item.data.document
+      if (doc) {
+        router.push(`/documents/${doc.id}`)
+      } else if (item.data.submission_id) {
+        router.push(`/submissions?id=${item.data.submission_id}`)
+      }
     } else {
       router.push(`/documents/${item.data.id}`)
     }
@@ -425,24 +376,31 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     setShowTaskDetailModal(false)
   }
 
+  // Complete a customer action (persists to DB)
+  const completeCustomerAction = async (actionId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+
+    await supabase
+      .from('customer_actions')
+      .update({ status: 'COMPLETED', completed_at: new Date().toISOString() })
+      .eq('id', actionId)
+
+    setData({
+      ...data,
+      customerActions: data.customerActions.filter(ca => ca.id !== actionId)
+    })
+  }
+
   // Complete/dismiss any action item
   const completeActionItem = (item: ActionItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
 
-    // For tasks, actually mark as completed in database
     if (item.type === 'task') {
       completeTask(item.data.id, e)
-    } else {
-      // For other items, just dismiss them from the UI
-      const newDismissed = new Set(dismissedActions)
-      newDismissed.add(item.id)
-      setDismissedActions(newDismissed)
-
-      // Save to localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(DISMISSED_ACTIONS_KEY, JSON.stringify(Array.from(newDismissed)))
-      }
+    } else if (item.type === 'customer-action') {
+      completeCustomerAction(item.data.id, e)
     }
+    // Submissions: no-op (they get resolved by converting to a document)
   }
 
   // Create new task
@@ -484,6 +442,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       'new-lead': { bg: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' },
       'followup': { bg: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' },
       'schedule': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
+      'collect-payment': { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' },
+      'notify-complete': { bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' },
       'convert': { bg: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6' },
       'send': { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' },
       'task': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' },
@@ -497,26 +457,39 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const getActionLabel = (actionType: string) => {
     const labels: Record<string, string> = {
       'schedule': 'Schedule Job',
-      'convert': 'Approved - Convert & Send Payment Request',
+      'collect-payment': 'Collect Payment',
+      'notify-complete': 'Notify Customer',
+      'convert': 'Convert to Invoice',
       'followup': 'Follow Up',
-      'send': 'Send',
+      'send': 'Send Quote',
       'new-lead': 'New Lead',
       'task': 'Task',
       'revision': 'Revision Requested',
       'payment-received': 'Payment Received',
       'option-selected': 'Option Selected'
     }
-    return labels[actionType] || 'Action'
+    return labels[actionType] || actionType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  }
+
+  // Get the pinnable type and ID for an action item
+  const getPinKey = (item: ActionItem): { type: string; id: string } => {
+    if (item.type === 'submission') return { type: 'submission', id: item.data.id }
+    if (item.type === 'task') return { type: 'task', id: item.data.id }
+    if (item.type === 'customer-action') {
+      const doc = item.data.document
+      return doc ? { type: doc.doc_type, id: doc.id } : { type: 'customer-action', id: item.data.id }
+    }
+    return { type: 'action', id: item.data.id }
   }
 
   // Separate pinned and unpinned items
   const pinnedActionItems = actionItems.filter(item => {
-    const type = item.type === 'submission' ? 'submission' : item.type === 'task' ? 'task' : item.data.doc_type
-    return isPinned(type, item.data.id)
+    const key = getPinKey(item)
+    return isPinned(key.type, key.id)
   })
   const unpinnedActionItems = actionItems.filter(item => {
-    const type = item.type === 'submission' ? 'submission' : item.type === 'task' ? 'task' : item.data.doc_type
-    return !isPinned(type, item.data.id)
+    const key = getPinKey(item)
+    return !isPinned(key.type, key.id)
   })
 
   // Calculate max category value for progress bars
@@ -590,8 +563,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
                   rank={index + 1}
                   isPinned={true}
                   onTogglePin={(e) => {
-                    const type = item.type === 'submission' ? 'submission' : item.type === 'task' ? 'task' : item.data.doc_type
-                    togglePin(type, item.data.id, e)
+                    const key = getPinKey(item)
+                    togglePin(key.type, key.id, e)
                   }}
                   onComplete={(e) => completeActionItem(item, e)}
                   onClick={() => handleItemClick(item)}
@@ -1182,7 +1155,10 @@ function ActionItemRow({
               borderRadius: '4px',
               flexShrink: 0
             }}>
-              {item.type === 'submission' ? 'Submission' : `${item.data.doc_type === 'quote' ? 'Quote' : 'Invoice'} #${item.data.doc_number}`}
+              {item.type === 'submission' ? 'Submission' :
+               item.type === 'customer-action' && item.data.document ?
+                 `${item.data.document.doc_type === 'quote' ? 'Quote' : 'Invoice'} #${item.data.document.doc_number}` :
+                 item.data.doc_type ? `${item.data.doc_type === 'quote' ? 'Quote' : 'Invoice'} #${item.data.doc_number}` : ''}
             </span>
           )}
         </div>
