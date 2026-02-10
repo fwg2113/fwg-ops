@@ -260,6 +260,108 @@ export default function SettingsView({
     }
   }
 
+  // Template CRUD state
+  const [creatingTemplate, setCreatingTemplate] = useState<'production' | 'customer' | null>(null)
+  const [newTemplate, setNewTemplate] = useState({ template_key: '', label: '', description: '', category_key: '' })
+  const [editingTemplate, setEditingTemplate] = useState<{ type: 'production' | 'customer'; id: string; label: string; description: string } | null>(null)
+
+  // Get categories that have no template assigned (for the create template modal)
+  const getUnassignedCategories = (type: 'production' | 'customer') => {
+    const column = type === 'production' ? 'template_key' : 'customer_template_key'
+    return categories.filter(c => !c[column])
+  }
+
+  const createTemplate = async (type: 'production' | 'customer') => {
+    if (!newTemplate.template_key.trim() || !newTemplate.label.trim()) {
+      alert('Please enter both a key and label')
+      return
+    }
+    try {
+      const res = await fetch('/api/settings/manage-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', type, ...newTemplate })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error)
+      if (type === 'production') {
+        setTemplates([...templates, result.template])
+      } else {
+        setCustomerWorkflows([...customerWorkflows, result.template])
+      }
+      // Update category link if one was selected
+      if (newTemplate.category_key) {
+        const column = type === 'production' ? 'template_key' : 'customer_template_key'
+        const cleanKey = newTemplate.template_key.trim().toUpperCase().replace(/\s+/g, '_')
+        setCategories(categories.map(c =>
+          c.category_key === newTemplate.category_key ? { ...c, [column]: cleanKey } : c
+        ))
+      }
+      setNewTemplate({ template_key: '', label: '', description: '', category_key: '' })
+      setCreatingTemplate(null)
+    } catch (err: any) {
+      alert('Error: ' + (err.message || 'Failed to create template'))
+    }
+  }
+
+  const renameTemplate = async () => {
+    if (!editingTemplate) return
+    try {
+      const res = await fetch('/api/settings/manage-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          type: editingTemplate.type,
+          id: editingTemplate.id,
+          label: editingTemplate.label,
+          description: editingTemplate.description
+        })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error)
+      if (editingTemplate.type === 'production') {
+        setTemplates(templates.map(t =>
+          t.id === editingTemplate.id ? { ...t, label: editingTemplate.label, description: editingTemplate.description } : t
+        ))
+      } else {
+        setCustomerWorkflows(customerWorkflows.map(w =>
+          w.id === editingTemplate.id ? { ...w, label: editingTemplate.label, description: editingTemplate.description } : w
+        ))
+      }
+      setEditingTemplate(null)
+    } catch (err: any) {
+      alert('Error: ' + (err.message || 'Failed to rename'))
+    }
+  }
+
+  const deleteTemplate = async (type: 'production' | 'customer', id: string, templateKey: string) => {
+    const linkedCount = type === 'production'
+      ? getCategoriesForProductionTemplate(templateKey).length
+      : getCategoriesForCustomerTemplate(templateKey).length
+    if (linkedCount > 0) {
+      alert(`Cannot delete: ${linkedCount} categories still use this template. Unlink them first.`)
+      return
+    }
+    if (!confirm(`Delete template "${templateKey}" and all its ${type === 'production' ? 'tasks' : 'steps'}? This cannot be undone.`)) return
+    try {
+      const res = await fetch('/api/settings/manage-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', type, id })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error)
+      if (type === 'production') {
+        setTemplates(templates.filter(t => t.id !== id))
+      } else {
+        setCustomerWorkflows(customerWorkflows.filter(w => w.id !== id))
+      }
+    } catch (err: any) {
+      alert('Error: ' + (err.message || 'Failed to delete'))
+    }
+  }
+
   const [addingVehicle, setAddingVehicle] = useState(false)
   const [newVehicle, setNewVehicle] = useState({
     category_key: '',
@@ -1079,9 +1181,17 @@ export default function SettingsView({
         const prodTemplatesOrphaned = templates.filter(t => getCategoriesForProductionTemplate(t.template_key).length === 0)
         return (
         <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Production Workflow Templates</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage task templates for each service category. Link categories to share the same workflow.</p>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Production Workflow Templates</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage task templates for each service category. Link categories to share the same workflow.</p>
+            </div>
+            <button onClick={() => setCreatingTemplate('production')} style={{
+              padding: '8px 16px', background: '#d71cd1', border: 'none', borderRadius: '8px',
+              color: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap'
+            }}>
+              + New Template
+            </button>
           </div>
           <div style={{ padding: '12px' }}>
             {prodTemplatesWithUsers.length > 0 ? prodTemplatesWithUsers.map((template) => {
@@ -1151,8 +1261,16 @@ export default function SettingsView({
                       {linkedCats.length > 1 && <span style={{ color: '#06b6d4' }}> &middot; Shared by {linkedCats.length} categories</span>}
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                    <span style={{ color: '#64748b', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <button onClick={(e) => { e.stopPropagation(); setEditingTemplate({ type: 'production', id: template.id, label: template.label, description: template.description || '' }) }}
+                      style={{ padding: '4px 8px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer' }}>
+                      Rename
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteTemplate('production', template.id, template.template_key) }}
+                      style={{ padding: '4px 8px', background: 'transparent', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', color: '#ef4444', fontSize: '11px', cursor: 'pointer' }}>
+                      Delete
+                    </button>
+                    <span style={{ color: '#64748b', fontSize: '13px', marginLeft: '4px' }}>
                       {template.template_tasks?.length || 0} tasks
                     </span>
                     <span style={{ color: '#64748b', fontSize: '18px' }}>
@@ -1555,9 +1673,17 @@ export default function SettingsView({
         const cwfOrphaned = customerWorkflows.filter(w => getCategoriesForCustomerTemplate(w.template_key).length === 0)
         return (
         <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Customer Workflow Templates</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage Action Center workflow steps for each service category. Link categories to share workflows. Use &quot;Save &amp; Push to Live&quot; to update all existing documents.</p>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Customer Workflow Templates</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage Action Center workflow steps for each service category. Link categories to share workflows. Use &quot;Save &amp; Push to Live&quot; to update all existing documents.</p>
+            </div>
+            <button onClick={() => setCreatingTemplate('customer')} style={{
+              padding: '8px 16px', background: '#d71cd1', border: 'none', borderRadius: '8px',
+              color: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap'
+            }}>
+              + New Template
+            </button>
           </div>
           <div style={{ padding: '12px' }}>
             {cwfWithUsers.length > 0 ? cwfWithUsers.map((wf) => {
@@ -1601,8 +1727,16 @@ export default function SettingsView({
                       {linkedCats.length > 1 && <span style={{ color: '#06b6d4' }}> &middot; Shared by {linkedCats.length} categories</span>}
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                    <span style={{ color: '#64748b', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <button onClick={(e) => { e.stopPropagation(); setEditingTemplate({ type: 'customer', id: wf.id, label: wf.label, description: wf.description || '' }) }}
+                      style={{ padding: '4px 8px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer' }}>
+                      Rename
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteTemplate('customer', wf.id, wf.template_key) }}
+                      style={{ padding: '4px 8px', background: 'transparent', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '4px', color: '#ef4444', fontSize: '11px', cursor: 'pointer' }}>
+                      Delete
+                    </button>
+                    <span style={{ color: '#64748b', fontSize: '13px', marginLeft: '4px' }}>
                       {wf.customer_workflow_steps?.length || 0} steps
                     </span>
                     <span style={{ color: '#64748b', fontSize: '18px' }}>
@@ -3420,6 +3554,105 @@ export default function SettingsView({
               }}>
                 Not Configured
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Template Modal */}
+      {creatingTemplate && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setCreatingTemplate(null)}>
+          <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Create {creatingTemplate === 'production' ? 'Production' : 'Customer Workflow'} Template</h3>
+              <button onClick={() => setCreatingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Template Key</label>
+                <input type="text" value={newTemplate.template_key}
+                  onChange={e => setNewTemplate({ ...newTemplate, template_key: e.target.value })}
+                  placeholder="e.g. PRINTED_WRAP_WORKFLOW"
+                  style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', fontFamily: 'monospace' }}
+                />
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>Unique identifier (auto-converted to UPPERCASE)</p>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                <input type="text" value={newTemplate.label}
+                  onChange={e => setNewTemplate({ ...newTemplate, label: e.target.value })}
+                  placeholder="e.g. Printed Wrap Workflow"
+                  style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Description</label>
+                <input type="text" value={newTemplate.description}
+                  onChange={e => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                  placeholder="Optional description"
+                  style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Link to Category (optional)</label>
+                <select value={newTemplate.category_key}
+                  onChange={e => setNewTemplate({ ...newTemplate, category_key: e.target.value })}
+                  style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                >
+                  <option value="">None - link later</option>
+                  {categories.map(c => (
+                    <option key={c.category_key} value={c.category_key}>{c.label} ({c.category_key})</option>
+                  ))}
+                </select>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>You can also link categories after creating</p>
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => { setCreatingTemplate(null); setNewTemplate({ template_key: '', label: '', description: '', category_key: '' }) }}
+                style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+              <button onClick={() => createTemplate(creatingTemplate)}
+                style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
+                Create Template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Template Modal */}
+      {editingTemplate && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setEditingTemplate(null)}>
+          <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Rename Template</h3>
+              <button onClick={() => setEditingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Label</label>
+                <input type="text" value={editingTemplate.label}
+                  onChange={e => setEditingTemplate({ ...editingTemplate, label: e.target.value })}
+                  style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Description</label>
+                <input type="text" value={editingTemplate.description}
+                  onChange={e => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
+                  placeholder="Optional description"
+                  style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                />
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setEditingTemplate(null)}
+                style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+              <button onClick={renameTemplate}
+                style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
+                Save Changes
+              </button>
             </div>
           </div>
         </div>
