@@ -83,6 +83,24 @@ export default async function SettingsPage() {
     .select('*')
     .order('category_key')
 
+  const { data: customerWorkflows } = await supabase
+    .from('customer_workflow_templates')
+    .select(`
+      *,
+      customer_workflow_steps (
+        id,
+        template_key,
+        step_key,
+        label,
+        description,
+        default_priority,
+        sort_order,
+        auto_complete_on_status,
+        active
+      )
+    `)
+    .order('sort_order', { ascending: true })
+
   const calendarConnected = !!calendarSettings?.value
   const gmailConnected = !!gmailSettings?.value
 
@@ -101,6 +119,7 @@ export default async function SettingsPage() {
       initialVehicleCategories={vehicleCategories || []}
       initialProjectTypes={projectTypes || []}
       initialPricingMatrix={pricingMatrix || []}
+      initialCustomerWorkflows={customerWorkflows || []}
     />
   )
 }
