@@ -10,6 +10,8 @@ type Category = {
   calendar_color: string
   default_rate: number
   active: boolean
+  template_key?: string
+  customer_template_key?: string
 }
 
 type Material = {
@@ -174,7 +176,7 @@ export default function SettingsView({
   initialCustomerWorkflows: CustomerWorkflowTemplate[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
-  const [categories] = useState<Category[]>(initialCategories)
+  const [categories, setCategories] = useState<Category[]>(initialCategories)
   const [materials] = useState<Material[]>(initialMaterials)
   const [buckets] = useState<Bucket[]>(initialBuckets)
   const [callSettings, setCallSettings] = useState<CallSetting[]>(initialCallSettings)
@@ -209,6 +211,54 @@ export default function SettingsView({
   const [newWorkflowStep, setNewWorkflowStep] = useState({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' })
   const [propagating, setPropagating] = useState<string | null>(null)
   const [propagateResult, setPropagateResult] = useState<{ templateKey: string; message: string } | null>(null)
+  const [linkingTemplate, setLinkingTemplate] = useState<{ type: 'production' | 'customer'; templateKey: string } | null>(null)
+
+  // Helpers: which categories use which template
+  const getCategoriesForProductionTemplate = (templateKey: string) =>
+    categories.filter(c => c.template_key === templateKey)
+  const getCategoriesForCustomerTemplate = (templateKey: string) =>
+    categories.filter(c => c.customer_template_key === templateKey)
+  const getUnlinkedCategories = (type: 'production' | 'customer', currentTemplateKey: string) => {
+    const column = type === 'production' ? 'template_key' : 'customer_template_key'
+    return categories.filter(c => c[column] !== currentTemplateKey)
+  }
+
+  const linkCategoryToTemplate = async (categoryKey: string, type: 'production' | 'customer', targetTemplateKey: string) => {
+    try {
+      const res = await fetch('/api/settings/link-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryKey, type, targetTemplateKey })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error)
+      const column = type === 'production' ? 'template_key' : 'customer_template_key'
+      setCategories(categories.map(c =>
+        c.category_key === categoryKey ? { ...c, [column]: targetTemplateKey } : c
+      ))
+      setLinkingTemplate(null)
+    } catch (err: any) {
+      alert('Error linking: ' + (err.message || 'Failed'))
+    }
+  }
+
+  const unlinkCategory = async (categoryKey: string, type: 'production' | 'customer') => {
+    try {
+      const res = await fetch('/api/settings/link-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoryKey, type, targetTemplateKey: null })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error)
+      const column = type === 'production' ? 'template_key' : 'customer_template_key'
+      setCategories(categories.map(c =>
+        c.category_key === categoryKey ? { ...c, [column]: result.newTemplateKey } : c
+      ))
+    } catch (err: any) {
+      alert('Error unlinking: ' + (err.message || 'Failed'))
+    }
+  }
 
   const [addingVehicle, setAddingVehicle] = useState(false)
   const [newVehicle, setNewVehicle] = useState({
@@ -1024,14 +1074,21 @@ export default function SettingsView({
       )}
 
       {/* Production Templates Tab */}
-      {activeTab === 'production' && (
+      {activeTab === 'production' && (() => {
+        const prodTemplatesWithUsers = templates.filter(t => getCategoriesForProductionTemplate(t.template_key).length > 0)
+        const prodTemplatesOrphaned = templates.filter(t => getCategoriesForProductionTemplate(t.template_key).length === 0)
+        return (
         <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Production Workflow Templates</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage task templates for each service category</p>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage task templates for each service category. Link categories to share the same workflow.</p>
           </div>
           <div style={{ padding: '12px' }}>
-            {templates.length > 0 ? templates.map((template) => (
+            {prodTemplatesWithUsers.length > 0 ? prodTemplatesWithUsers.map((template) => {
+              const linkedCats = getCategoriesForProductionTemplate(template.template_key)
+              const primaryCat = linkedCats.find(c => c.category_key === template.category_key)
+              const additionalCats = linkedCats.filter(c => c.category_key !== template.category_key)
+              return (
               <div
                 key={template.id}
                 style={{
@@ -1052,8 +1109,8 @@ export default function SettingsView({
                     alignItems: 'center'
                   }}
                 >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                       <h4 style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: '600', margin: 0 }}>
                         {template.label}
                       </h4>
@@ -1067,6 +1124,18 @@ export default function SettingsView({
                       }}>
                         {template.category_key}
                       </span>
+                      {additionalCats.map(c => (
+                        <span key={c.category_key} style={{
+                          padding: '4px 8px', borderRadius: '4px', fontSize: '11px',
+                          background: 'rgba(6,182,212,0.1)', color: '#06b6d4', fontFamily: 'monospace',
+                          display: 'flex', alignItems: 'center', gap: '4px'
+                        }}>
+                          {c.category_key}
+                          <button onClick={(e) => { e.stopPropagation(); unlinkCategory(c.category_key, 'production') }}
+                            style={{ background: 'none', border: 'none', color: '#06b6d4', cursor: 'pointer', fontSize: '13px', padding: '0 2px', lineHeight: 1 }}
+                          >&times;</button>
+                        </span>
+                      ))}
                       <span style={{
                         padding: '4px 8px',
                         borderRadius: '4px',
@@ -1079,14 +1148,15 @@ export default function SettingsView({
                     </div>
                     <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
                       {template.description || 'No description'}
+                      {linkedCats.length > 1 && <span style={{ color: '#06b6d4' }}> &middot; Shared by {linkedCats.length} categories</span>}
                     </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                     <span style={{ color: '#64748b', fontSize: '13px' }}>
                       {template.template_tasks?.length || 0} tasks
                     </span>
                     <span style={{ color: '#64748b', fontSize: '18px' }}>
-                      {expandedTemplate === template.id ? '▼' : '▶'}
+                      {expandedTemplate === template.id ? '\u25BC' : '\u25B6'}
                     </span>
                   </div>
                 </div>
@@ -1097,6 +1167,16 @@ export default function SettingsView({
                     <div style={{ padding: '12px 20px', background: '#1d1d1d' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <h5 style={{ color: '#94a3b8', fontSize: '13px', margin: 0, fontWeight: '600' }}>Tasks</h5>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setLinkingTemplate({ type: 'production', templateKey: template.template_key }) }}
+                            style={{
+                              padding: '6px 12px', background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)',
+                              borderRadius: '6px', color: '#06b6d4', fontSize: '12px', fontWeight: '600', cursor: 'pointer'
+                            }}
+                          >
+                            + Link Category
+                          </button>
                         <button
                           onClick={() => setAddingTask(template.id)}
                           style={{
@@ -1112,6 +1192,7 @@ export default function SettingsView({
                         >
                           + Add Task
                         </button>
+                        </div>
                       </div>
                       {template.template_tasks && template.template_tasks.length > 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1205,10 +1286,23 @@ export default function SettingsView({
                   </div>
                 )}
               </div>
-            )) : (
+              )
+            }) : (
               <p style={{ color: '#64748b', padding: '40px', textAlign: 'center' }}>
                 No production templates configured
               </p>
+            )}
+            {prodTemplatesOrphaned.length > 0 && (
+              <div style={{ marginTop: '16px', padding: '12px 16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.1)' }}>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 8px 0' }}>Unused templates (no categories linked):</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {prodTemplatesOrphaned.map(t => (
+                    <span key={t.id} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', background: 'rgba(148,163,184,0.1)', color: '#64748b', fontFamily: 'monospace' }}>
+                      {t.template_key}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -1416,30 +1510,84 @@ export default function SettingsView({
               </div>
             </div>
           )}
+
+          {/* Link Category Modal - Production */}
+          {linkingTemplate && linkingTemplate.type === 'production' && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+              onClick={() => setLinkingTemplate(null)}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '440px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Link Category</h3>
+                  <button onClick={() => setLinkingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 12px 0' }}>
+                    Select a category to share the <span style={{ color: '#06b6d4' }}>{linkingTemplate.templateKey}</span> production workflow:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '300px', overflowY: 'auto' }}>
+                    {getUnlinkedCategories('production', linkingTemplate.templateKey).map(c => (
+                      <button key={c.category_key}
+                        onClick={() => linkCategoryToTemplate(c.category_key, 'production', linkingTemplate.templateKey)}
+                        style={{
+                          padding: '10px 14px', background: '#282a30', border: '1px solid rgba(148,163,184,0.1)',
+                          borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer', textAlign: 'left',
+                          transition: 'border-color 0.15s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = '#06b6d4'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(148,163,184,0.1)'}
+                      >
+                        <span style={{ fontWeight: 600 }}>{c.label}</span>
+                        <span style={{ color: '#64748b', fontSize: '12px', marginLeft: '8px', fontFamily: 'monospace' }}>{c.category_key}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+        )
+      })()}
 
       {/* Customer Workflows Tab */}
-      {activeTab === 'workflows' && (
+      {activeTab === 'workflows' && (() => {
+        const cwfWithUsers = customerWorkflows.filter(w => getCategoriesForCustomerTemplate(w.template_key).length > 0)
+        const cwfOrphaned = customerWorkflows.filter(w => getCategoriesForCustomerTemplate(w.template_key).length === 0)
+        return (
         <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Customer Workflow Templates</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage Action Center workflow steps for each service category. Use &quot;Save &amp; Push to Live&quot; to update all existing documents.</p>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage Action Center workflow steps for each service category. Link categories to share workflows. Use &quot;Save &amp; Push to Live&quot; to update all existing documents.</p>
           </div>
           <div style={{ padding: '12px' }}>
-            {customerWorkflows.length > 0 ? customerWorkflows.map((wf) => (
+            {cwfWithUsers.length > 0 ? cwfWithUsers.map((wf) => {
+              const linkedCats = getCategoriesForCustomerTemplate(wf.template_key)
+              const additionalCats = linkedCats.filter(c => c.category_key !== wf.category_key)
+              return (
               <div key={wf.id} style={{ background: '#282a30', borderRadius: '8px', marginBottom: '12px', overflow: 'hidden' }}>
                 {/* Workflow Header */}
                 <div
                   onClick={() => setExpandedWorkflow(expandedWorkflow === wf.id ? null : wf.id)}
                   style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                       <h4 style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: '600', margin: 0 }}>{wf.label}</h4>
-                      <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', background: 'rgba(6,182,212,0.1)', color: '#06b6d4', fontFamily: 'monospace' }}>
+                      <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', background: 'rgba(168,85,247,0.1)', color: '#a855f7', fontFamily: 'monospace' }}>
                         {wf.category_key}
                       </span>
+                      {additionalCats.map(c => (
+                        <span key={c.category_key} style={{
+                          padding: '4px 8px', borderRadius: '4px', fontSize: '11px',
+                          background: 'rgba(6,182,212,0.1)', color: '#06b6d4', fontFamily: 'monospace',
+                          display: 'flex', alignItems: 'center', gap: '4px'
+                        }}>
+                          {c.category_key}
+                          <button onClick={(e) => { e.stopPropagation(); unlinkCategory(c.category_key, 'customer') }}
+                            style={{ background: 'none', border: 'none', color: '#06b6d4', cursor: 'pointer', fontSize: '13px', padding: '0 2px', lineHeight: 1 }}
+                          >&times;</button>
+                        </span>
+                      ))}
                       <span style={{
                         padding: '4px 8px', borderRadius: '4px', fontSize: '11px',
                         background: wf.active ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
@@ -1448,9 +1596,12 @@ export default function SettingsView({
                         {wf.active ? 'Active' : 'Inactive'}
                       </span>
                     </div>
-                    <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>{wf.description || 'No description'}</p>
+                    <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
+                      {wf.description || 'No description'}
+                      {linkedCats.length > 1 && <span style={{ color: '#06b6d4' }}> &middot; Shared by {linkedCats.length} categories</span>}
+                    </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                     <span style={{ color: '#64748b', fontSize: '13px' }}>
                       {wf.customer_workflow_steps?.length || 0} steps
                     </span>
@@ -1467,6 +1618,15 @@ export default function SettingsView({
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <h5 style={{ color: '#94a3b8', fontSize: '13px', margin: 0, fontWeight: '600' }}>Workflow Steps</h5>
                         <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setLinkingTemplate({ type: 'customer', templateKey: wf.template_key }) }}
+                            style={{
+                              padding: '6px 12px', background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)',
+                              borderRadius: '6px', color: '#06b6d4', fontSize: '12px', fontWeight: '600', cursor: 'pointer'
+                            }}
+                          >
+                            + Link Category
+                          </button>
                           <button
                             onClick={() => propagateWorkflowChanges(wf.template_key)}
                             disabled={propagating === wf.template_key}
@@ -1553,10 +1713,23 @@ export default function SettingsView({
                   </div>
                 )}
               </div>
-            )) : (
+              )
+            }) : (
               <p style={{ color: '#64748b', padding: '40px', textAlign: 'center' }}>
                 No customer workflow templates configured
               </p>
+            )}
+            {cwfOrphaned.length > 0 && (
+              <div style={{ marginTop: '16px', padding: '12px 16px', background: '#1a1a1a', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.1)' }}>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 8px 0' }}>Unused templates (no categories linked):</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {cwfOrphaned.map(w => (
+                    <span key={w.id} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', background: 'rgba(148,163,184,0.1)', color: '#64748b', fontFamily: 'monospace' }}>
+                      {w.template_key}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -1719,8 +1892,44 @@ export default function SettingsView({
               </div>
             </div>
           )}
+
+          {/* Link Category Modal - Customer */}
+          {linkingTemplate && linkingTemplate.type === 'customer' && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+              onClick={() => setLinkingTemplate(null)}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '440px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Link Category</h3>
+                  <button onClick={() => setLinkingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 12px 0' }}>
+                    Select a category to share the <span style={{ color: '#06b6d4' }}>{linkingTemplate.templateKey}</span> customer workflow:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '300px', overflowY: 'auto' }}>
+                    {getUnlinkedCategories('customer', linkingTemplate.templateKey).map(c => (
+                      <button key={c.category_key}
+                        onClick={() => linkCategoryToTemplate(c.category_key, 'customer', linkingTemplate.templateKey)}
+                        style={{
+                          padding: '10px 14px', background: '#282a30', border: '1px solid rgba(148,163,184,0.1)',
+                          borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer', textAlign: 'left',
+                          transition: 'border-color 0.15s'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = '#06b6d4'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(148,163,184,0.1)'}
+                      >
+                        <span style={{ fontWeight: 600 }}>{c.label}</span>
+                        <span style={{ color: '#64748b', fontSize: '12px', marginLeft: '8px', fontFamily: 'monospace' }}>{c.category_key}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+        )
+      })()}
 
       {/* Edit Status Modal */}
       {editingStatus && (
