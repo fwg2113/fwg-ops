@@ -40,7 +40,8 @@ const VEHICLE_CATEGORIES = [
   'WATERCRAFT',
   'GOLF_CART',
   'BUS',
-  'FOOD_TRUCK'
+  'FOOD_TRUCK',
+  'ATV_UTV'
 ];
 
 // Project types
