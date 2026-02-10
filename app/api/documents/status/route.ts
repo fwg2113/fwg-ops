@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/lib/supabase'
+import { autoCompleteActions } from '@/app/lib/customer/actionGenerator'
 
 export async function POST(request: Request) {
   try {
     const { documentId, status } = await request.json()
-    
+
     if (!documentId || !status) {
       return NextResponse.json({ error: 'Missing documentId or status' }, { status: 400 })
     }
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Auto-complete any customer actions triggered by this status change
+    await autoCompleteActions(documentId, status)
 
     return NextResponse.json({ success: true, document: data })
   } catch (error) {

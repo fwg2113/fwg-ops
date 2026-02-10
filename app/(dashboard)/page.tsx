@@ -33,6 +33,12 @@ export default async function DashboardPage() {
     .neq('auto_generated', true)
     .order('created_at', { ascending: false })
 
+  const { data: customerActions } = await supabase
+    .from('customer_actions')
+    .select('*, documents:document_id(id, customer_name, doc_number, doc_type, total, vehicle_description, project_description, category)')
+    .eq('status', 'TODO')
+    .order('sort_order', { ascending: true })
+
   const { data: pinnedItems } = await supabase
     .from('pinned_items')
     .select('*')
@@ -84,6 +90,7 @@ export default async function DashboardPage() {
     invoices: (invoices || []).map(inv => ({ ...inv, hasScheduledEvent: scheduledInvoiceIds.has(inv.id) })),
     submissions: submissions || [],
     tasks: tasks || [],
+    customerActions: customerActions || [],
     pinnedItems: pinnedItems || [],
     metrics: {
       monthlyRevenue: liveMetrics.fwgMtdTotal,
