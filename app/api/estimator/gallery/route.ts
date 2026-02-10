@@ -18,7 +18,27 @@ const s3 = new S3Client({
 });
 
 // Folder structure: gallery/{VEHICLE_CATEGORY}/{PROJECT_TYPE}/filename.jpg
-// Example: gallery/CARGO_VAN_LG/FULL_WRAP/transit-blue.jpg
+// Example: gallery/CARGO_VAN/FULL_WRAP/transit-blue.jpg
+//
+// Category mapping (database categories → gallery folders):
+// - SMALL_SUV, LARGE_SUV → SUV
+// - CARGO_VAN_SM, CARGO_VAN_LG → CARGO_VAN
+// - PICKUP_STD, PICKUP_HD → PICKUP
+// - BOX_TRUCK_SM, BOX_TRUCK_LG → BOX_TRUCK
+
+function mapVehicleCategory(category: string): string {
+  const mapping: Record<string, string> = {
+    'SMALL_SUV': 'SUV',
+    'LARGE_SUV': 'SUV',
+    'CARGO_VAN_SM': 'CARGO_VAN',
+    'CARGO_VAN_LG': 'CARGO_VAN',
+    'PICKUP_STD': 'PICKUP',
+    'PICKUP_HD': 'PICKUP',
+    'BOX_TRUCK_SM': 'BOX_TRUCK',
+    'BOX_TRUCK_LG': 'BOX_TRUCK',
+  };
+  return mapping[category] || category;
+}
 
 export async function GET(request: Request) {
   try {
@@ -29,7 +49,9 @@ export async function GET(request: Request) {
       return corsResponse({ ok: false, error: 'vehicle parameter required' }, 400);
     }
 
-    const prefix = `gallery/${vehicle}/`;
+    // Map specific categories to simplified gallery folders
+    const galleryFolder = mapVehicleCategory(vehicle);
+    const prefix = `gallery/${galleryFolder}/`;
 
     const command = new ListObjectsV2Command({
       Bucket: R2_BUCKET_NAME,
@@ -74,7 +96,7 @@ export async function GET(request: Request) {
       photosByType[type].sort((a, b) => a.filename.localeCompare(b.filename));
     }
 
-    return corsResponse({ ok: true, vehicle, photos: photosByType });
+    return corsResponse({ ok: true, vehicle, galleryFolder, photos: photosByType });
 
   } catch (err: any) {
     console.error('Gallery API error:', err);
