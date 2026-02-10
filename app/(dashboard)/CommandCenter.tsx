@@ -227,8 +227,18 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const buildActionItems = (): ActionItem[] => {
     const items: ActionItem[] = []
 
-    // Customer actions from DB (primary source for document-related items)
+    // Only show the NEXT action per document (lowest sort_order)
+    const nextActionPerDoc = new Map<string, CustomerAction>()
     data.customerActions.forEach(ca => {
+      const key = ca.document_id || ca.submission_id || ca.id
+      const existing = nextActionPerDoc.get(key)
+      if (!existing || ca.sort_order < existing.sort_order) {
+        nextActionPerDoc.set(key, ca)
+      }
+    })
+
+    // Customer actions from DB (primary source for document-related items)
+    nextActionPerDoc.forEach(ca => {
       const doc = ca.documents
       const actionType = stepKeyToActionType[ca.step_key] || ca.step_key.toLowerCase()
       const numericPriority = priorityToNumeric[ca.priority] || 50
@@ -376,19 +386,34 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     setShowTaskDetailModal(false)
   }
 
-  // Complete a customer action (persists to DB)
+  // Complete a customer action (persists to DB via API route)
   const completeCustomerAction = async (actionId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
 
-    await supabase
-      .from('customer_actions')
-      .update({ status: 'COMPLETED', completed_at: new Date().toISOString() })
-      .eq('id', actionId)
+    // Optimistic: remove from state immediately
+    const prev = data.customerActions
+    setData(d => ({
+      ...d,
+      customerActions: d.customerActions.filter(ca => ca.id !== actionId)
+    }))
 
-    setData({
-      ...data,
-      customerActions: data.customerActions.filter(ca => ca.id !== actionId)
-    })
+    try {
+      const res = await fetch('/api/customer-actions/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actionId })
+      })
+      if (!res.ok) {
+        // Revert on failure
+        console.error('Failed to complete action:', await res.text())
+        setData(d => ({ ...d, customerActions: prev }))
+      } else {
+        router.refresh()
+      }
+    } catch (err) {
+      console.error('Failed to complete action:', err)
+      setData(d => ({ ...d, customerActions: prev }))
+    }
   }
 
   // Complete/dismiss any action item
