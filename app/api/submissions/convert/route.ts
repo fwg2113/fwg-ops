@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
+import { generateCustomerActions, linkSubmissionToDocument } from '@/app/lib/customer/actionGenerator'
 
 export async function POST(request: NextRequest) {
   try {
@@ -110,6 +111,15 @@ export async function POST(request: NextRequest) {
         converted_to_quote_id: doc.id
       })
       .eq('id', submission_id)
+
+    // Generate customer workflow actions for the new document
+    // Uses the submission's project_type as the category, with 'draft' as current status
+    // so REVIEW_AND_CATEGORIZE auto-completes (since review is done by converting)
+    const category = sub.project_type || 'OTHER'
+    await linkSubmissionToDocument(submission_id, doc.id, category).catch(err => {
+      console.error('Failed to generate customer actions:', err)
+      // Non-blocking - don't fail the conversion if action generation fails
+    })
 
     return NextResponse.json({
       ok: true,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
+import { autoCompleteActions } from '@/app/lib/customer/actionGenerator'
 
 /**
  * Sync document payment status based on payments table
@@ -72,6 +73,9 @@ export async function POST(request: Request) {
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
+
+    // Auto-complete customer actions triggered by this payment status
+    await autoCompleteActions(documentId, status).catch(() => {})
 
     return NextResponse.json({
       success: true,

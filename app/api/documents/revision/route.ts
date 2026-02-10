@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/lib/supabase'
+import { autoCompleteActions } from '@/app/lib/customer/actionGenerator'
 
 export async function POST(request: Request) {
   try {
@@ -84,6 +85,9 @@ export async function POST(request: Request) {
     } catch (smsError) {
       console.error('SMS notification failed:', smsError)
     }
+
+    // Auto-complete customer actions triggered by this status change
+    await autoCompleteActions(documentId, 'revision_requested').catch(() => {})
 
     return NextResponse.json({ success: true, document: data })
   } catch (error) {
