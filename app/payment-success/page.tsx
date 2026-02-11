@@ -50,7 +50,32 @@ export default async function PaymentSuccessPage({
         const newAmountPaid = (invoice.amount_paid || 0) + amount
         const newBalanceDue = (invoice.total || 0) - newAmountPaid
         const isPaidInFull = newBalanceDue <= 0
-        
+
+        // Convert quote to invoice if this is a quote receiving payment
+        let convertedToInvoice = false
+        if (invoice.doc_type === 'quote') {
+          const { data: lastDoc } = await supabase
+            .from('documents')
+            .select('doc_number')
+            .order('doc_number', { ascending: false })
+            .limit(1)
+            .single()
+
+          const nextDocNumber = (lastDoc?.doc_number || 1000) + 1
+
+          await supabase
+            .from('documents')
+            .update({
+              doc_type: 'invoice',
+              doc_number: nextDocNumber,
+              approved_at: invoice.approved_at || new Date().toISOString(),
+            })
+            .eq('id', documentId)
+
+          convertedToInvoice = true
+          console.log(`[Payment] Converted quote #${invoice.doc_number} → invoice #${nextDocNumber}`)
+        }
+
         // Update invoice payment status
         await supabase
           .from('documents')
