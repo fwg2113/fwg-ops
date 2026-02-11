@@ -1660,7 +1660,11 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                 {(selectedCall.status === 'missed' || selectedCall.status === 'voicemail') && !selectedCall.read && (
                   <button
                     onClick={async () => {
-                      await supabase.from('calls').update({ read: true }).eq('id', selectedCall.id)
+                      const { error } = await supabase.from('calls').update({ read: true }).eq('id', selectedCall.id)
+                      if (error) {
+                        console.error('Failed to mark call as read:', error)
+                        return
+                      }
                       setCalls(calls.map(c => c.id === selectedCall.id ? { ...c, read: true } : c))
                       setSelectedCall({ ...selectedCall, read: true })
                     }}
@@ -1728,8 +1732,10 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       }
 
                       // Mark call as read
-                      await supabase.from('calls').update({ read: true }).eq('id', selectedCall.id)
-                      setCalls(calls.map(c => c.id === selectedCall.id ? { ...c, read: true } : c))
+                      const { error: readErr } = await supabase.from('calls').update({ read: true }).eq('id', selectedCall.id)
+                      if (!readErr) {
+                        setCalls(calls.map(c => c.id === selectedCall.id ? { ...c, read: true } : c))
+                      }
                       
                       // Update or create conversation
                       const cleanPhone = selectedCall.caller_phone.replace(/\D/g, '')
