@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { SOUND_OPTIONS, playSound, type SoundKey } from '../../lib/notificationSounds'
 
 type Category = {
   id: string
@@ -142,7 +143,17 @@ type CustomerWorkflowTemplate = {
   customer_workflow_steps: CustomerWorkflowStep[]
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator'
+type NotificationSettings = {
+  sound_enabled: boolean
+  sound_key: SoundKey
+  start_hour: number
+  end_hour: number
+  repeat_interval: number
+  email_alerts_enabled: boolean
+  email_alert_address: string
+}
+
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications'
 
 export default function SettingsView({
   initialCategories,
@@ -212,6 +223,50 @@ export default function SettingsView({
   const [propagating, setPropagating] = useState<string | null>(null)
   const [propagateResult, setPropagateResult] = useState<{ templateKey: string; message: string } | null>(null)
   const [linkingTemplate, setLinkingTemplate] = useState<{ type: 'production' | 'customer'; templateKey: string } | null>(null)
+
+  // Notification settings state
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
+    sound_enabled: true,
+    sound_key: 'chime',
+    start_hour: 9,
+    end_hour: 17,
+    repeat_interval: 60,
+    email_alerts_enabled: true,
+    email_alert_address: 'info@frederickwraps.com',
+  })
+  const [notifLoading, setNotifLoading] = useState(true)
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifSaved, setNotifSaved] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings/notifications')
+      .then(r => r.json())
+      .then(data => {
+        setNotifSettings(data)
+        setNotifLoading(false)
+      })
+      .catch(() => setNotifLoading(false))
+  }, [])
+
+  const saveNotifSettings = async () => {
+    setNotifSaving(true)
+    setNotifSaved(false)
+    try {
+      const res = await fetch('/api/settings/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notifSettings)
+      })
+      if (res.ok) {
+        setNotifSaved(true)
+        window.dispatchEvent(new Event('notification-settings-changed'))
+        setTimeout(() => setNotifSaved(false), 3000)
+      }
+    } catch (err) {
+      alert('Failed to save notification settings')
+    }
+    setNotifSaving(false)
+  }
 
   // Helpers: which categories use which template
   const getCategoriesForProductionTemplate = (templateKey: string) =>
@@ -384,6 +439,7 @@ export default function SettingsView({
     { key: 'priorities', label: 'Task Priorities' },
     { key: 'estimator', label: 'Estimator Config' },
     { key: 'automations', label: 'Automations' },
+    { key: 'notifications', label: 'Notifications' },
     { key: 'calls', label: 'Call Forwarding' },
     { key: 'integrations', label: 'Integrations' }
   ]
@@ -3400,6 +3456,180 @@ export default function SettingsView({
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === 'notifications' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {notifLoading ? (
+            <div style={{ color: '#94a3b8', padding: '40px', textAlign: 'center' }}>Loading notification settings...</div>
+          ) : (
+            <>
+              {/* Sound Alert Section */}
+              <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <div>
+                    <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Audible Alerts</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>Play a repeating sound when there are unread messages</p>
+                  </div>
+                  <button
+                    onClick={() => setNotifSettings({ ...notifSettings, sound_enabled: !notifSettings.sound_enabled })}
+                    style={{
+                      width: '48px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer',
+                      background: notifSettings.sound_enabled ? '#22c55e' : '#374151',
+                      position: 'relative', transition: 'background 0.2s'
+                    }}
+                  >
+                    <div style={{
+                      width: '20px', height: '20px', borderRadius: '50%', background: 'white',
+                      position: 'absolute', top: '3px',
+                      left: notifSettings.sound_enabled ? '25px' : '3px',
+                      transition: 'left 0.2s'
+                    }} />
+                  </button>
+                </div>
+
+                {notifSettings.sound_enabled && (
+                  <>
+                    {/* Sound Picker */}
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Notification Sound</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                        {SOUND_OPTIONS.map(sound => (
+                          <button
+                            key={sound.key}
+                            onClick={() => {
+                              setNotifSettings({ ...notifSettings, sound_key: sound.key })
+                              playSound(sound.key)
+                            }}
+                            style={{
+                              padding: '12px',
+                              background: notifSettings.sound_key === sound.key ? 'rgba(215, 28, 209, 0.15)' : '#111111',
+                              border: notifSettings.sound_key === sound.key ? '2px solid #d71cd1' : '1px solid rgba(148,163,184,0.15)',
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <div style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
+                            <div style={{ color: '#64748b', fontSize: '11px' }}>{sound.description}</div>
+                          </button>
+                        ))}
+                      </div>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>Click a sound to preview and select it</p>
+                    </div>
+
+                    {/* Active Hours */}
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Active Hours</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <select
+                          value={notifSettings.start_hour}
+                          onChange={e => setNotifSettings({ ...notifSettings, start_hour: parseInt(e.target.value) })}
+                          style={{ padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                        >
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <option key={i} value={i}>{i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i - 12}:00 PM`}</option>
+                          ))}
+                        </select>
+                        <span style={{ color: '#94a3b8', fontSize: '14px' }}>to</span>
+                        <select
+                          value={notifSettings.end_hour}
+                          onChange={e => setNotifSettings({ ...notifSettings, end_hour: parseInt(e.target.value) })}
+                          style={{ padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                        >
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <option key={i} value={i}>{i === 0 ? '12:00 AM' : i < 12 ? `${i}:00 AM` : i === 12 ? '12:00 PM' : `${i - 12}:00 PM`}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>Sound alerts will only play during these hours (your local time)</p>
+                    </div>
+
+                    {/* Repeat Interval */}
+                    <div>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Repeat Interval</label>
+                      <select
+                        value={notifSettings.repeat_interval}
+                        onChange={e => setNotifSettings({ ...notifSettings, repeat_interval: parseInt(e.target.value) })}
+                        style={{ padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                      >
+                        <option value={30}>Every 30 seconds</option>
+                        <option value={60}>Every 1 minute</option>
+                        <option value={120}>Every 2 minutes</option>
+                        <option value={300}>Every 5 minutes</option>
+                        <option value={600}>Every 10 minutes</option>
+                      </select>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>How often the sound repeats while messages remain unread</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Email Alerts Section */}
+              <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Email Alerts</h3>
+                    <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>Receive email notifications for incoming SMS messages</p>
+                  </div>
+                  <button
+                    onClick={() => setNotifSettings({ ...notifSettings, email_alerts_enabled: !notifSettings.email_alerts_enabled })}
+                    style={{
+                      width: '48px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer',
+                      background: notifSettings.email_alerts_enabled ? '#22c55e' : '#374151',
+                      position: 'relative', transition: 'background 0.2s'
+                    }}
+                  >
+                    <div style={{
+                      width: '20px', height: '20px', borderRadius: '50%', background: 'white',
+                      position: 'absolute', top: '3px',
+                      left: notifSettings.email_alerts_enabled ? '25px' : '3px',
+                      transition: 'left 0.2s'
+                    }} />
+                  </button>
+                </div>
+
+                {notifSettings.email_alerts_enabled && (
+                  <div>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px', fontWeight: 500 }}>Alert Email Address</label>
+                    <input
+                      type="email"
+                      value={notifSettings.email_alert_address}
+                      onChange={e => setNotifSettings({ ...notifSettings, email_alert_address: e.target.value })}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    />
+                    <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>An email will be sent to this address for every incoming text message</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Save Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
+                {notifSaved && (
+                  <span style={{ color: '#22c55e', fontSize: '14px' }}>Settings saved!</span>
+                )}
+                <button
+                  onClick={saveNotifSettings}
+                  disabled={notifSaving}
+                  style={{
+                    padding: '12px 24px',
+                    background: '#d71cd1',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    opacity: notifSaving ? 0.6 : 1
+                  }}
+                >
+                  {notifSaving ? 'Saving...' : 'Save Notification Settings'}
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}

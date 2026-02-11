@@ -1,6 +1,7 @@
 'use client'
 
 import Sidebar from '../components/Sidebar'
+import NotificationManager from '../components/NotificationManager'
 
 export default function DashboardLayout({
   children,
@@ -30,6 +31,7 @@ export default function DashboardLayout({
         <main className="dashboard-main" style={{ flex: 1, marginLeft: '240px', padding: '24px', minWidth: 0, overflowX: 'hidden', width: '100%' }}>
           {children}
         </main>
+        <NotificationManager />
       </div>
     </>
   )
