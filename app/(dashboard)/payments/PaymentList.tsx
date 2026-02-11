@@ -85,6 +85,35 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
   const [methodFilter, setMethodFilter] = useState<FilterMethod>('all')
   const [sourceFilter, setSourceFilter] = useState<FilterSource>('all')
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all')
+  // Track synced status overrides locally for optimistic UI
+  const [syncedOverrides, setSyncedOverrides] = useState<Record<string, boolean>>({})
+
+  function isSynced(payment: Payment): boolean {
+    return syncedOverrides[payment.id] ?? payment.synced_to_sheets
+  }
+
+  async function toggleSynced(e: React.MouseEvent, payment: Payment) {
+    e.stopPropagation() // Don't navigate to document
+    const newValue = !isSynced(payment)
+    // Optimistic update
+    setSyncedOverrides(prev => ({ ...prev, [payment.id]: newValue }))
+    try {
+      const res = await fetch('/api/payments/toggle-synced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId: payment.id, synced: newValue }),
+      })
+      if (!res.ok) {
+        // Revert on failure
+        setSyncedOverrides(prev => ({ ...prev, [payment.id]: !newValue }))
+      } else {
+        // Notify sidebar to refresh badge count
+        window.dispatchEvent(new Event('unread-counts-changed'))
+      }
+    } catch {
+      setSyncedOverrides(prev => ({ ...prev, [payment.id]: !newValue }))
+    }
+  }
 
   const filtered = useMemo(() => {
     let list = initialPayments
@@ -331,15 +360,19 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
                   </span>
                 </div>
 
-                {/* Synced */}
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  {payment.synced_to_sheets ? (
-                    <span style={{ color: '#22c55e', fontSize: '12px' }} title="Synced to Google Sheets">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                {/* Synced - clickable toggle */}
+                <div
+                  style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                  onClick={(e) => toggleSynced(e, payment)}
+                  title={isSynced(payment) ? 'Confirmed on sheet — click to unmark' : 'Not confirmed — click to mark as confirmed'}
+                >
+                  {isSynced(payment) ? (
+                    <span style={{ color: '#22c55e', fontSize: '12px' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     </span>
                   ) : (
-                    <span style={{ color: '#475569', fontSize: '12px' }} title="Not synced">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                    <span style={{ color: '#f59e0b', fontSize: '12px' }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
                     </span>
                   )}
                 </div>
