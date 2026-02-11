@@ -164,7 +164,8 @@ export async function syncPaymentToSheet(paymentId: string): Promise<{
     const accountName = isStripePayment ? 'Stripe'
       : payment.payment_method === 'cash' ? 'Cash'
       : payment.payment_method === 'check' ? 'Check'
-      : payment.payment_method === 'bank_transfer' ? 'Bank Transfer'
+      : payment.payment_method === 'card' || payment.payment_method === 'card_present' ? 'Credit Card'
+      : payment.payment_method === 'bank_transfer' || payment.payment_method === 'us_bank_account' ? 'Bank Transfer'
       : 'Other'
 
     console.log('=== PAYMENT SYNC DEBUG ===')
