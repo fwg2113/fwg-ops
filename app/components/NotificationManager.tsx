@@ -16,7 +16,7 @@ type NotificationSettings = {
 type CustomSound = {
   id: string
   label: string
-  url: string
+  dataUrl: string
 }
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -96,7 +96,7 @@ export default function NotificationManager() {
           const customId = s.sound_key.replace('custom:', '')
           const customSound = customSoundsRef.current.find(cs => cs.id === customId)
           if (customSound) {
-            playCustomSound(customSound.url)
+            playCustomSound(customSound.dataUrl)
           } else {
             playSound('chime') // fallback
           }
