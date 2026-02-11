@@ -287,6 +287,18 @@ export default function DocumentDetail({
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [paymentNotes, setPaymentNotes] = useState('')
 
+  // Auto-mark unread payments as read when viewing this document
+  useEffect(() => {
+    const unreadIds = initialPayments.filter((p: any) => p.read === false).map(p => p.id)
+    if (unreadIds.length > 0) {
+      fetch('/api/payments/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentIds: unreadIds })
+      }).catch(() => {})
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Delete state
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showFulfillmentModal, setShowFulfillmentModal] = useState(false)
@@ -1173,6 +1185,7 @@ export default function DocumentDetail({
           payment_method: paymentMethod,
           processor: paymentMethod === 'card' ? 'manual' : null,
           status: 'completed',
+          read: true,
           notes: paymentNotes || null,
           created_at: new Date().toISOString()
         })
