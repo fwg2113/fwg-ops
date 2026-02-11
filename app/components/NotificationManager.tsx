@@ -8,6 +8,7 @@ type NotificationSettings = {
   sound_key: string
   message_sound_key: string
   email_sound_key: string
+  payment_sound_key: string
   start_hour: number
   end_hour: number
   repeat_interval: number
@@ -26,6 +27,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   sound_key: 'chime',
   message_sound_key: 'chime',
   email_sound_key: 'bell',
+  payment_sound_key: 'cascade',
   start_hour: 9,
   end_hour: 17,
   repeat_interval: 60,
@@ -91,7 +93,7 @@ export default function NotificationManager() {
     }
   }, [])
 
-  // Check unread messages and emails, play appropriate sounds
+  // Check unread messages, emails, and payments — play appropriate sounds
   const checkAndAlert = useCallback(async () => {
     const s = settingsRef.current
     if (!s.sound_enabled || !hasInteracted) return
@@ -105,31 +107,47 @@ export default function NotificationManager() {
 
     if (!inActiveHours) return
 
-    // Check both unread counts in parallel
+    // Check all unread counts in parallel
     try {
-      const [msgRes, emailRes] = await Promise.all([
+      const [msgRes, emailRes, paymentRes] = await Promise.all([
         fetch('/api/messages/unread-count'),
         fetch('/api/gmail/unread-count'),
+        fetch('/api/payments/unread-count'),
       ])
       const msgData = await msgRes.json()
       const emailData = await emailRes.json()
+      const paymentData = await paymentRes.json()
 
-      const soundKey = s.message_sound_key || s.sound_key || 'chime'
+      const msgKey = s.message_sound_key || s.sound_key || 'chime'
       const emailKey = s.email_sound_key || 'bell'
+      const paymentKey = s.payment_sound_key || 'cascade'
 
-      // Play message sound if unread messages
+      // Build a queue of sounds to play with staggered timing
+      const soundQueue: { key: string; delay: number }[] = []
+      let delay = 0
+
       if (msgData.count > 0) {
-        playSoundByKey(soundKey, customSoundsRef.current)
+        soundQueue.push({ key: msgKey, delay })
+        delay += 1500
       }
 
-      // Play email sound if unread emails (stagger by 1.5s to avoid overlap)
       if (emailData.count > 0) {
-        if (msgData.count > 0) {
-          setTimeout(() => {
-            playSoundByKey(emailKey, customSoundsRef.current)
-          }, 1500)
+        soundQueue.push({ key: emailKey, delay })
+        delay += 1500
+      }
+
+      if (paymentData.count > 0) {
+        soundQueue.push({ key: paymentKey, delay })
+      }
+
+      // Play all sounds with staggering
+      for (const item of soundQueue) {
+        if (item.delay === 0) {
+          playSoundByKey(item.key, customSoundsRef.current)
         } else {
-          playSoundByKey(emailKey, customSoundsRef.current)
+          setTimeout(() => {
+            playSoundByKey(item.key, customSoundsRef.current)
+          }, item.delay)
         }
       }
     } catch {
