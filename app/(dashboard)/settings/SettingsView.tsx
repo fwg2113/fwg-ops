@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { SOUND_OPTIONS, playSound, type SoundKey } from '../../lib/notificationSounds'
+import { BUILTIN_SOUNDS, playSound, playCustomSound, type SoundOption } from '../../lib/notificationSounds'
 
 type Category = {
   id: string
@@ -143,9 +143,18 @@ type CustomerWorkflowTemplate = {
   customer_workflow_steps: CustomerWorkflowStep[]
 }
 
+type CustomSound = {
+  id: string
+  label: string
+  dataUrl: string
+  fileName: string
+  size: number
+  uploadedAt: string
+}
+
 type NotificationSettings = {
   sound_enabled: boolean
-  sound_key: SoundKey
+  sound_key: string
   start_hour: number
   end_hour: number
   repeat_interval: number
@@ -237,15 +246,19 @@ export default function SettingsView({
   const [notifLoading, setNotifLoading] = useState(true)
   const [notifSaving, setNotifSaving] = useState(false)
   const [notifSaved, setNotifSaved] = useState(false)
+  const [customSounds, setCustomSounds] = useState<CustomSound[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadLabel, setUploadLabel] = useState('')
 
   useEffect(() => {
-    fetch('/api/settings/notifications')
-      .then(r => r.json())
-      .then(data => {
-        setNotifSettings(data)
-        setNotifLoading(false)
-      })
-      .catch(() => setNotifLoading(false))
+    Promise.all([
+      fetch('/api/settings/notifications').then(r => r.json()),
+      fetch('/api/settings/notification-sounds').then(r => r.json()),
+    ]).then(([notifData, soundsData]) => {
+      setNotifSettings(notifData)
+      setCustomSounds(soundsData.sounds || [])
+      setNotifLoading(false)
+    }).catch(() => setNotifLoading(false))
   }, [])
 
   const saveNotifSettings = async () => {
@@ -3493,11 +3506,11 @@ export default function SettingsView({
 
                 {notifSettings.sound_enabled && (
                   <>
-                    {/* Sound Picker */}
+                    {/* Built-in Sound Picker */}
                     <div style={{ marginBottom: '20px' }}>
-                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Notification Sound</label>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                        {SOUND_OPTIONS.map(sound => (
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Built-in Sounds</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                        {BUILTIN_SOUNDS.map(sound => (
                           <button
                             key={sound.key}
                             onClick={() => {
@@ -3505,7 +3518,7 @@ export default function SettingsView({
                               playSound(sound.key)
                             }}
                             style={{
-                              padding: '12px',
+                              padding: '10px',
                               background: notifSettings.sound_key === sound.key ? 'rgba(215, 28, 209, 0.15)' : '#111111',
                               border: notifSettings.sound_key === sound.key ? '2px solid #d71cd1' : '1px solid rgba(148,163,184,0.15)',
                               borderRadius: '10px',
@@ -3513,12 +3526,133 @@ export default function SettingsView({
                               textAlign: 'left'
                             }}
                           >
-                            <div style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
+                            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
                             <div style={{ color: '#64748b', fontSize: '11px' }}>{sound.description}</div>
                           </button>
                         ))}
                       </div>
                       <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>Click a sound to preview and select it</p>
+                    </div>
+
+                    {/* Custom Uploaded Sounds */}
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Custom Sounds</label>
+                      {customSounds.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                          {customSounds.map(sound => (
+                            <div
+                              key={sound.id}
+                              style={{
+                                padding: '10px',
+                                background: notifSettings.sound_key === `custom:${sound.id}` ? 'rgba(215, 28, 209, 0.15)' : '#111111',
+                                border: notifSettings.sound_key === `custom:${sound.id}` ? '2px solid #d71cd1' : '1px solid rgba(148,163,184,0.15)',
+                                borderRadius: '10px',
+                                position: 'relative'
+                              }}
+                            >
+                              <button
+                                onClick={() => {
+                                  setNotifSettings({ ...notifSettings, sound_key: `custom:${sound.id}` })
+                                  playCustomSound(sound.dataUrl)
+                                }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}
+                              >
+                                <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px', paddingRight: '20px' }}>{sound.label}</div>
+                                <div style={{ color: '#64748b', fontSize: '11px' }}>Custom upload</div>
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Delete "${sound.label}"?`)) return
+                                  const res = await fetch('/api/settings/notification-sounds', {
+                                    method: 'DELETE',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: sound.id })
+                                  })
+                                  if (res.ok) {
+                                    setCustomSounds(customSounds.filter(s => s.id !== sound.id))
+                                    if (notifSettings.sound_key === `custom:${sound.id}`) {
+                                      setNotifSettings({ ...notifSettings, sound_key: 'chime' })
+                                    }
+                                  }
+                                }}
+                                style={{
+                                  position: 'absolute', top: '6px', right: '6px',
+                                  background: 'none', border: 'none', color: '#64748b', cursor: 'pointer',
+                                  fontSize: '16px', padding: '2px 4px', lineHeight: 1
+                                }}
+                                title="Delete sound"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Upload Form */}
+                      <div style={{ background: '#111111', borderRadius: '10px', padding: '16px', border: '1px dashed rgba(148,163,184,0.2)' }}>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Sound Name</label>
+                            <input
+                              type="text"
+                              value={uploadLabel}
+                              onChange={e => setUploadLabel(e.target.value)}
+                              placeholder="e.g. Duck Quack"
+                              style={{ width: '100%', padding: '8px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                            />
+                          </div>
+                          <label style={{
+                            padding: '8px 16px',
+                            background: uploading ? '#374151' : '#d71cd1',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: 'white',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            cursor: uploading ? 'not-allowed' : 'pointer',
+                            opacity: uploading ? 0.6 : 1,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {uploading ? 'Uploading...' : 'Upload Sound'}
+                            <input
+                              type="file"
+                              accept=".mp3,.wav,.ogg,.m4a,.aac,.webm,audio/*"
+                              style={{ display: 'none' }}
+                              disabled={uploading}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                setUploading(true)
+                                const fd = new FormData()
+                                fd.append('file', file)
+                                fd.append('label', uploadLabel || file.name.replace(/\.[^.]+$/, ''))
+                                try {
+                                  const res = await fetch('/api/settings/notification-sounds', {
+                                    method: 'POST',
+                                    body: fd,
+                                  })
+                                  const data = await res.json()
+                                  if (res.ok && data.sound) {
+                                    setCustomSounds([...customSounds, data.sound])
+                                    setUploadLabel('')
+                                    // Auto-select the newly uploaded sound
+                                    setNotifSettings({ ...notifSettings, sound_key: `custom:${data.sound.id}` })
+                                    playCustomSound(data.sound.dataUrl)
+                                  } else {
+                                    alert(data.error || 'Upload failed')
+                                  }
+                                } catch {
+                                  alert('Upload failed')
+                                }
+                                setUploading(false)
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <p style={{ color: '#64748b', fontSize: '11px', margin: '8px 0 0 0' }}>Supported formats: MP3, WAV, OGG, M4A, AAC (max 500KB). Short clips (1-5 seconds) work best.</p>
+                      </div>
                     </div>
 
                     {/* Active Hours */}

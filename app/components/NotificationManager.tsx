@@ -1,16 +1,22 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { playSound, type SoundKey } from '../lib/notificationSounds'
+import { playSound, playCustomSound } from '../lib/notificationSounds'
 
 type NotificationSettings = {
   sound_enabled: boolean
-  sound_key: SoundKey
+  sound_key: string
   start_hour: number
   end_hour: number
   repeat_interval: number
   email_alerts_enabled: boolean
   email_alert_address: string
+}
+
+type CustomSound = {
+  id: string
+  label: string
+  dataUrl: string
 }
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -25,17 +31,25 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 
 export default function NotificationManager() {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS)
+  const [customSounds, setCustomSounds] = useState<CustomSound[]>([])
   const [hasInteracted, setHasInteracted] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const settingsRef = useRef(settings)
+  const customSoundsRef = useRef(customSounds)
   settingsRef.current = settings
+  customSoundsRef.current = customSounds
 
   // Load settings on mount and when they change
   const loadSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings/notifications')
-      const data = await res.json()
-      setSettings(data)
+      const [notifRes, soundsRes] = await Promise.all([
+        fetch('/api/settings/notifications'),
+        fetch('/api/settings/notification-sounds'),
+      ])
+      const notifData = await notifRes.json()
+      const soundsData = await soundsRes.json()
+      setSettings(notifData)
+      setCustomSounds(soundsData.sounds || [])
     } catch {
       // Use defaults
     }
@@ -69,7 +83,7 @@ export default function NotificationManager() {
     const hour = now.getHours()
     const inActiveHours = s.start_hour <= s.end_hour
       ? hour >= s.start_hour && hour < s.end_hour
-      : hour >= s.start_hour || hour < s.end_hour // handles overnight like 22-6
+      : hour >= s.start_hour || hour < s.end_hour
 
     if (!inActiveHours) return
 
@@ -78,7 +92,17 @@ export default function NotificationManager() {
       const res = await fetch('/api/messages/unread-count')
       const data = await res.json()
       if (data.count > 0) {
-        playSound(s.sound_key)
+        if (s.sound_key.startsWith('custom:')) {
+          const customId = s.sound_key.replace('custom:', '')
+          const customSound = customSoundsRef.current.find(cs => cs.id === customId)
+          if (customSound) {
+            playCustomSound(customSound.dataUrl)
+          } else {
+            playSound('chime') // fallback
+          }
+        } else {
+          playSound(s.sound_key)
+        }
       }
     } catch {
       // Silently fail

@@ -49,19 +49,29 @@ export async function GET() {
 }
 
 async function sendEmailAlert(phone: string, messageBody: string, customerName: string | null, cleanPhone: string) {
-  // Check if email alerts are enabled
+  // Check if email alerts are enabled (defaults to enabled if no settings saved yet)
+  let emailEnabled = true
+  let emailAddress = 'info@frederickwraps.com'
+
   const { data: settingsRow } = await supabase
     .from('settings')
     .select('value')
     .eq('key', 'notification_settings')
-    .single()
+    .maybeSingle()
 
-  const rawValue = settingsRow?.value
-  const settings = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue
-  if (!settings?.email_alerts_enabled || !settings?.email_alert_address) return
+  if (settingsRow?.value) {
+    const settings = typeof settingsRow.value === 'string' ? JSON.parse(settingsRow.value) : settingsRow.value
+    emailEnabled = settings.email_alerts_enabled ?? true
+    emailAddress = settings.email_alert_address || 'info@frederickwraps.com'
+  }
+
+  if (!emailEnabled || !emailAddress) return
 
   const resendApiKey = process.env.RESEND_API_KEY
-  if (!resendApiKey) return
+  if (!resendApiKey) {
+    console.error('Email alert skipped: RESEND_API_KEY not set')
+    return
+  }
 
   const formattedPhone = cleanPhone.length === 10
     ? `(${cleanPhone.slice(0, 3)}) ${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`
@@ -70,7 +80,7 @@ async function sendEmailAlert(phone: string, messageBody: string, customerName: 
   const senderName = customerName || formattedPhone
   const messagesUrl = `https://ops.frederickwraps.com/messages?phone=${cleanPhone}`
 
-  await fetch('https://api.resend.com/emails', {
+  const emailRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${resendApiKey}`,
@@ -78,7 +88,7 @@ async function sendEmailAlert(phone: string, messageBody: string, customerName: 
     },
     body: JSON.stringify({
       from: 'FWG Ops <quotes@frederickwraps.com>',
-      to: settings.email_alert_address,
+      to: emailAddress,
       subject: `New SMS from ${senderName}`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto;">
@@ -101,4 +111,11 @@ async function sendEmailAlert(phone: string, messageBody: string, customerName: 
       `,
     }),
   })
+
+  if (!emailRes.ok) {
+    const errBody = await emailRes.text()
+    console.error('Resend email alert failed:', emailRes.status, errBody)
+  } else {
+    console.log('Email alert sent to', emailAddress)
+  }
 }
