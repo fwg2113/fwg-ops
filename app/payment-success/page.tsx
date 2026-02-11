@@ -111,6 +111,7 @@ export default async function PaymentSuccessPage({
             processor: 'stripe',
             processor_txn_id: session.payment_intent,
             status: 'completed',
+            read: false,
             created_at: new Date().toISOString()
           })
           .select()
@@ -132,8 +133,14 @@ export default async function PaymentSuccessPage({
           }
         }
 
-        // Send notification email to FWG
-        if (resendApiKey && isPaidInFull) {
+        // Send notification email to FWG for every payment
+        if (resendApiKey) {
+          const subject = isPaidInFull
+            ? `Invoice #${invoice.doc_number} PAID IN FULL - $${amount.toFixed(2)}`
+            : `Payment Received - Invoice #${invoice.doc_number} - $${amount.toFixed(2)}`
+          const statusLine = isPaidInFull
+            ? `<p><strong>Invoice #${invoice.doc_number}</strong> has been <span style="color: #22c55e;">paid in full</span>.</p>`
+            : `<p><strong>Invoice #${invoice.doc_number}</strong> received a partial payment. Balance remaining: <strong style="color: #f59e0b;">$${Math.max(0, newBalanceDue).toFixed(2)}</strong></p>`
           await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
@@ -143,28 +150,24 @@ export default async function PaymentSuccessPage({
             body: JSON.stringify({
               from: 'FWG Ops <quotes@frederickwraps.com>',
               to: ['info@frederickwraps.com'],
-              subject: `Invoice #${invoice.doc_number} PAID - $${amount.toFixed(2)}`,
+              subject,
               html: `
                 <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
                   <h1 style="color: #22c55e;">Payment Received!</h1>
-                  <p><strong>Invoice #${invoice.doc_number}</strong> has been paid in full.</p>
+                  ${statusLine}
                   <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                     <tr><td style="padding: 8px 0; color: #666;">Customer</td><td style="padding: 8px 0;"><strong>${invoice.customer_name}</strong></td></tr>
-                    <tr><td style="padding: 8px 0; color: #666;">Amount</td><td style="padding: 8px 0;"><strong style="color: #22c55e;">$${amount.toFixed(2)}</strong></td></tr>
+                    <tr><td style="padding: 8px 0; color: #666;">Amount Received</td><td style="padding: 8px 0;"><strong style="color: #22c55e;">$${amount.toFixed(2)}</strong></td></tr>
+                    <tr><td style="padding: 8px 0; color: #666;">Invoice Total</td><td style="padding: 8px 0;">$${(invoice.total || 0).toFixed(2)}</td></tr>
                     <tr><td style="padding: 8px 0; color: #666;">Project</td><td style="padding: 8px 0;">${invoice.vehicle_description || invoice.project_description || '-'}</td></tr>
                   </table>
-                  <p><strong>Next Steps:</strong></p>
-                  <ul>
-                    <li>Schedule the installation</li>
-                    <li>Move to production</li>
-                  </ul>
                   <p style="margin-top: 30px;">
                     <a href="https://fwg-ops.vercel.app/documents/${documentId}" style="background: linear-gradient(135deg, #d71cd1, #8b5cf6); color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">View Invoice</a>
                   </p>
                 </div>
               `,
             }),
-          })
+          }).catch(err => console.error('Payment notification email failed:', err))
         }
       }
     }
