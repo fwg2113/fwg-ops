@@ -48,6 +48,11 @@ export const CATEGORY_MAPPINGS: CategoryMapping[] = [
     description: 'Complete vehicle wraps'
   },
   {
+    systemCategory: 'COMMERCIAL_WRAP',
+    sheetCategory: 'Full Wrap Revenue',
+    description: 'Commercial vehicle wraps'
+  },
+  {
     systemCategory: 'PARTIAL_WRAP',
     sheetCategory: 'Partial Wrap Revenue',
     description: 'Partial vehicle wraps'

@@ -1248,6 +1248,22 @@ export default function DocumentDetail({
         }
       }
 
+      // Auto-sync payment to Google Sheets
+      try {
+        const syncRes = await fetch('/api/payments/sync-to-sheet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentId: newPayment.id })
+        })
+        const syncResult = await syncRes.json()
+        if (syncResult.success && syncResult.rowsAdded > 0) {
+          console.log(`✓ Auto-synced payment to Google Sheets: ${syncResult.rowsAdded} row(s)`)
+        }
+      } catch (syncErr) {
+        console.error('Auto-sync to Google Sheets failed:', syncErr)
+        // Don't fail the payment process if sheet sync fails
+      }
+
       // Update local state
       setPayments([newPayment, ...payments])
       setDoc({
@@ -2787,7 +2803,11 @@ export default function DocumentDetail({
                           })
                           const result = await response.json()
                           if (result.success) {
-                            showToast(`✓ Synced ${result.rowsAdded} row(s) to Google Sheets`, 'success')
+                            if (result.rowsAdded === 0) {
+                              showToast('Already synced to Google Sheets', 'info')
+                            } else {
+                              showToast(`✓ Synced ${result.rowsAdded} row(s) to Google Sheets`, 'success')
+                            }
                           } else {
                             showToast(`Failed to sync: ${result.error}`, 'error')
                           }
