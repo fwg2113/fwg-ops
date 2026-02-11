@@ -2794,27 +2794,33 @@ export default function DocumentDetail({
                     </div>
                     <button
                       onClick={async () => {
-                        try {
-                          showToast('Syncing payment to Google Sheets...', 'info')
-                          const response = await fetch('/api/payments/sync-to-sheet', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ paymentId: payment.id })
-                          })
-                          const result = await response.json()
-                          if (result.success) {
-                            if (result.rowsAdded === 0) {
-                              showToast('Already synced to Google Sheets', 'info')
+                        const doSync = async (force = false) => {
+                          try {
+                            showToast('Syncing payment to Google Sheets...', 'info')
+                            const response = await fetch('/api/payments/sync-to-sheet', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ paymentId: payment.id, force })
+                            })
+                            const result = await response.json()
+                            if (result.success) {
+                              if (result.alreadySynced) {
+                                // Ask for confirmation to re-sync
+                                if (window.confirm('This payment has already been synced to Google Sheets. Are you sure you want to add it again?')) {
+                                  await doSync(true)
+                                }
+                              } else {
+                                showToast(`Synced ${result.rowsAdded} row(s) to Google Sheets`, 'success')
+                              }
                             } else {
-                              showToast(`✓ Synced ${result.rowsAdded} row(s) to Google Sheets`, 'success')
+                              showToast(`Failed to sync: ${result.error}`, 'error')
                             }
-                          } else {
-                            showToast(`Failed to sync: ${result.error}`, 'error')
+                          } catch (err) {
+                            console.error('Error syncing payment:', err)
+                            showToast('Failed to sync payment', 'error')
                           }
-                        } catch (err) {
-                          console.error('Error syncing payment:', err)
-                          showToast('Failed to sync payment', 'error')
                         }
+                        await doSync()
                       }}
                       style={{
                         display: 'flex',

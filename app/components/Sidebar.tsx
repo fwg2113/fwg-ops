@@ -17,7 +17,7 @@ const navSections = [
     items: [
       { href: '/quotes', label: 'Quote', labelGradient: 'Builder', icon: 'document' },
       { href: '/invoices', label: 'Invoice', labelGradient: 'Manager', icon: 'receipt' },
-      { href: '/payments', label: 'Payment', labelGradient: 'History', icon: 'dollar' },
+      { href: '/payments', label: 'Payment', labelGradient: 'History', icon: 'dollar', badgeKey: 'payments' },
     ]
   },
   {
@@ -145,21 +145,23 @@ const icons: Record<string, React.ReactElement> = {
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number }>({ messages: 0, email: 0 })
+  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number }>({ messages: 0, email: 0, payments: 0 })
 
   const fetchUnreadCounts = useCallback(async () => {
     try {
-      // Fetch SMS unread count
-      const msgRes = await fetch('/api/messages/unread-count')
-      const msgData = await msgRes.json()
-
-      // Fetch Gmail unread count
-      const emailRes = await fetch('/api/gmail/unread-count')
-      const emailData = await emailRes.json()
+      const [msgRes, emailRes, payRes] = await Promise.all([
+        fetch('/api/messages/unread-count'),
+        fetch('/api/gmail/unread-count'),
+        fetch('/api/payments/unread-count'),
+      ])
+      const [msgData, emailData, payData] = await Promise.all([
+        msgRes.json(), emailRes.json(), payRes.json(),
+      ])
 
       setUnreadCounts({
         messages: msgData.count || 0,
         email: emailData.count || 0,
+        payments: payData.count || 0,
       })
     } catch (err) {
       console.error('Failed to fetch unread counts:', err)
@@ -284,7 +286,7 @@ export default function Sidebar() {
                       height: '20px',
                       padding: '0 6px',
                       borderRadius: '999px',
-                      background: '#d71cd1',
+                      background: ('badgeKey' in item && item.badgeKey === 'payments') ? '#16a34a' : '#d71cd1',
                       color: '#ffffff',
                       fontSize: '11px',
                       fontWeight: 700,

@@ -10,7 +10,7 @@ import { syncPaymentToSheet } from '@/app/lib/payment-sheet-sync'
  */
 export async function POST(req: NextRequest) {
   try {
-    const { paymentId } = await req.json()
+    const { paymentId, force } = await req.json()
 
     if (!paymentId) {
       return NextResponse.json(
@@ -19,15 +19,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Sync the payment
-    const result = await syncPaymentToSheet(paymentId)
+    // Sync the payment (force=true bypasses already-synced check)
+    const result = await syncPaymentToSheet(paymentId, !!force)
 
     if (result.success) {
       return NextResponse.json({
         success: true,
         rowsAdded: result.rowsAdded,
+        alreadySynced: result.alreadySynced || false,
         txnNumbers: result.txnNumbers,
-        message: `Successfully synced ${result.rowsAdded} row(s) to Google Sheets`
+        message: result.alreadySynced
+          ? 'Payment was already synced'
+          : `Successfully synced ${result.rowsAdded} row(s) to Google Sheets`
       })
     } else {
       return NextResponse.json(
