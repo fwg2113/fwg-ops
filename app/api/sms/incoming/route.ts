@@ -56,7 +56,8 @@ async function sendEmailAlert(phone: string, messageBody: string, customerName: 
     .eq('key', 'notification_settings')
     .single()
 
-  const settings = settingsRow?.value as any
+  const rawValue = settingsRow?.value
+  const settings = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue
   if (!settings?.email_alerts_enabled || !settings?.email_alert_address) return
 
   const resendApiKey = process.env.RESEND_API_KEY
