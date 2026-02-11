@@ -20,7 +20,8 @@ export async function POST(request: Request) {
         .from('calls')
         .update({
           status: 'completed',
-          duration: duration
+          duration: duration,
+          read: true
         })
         .eq('call_sid', callSid)
 
