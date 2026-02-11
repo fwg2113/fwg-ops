@@ -1,8 +1,38 @@
-export default function PaymentsPage() {
-  return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>Payment History</h1>
-      <p style={{ color: '#94a3b8', marginBottom: '32px' }}>Coming soon...</p>
-    </div>
-  )
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+import { supabase } from '../../lib/supabase'
+import PaymentList from './PaymentList'
+
+export default async function PaymentsPage() {
+  const { data: payments } = await supabase
+    .from('payments')
+    .select(`
+      id,
+      document_id,
+      amount,
+      processing_fee,
+      payment_method,
+      processor,
+      processor_txn_id,
+      status,
+      notes,
+      synced_to_sheets,
+      created_at,
+      documents!inner(
+        doc_number,
+        doc_type,
+        customer_name,
+        company_name,
+        category,
+        project_description,
+        vehicle_description,
+        total,
+        amount_paid,
+        balance_due
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  return <PaymentList initialPayments={payments || []} />
 }
