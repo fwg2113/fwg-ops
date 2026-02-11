@@ -146,8 +146,9 @@ type CustomerWorkflowTemplate = {
 type CustomSound = {
   id: string
   label: string
-  url: string
-  filePath: string
+  dataUrl: string
+  fileName: string
+  size: number
   uploadedAt: string
 }
 
@@ -3552,7 +3553,7 @@ export default function SettingsView({
                               <button
                                 onClick={() => {
                                   setNotifSettings({ ...notifSettings, sound_key: `custom:${sound.id}` })
-                                  playCustomSound(sound.url)
+                                  playCustomSound(sound.dataUrl)
                                 }}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}
                               >
@@ -3637,7 +3638,7 @@ export default function SettingsView({
                                     setUploadLabel('')
                                     // Auto-select the newly uploaded sound
                                     setNotifSettings({ ...notifSettings, sound_key: `custom:${data.sound.id}` })
-                                    playCustomSound(data.sound.url)
+                                    playCustomSound(data.sound.dataUrl)
                                   } else {
                                     alert(data.error || 'Upload failed')
                                   }
@@ -3650,7 +3651,7 @@ export default function SettingsView({
                             />
                           </label>
                         </div>
-                        <p style={{ color: '#64748b', fontSize: '11px', margin: '8px 0 0 0' }}>Supported formats: MP3, WAV, OGG, M4A, AAC (max 2MB). Short clips work best.</p>
+                        <p style={{ color: '#64748b', fontSize: '11px', margin: '8px 0 0 0' }}>Supported formats: MP3, WAV, OGG, M4A, AAC (max 500KB). Short clips (1-5 seconds) work best.</p>
                       </div>
                     </div>
 

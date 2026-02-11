@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
 
-const BUCKET = 'notification-sounds'
 const SETTINGS_KEY = 'custom_notification_sounds'
 
 // GET - list custom sounds
@@ -23,7 +22,7 @@ export async function GET() {
   }
 }
 
-// POST - upload a new custom sound
+// POST - upload a new custom sound (stored as base64 data URL)
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
@@ -40,39 +39,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid file type. Use MP3, WAV, OGG, M4A, or AAC.' }, { status: 400 })
     }
 
-    // Max 2MB
-    if (file.size > 2 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File too large. Max 2MB.' }, { status: 400 })
+    // Max 500KB for base64 storage (keeps settings table manageable)
+    if (file.size > 500 * 1024) {
+      return NextResponse.json({ error: 'File too large. Max 500KB. Use a short clip (1-5 seconds).' }, { status: 400 })
     }
 
-    // Ensure bucket exists
-    const { data: buckets } = await supabase.storage.listBuckets()
-    if (!buckets?.find(b => b.name === BUCKET)) {
-      await supabase.storage.createBucket(BUCKET, { public: true })
-    }
-
-    // Upload file
-    const fileId = `sound_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    const ext = file.name.split('.').pop() || 'mp3'
-    const filePath = `${fileId}.${ext}`
-
+    // Convert to base64 data URL
     const arrayBuffer = await file.arrayBuffer()
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(filePath, arrayBuffer, {
-        contentType: file.type || 'audio/mpeg',
-        upsert: true,
-      })
+    const base64 = Buffer.from(arrayBuffer).toString('base64')
+    const mimeType = file.type || 'audio/mpeg'
+    const dataUrl = `data:${mimeType};base64,${base64}`
 
-    if (uploadError) {
-      return NextResponse.json({ error: 'Upload failed: ' + uploadError.message }, { status: 500 })
-    }
+    const fileId = `sound_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-    // Get public URL
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(filePath)
-    const url = urlData.publicUrl
-
-    // Save metadata to settings
+    // Save to settings
     const { data: existing } = await supabase
       .from('settings')
       .select('value')
@@ -83,15 +63,26 @@ export async function POST(request: Request) {
       ? (typeof existing.value === 'string' ? JSON.parse(existing.value) : existing.value)
       : []
 
-    const newSound = { id: fileId, label, url, filePath, uploadedAt: new Date().toISOString() }
+    const newSound = {
+      id: fileId,
+      label,
+      dataUrl,
+      fileName: file.name,
+      size: file.size,
+      uploadedAt: new Date().toISOString(),
+    }
     const updatedSounds = [...currentSounds, newSound]
 
-    await supabase
+    const { error } = await supabase
       .from('settings')
       .upsert({
         key: SETTINGS_KEY,
         value: JSON.stringify(updatedSounds),
       }, { onConflict: 'key' })
+
+    if (error) {
+      return NextResponse.json({ error: 'Save failed: ' + error.message }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true, sound: newSound })
   } catch (err: any) {
@@ -104,7 +95,6 @@ export async function DELETE(request: Request) {
   try {
     const { id } = await request.json()
 
-    // Get current sounds
     const { data: existing } = await supabase
       .from('settings')
       .select('value')
@@ -115,19 +105,18 @@ export async function DELETE(request: Request) {
       ? (typeof existing.value === 'string' ? JSON.parse(existing.value) : existing.value)
       : []
 
-    const sound = currentSounds.find((s: any) => s.id === id)
-    if (sound?.filePath) {
-      await supabase.storage.from(BUCKET).remove([sound.filePath])
-    }
-
     const updatedSounds = currentSounds.filter((s: any) => s.id !== id)
 
-    await supabase
+    const { error } = await supabase
       .from('settings')
       .upsert({
         key: SETTINGS_KEY,
         value: JSON.stringify(updatedSounds),
       }, { onConflict: 'key' })
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
