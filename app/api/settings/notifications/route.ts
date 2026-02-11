@@ -6,6 +6,8 @@ const SETTINGS_KEY = 'notification_settings'
 const DEFAULT_SETTINGS = {
   sound_enabled: true,
   sound_key: 'chime',
+  message_sound_key: 'chime',
+  email_sound_key: 'bell',
   start_hour: 9,
   end_hour: 17,
   repeat_interval: 60,
@@ -38,6 +40,8 @@ export async function POST(request: Request) {
     const settings = {
       sound_enabled: body.sound_enabled ?? DEFAULT_SETTINGS.sound_enabled,
       sound_key: body.sound_key ?? DEFAULT_SETTINGS.sound_key,
+      message_sound_key: body.message_sound_key ?? body.sound_key ?? DEFAULT_SETTINGS.message_sound_key,
+      email_sound_key: body.email_sound_key ?? DEFAULT_SETTINGS.email_sound_key,
       start_hour: body.start_hour ?? DEFAULT_SETTINGS.start_hour,
       end_hour: body.end_hour ?? DEFAULT_SETTINGS.end_hour,
       repeat_interval: body.repeat_interval ?? DEFAULT_SETTINGS.repeat_interval,
