@@ -34,7 +34,8 @@ export async function POST(request: Request) {
       caller_phone: from,
       receiver_phone: to,
       status: 'ringing',
-      call_sid: callSid
+      call_sid: callSid,
+      read: false
     })
     
     console.log('Insert error:', insertError)
