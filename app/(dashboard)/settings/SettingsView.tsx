@@ -155,6 +155,8 @@ type CustomSound = {
 type NotificationSettings = {
   sound_enabled: boolean
   sound_key: string
+  message_sound_key: string
+  email_sound_key: string
   start_hour: number
   end_hour: number
   repeat_interval: number
@@ -237,6 +239,8 @@ export default function SettingsView({
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
     sound_enabled: true,
     sound_key: 'chime',
+    message_sound_key: 'chime',
+    email_sound_key: 'bell',
     start_hour: 9,
     end_hour: 17,
     repeat_interval: 60,
@@ -3485,7 +3489,7 @@ export default function SettingsView({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <div>
                     <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Audible Alerts</h3>
-                    <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>Play a repeating sound when there are unread messages</p>
+                    <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>Play separate sounds for unread messages and emails</p>
                   </div>
                   <button
                     onClick={() => setNotifSettings({ ...notifSettings, sound_enabled: !notifSettings.sound_enabled })}
@@ -3506,21 +3510,22 @@ export default function SettingsView({
 
                 {notifSettings.sound_enabled && (
                   <>
-                    {/* Built-in Sound Picker */}
+                    {/* Message Alert Sound */}
                     <div style={{ marginBottom: '20px' }}>
-                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Built-in Sounds</label>
+                      <label style={{ display: 'block', color: '#d71cd1', fontSize: '14px', marginBottom: '10px', fontWeight: 600 }}>Message Alert Sound</label>
+                      <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays when there are unread SMS messages</p>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                         {BUILTIN_SOUNDS.map(sound => (
                           <button
                             key={sound.key}
                             onClick={() => {
-                              setNotifSettings({ ...notifSettings, sound_key: sound.key })
+                              setNotifSettings({ ...notifSettings, message_sound_key: sound.key })
                               playSound(sound.key)
                             }}
                             style={{
                               padding: '10px',
-                              background: notifSettings.sound_key === sound.key ? 'rgba(215, 28, 209, 0.15)' : '#111111',
-                              border: notifSettings.sound_key === sound.key ? '2px solid #d71cd1' : '1px solid rgba(148,163,184,0.15)',
+                              background: notifSettings.message_sound_key === sound.key ? 'rgba(215, 28, 209, 0.15)' : '#111111',
+                              border: notifSettings.message_sound_key === sound.key ? '2px solid #d71cd1' : '1px solid rgba(148,163,184,0.15)',
                               borderRadius: '10px',
                               cursor: 'pointer',
                               textAlign: 'left'
@@ -3531,35 +3536,103 @@ export default function SettingsView({
                           </button>
                         ))}
                       </div>
-                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>Click a sound to preview and select it</p>
+                      {customSounds.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '8px' }}>
+                          {customSounds.map(sound => (
+                            <button
+                              key={sound.id}
+                              onClick={() => {
+                                setNotifSettings({ ...notifSettings, message_sound_key: `custom:${sound.id}` })
+                                playCustomSound(sound.dataUrl)
+                              }}
+                              style={{
+                                padding: '10px',
+                                background: notifSettings.message_sound_key === `custom:${sound.id}` ? 'rgba(215, 28, 209, 0.15)' : '#111111',
+                                border: notifSettings.message_sound_key === `custom:${sound.id}` ? '2px solid #d71cd1' : '1px solid rgba(148,163,184,0.15)',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                              }}
+                            >
+                              <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
+                              <div style={{ color: '#64748b', fontSize: '11px' }}>Custom upload</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Custom Uploaded Sounds */}
+                    {/* Email Alert Sound */}
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', color: '#3b82f6', fontSize: '14px', marginBottom: '10px', fontWeight: 600 }}>Email Alert Sound</label>
+                      <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays when there are unread emails</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                        {BUILTIN_SOUNDS.map(sound => (
+                          <button
+                            key={sound.key}
+                            onClick={() => {
+                              setNotifSettings({ ...notifSettings, email_sound_key: sound.key })
+                              playSound(sound.key)
+                            }}
+                            style={{
+                              padding: '10px',
+                              background: notifSettings.email_sound_key === sound.key ? 'rgba(59, 130, 246, 0.15)' : '#111111',
+                              border: notifSettings.email_sound_key === sound.key ? '2px solid #3b82f6' : '1px solid rgba(148,163,184,0.15)',
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
+                            <div style={{ color: '#64748b', fontSize: '11px' }}>{sound.description}</div>
+                          </button>
+                        ))}
+                      </div>
+                      {customSounds.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '8px' }}>
+                          {customSounds.map(sound => (
+                            <button
+                              key={sound.id}
+                              onClick={() => {
+                                setNotifSettings({ ...notifSettings, email_sound_key: `custom:${sound.id}` })
+                                playCustomSound(sound.dataUrl)
+                              }}
+                              style={{
+                                padding: '10px',
+                                background: notifSettings.email_sound_key === `custom:${sound.id}` ? 'rgba(59, 130, 246, 0.15)' : '#111111',
+                                border: notifSettings.email_sound_key === `custom:${sound.id}` ? '2px solid #3b82f6' : '1px solid rgba(148,163,184,0.15)',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                              }}
+                            >
+                              <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
+                              <div style={{ color: '#64748b', fontSize: '11px' }}>Custom upload</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Custom Sound Upload */}
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Custom Sounds</label>
                       {customSounds.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
                           {customSounds.map(sound => (
                             <div
                               key={sound.id}
                               style={{
-                                padding: '10px',
-                                background: notifSettings.sound_key === `custom:${sound.id}` ? 'rgba(215, 28, 209, 0.15)' : '#111111',
-                                border: notifSettings.sound_key === `custom:${sound.id}` ? '2px solid #d71cd1' : '1px solid rgba(148,163,184,0.15)',
-                                borderRadius: '10px',
-                                position: 'relative'
+                                padding: '8px 12px',
+                                background: '#111111',
+                                border: '1px solid rgba(148,163,184,0.15)',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
                               }}
                             >
-                              <button
-                                onClick={() => {
-                                  setNotifSettings({ ...notifSettings, sound_key: `custom:${sound.id}` })
-                                  playCustomSound(sound.dataUrl)
-                                }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}
-                              >
-                                <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px', paddingRight: '20px' }}>{sound.label}</div>
-                                <div style={{ color: '#64748b', fontSize: '11px' }}>Custom upload</div>
-                              </button>
+                              <span style={{ color: '#f1f5f9', fontSize: '13px' }}>{sound.label}</span>
                               <button
                                 onClick={async () => {
                                   if (!confirm(`Delete "${sound.label}"?`)) return
@@ -3570,15 +3643,18 @@ export default function SettingsView({
                                   })
                                   if (res.ok) {
                                     setCustomSounds(customSounds.filter(s => s.id !== sound.id))
-                                    if (notifSettings.sound_key === `custom:${sound.id}`) {
-                                      setNotifSettings({ ...notifSettings, sound_key: 'chime' })
+                                    const customKey = `custom:${sound.id}`
+                                    const updates: Partial<NotificationSettings> = {}
+                                    if (notifSettings.message_sound_key === customKey) updates.message_sound_key = 'chime'
+                                    if (notifSettings.email_sound_key === customKey) updates.email_sound_key = 'bell'
+                                    if (Object.keys(updates).length > 0) {
+                                      setNotifSettings({ ...notifSettings, ...updates })
                                     }
                                   }
                                 }}
                                 style={{
-                                  position: 'absolute', top: '6px', right: '6px',
                                   background: 'none', border: 'none', color: '#64748b', cursor: 'pointer',
-                                  fontSize: '16px', padding: '2px 4px', lineHeight: 1
+                                  fontSize: '16px', padding: '0 2px', lineHeight: 1
                                 }}
                                 title="Delete sound"
                               >
@@ -3636,8 +3712,6 @@ export default function SettingsView({
                                   if (res.ok && data.sound) {
                                     setCustomSounds([...customSounds, data.sound])
                                     setUploadLabel('')
-                                    // Auto-select the newly uploaded sound
-                                    setNotifSettings({ ...notifSettings, sound_key: `custom:${data.sound.id}` })
                                     playCustomSound(data.sound.dataUrl)
                                   } else {
                                     alert(data.error || 'Upload failed')
@@ -3696,7 +3770,7 @@ export default function SettingsView({
                         <option value={300}>Every 5 minutes</option>
                         <option value={600}>Every 10 minutes</option>
                       </select>
-                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>How often the sound repeats while messages remain unread</p>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>How often the sounds repeat while messages or emails remain unread</p>
                     </div>
                   </>
                 )}

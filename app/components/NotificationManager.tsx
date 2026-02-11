@@ -6,6 +6,8 @@ import { playSound, playCustomSound } from '../lib/notificationSounds'
 type NotificationSettings = {
   sound_enabled: boolean
   sound_key: string
+  message_sound_key: string
+  email_sound_key: string
   start_hour: number
   end_hour: number
   repeat_interval: number
@@ -22,11 +24,27 @@ type CustomSound = {
 const DEFAULT_SETTINGS: NotificationSettings = {
   sound_enabled: true,
   sound_key: 'chime',
+  message_sound_key: 'chime',
+  email_sound_key: 'bell',
   start_hour: 9,
   end_hour: 17,
   repeat_interval: 60,
   email_alerts_enabled: true,
   email_alert_address: 'info@frederickwraps.com',
+}
+
+function playSoundByKey(key: string, customSounds: CustomSound[]) {
+  if (key.startsWith('custom:')) {
+    const customId = key.replace('custom:', '')
+    const customSound = customSounds.find(cs => cs.id === customId)
+    if (customSound) {
+      playCustomSound(customSound.dataUrl)
+    } else {
+      playSound('chime')
+    }
+  } else {
+    playSound(key)
+  }
 }
 
 export default function NotificationManager() {
@@ -73,7 +91,7 @@ export default function NotificationManager() {
     }
   }, [])
 
-  // Check unread and play sound
+  // Check unread messages and emails, play appropriate sounds
   const checkAndAlert = useCallback(async () => {
     const s = settingsRef.current
     if (!s.sound_enabled || !hasInteracted) return
@@ -87,21 +105,31 @@ export default function NotificationManager() {
 
     if (!inActiveHours) return
 
-    // Check for unread messages
+    // Check both unread counts in parallel
     try {
-      const res = await fetch('/api/messages/unread-count')
-      const data = await res.json()
-      if (data.count > 0) {
-        if (s.sound_key.startsWith('custom:')) {
-          const customId = s.sound_key.replace('custom:', '')
-          const customSound = customSoundsRef.current.find(cs => cs.id === customId)
-          if (customSound) {
-            playCustomSound(customSound.dataUrl)
-          } else {
-            playSound('chime') // fallback
-          }
+      const [msgRes, emailRes] = await Promise.all([
+        fetch('/api/messages/unread-count'),
+        fetch('/api/gmail/unread-count'),
+      ])
+      const msgData = await msgRes.json()
+      const emailData = await emailRes.json()
+
+      const soundKey = s.message_sound_key || s.sound_key || 'chime'
+      const emailKey = s.email_sound_key || 'bell'
+
+      // Play message sound if unread messages
+      if (msgData.count > 0) {
+        playSoundByKey(soundKey, customSoundsRef.current)
+      }
+
+      // Play email sound if unread emails (stagger by 1.5s to avoid overlap)
+      if (emailData.count > 0) {
+        if (msgData.count > 0) {
+          setTimeout(() => {
+            playSoundByKey(emailKey, customSoundsRef.current)
+          }, 1500)
         } else {
-          playSound(s.sound_key)
+          playSoundByKey(emailKey, customSoundsRef.current)
         }
       }
     } catch {
