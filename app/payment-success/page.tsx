@@ -161,8 +161,8 @@ export default async function PaymentSuccessPage({
         // Send notification email to FWG for every payment
         if (resendApiKey) {
           const subject = isPaidInFull
-            ? `Invoice #${invoice.doc_number} PAID IN FULL - $${amount.toFixed(2)}`
-            : `Payment Received - Invoice #${invoice.doc_number} - $${amount.toFixed(2)}`
+            ? `Invoice #${invoice.doc_number} PAID IN FULL - $${stripeAmount.toFixed(2)}`
+            : `Payment Received - Invoice #${invoice.doc_number} - $${stripeAmount.toFixed(2)}`
           const statusLine = isPaidInFull
             ? `<p><strong>Invoice #${invoice.doc_number}</strong> has been <span style="color: #22c55e;">paid in full</span>.</p>`
             : `<p><strong>Invoice #${invoice.doc_number}</strong> received a partial payment. Balance remaining: <strong style="color: #f59e0b;">$${Math.max(0, newBalanceDue).toFixed(2)}</strong></p>`
@@ -182,8 +182,10 @@ export default async function PaymentSuccessPage({
                   ${statusLine}
                   <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                     <tr><td style="padding: 8px 0; color: #666;">Customer</td><td style="padding: 8px 0;"><strong>${invoice.customer_name}</strong></td></tr>
-                    <tr><td style="padding: 8px 0; color: #666;">Amount Received</td><td style="padding: 8px 0;"><strong style="color: #22c55e;">$${amount.toFixed(2)}</strong></td></tr>
+                    <tr><td style="padding: 8px 0; color: #666;">Amount Received</td><td style="padding: 8px 0;"><strong style="color: #22c55e;">$${stripeAmount.toFixed(2)}</strong></td></tr>
+                    ${processingFee > 0 ? `<tr><td style="padding: 8px 0; color: #666;">Processing Fee</td><td style="padding: 8px 0; color: #f59e0b;">-$${processingFee.toFixed(2)}</td></tr>` : ''}
                     <tr><td style="padding: 8px 0; color: #666;">Invoice Total</td><td style="padding: 8px 0;">$${(invoice.total || 0).toFixed(2)}</td></tr>
+                    <tr><td style="padding: 8px 0; color: #666;">Payment Method</td><td style="padding: 8px 0;">${paymentType === 'bank_transfer' ? 'Bank Transfer (ACH)' : 'Credit Card'} via Stripe</td></tr>
                     <tr><td style="padding: 8px 0; color: #666;">Project</td><td style="padding: 8px 0;">${invoice.vehicle_description || invoice.project_description || '-'}</td></tr>
                   </table>
                   <p style="margin-top: 30px;">
