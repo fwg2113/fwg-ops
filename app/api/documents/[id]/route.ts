@@ -80,6 +80,22 @@ export async function DELETE(
       console.warn('Failed to delete tasks:', tasksError)
     }
 
+    // Delete related customer_actions
+    const { error: actionsError } = await supabase
+      .from('customer_actions')
+      .delete()
+      .eq('document_id', documentId)
+
+    if (actionsError) {
+      console.warn('Failed to delete customer actions:', actionsError)
+    }
+
+    // Clear submission reference to this document
+    await supabase
+      .from('submissions')
+      .update({ converted_to_quote_id: null })
+      .eq('converted_to_quote_id', documentId)
+
     // Delete the document
     const { error: deleteError } = await supabase
       .from('documents')
