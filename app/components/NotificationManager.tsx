@@ -11,7 +11,8 @@ type NotificationSettings = {
   payment_sound_key: string
   start_hour: number
   end_hour: number
-  repeat_interval: number
+  message_repeat_interval: number
+  email_repeat_interval: number
   email_alerts_enabled: boolean
   email_alert_address: string
 }
@@ -30,7 +31,8 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   payment_sound_key: 'cascade',
   start_hour: 9,
   end_hour: 17,
-  repeat_interval: 60,
+  message_repeat_interval: 60,
+  email_repeat_interval: 60,
   email_alerts_enabled: true,
   email_alert_address: 'info@frederickwraps.com',
 }
@@ -49,15 +51,32 @@ function playSoundByKey(key: string, customSounds: CustomSound[]) {
   }
 }
 
+function isWithinActiveHours(startHour: number, endHour: number): boolean {
+  const hour = new Date().getHours()
+  return startHour <= endHour
+    ? hour >= startHour && hour < endHour
+    : hour >= startHour || hour < endHour
+}
+
 export default function NotificationManager() {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS)
   const [customSounds, setCustomSounds] = useState<CustomSound[]>([])
   const [hasInteracted, setHasInteracted] = useState(false)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Separate interval refs for message and email timers
+  const msgIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const emailIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // Payment polling interval (checks frequently, but only plays once per new payment)
+  const paymentIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // Track last known unread payment count to detect new payments
+  const lastPaymentCountRef = useRef<number>(-1)
+
   const settingsRef = useRef(settings)
   const customSoundsRef = useRef(customSounds)
+  const hasInteractedRef = useRef(hasInteracted)
   settingsRef.current = settings
   customSoundsRef.current = customSounds
+  hasInteractedRef.current = hasInteracted
 
   // Load settings on mount and when they change
   const loadSettings = useCallback(async () => {
@@ -93,89 +112,103 @@ export default function NotificationManager() {
     }
   }, [])
 
-  // Check unread messages, emails, and payments — play appropriate sounds
-  const checkAndAlert = useCallback(async () => {
+  // --- Message alert check ---
+  const checkMessages = useCallback(async () => {
     const s = settingsRef.current
-    if (!s.sound_enabled || !hasInteracted) return
+    if (!s.sound_enabled || !hasInteractedRef.current) return
+    if (!isWithinActiveHours(s.start_hour, s.end_hour)) return
 
-    // Check if within active hours
-    const now = new Date()
-    const hour = now.getHours()
-    const inActiveHours = s.start_hour <= s.end_hour
-      ? hour >= s.start_hour && hour < s.end_hour
-      : hour >= s.start_hour || hour < s.end_hour
-
-    if (!inActiveHours) return
-
-    // Check all unread counts in parallel
     try {
-      const [msgRes, emailRes, paymentRes] = await Promise.all([
-        fetch('/api/messages/unread-count'),
-        fetch('/api/gmail/unread-count'),
-        fetch('/api/payments/unread-count'),
-      ])
-      const msgData = await msgRes.json()
-      const emailData = await emailRes.json()
-      const paymentData = await paymentRes.json()
+      const res = await fetch('/api/messages/unread-count')
+      const data = await res.json()
+      if (data.count > 0) {
+        const key = s.message_sound_key || s.sound_key || 'chime'
+        playSoundByKey(key, customSoundsRef.current)
+      }
+    } catch { /* silently fail */ }
+  }, [])
 
-      const msgKey = s.message_sound_key || s.sound_key || 'chime'
-      const emailKey = s.email_sound_key || 'bell'
-      const paymentKey = s.payment_sound_key || 'cascade'
+  // --- Email alert check ---
+  const checkEmails = useCallback(async () => {
+    const s = settingsRef.current
+    if (!s.sound_enabled || !hasInteractedRef.current) return
+    if (!isWithinActiveHours(s.start_hour, s.end_hour)) return
 
-      // Build a queue of sounds to play with staggered timing
-      const soundQueue: { key: string; delay: number }[] = []
-      let delay = 0
+    try {
+      const res = await fetch('/api/gmail/unread-count')
+      const data = await res.json()
+      if (data.count > 0) {
+        const key = s.email_sound_key || 'bell'
+        playSoundByKey(key, customSoundsRef.current)
+      }
+    } catch { /* silently fail */ }
+  }, [])
 
-      if (msgData.count > 0) {
-        soundQueue.push({ key: msgKey, delay })
-        delay += 1500
+  // --- Payment alert check (one-shot: only plays when count increases) ---
+  const checkPayments = useCallback(async () => {
+    const s = settingsRef.current
+    if (!s.sound_enabled || !hasInteractedRef.current) return
+    if (!isWithinActiveHours(s.start_hour, s.end_hour)) return
+
+    try {
+      const res = await fetch('/api/payments/unread-count')
+      const data = await res.json()
+      const currentCount = data.count || 0
+
+      // First poll: just record the baseline, don't alert
+      if (lastPaymentCountRef.current === -1) {
+        lastPaymentCountRef.current = currentCount
+        return
       }
 
-      if (emailData.count > 0) {
-        soundQueue.push({ key: emailKey, delay })
-        delay += 1500
+      // Only play if count went UP (new payment arrived)
+      if (currentCount > lastPaymentCountRef.current) {
+        const key = s.payment_sound_key || 'cascade'
+        playSoundByKey(key, customSoundsRef.current)
       }
 
-      if (paymentData.count > 0) {
-        soundQueue.push({ key: paymentKey, delay })
-      }
+      lastPaymentCountRef.current = currentCount
+    } catch { /* silently fail */ }
+  }, [])
 
-      // Play all sounds with staggering
-      for (const item of soundQueue) {
-        if (item.delay === 0) {
-          playSoundByKey(item.key, customSoundsRef.current)
-        } else {
-          setTimeout(() => {
-            playSoundByKey(item.key, customSoundsRef.current)
-          }, item.delay)
-        }
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [hasInteracted])
-
-  // Set up the repeating check
+  // --- Set up message repeating timer ---
   useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-    }
+    if (msgIntervalRef.current) clearInterval(msgIntervalRef.current)
 
-    // Initial check after a short delay
-    const initialTimeout = setTimeout(() => {
-      checkAndAlert()
-    }, 5000)
-
-    // Set up repeating interval
-    intervalRef.current = setInterval(checkAndAlert, settings.repeat_interval * 1000)
+    const initialTimeout = setTimeout(checkMessages, 5000)
+    msgIntervalRef.current = setInterval(checkMessages, settings.message_repeat_interval * 1000)
 
     return () => {
       clearTimeout(initialTimeout)
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
+      if (msgIntervalRef.current) clearInterval(msgIntervalRef.current)
     }
-  }, [settings.repeat_interval, checkAndAlert])
+  }, [settings.message_repeat_interval, checkMessages])
+
+  // --- Set up email repeating timer ---
+  useEffect(() => {
+    if (emailIntervalRef.current) clearInterval(emailIntervalRef.current)
+
+    const initialTimeout = setTimeout(checkEmails, 7000) // stagger 2s after messages
+    emailIntervalRef.current = setInterval(checkEmails, settings.email_repeat_interval * 1000)
+
+    return () => {
+      clearTimeout(initialTimeout)
+      if (emailIntervalRef.current) clearInterval(emailIntervalRef.current)
+    }
+  }, [settings.email_repeat_interval, checkEmails])
+
+  // --- Set up payment polling (fixed 30s, one-shot alert) ---
+  useEffect(() => {
+    if (paymentIntervalRef.current) clearInterval(paymentIntervalRef.current)
+
+    const initialTimeout = setTimeout(checkPayments, 9000) // stagger 4s after messages
+    paymentIntervalRef.current = setInterval(checkPayments, 30000) // poll every 30s
+
+    return () => {
+      clearTimeout(initialTimeout)
+      if (paymentIntervalRef.current) clearInterval(paymentIntervalRef.current)
+    }
+  }, [checkPayments])
 
   // This component renders nothing visible
   return null

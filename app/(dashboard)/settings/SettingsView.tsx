@@ -160,7 +160,8 @@ type NotificationSettings = {
   payment_sound_key: string
   start_hour: number
   end_hour: number
-  repeat_interval: number
+  message_repeat_interval: number
+  email_repeat_interval: number
   email_alerts_enabled: boolean
   email_alert_address: string
 }
@@ -245,7 +246,8 @@ export default function SettingsView({
     payment_sound_key: 'cascade',
     start_hour: 9,
     end_hour: 17,
-    repeat_interval: 60,
+    message_repeat_interval: 60,
+    email_repeat_interval: 60,
     email_alerts_enabled: true,
     email_alert_address: 'info@frederickwraps.com',
   })
@@ -3562,6 +3564,21 @@ export default function SettingsView({
                           ))}
                         </div>
                       )}
+                      <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '13px', whiteSpace: 'nowrap' }}>Repeat:</span>
+                        <select
+                          value={notifSettings.message_repeat_interval}
+                          onChange={e => setNotifSettings({ ...notifSettings, message_repeat_interval: parseInt(e.target.value) })}
+                          style={{ padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }}
+                        >
+                          <option value={30}>Every 30 seconds</option>
+                          <option value={60}>Every 1 minute</option>
+                          <option value={120}>Every 2 minutes</option>
+                          <option value={300}>Every 5 minutes</option>
+                          <option value={600}>Every 10 minutes</option>
+                        </select>
+                        <span style={{ color: '#64748b', fontSize: '12px' }}>while messages remain unread</span>
+                      </div>
                     </div>
 
                     {/* Email Alert Sound */}
@@ -3614,12 +3631,27 @@ export default function SettingsView({
                           ))}
                         </div>
                       )}
+                      <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '13px', whiteSpace: 'nowrap' }}>Repeat:</span>
+                        <select
+                          value={notifSettings.email_repeat_interval}
+                          onChange={e => setNotifSettings({ ...notifSettings, email_repeat_interval: parseInt(e.target.value) })}
+                          style={{ padding: '8px 12px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px' }}
+                        >
+                          <option value={30}>Every 30 seconds</option>
+                          <option value={60}>Every 1 minute</option>
+                          <option value={120}>Every 2 minutes</option>
+                          <option value={300}>Every 5 minutes</option>
+                          <option value={600}>Every 10 minutes</option>
+                        </select>
+                        <span style={{ color: '#64748b', fontSize: '12px' }}>while emails remain unread</span>
+                      </div>
                     </div>
 
                     {/* Payment Alert Sound */}
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ display: 'block', color: '#22c55e', fontSize: '14px', marginBottom: '10px', fontWeight: 600 }}>Payment Alert Sound</label>
-                      <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays when a new payment is received</p>
+                      <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays once when a new payment is received (does not repeat)</p>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                         {BUILTIN_SOUNDS.map(sound => (
                           <button
@@ -3785,7 +3817,7 @@ export default function SettingsView({
                     </div>
 
                     {/* Active Hours */}
-                    <div style={{ marginBottom: '20px' }}>
+                    <div>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Active Hours</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <select
@@ -3808,24 +3840,7 @@ export default function SettingsView({
                           ))}
                         </select>
                       </div>
-                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>Sound alerts will only play during these hours (your local time)</p>
-                    </div>
-
-                    {/* Repeat Interval */}
-                    <div>
-                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Repeat Interval</label>
-                      <select
-                        value={notifSettings.repeat_interval}
-                        onChange={e => setNotifSettings({ ...notifSettings, repeat_interval: parseInt(e.target.value) })}
-                        style={{ padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
-                      >
-                        <option value={30}>Every 30 seconds</option>
-                        <option value={60}>Every 1 minute</option>
-                        <option value={120}>Every 2 minutes</option>
-                        <option value={300}>Every 5 minutes</option>
-                        <option value={600}>Every 10 minutes</option>
-                      </select>
-                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>How often the sounds repeat while messages or emails remain unread</p>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: '8px 0 0 0' }}>All sound alerts only play during these hours (your local time)</p>
                     </div>
                   </>
                 )}
