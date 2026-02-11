@@ -11,7 +11,8 @@ const DEFAULT_SETTINGS = {
   payment_sound_key: 'cascade',
   start_hour: 9,
   end_hour: 17,
-  repeat_interval: 60,
+  message_repeat_interval: 60,
+  email_repeat_interval: 60,
   email_alerts_enabled: true,
   email_alert_address: 'info@frederickwraps.com',
 }
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
       payment_sound_key: body.payment_sound_key ?? DEFAULT_SETTINGS.payment_sound_key,
       start_hour: body.start_hour ?? DEFAULT_SETTINGS.start_hour,
       end_hour: body.end_hour ?? DEFAULT_SETTINGS.end_hour,
-      repeat_interval: body.repeat_interval ?? DEFAULT_SETTINGS.repeat_interval,
+      message_repeat_interval: body.message_repeat_interval ?? body.repeat_interval ?? DEFAULT_SETTINGS.message_repeat_interval,
+      email_repeat_interval: body.email_repeat_interval ?? body.repeat_interval ?? DEFAULT_SETTINGS.email_repeat_interval,
       email_alerts_enabled: body.email_alerts_enabled ?? DEFAULT_SETTINGS.email_alerts_enabled,
       email_alert_address: body.email_alert_address ?? DEFAULT_SETTINGS.email_alert_address,
     }
