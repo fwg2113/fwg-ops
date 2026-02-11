@@ -23,23 +23,27 @@ import { getSheetCategory } from './category-mapping'
  * - 1 OUT/Expense row for Stripe processing fee (only for actual Stripe payments)
  *
  * @param paymentId The UUID of the payment to sync
+ * @param force If true, skip the already-synced check and add rows again
  */
-export async function syncPaymentToSheet(paymentId: string): Promise<{
+export async function syncPaymentToSheet(paymentId: string, force = false): Promise<{
   success: boolean
   rowsAdded: number
   error?: string
+  alreadySynced?: boolean
   txnNumbers?: string[]
 }> {
   try {
-    // Check if already synced
-    const { data: paymentCheck } = await supabase
-      .from('payments')
-      .select('synced_to_sheets')
-      .eq('id', paymentId)
-      .single()
+    // Check if already synced (skip if force=true)
+    if (!force) {
+      const { data: paymentCheck } = await supabase
+        .from('payments')
+        .select('synced_to_sheets')
+        .eq('id', paymentId)
+        .single()
 
-    if (paymentCheck?.synced_to_sheets) {
-      return { success: true, rowsAdded: 0, error: 'Payment already synced to Google Sheets' }
+      if (paymentCheck?.synced_to_sheets) {
+        return { success: true, rowsAdded: 0, alreadySynced: true }
+      }
     }
 
     // Fetch payment with document data
