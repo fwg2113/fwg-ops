@@ -22,7 +22,8 @@ export async function GET() {
       .single()
 
     if (data?.value) {
-      return NextResponse.json({ ...DEFAULT_SETTINGS, ...data.value })
+      const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
+      return NextResponse.json({ ...DEFAULT_SETTINGS, ...parsed })
     }
     return NextResponse.json(DEFAULT_SETTINGS)
   } catch {
@@ -48,8 +49,8 @@ export async function POST(request: Request) {
       .from('settings')
       .upsert({
         key: SETTINGS_KEY,
-        value: settings,
-      })
+        value: JSON.stringify(settings),
+      }, { onConflict: 'key' })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
