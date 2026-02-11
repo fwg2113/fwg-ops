@@ -252,7 +252,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['submissions', 'quotes', 'invoices', 'tasks']))
   const [showArchiveModal, setShowArchiveModal] = useState<{ type: 'document' | 'submission'; id: string } | null>(null)
   const [archiveReason, setArchiveReason] = useState<'won' | 'cold'>('cold')
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'NORMAL', due_date: '' })
