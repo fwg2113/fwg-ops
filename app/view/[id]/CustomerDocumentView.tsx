@@ -309,12 +309,17 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const handleApprove = async () => {
     setApproving(true)
     try {
-      await supabase.from('documents').update({
-        status: 'approved',
-        approved_at: new Date().toISOString()
-      }).eq('id', doc.id)
-      setStatus('approved')
-      window.location.reload()
+      const res = await fetch('/api/documents/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: doc.id, convertToInvoice: true })
+      })
+      if (res.ok) {
+        setStatus('approved')
+        window.location.reload()
+      } else {
+        alert('Failed to approve. Please try again.')
+      }
     } catch (err) {
       console.error('Approval error:', err)
       alert('Failed to approve. Please try again.')
