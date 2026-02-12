@@ -122,7 +122,8 @@ export default async function PaymentSuccessPage({
         }
 
         const paymentType = session.metadata?.payment_type === 'bank_transfer' ? 'bank_transfer' : 'card'
-        const baseAmount = session.metadata?.base_amount ? parseFloat(session.metadata.base_amount) : stripeAmount
+        const parsedBase = session.metadata?.base_amount ? parseFloat(session.metadata.base_amount) : 0
+        const baseAmount = parsedBase > 0 ? parsedBase : stripeAmount
         const processingFee = stripeAmount - baseAmount
 
         // Insert payment record and get the ID back
