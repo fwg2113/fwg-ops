@@ -1165,7 +1165,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                           </div>
                         )}
                         {msg.message_body && (
-                          <p style={{ fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
+                          <p style={{ fontSize: '14px', lineHeight: '1.5', margin: 0, whiteSpace: 'pre-wrap' }}>
                             {msg.message_body}
                           </p>
                         )}
@@ -1236,7 +1236,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                     >×</button>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
                   {/* Attachment Button */}
                   <input
                     type="file"
@@ -1300,8 +1300,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                     </svg>
                   </button>
-                  <input
-                    type="text"
+                  <textarea
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {
@@ -1311,6 +1310,19 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       }
                     }}
                     placeholder="Type a message..."
+                    rows={1}
+                    onInput={(e) => {
+                      const el = e.currentTarget
+                      el.style.height = 'auto'
+                      const maxH = 120
+                      if (el.scrollHeight > maxH) {
+                        el.style.height = maxH + 'px'
+                        el.style.overflowY = 'auto'
+                      } else {
+                        el.style.height = el.scrollHeight + 'px'
+                        el.style.overflowY = 'hidden'
+                      }
+                    }}
                     style={{
                       flex: 1,
                       padding: '12px 16px',
@@ -1318,7 +1330,11 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       border: '1px solid rgba(148, 163, 184, 0.2)',
                       borderRadius: '24px',
                       color: '#f1f5f9',
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      resize: 'none',
+                      lineHeight: '1.4',
+                      overflowY: 'hidden',
+                      fontFamily: 'inherit',
                     }}
                   />
                   <button
