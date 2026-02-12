@@ -1300,8 +1300,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                     </svg>
                   </button>
-                  <input
-                    type="text"
+                  <textarea
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {
@@ -1311,6 +1310,12 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       }
                     }}
                     placeholder="Type a message..."
+                    rows={1}
+                    onInput={(e) => {
+                      const el = e.currentTarget
+                      el.style.height = 'auto'
+                      el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+                    }}
                     style={{
                       flex: 1,
                       padding: '12px 16px',
@@ -1318,7 +1323,11 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       border: '1px solid rgba(148, 163, 184, 0.2)',
                       borderRadius: '24px',
                       color: '#f1f5f9',
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      resize: 'none',
+                      lineHeight: '1.4',
+                      overflow: 'hidden',
+                      fontFamily: 'inherit',
                     }}
                   />
                   <button
