@@ -3236,11 +3236,13 @@ export default function DocumentDetail({
                   }
 
                   await supabase.from('documents').update({
+                    status: 'sent',
+                    sent_at: doc.sent_at || new Date().toISOString(),
                     deposit_required: depositAmount,
                     send_options_json: sendOptions
                   }).eq('id', doc.id)
 
-                  setDoc({ ...doc, deposit_required: depositAmount })
+                  setDoc({ ...doc, status: 'sent', sent_at: doc.sent_at || new Date().toISOString(), deposit_required: depositAmount })
 
                   navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id)
                   showToast('Settings saved & link copied!', 'success')
