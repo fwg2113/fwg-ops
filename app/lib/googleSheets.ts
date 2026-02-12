@@ -157,6 +157,7 @@ export async function getCommandCenterMetrics() {
   let fwgMtdTotal = 0
   let fwgYtdTotal = 0
   let bonusEligibleMtd = 0
+  let embroideryMtd = 0
   const categoryMtd: Record<string, number> = {}
 
   fwgRevenueTransactions.forEach(t => {
@@ -178,17 +179,26 @@ export async function getCommandCenterMetrics() {
       if (bonusCategories.includes(category)) {
         bonusEligibleMtd += t.amount
       }
+
+      // Embroidery revenue tracking
+      if (category === 'Embroidery Revenue') {
+        embroideryMtd += t.amount
+      }
     }
   })
 
   // Calculate 2.5% bonus (legacy line 735)
   const bonus25Pct = bonusEligibleMtd * 0.025
 
+  // Calculate 10% embroidery bonus
+  const embroideryBonus10Pct = embroideryMtd * 0.10
+
   return {
     fwgMtdTotal,
     fwgYtdTotal,
     bonusEligibleMtd,
     bonus25Pct,
+    embroideryBonus10Pct,
     categoryMtd
   }
 }
