@@ -99,7 +99,17 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       }
     }
 
-    // Fallback: if no line items found, use Other Revenue
+    // Remove categories with $0 totals (e.g. placeholder line items with no amounts)
+    for (const cat of Object.keys(categoryTotals)) {
+      if (categoryTotals[cat] <= 0) {
+        delete categoryTotals[cat]
+      }
+    }
+
+    // Recalculate total from non-zero categories only
+    lineItemsTotal = Object.values(categoryTotals).reduce((sum, v) => sum + v, 0)
+
+    // Fallback: if no line items with revenue found, use Other Revenue
     if (Object.keys(categoryTotals).length === 0) {
       categoryTotals['Other Revenue'] = 1
       lineItemsTotal = 1
