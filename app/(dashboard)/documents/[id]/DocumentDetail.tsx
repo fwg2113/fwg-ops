@@ -367,7 +367,7 @@ export default function DocumentDetail({
   const [includeLineAttachments, setIncludeLineAttachments] = useState(true)
   const [includeProjectAttachments, setIncludeProjectAttachments] = useState(false)
   const [paymentTerms, setPaymentTerms] = useState('deposit_50')
-  const [customPaymentAmount, setCustomPaymentAmount] = useState(0)
+  const [customPaymentAmount, setCustomPaymentAmount] = useState<number | string>('')
   const [notificationPref, setNotificationPref] = useState('sms')
   
   // Calculate line item attachment count
@@ -776,7 +776,7 @@ export default function DocumentDetail({
       let depositAmount = 0
       if (paymentTerms === 'deposit_50') depositAmount = total * 0.5
       else if (paymentTerms === 'full') depositAmount = total
-      else if (paymentTerms === 'custom') depositAmount = customPaymentAmount
+      else if (paymentTerms === 'custom') depositAmount = Number(customPaymentAmount) || 0
       
       // Build approval message for quotes
       let approvalMessage = ''
@@ -3195,7 +3195,7 @@ export default function DocumentDetail({
                 {paymentTerms === 'custom' && (
                   <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ color: '#64748b' }}>$</span>
-                    <input type="number" value={customPaymentAmount} onChange={(e) => setCustomPaymentAmount(parseFloat(e.target.value) || 0)} placeholder="0.00" style={{ ...inputStyle, width: '120px' }} />
+                    <input type="number" value={customPaymentAmount} onChange={(e) => setCustomPaymentAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="0.00" style={{ ...inputStyle, width: '120px' }} />
                   </div>
                 )}
               </div>
@@ -3223,7 +3223,7 @@ export default function DocumentDetail({
                   let depositAmount = 0
                   if (paymentTerms === 'deposit_50') depositAmount = total * 0.5
                   else if (paymentTerms === 'full') depositAmount = total
-                  else if (paymentTerms === 'custom') depositAmount = customPaymentAmount
+                  else if (paymentTerms === 'custom') depositAmount = Number(customPaymentAmount) || 0
 
                   const sendOptions = {
                     approvalType: isQuote ? approvalType : null,
