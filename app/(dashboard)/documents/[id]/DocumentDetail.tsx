@@ -1328,7 +1328,7 @@ export default function DocumentDetail({
   const updateApparelField = async (itemId: string, fieldPath: string, value: any) => {
     const newItems = lineItems.map(item => {
       if (item.id !== itemId) return item
-      const cf = { ...(item.custom_fields || {}), apparel_mode: true }
+      const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
       if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes') {
         cf[fieldPath] = value
