@@ -1236,7 +1236,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                     >×</button>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
                   {/* Attachment Button */}
                   <input
                     type="file"
@@ -1314,7 +1314,14 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                     onInput={(e) => {
                       const el = e.currentTarget
                       el.style.height = 'auto'
-                      el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+                      const maxH = 120
+                      if (el.scrollHeight > maxH) {
+                        el.style.height = maxH + 'px'
+                        el.style.overflowY = 'auto'
+                      } else {
+                        el.style.height = el.scrollHeight + 'px'
+                        el.style.overflowY = 'hidden'
+                      }
                     }}
                     style={{
                       flex: 1,
@@ -1326,7 +1333,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                       fontSize: '14px',
                       resize: 'none',
                       lineHeight: '1.4',
-                      overflow: 'hidden',
+                      overflowY: 'hidden',
                       fontFamily: 'inherit',
                     }}
                   />
