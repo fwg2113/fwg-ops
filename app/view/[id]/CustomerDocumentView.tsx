@@ -1244,26 +1244,82 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                           }}
                         >
                           {/* Line item row */}
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                            <div style={{
-                              width: '8px', height: '8px', borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
-                              marginTop: '6px', flexShrink: 0
-                            }} />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>{item.description || 'Line Item'}</div>
-                              {/* Only show category label if there's a single group (otherwise the group header handles it) */}
-                              {!showGroupHeader && item.category && (
-                                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{formatCategory(item.category)}</div>
-                              )}
-                            </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
-                              {item.quantity > 1 && (
-                                <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} x {formatCurrency(item.rate || item.unit_price)}</div>
-                              )}
-                            </div>
-                          </div>
+                          {(() => {
+                            const cf = item.custom_fields || {}
+                            const isApparelItem = cf.apparel_mode === true
+                            const enabledSizes = (cf.enabled_sizes || []) as string[]
+                            const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+
+                            if (isApparelItem && enabledSizes.length > 0) {
+                              return (
+                                <div>
+                                  {/* Apparel item header */}
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                    <div style={{
+                                      width: '8px', height: '8px', borderRadius: '50%',
+                                      background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
+                                      marginTop: '6px', flexShrink: 0
+                                    }} />
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>
+                                        {item.description || 'Line Item'}
+                                        {cf.color && <span style={{ color: '#6b7280', fontWeight: 400 }}> — {cf.color}</span>}
+                                      </div>
+                                      {cf.item_number && (
+                                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>Item #{cf.item_number}</div>
+                                      )}
+                                    </div>
+                                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
+                                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} pcs total</div>
+                                    </div>
+                                  </div>
+
+                                  {/* Size breakdown grid */}
+                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                    {enabledSizes.map(size => {
+                                      const s = sizes[size] || { qty: 0, price: 0 }
+                                      if (s.qty <= 0) return null
+                                      return (
+                                        <div key={size} style={{
+                                          display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                          padding: '6px 12px', background: '#f8f9fa', borderRadius: '8px',
+                                          border: '1px solid #e5e7eb', minWidth: '60px'
+                                        }}>
+                                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
+                                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginTop: '2px' }}>{s.qty}</div>
+                                          <div style={{ fontSize: '11px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            }
+
+                            // Standard line item display
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                <div style={{
+                                  width: '8px', height: '8px', borderRadius: '50%',
+                                  background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
+                                  marginTop: '6px', flexShrink: 0
+                                }} />
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>{item.description || 'Line Item'}</div>
+                                  {!showGroupHeader && item.category && (
+                                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{formatCategory(item.category)}</div>
+                                  )}
+                                </div>
+                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
+                                  {item.quantity > 1 && (
+                                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} x {formatCurrency(item.rate || item.unit_price)}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
 
                           {/* Inline image gallery for this line item */}
                           {itemImages.length > 0 && (() => {

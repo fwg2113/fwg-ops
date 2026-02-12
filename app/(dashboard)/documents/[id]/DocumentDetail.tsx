@@ -139,6 +139,7 @@ type Category = {
   category_key: string; parent_category: string; label: string; calendar_color: string
   line_template: string; has_types: boolean; has_packages: boolean
   unit_label: string; default_rate: number; sort_order: number; active: boolean
+  apparel_mode?: boolean
 }
 
 type Package = {
@@ -334,6 +335,9 @@ export default function DocumentDetail({
     setHistoryLog(updated)
     await supabase.from('documents').update({ history_log: updated }).eq('id', doc.id)
   }
+
+  // Apparel size management
+  const [apparelSizeMenu, setApparelSizeMenu] = useState<string | null>(null)
 
   // Modals
   const [showSectionModal, setShowSectionModal] = useState(false)
@@ -1288,6 +1292,85 @@ export default function DocumentDetail({
   }
 
   // ============================================================================
+  // APPAREL / SIZE HELPERS
+  // ============================================================================
+  const ALL_SIZES = [
+    '6M','12M','18M','24M','2T','3T','4T','5T',
+    'Youth-XS','Youth-S','Youth-M','Youth-L','Youth-XL',
+    'XS','S','M','L','XL','2XL','3XL','4XL','5XL','6XL',
+  ]
+
+  const isApparelCategory = (categoryKey: string) => {
+    const cat = getCategoryByKey(categoryKey)
+    return cat?.apparel_mode === true
+  }
+
+  const getApparelFields = (item: LineItem) => {
+    return (item.custom_fields || {}) as {
+      apparel_mode?: boolean
+      color?: string
+      item_number?: string
+      enabled_sizes?: string[]
+      sizes?: Record<string, { qty: number; price: number }>
+    }
+  }
+
+  const recalcApparelTotals = (sizes: Record<string, { qty: number; price: number }>) => {
+    let totalQty = 0
+    let totalAmount = 0
+    for (const s of Object.values(sizes)) {
+      totalQty += s.qty || 0
+      totalAmount += (s.qty || 0) * (s.price || 0)
+    }
+    return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
+  }
+
+  const updateApparelField = async (itemId: string, fieldPath: string, value: any) => {
+    const newItems = lineItems.map(item => {
+      if (item.id !== itemId) return item
+      const cf = { ...(item.custom_fields || {}), apparel_mode: true }
+
+      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes') {
+        cf[fieldPath] = value
+      } else if (fieldPath.startsWith('size.')) {
+        // e.g. size.XL.qty or size.XL.price
+        const parts = fieldPath.split('.')
+        const sizeName = parts[1]
+        const sizeField = parts[2] // 'qty' or 'price'
+        const sizes = { ...(cf.sizes || {}) }
+        sizes[sizeName] = { ...(sizes[sizeName] || { qty: 0, price: 0 }), [sizeField]: value }
+        cf.sizes = sizes
+      }
+
+      // Recalculate totals from sizes
+      const { totalQty, totalAmount } = recalcApparelTotals(cf.sizes || {})
+      return {
+        ...item,
+        custom_fields: cf,
+        quantity: totalQty,
+        sqft: totalQty,
+        line_total: totalAmount,
+        unit_price: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+        rate: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+      }
+    })
+    setLineItems(newItems)
+
+    const updatedItem = newItems.find(i => i.id === itemId)
+    if (updatedItem) {
+      await supabase.from('line_items').update({
+        quantity: updatedItem.quantity,
+        sqft: updatedItem.sqft,
+        unit_price: updatedItem.unit_price,
+        rate: updatedItem.rate,
+        line_total: updatedItem.line_total,
+        custom_fields: updatedItem.custom_fields,
+      }).eq('id', itemId)
+    }
+    updateDocumentTotals(newItems)
+  }
+
+  // ============================================================================
   // LINE ITEM HANDLERS
   // ============================================================================
   const addSection = async (categoryKey: string) => {
@@ -1295,21 +1378,23 @@ export default function DocumentDetail({
     const groupId = 'grp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)
     const newGroups = [...lineItemGroups, { group_id: groupId, category_key: categoryKey }]
     setLineItemGroups(newGroups)
-    
+
     const category = getCategoryByKey(categoryKey)
-    const newItem = {
+    const isApparel = category?.apparel_mode === true
+    const newItem: any = {
       document_id: doc.id,
       group_id: groupId,
       category: categoryKey,
       line_type: '',
       package_key: '',
       description: '',
-      quantity: 1,
+      quantity: isApparel ? 0 : 1,
       sqft: 0,
-      unit_price: category?.default_rate || 0,
-      rate: category?.default_rate || 0,
+      unit_price: isApparel ? 0 : (category?.default_rate || 0),
+      rate: isApparel ? 0 : (category?.default_rate || 0),
       line_total: 0,
       sort_order: lineItems.length,
+      ...(isApparel ? { custom_fields: { apparel_mode: true, color: '', item_number: '', enabled_sizes: [], sizes: {} } } : {}),
     }
     
     const { data, error } = await supabase.from('line_items').insert(newItem).select().single()
@@ -1328,19 +1413,21 @@ export default function DocumentDetail({
 
   const addLineItemToGroup = async (groupId: string, categoryKey: string) => {
     const category = getCategoryByKey(categoryKey)
-    const newItem = {
+    const isApparel = category?.apparel_mode === true
+    const newItem: any = {
       document_id: doc.id,
       group_id: groupId,
       category: categoryKey,
       line_type: '',
       package_key: '',
       description: '',
-      quantity: 1,
+      quantity: isApparel ? 0 : 1,
       sqft: 0,
-      unit_price: category?.default_rate || 0,
-      rate: category?.default_rate || 0,
+      unit_price: isApparel ? 0 : (category?.default_rate || 0),
+      rate: isApparel ? 0 : (category?.default_rate || 0),
       line_total: 0,
       sort_order: lineItems.length,
+      ...(isApparel ? { custom_fields: { apparel_mode: true, color: '', item_number: '', enabled_sizes: [], sizes: {} } } : {}),
     }
     
     const { data, error } = await supabase.from('line_items').insert(newItem).select().single()
@@ -1403,7 +1490,8 @@ export default function DocumentDetail({
         unit_price: updatedItem.unit_price,
         rate: updatedItem.rate,
         line_total: updatedItem.line_total,
-        taxable: updatedItem.taxable || false
+        taxable: updatedItem.taxable || false,
+        custom_fields: updatedItem.custom_fields || null
       }).eq('id', itemId)
     }
     
@@ -2339,6 +2427,7 @@ export default function DocumentDetail({
             const types = getTypesForCategory(group.category_key)
             const showPackages = category && hasPackages(category) && pkgs.length > 0
             const showTypes = category && hasTypes(category) && types.length > 0
+            const isApparel = isApparelCategory(group.category_key)
 
             return (
               <div key={group.group_id} style={{ border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', overflow: 'hidden' }}>
@@ -2352,8 +2441,150 @@ export default function DocumentDetail({
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
-                
-                {/* Group Items Table */}
+
+                {isApparel ? (
+                  /* ============ APPAREL MODE TABLE ============ */
+                  <div>
+                    {groupItems.map(item => {
+                      const af = getApparelFields(item)
+                      const enabledSizes = af.enabled_sizes || []
+                      const sizes = af.sizes || {}
+                      return (
+                        <div key={item.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.1)', padding: '16px' }}>
+                          {/* Top row: Item #, Color, Description, Manage Sizes */}
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '12px' }}>
+                            <div style={{ width: '100px' }}>
+                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Item #</div>
+                              <input type="text" value={af.item_number || ''} onChange={e => updateApparelField(item.id, 'item_number', e.target.value)} placeholder="J716" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
+                            </div>
+                            <div style={{ width: '120px' }}>
+                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Color</div>
+                              <input type="text" value={af.color || ''} onChange={e => updateApparelField(item.id, 'color', e.target.value)} placeholder="Deep Black" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Description</div>
+                              <input type="text" value={item.description || ''} onChange={e => updateLineItem(item.id, 'description', e.target.value)} placeholder="Port Authority Active 1/2-Zip Soft Shell Jacket" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', paddingBottom: '1px' }}>
+                              <div style={{ textAlign: 'right', minWidth: '70px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Qty</div>
+                                <div style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, padding: '8px 0' }}>{item.quantity || 0}</div>
+                              </div>
+                              <div style={{ textAlign: 'right', minWidth: '80px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Total</div>
+                                <div style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600, padding: '8px 0' }}>${(item.line_total || 0).toFixed(2)}</div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', paddingBottom: '6px' }}>
+                                <input type="checkbox" checked={item.taxable || false} onChange={e => updateLineItem(item.id, 'taxable', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d71cd1', cursor: 'pointer' }} title="Charge 6% sales tax" />
+                                {/* Manage Sizes Menu */}
+                                <div style={{ position: 'relative' }}>
+                                  <button
+                                    onClick={() => setApparelSizeMenu(apparelSizeMenu === item.id ? null : item.id)}
+                                    style={{ background: 'none', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                                    Sizes
+                                  </button>
+                                  {apparelSizeMenu === item.id && (
+                                    <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', padding: '12px', zIndex: 100, width: '200px', maxHeight: '400px', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#f1f5f9', marginBottom: '10px' }}>Manage Sizes</div>
+                                      {ALL_SIZES.map(size => (
+                                        <label key={size} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', cursor: 'pointer' }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={enabledSizes.includes(size)}
+                                            onChange={e => {
+                                              const newSizes = e.target.checked
+                                                ? [...enabledSizes, size]
+                                                : enabledSizes.filter(s => s !== size)
+                                              updateApparelField(item.id, 'enabled_sizes', newSizes)
+                                            }}
+                                            style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                                          />
+                                          <span style={{ color: enabledSizes.includes(size) ? '#f1f5f9' : '#64748b', fontSize: '13px' }}>{size}</span>
+                                        </label>
+                                      ))}
+                                      <button onClick={() => setApparelSizeMenu(null)} style={{ width: '100%', marginTop: '10px', padding: '6px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>Done</button>
+                                    </div>
+                                  )}
+                                </div>
+                                <button onClick={() => deleteLineItem(item.id)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Size Grid */}
+                          {enabledSizes.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {enabledSizes.map(size => {
+                                const sizeData = sizes[size] || { qty: 0, price: 0 }
+                                return (
+                                  <div key={size} style={{ background: '#161616', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '8px', padding: '8px 10px', minWidth: '90px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#a78bfa', marginBottom: '6px' }}>{size}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      <input
+                                        type="number"
+                                        value={sizeData.qty || ''}
+                                        onChange={e => updateApparelField(item.id, `size.${size}.qty`, parseInt(e.target.value) || 0)}
+                                        placeholder="Qty"
+                                        style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '13px', textAlign: 'center', fontFamily: 'inherit' }}
+                                      />
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                        <span style={{ color: '#64748b', fontSize: '11px' }}>$</span>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={sizeData.price || ''}
+                                          onChange={e => updateApparelField(item.id, `size.${size}.price`, parseFloat(e.target.value) || 0)}
+                                          placeholder="0.00"
+                                          style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center', fontFamily: 'inherit' }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {enabledSizes.length === 0 && (
+                            <div style={{ padding: '12px', textAlign: 'center', color: '#475569', fontSize: '13px', background: '#161616', borderRadius: '8px' }}>
+                              Click <strong>Sizes</strong> to choose which sizes to include
+                            </div>
+                          )}
+
+                          {/* Attachments row */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                            {(item.attachments || []).map((att, attIdx) => {
+                              const url = att.url || att.file_url || ''
+                              const name = att.name || att.filename || att.file_name || 'File'
+                              const isImage = /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
+                              return (
+                                <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '50px', height: '50px', borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
+                                  {isImage && url ? (
+                                    <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#64748b' }}>
+                                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                    </div>
+                                  )}
+                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteLineItemAttachment(item.id, att.file_id || att.key || String(attIdx)) }} style={{ position: 'absolute', top: '1px', right: '1px', width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(239,68,68,0.9)', border: 'none', color: 'white', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
+                                </div>
+                              )
+                            })}
+                            <label style={{ width: '50px', height: '50px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
+                            </label>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+
+                /* ============ STANDARD MODE TABLE ============ */
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#161616' }}>
@@ -2398,9 +2629,9 @@ export default function DocumentDetail({
                           </td>
                           <td style={{ padding: '8px 12px', textAlign: 'right', color: '#f1f5f9', fontWeight: 500, fontSize: '14px' }}>${(item.line_total || 0).toFixed(2)}</td>
                           <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={item.taxable || false} 
+                            <input
+                              type="checkbox"
+                              checked={item.taxable || false}
                               onChange={(e) => updateLineItem(item.id, 'taxable', e.target.checked)}
                               style={{ width: '16px', height: '16px', accentColor: '#d71cd1', cursor: 'pointer' }}
                               title="Charge 6% sales tax"
@@ -2453,7 +2684,8 @@ export default function DocumentDetail({
                     ))}
                   </tbody>
                 </table>
-                
+                )}
+
                 {/* Add Line Item Button */}
                 <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(148,163,184,0.1)' }}>
                   <button onClick={() => addLineItemToGroup(group.group_id, group.category_key)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: 'transparent', border: '1px dashed rgba(148,163,184,0.3)', borderRadius: '6px', color: '#64748b', cursor: 'pointer', fontSize: '13px' }}>
