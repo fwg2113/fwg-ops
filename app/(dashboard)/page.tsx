@@ -93,21 +93,6 @@ export default async function DashboardPage() {
     console.error('Error fetching Google Sheets metrics:', error)
   }
 
-  // Calculate pipeline value from Supabase data (not Google Sheets)
-  const activeQuoteStatuses = ['draft', 'sent', 'viewed', 'approved', 'revision_requested', 'option_selected']
-  const quotePipelineValue = (quotes || [])
-    .filter(q => activeQuoteStatuses.includes(q.status?.toLowerCase()))
-    .reduce((sum, q) => sum + (q.total || 0), 0)
-
-  const invoicePipelineValue = (invoices || [])
-    .filter(i => i.status?.toLowerCase() !== 'paid' && i.status?.toLowerCase() !== 'void' && i.status?.toLowerCase() !== 'archived')
-    .reduce((sum, i) => sum + (i.balance_due || i.total || 0), 0)
-
-  const submissionPipelineValue = (submissions || [])
-    .reduce((sum, s) => sum + (s.price_range_max || 0), 0)
-
-  const pipelineValue = quotePipelineValue + invoicePipelineValue + submissionPipelineValue
-
   // Convert category breakdown to array format
   const categoryBreakdown = Object.entries(liveMetrics.categoryMtd || {})
     .map(([category, amount]) => ({ category, amount: amount as number }))
@@ -128,8 +113,8 @@ export default async function DashboardPage() {
       monthlyRevenue: liveMetrics.fwgMtdTotal,
       ppfVinylRevenue: liveMetrics.bonusEligibleMtd,
       bonus25Pct: liveMetrics.bonus25Pct,
+      embroideryBonus10Pct: liveMetrics.embroideryBonus10Pct,
       yearlyRevenue: liveMetrics.fwgYtdTotal,
-      pipelineValue: pipelineValue
     },
     categoryBreakdown
   }

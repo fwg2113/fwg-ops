@@ -68,13 +68,8 @@ export const CATEGORY_MAPPINGS: CategoryMapping[] = [
     description: 'Custom vinyl graphics and decals'
   },
   {
-    systemCategory: 'WINDOW_TINT',
-    sheetCategory: 'Other Revenue',
-    description: 'Window tinting services'
-  },
-  {
     systemCategory: 'CHROME_DELETE',
-    sheetCategory: 'Other Revenue',
+    sheetCategory: 'Partial Wrap Revenue',
     description: 'Chrome delete services'
   },
 
