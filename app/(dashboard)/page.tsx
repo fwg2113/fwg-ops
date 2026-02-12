@@ -85,6 +85,7 @@ export default async function DashboardPage() {
     fwgYtdTotal: 0,
     bonusEligibleMtd: 0,
     bonus25Pct: 0,
+    embroideryBonus10Pct: 0,
     categoryMtd: {} as Record<string, number>
   }
   try {
