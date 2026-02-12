@@ -1165,7 +1165,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                           </div>
                         )}
                         {msg.message_body && (
-                          <p style={{ fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
+                          <p style={{ fontSize: '14px', lineHeight: '1.5', margin: 0, whiteSpace: 'pre-wrap' }}>
                             {msg.message_body}
                           </p>
                         )}
