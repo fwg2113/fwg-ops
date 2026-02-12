@@ -3216,11 +3216,35 @@ export default function DocumentDetail({
             </div>
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <ActionButton 
-                onClick={() => {
+              <ActionButton
+                onClick={async () => {
+                  // Save current send settings to the document first so the
+                  // copied link reflects the configured options
+                  let depositAmount = 0
+                  if (paymentTerms === 'deposit_50') depositAmount = total * 0.5
+                  else if (paymentTerms === 'full') depositAmount = total
+                  else if (paymentTerms === 'custom') depositAmount = customPaymentAmount
+
+                  const sendOptions = {
+                    approvalType: isQuote ? approvalType : null,
+                    customApprovalText: approvalType === 'custom' ? customApprovalText : null,
+                    includeLineAttachments,
+                    includeProjectAttachments,
+                    paymentTerms,
+                    depositAmount,
+                    customerNotificationPref: notificationPref
+                  }
+
+                  await supabase.from('documents').update({
+                    deposit_required: depositAmount,
+                    send_options_json: sendOptions
+                  }).eq('id', doc.id)
+
+                  setDoc({ ...doc, deposit_required: depositAmount })
+
                   navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id)
-                  showToast('Link copied!', 'success')
-                }} 
+                  showToast('Settings saved & link copied!', 'success')
+                }}
                 variant="secondary"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
