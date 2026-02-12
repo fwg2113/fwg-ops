@@ -114,7 +114,7 @@ type DashboardData = {
     monthlyRevenue: number
     ppfVinylRevenue: number
     bonus25Pct: number
-    pipelineValue: number
+    embroideryBonus10Pct: number
     yearlyRevenue: number
   }
   categoryBreakdown: { category: string; amount: number }[]
@@ -651,7 +651,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
             { value: data.metrics.monthlyRevenue, label: `${new Date().toLocaleString('default', { month: 'short' })} Revenue`, color: '#d71cd1' },
             { value: data.metrics.ppfVinylRevenue, label: 'PPF & Vinyl', color: '#d71cd1' },
             { value: Math.round(data.metrics.bonus25Pct), label: '2.5% Bonus', color: '#22c55e' },
-            { value: data.metrics.pipelineValue, label: 'Pipeline Value', color: '#06b6d4' },
+            { value: Math.round(data.metrics.embroideryBonus10Pct), label: 'Embroidery 10%', color: '#06b6d4' },
             { value: data.metrics.yearlyRevenue, label: `${new Date().getFullYear()} YTD`, color: '#a855f7' },
           ].map(m => (
             <div key={m.label} style={{ padding: '16px', background: '#1d1d1d', borderRadius: '10px', textAlign: 'center' }}>
