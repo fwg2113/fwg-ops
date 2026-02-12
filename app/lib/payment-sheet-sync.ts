@@ -1,7 +1,8 @@
 /**
  * Payment to Google Sheets Sync
  *
- * One payment = one row in TRANSACTIONS (plus optional tax and Stripe fee rows)
+ * Fetches line items to determine revenue categories. For multi-category
+ * documents, splits the payment proportionally across revenue streams.
  */
 
 import { supabase } from '@/app/lib/supabase'
@@ -18,7 +19,7 @@ import { getSheetCategory } from './category-mapping'
  * Sync a payment to Google Sheets TRANSACTIONS
  *
  * Creates:
- * - 1 IN/Sale row for the payment amount
+ * - 1+ IN/Sale rows split proportionally by line item category
  * - 1 OUT/Expense row for sales tax (only if invoice has tax, proportional to payment)
  * - 1 OUT/Expense row for Stripe processing fee (only for actual Stripe payments)
  *
@@ -61,7 +62,6 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
         documents!inner(
           doc_number,
           customer_name,
-          category,
           total,
           tax_amount,
           project_description,
@@ -78,6 +78,31 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
     const doc = Array.isArray(payment.documents) ? payment.documents[0] : payment.documents
     if (!doc) {
       return { success: false, rowsAdded: 0, error: 'Document data not found for payment' }
+    }
+
+    // Fetch line items for this document to determine revenue categories
+    const { data: lineItems } = await supabase
+      .from('line_items')
+      .select('category, line_total')
+      .eq('document_id', payment.document_id)
+
+    // Build revenue breakdown by category from line items
+    const categoryTotals: Record<string, number> = {}
+    let lineItemsTotal = 0
+
+    if (lineItems && lineItems.length > 0) {
+      for (const item of lineItems) {
+        const cat = getSheetCategory(item.category)
+        const amount = parseFloat(String(item.line_total)) || 0
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + amount
+        lineItemsTotal += amount
+      }
+    }
+
+    // Fallback: if no line items found, use Other Revenue
+    if (Object.keys(categoryTotals).length === 0) {
+      categoryTotals['Other Revenue'] = 1
+      lineItemsTotal = 1
     }
 
     // Payment basics
@@ -100,9 +125,6 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       : payment.payment_method === 'bank_transfer' || payment.payment_method === 'us_bank_account' ? 'Bank Transfer'
       : 'Other'
 
-    // Revenue category from the document's category
-    const category = getSheetCategory(doc.category)
-
     // Description for the row
     const description = doc.project_description || doc.vehicle_description || ''
 
@@ -111,14 +133,38 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
     const invoiceTax = parseFloat(String(doc.tax_amount)) || 0
     let taxAmount = 0
     if (invoiceTax > 0 && invoiceTotal > 0) {
-      // Proportional: if paying 50% of invoice, tax is 50% of total tax
       const paymentProportion = Math.min(revenueAmount / invoiceTotal, 1)
       taxAmount = Math.round(invoiceTax * paymentProportion * 100) / 100
+    }
+
+    // Build category proportions and split revenue
+    const categories = Object.entries(categoryTotals)
+    const revenueRows: { category: string; amount: number }[] = []
+
+    if (categories.length === 1) {
+      // Single category — full revenue amount
+      revenueRows.push({ category: categories[0][0], amount: Math.round(revenueAmount * 100) / 100 })
+    } else {
+      // Multi-category — split proportionally by line item totals
+      let allocated = 0
+      for (let i = 0; i < categories.length; i++) {
+        const [cat, catTotal] = categories[i]
+        if (i === categories.length - 1) {
+          // Last category gets the remainder to avoid rounding drift
+          revenueRows.push({ category: cat, amount: Math.round((revenueAmount - allocated) * 100) / 100 })
+        } else {
+          const proportion = catTotal / lineItemsTotal
+          const catAmount = Math.round(revenueAmount * proportion * 100) / 100
+          revenueRows.push({ category: cat, amount: catAmount })
+          allocated += catAmount
+        }
+      }
     }
 
     console.log('=== PAYMENT SYNC ===')
     console.log(`Invoice #${doc.doc_number} | ${doc.customer_name} | ${accountName}`)
     console.log(`Payment: $${payment.amount} | Revenue: $${revenueAmount} | Tax: $${taxAmount} | Fee: $${actualProcessingFee}`)
+    console.log(`Revenue split: ${revenueRows.map(r => `${r.category}: $${r.amount}`).join(', ')}`)
 
     // Get starting TXN number, then increment locally
     const firstTxnStr = await getNextTransactionNumber()
@@ -133,29 +179,31 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       return txn
     }
 
-    // --- Row 1: The payment (IN / Sale) ---
-    allRows.push({
-      txnNumber: nextTxn(),
-      date: dateStr,
-      business: 'FWG',
-      direction: 'IN',
-      eventType: 'Sale',
-      amount: Math.round(revenueAmount * 100) / 100,
-      account: accountName,
-      category,
-      serviceLine: '',
-      customerName: doc.customer_name || 'Unknown',
-      notes: payment.notes || '',
-      invoiceNumber: doc.doc_number || '',
-      columnM: '',
-      columnN: '',
-      columnO: '',
-      lineItemDescription: description,
-      columnQ: '',
-      timestamp: timestampStr
-    })
+    // --- Revenue rows: 1 IN/Sale row per category ---
+    for (const rev of revenueRows) {
+      allRows.push({
+        txnNumber: nextTxn(),
+        date: dateStr,
+        business: 'FWG',
+        direction: 'IN',
+        eventType: 'Sale',
+        amount: rev.amount,
+        account: accountName,
+        category: rev.category,
+        serviceLine: '',
+        customerName: doc.customer_name || 'Unknown',
+        notes: payment.notes || '',
+        invoiceNumber: doc.doc_number || '',
+        columnM: '',
+        columnN: '',
+        columnO: '',
+        lineItemDescription: description,
+        columnQ: '',
+        timestamp: timestampStr
+      })
+    }
 
-    // --- Row 2 (optional): Sales tax (OUT / Expense) ---
+    // --- Sales tax row (optional): OUT / Expense ---
     if (taxAmount > 0) {
       allRows.push({
         txnNumber: nextTxn(),
@@ -179,7 +227,7 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       })
     }
 
-    // --- Row 3 (optional): Stripe processing fee (OUT / Expense) ---
+    // --- Stripe processing fee row (optional): OUT / Expense ---
     if (isStripePayment && actualProcessingFee > 0) {
       allRows.push({
         txnNumber: nextTxn(),
