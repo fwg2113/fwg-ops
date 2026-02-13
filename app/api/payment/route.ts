@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         ...(doc.customer_email ? { 'customer_email': doc.customer_email } : {}),
         'metadata[document_id]': documentId,
         'metadata[doc_number]': doc.doc_number?.toString() || '',
-        'metadata[base_amount]': doc.balance_due?.toString() || amount.toString(),
+        'metadata[base_amount]': amount.toString(),
       }),
     })
 
