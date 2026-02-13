@@ -96,7 +96,7 @@ const ActionButton = ({
 // TYPES
 // ============================================================================
 type Attachment = { url: string; key: string; filename: string; contentType: string; size: number; uploadedAt: string; file_id?: string; file_url?: string; file_name?: string; name?: string; type?: string; mime_type?: string; uploaded_at?: string }
-type Customer = { id: string; display_name: string; first_name: string; last_name: string; email: string; phone: string; company: string }
+type Customer = { id: string; display_name: string; first_name: string; last_name: string; email: string; phone: string; company: string; emb_thread_colors?: string; emb_drive_folder_url?: string }
 
 type Document = {
   id: string; doc_number: number; doc_type: string; status: string; bucket: string; customer_id: string
@@ -338,6 +338,22 @@ export default function DocumentDetail({
 
   // Apparel size management
   const [apparelSizeMenu, setApparelSizeMenu] = useState<string | null>(null)
+
+  // Send to Zayn (embroidery digitizing)
+  const [showZaynModal, setShowZaynModal] = useState(false)
+  const [zaynItemType, setZaynItemType] = useState<'flat' | 'cap' | 'both'>('flat')
+  const [zaynFlatDimType, setZaynFlatDimType] = useState<'width' | 'height'>('width')
+  const [zaynFlatDimValue, setZaynFlatDimValue] = useState('')
+  const [zaynCapDimType, setZaynCapDimType] = useState<'width' | 'height'>('width')
+  const [zaynCapDimValue, setZaynCapDimValue] = useState('')
+  const [zaynRush, setZaynRush] = useState(false)
+  const [zaynMessage, setZaynMessage] = useState('')
+  const [zaynSending, setZaynSending] = useState(false)
+  const [zaynSelectedFiles, setZaynSelectedFiles] = useState<{url: string; filename: string}[]>([])
+
+  // Check if document has embroidery line items
+  const hasEmbroideryItems = lineItems.some(li => li.category?.toUpperCase() === 'EMBROIDERY')
+  const matchedCustomer = customers.find(c => c.id === doc.customer_id)
 
   // Modals
   const [showSectionModal, setShowSectionModal] = useState(false)
@@ -1865,6 +1881,19 @@ export default function DocumentDetail({
               // Copy Link - always show
               buttons.push(<ActionButton key="copy" onClick={handleCopyLink} variant="secondary">{linkCopied ? 'Copied!' : 'Copy Link'}</ActionButton>)
 
+              // Send to Zayn - show for embroidery documents
+              if (hasEmbroideryItems) {
+                buttons.push(
+                  <ActionButton key="zayn" onClick={() => {
+                    setZaynSelectedFiles(attachments.map(a => ({ url: a.url, filename: a.filename })))
+                    setShowZaynModal(true)
+                  }} variant="secondary" style={{ color: '#8b5cf6', borderColor: 'rgba(139, 92, 246, 0.3)' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    Send to Zayn
+                  </ActionButton>
+                )
+              }
+
               // Message Button - show if customer has phone
               if (customerPhone) {
                 buttons.push(
@@ -2087,6 +2116,30 @@ export default function DocumentDetail({
           </label>
         </div>
       </div>
+
+      {/* Embroidery Info Banner */}
+      {hasEmbroideryItems && matchedCustomer && (matchedCustomer.emb_thread_colors || matchedCustomer.emb_drive_folder_url) && (
+        <div style={{ ...cardStyle, border: '1px solid rgba(139, 92, 246, 0.3)', background: 'rgba(139, 92, 246, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h3 style={{ color: '#8b5cf6', fontSize: '14px', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              Embroidery Info
+            </h3>
+            {matchedCustomer.emb_drive_folder_url && (
+              <a href={matchedCustomer.emb_drive_folder_url} target="_blank" rel="noopener noreferrer" style={{ color: '#8b5cf6', fontSize: '13px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                EMB Drive Folder
+              </a>
+            )}
+          </div>
+          {matchedCustomer.emb_thread_colors && (
+            <div>
+              <span style={{ color: '#64748b', fontSize: '12px' }}>Thread Colors: </span>
+              <span style={{ color: '#f1f5f9', fontSize: '13px' }}>{matchedCustomer.emb_thread_colors}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Options Mode Toggle */}
       {isQuote && (
@@ -3948,6 +4001,232 @@ export default function DocumentDetail({
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px 20px', background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)', gap: '20px' }}>
             <a href={lineItemLightboxUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#d71cd1', textDecoration: 'none', fontSize: '14px' }}>Open in New Tab</a>
             <a href={lineItemLightboxUrl} download style={{ color: '#d71cd1', textDecoration: 'none', fontSize: '14px' }}>Download</a>
+          </div>
+        </div>
+      )}
+
+      {/* Send to Zayn Modal */}
+      {showZaynModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={() => !zaynSending && setShowZaynModal(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: '24px 24px 0' }}>
+              <h2 style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: 600, margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Send to Zayn for Digitizing
+              </h2>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 20px 0' }}>
+                {isQuote ? 'Quote' : 'Invoice'} #{doc.doc_number} - {customerName}
+              </p>
+            </div>
+
+            <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Attachments Selection */}
+              <div>
+                <label style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Attachments</label>
+                {attachments.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {attachments.map((a) => {
+                      const isSelected = zaynSelectedFiles.some(f => f.url === a.url)
+                      return (
+                        <label key={a.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: isSelected ? 'rgba(139, 92, 246, 0.1)' : '#1d1d1d', border: `1px solid ${isSelected ? 'rgba(139, 92, 246, 0.4)' : 'rgba(148,163,184,0.15)'}`, borderRadius: '8px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={isSelected} onChange={() => {
+                            if (isSelected) {
+                              setZaynSelectedFiles(prev => prev.filter(f => f.url !== a.url))
+                            } else {
+                              setZaynSelectedFiles(prev => [...prev, { url: a.url, filename: a.filename }])
+                            }
+                          }} style={{ accentColor: '#8b5cf6' }} />
+                          <span style={{ color: '#f1f5f9', fontSize: '13px', flex: 1 }}>{a.filename}</span>
+                          <span style={{ color: '#64748b', fontSize: '11px' }}>{a.contentType?.split('/')[1]?.toUpperCase()}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p style={{ color: '#64748b', fontSize: '13px' }}>No project files attached</p>
+                )}
+              </div>
+
+              {/* Item Type */}
+              <div>
+                <label style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Item Type</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['flat', 'cap', 'both'] as const).map(type => (
+                    <button key={type} onClick={() => setZaynItemType(type)} style={{
+                      flex: 1, padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize',
+                      background: zaynItemType === type ? 'rgba(139, 92, 246, 0.2)' : '#1d1d1d',
+                      border: `1px solid ${zaynItemType === type ? 'rgba(139, 92, 246, 0.5)' : 'rgba(148,163,184,0.15)'}`,
+                      color: zaynItemType === type ? '#8b5cf6' : '#94a3b8'
+                    }}>{type}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dimensions for Flat */}
+              {(zaynItemType === 'flat' || zaynItemType === 'both') && (
+                <div>
+                  <label style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Flat Dimensions</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button onClick={() => setZaynFlatDimType('width')} style={{
+                        padding: '8px 14px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer',
+                        background: zaynFlatDimType === 'width' ? 'rgba(139, 92, 246, 0.2)' : '#1d1d1d',
+                        border: `1px solid ${zaynFlatDimType === 'width' ? 'rgba(139, 92, 246, 0.5)' : 'rgba(148,163,184,0.15)'}`,
+                        color: zaynFlatDimType === 'width' ? '#8b5cf6' : '#94a3b8'
+                      }}>Width</button>
+                      <button onClick={() => setZaynFlatDimType('height')} style={{
+                        padding: '8px 14px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer',
+                        background: zaynFlatDimType === 'height' ? 'rgba(139, 92, 246, 0.2)' : '#1d1d1d',
+                        border: `1px solid ${zaynFlatDimType === 'height' ? 'rgba(139, 92, 246, 0.5)' : 'rgba(148,163,184,0.15)'}`,
+                        color: zaynFlatDimType === 'height' ? '#8b5cf6' : '#94a3b8'
+                      }}>Height</button>
+                    </div>
+                    <input type="text" value={zaynFlatDimValue} onChange={(e) => setZaynFlatDimValue(e.target.value)} placeholder='e.g., 3.5"' style={{ flex: 1, padding: '8px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Dimensions for Cap */}
+              {(zaynItemType === 'cap' || zaynItemType === 'both') && (
+                <div>
+                  <label style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Cap Dimensions</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button onClick={() => setZaynCapDimType('width')} style={{
+                        padding: '8px 14px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer',
+                        background: zaynCapDimType === 'width' ? 'rgba(139, 92, 246, 0.2)' : '#1d1d1d',
+                        border: `1px solid ${zaynCapDimType === 'width' ? 'rgba(139, 92, 246, 0.5)' : 'rgba(148,163,184,0.15)'}`,
+                        color: zaynCapDimType === 'width' ? '#8b5cf6' : '#94a3b8'
+                      }}>Width</button>
+                      <button onClick={() => setZaynCapDimType('height')} style={{
+                        padding: '8px 14px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer',
+                        background: zaynCapDimType === 'height' ? 'rgba(139, 92, 246, 0.2)' : '#1d1d1d',
+                        border: `1px solid ${zaynCapDimType === 'height' ? 'rgba(139, 92, 246, 0.5)' : 'rgba(148,163,184,0.15)'}`,
+                        color: zaynCapDimType === 'height' ? '#8b5cf6' : '#94a3b8'
+                      }}>Height</button>
+                    </div>
+                    <input type="text" value={zaynCapDimValue} onChange={(e) => setZaynCapDimValue(e.target.value)} placeholder='e.g., 2.25"' style={{ flex: 1, padding: '8px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }} />
+                  </div>
+                </div>
+              )}
+
+              {/* RUSH checkbox */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 12px', background: zaynRush ? 'rgba(239, 68, 68, 0.1)' : '#1d1d1d', border: `1px solid ${zaynRush ? 'rgba(239, 68, 68, 0.4)' : 'rgba(148,163,184,0.15)'}`, borderRadius: '8px' }}>
+                <input type="checkbox" checked={zaynRush} onChange={(e) => setZaynRush(e.target.checked)} style={{ accentColor: '#ef4444' }} />
+                <span style={{ color: zaynRush ? '#ef4444' : '#94a3b8', fontSize: '14px', fontWeight: 600 }}>RUSH ORDER</span>
+              </label>
+
+              {/* Thread colors display */}
+              {matchedCustomer?.emb_thread_colors && (
+                <div style={{ padding: '10px 12px', background: 'rgba(139, 92, 246, 0.05)', border: '1px solid rgba(139, 92, 246, 0.2)', borderRadius: '8px' }}>
+                  <span style={{ color: '#64748b', fontSize: '12px' }}>Thread Colors: </span>
+                  <span style={{ color: '#f1f5f9', fontSize: '13px' }}>{matchedCustomer.emb_thread_colors}</span>
+                </div>
+              )}
+
+              {/* Message */}
+              <div>
+                <label style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px' }}>Additional Notes</label>
+                <textarea value={zaynMessage} onChange={(e) => setZaynMessage(e.target.value)} rows={3} placeholder="Any special instructions..." style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '8px', color: '#f1f5f9', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Email Preview */}
+              <div style={{ padding: '12px', background: '#0a0a0a', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.1)' }}>
+                <p style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 600 }}>Email Preview</p>
+                <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>
+                  <strong>To:</strong> zayn.thedesignpals@gmail.com
+                </p>
+                <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>
+                  <strong>Subject:</strong> Please Digitize{zaynRush ? ' RUSH' : ''} - {customerName} (#{doc.doc_number})
+                </p>
+                <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '0' }}>
+                  <strong>Attachments:</strong> {zaynSelectedFiles.length > 0 ? zaynSelectedFiles.map(f => f.filename).join(', ') : 'None'}
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', paddingTop: '4px' }}>
+                <ActionButton onClick={() => setShowZaynModal(false)} variant="secondary" disabled={zaynSending}>Cancel</ActionButton>
+                <button
+                  onClick={async () => {
+                    setZaynSending(true)
+                    try {
+                      // Build email body
+                      let bodyParts: string[] = []
+                      bodyParts.push(`<p>Hi Zayn,</p>`)
+                      bodyParts.push(`<p>Please digitize the attached design${zaynRush ? ' <strong style="color:red">- RUSH ORDER</strong>' : ''}.</p>`)
+                      bodyParts.push(`<p><strong>Customer:</strong> ${customerName}<br/>`)
+                      bodyParts.push(`<strong>${isQuote ? 'Quote' : 'Invoice'}:</strong> #${doc.doc_number}</p>`)
+
+                      // Dimensions
+                      if (zaynItemType === 'flat' || zaynItemType === 'both') {
+                        bodyParts.push(`<p><strong>Flat:</strong> ${zaynFlatDimType === 'width' ? 'W' : 'H'}: ${zaynFlatDimValue || 'Not specified'}</p>`)
+                      }
+                      if (zaynItemType === 'cap' || zaynItemType === 'both') {
+                        bodyParts.push(`<p><strong>Cap:</strong> ${zaynCapDimType === 'width' ? 'W' : 'H'}: ${zaynCapDimValue || 'Not specified'}</p>`)
+                      }
+
+                      // Thread colors
+                      if (matchedCustomer?.emb_thread_colors) {
+                        bodyParts.push(`<p><strong>Thread Colors:</strong> ${matchedCustomer.emb_thread_colors}</p>`)
+                      }
+
+                      if (zaynMessage) {
+                        bodyParts.push(`<p><strong>Notes:</strong> ${zaynMessage}</p>`)
+                      }
+
+                      bodyParts.push(`<p>Thank you!</p>`)
+
+                      const subject = `Please Digitize${zaynRush ? ' RUSH' : ''} - ${customerName} (#${doc.doc_number})`
+
+                      const res = await fetch('/api/email/zayn', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          subject,
+                          body: bodyParts.join('\n'),
+                          attachmentUrls: zaynSelectedFiles.length > 0 ? zaynSelectedFiles : undefined
+                        })
+                      })
+
+                      const data = await res.json()
+                      if (data.success) {
+                        showToast('Email sent to Zayn!', 'success')
+                        setShowZaynModal(false)
+                        setZaynItemType('flat')
+                        setZaynFlatDimValue('')
+                        setZaynCapDimValue('')
+                        setZaynRush(false)
+                        setZaynMessage('')
+                        setZaynSelectedFiles([])
+                      } else {
+                        showToast(data.error || 'Failed to send email', 'error')
+                      }
+                    } catch (err: any) {
+                      showToast(err.message || 'Failed to send email', 'error')
+                    }
+                    setZaynSending(false)
+                  }}
+                  disabled={zaynSending}
+                  style={{
+                    padding: '10px 20px',
+                    background: zaynRush ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: zaynSending ? 'not-allowed' : 'pointer',
+                    opacity: zaynSending ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {zaynSending ? 'Sending...' : zaynRush ? 'Send RUSH to Zayn' : 'Send to Zayn'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -21,6 +21,8 @@ type Customer = {
   lifetime_value: number
   source: string
   created_at: string
+  emb_thread_colors: string
+  emb_drive_folder_url: string
 }
 
 type Document = {
@@ -65,7 +67,9 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
     city: customer.city || '',
     state: customer.state || '',
     zip: customer.zip || '',
-    notes: customer.notes || ''
+    notes: customer.notes || '',
+    emb_thread_colors: customer.emb_thread_colors || '',
+    emb_drive_folder_url: customer.emb_drive_folder_url || ''
   })
 
   const handleSave = async () => {
@@ -377,6 +381,52 @@ export default function CustomerDetail({ customer, documents }: { customer: Cust
                   <span style={{ color: '#64748b' }}>No address on file</span>
                 )}
               </p>
+            )}
+          </div>
+
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px', marginTop: '24px' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              Embroidery Info
+            </h3>
+            {editing ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ color: '#64748b', fontSize: '12px', display: 'block', marginBottom: '4px' }}>Thread Colors</label>
+                  <input
+                    value={form.emb_thread_colors}
+                    onChange={(e) => setForm({ ...form, emb_thread_colors: e.target.value })}
+                    placeholder="e.g., PMS 186C, PMS 289C, White"
+                    style={{ width: '100%', padding: '10px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ color: '#64748b', fontSize: '12px', display: 'block', marginBottom: '4px' }}>EMB Drive Folder</label>
+                  <input
+                    value={form.emb_drive_folder_url}
+                    onChange={(e) => setForm({ ...form, emb_drive_folder_url: e.target.value })}
+                    placeholder="Paste Google Drive folder URL for embroidery files"
+                    style={{ width: '100%', padding: '10px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Thread Colors</p>
+                  <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{customer.emb_thread_colors || <span style={{ color: '#64748b' }}>Not set</span>}</p>
+                </div>
+                <div>
+                  <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>EMB Drive Folder</p>
+                  {customer.emb_drive_folder_url ? (
+                    <a href={customer.emb_drive_folder_url} target="_blank" rel="noopener noreferrer" style={{ color: '#8b5cf6', fontSize: '14px', textDecoration: 'none' }}>
+                      Open EMB Drive Folder
+                    </a>
+                  ) : (
+                    <p style={{ color: '#64748b', fontSize: '14px' }}>Not linked</p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
