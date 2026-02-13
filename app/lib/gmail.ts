@@ -127,7 +127,14 @@ export async function modifyMessage(
   return data
 }
 
-// Send an email
+// Attachment type for sending emails with files
+export type EmailAttachment = {
+  filename: string
+  mimeType: string
+  data: Buffer // raw file data
+}
+
+// Send an email (with optional attachments)
 export async function sendEmail(
   accessToken: string,
   options: {
@@ -140,26 +147,56 @@ export async function sendEmail(
     references?: string
     cc?: string
     bcc?: string
+    attachments?: EmailAttachment[]
   }
 ) {
-  const messageParts = [
+  const hasAttachments = options.attachments && options.attachments.length > 0
+  const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(2)}`
+
+  const headers = [
     `From: ${options.from}`,
     `To: ${options.to}`,
     `Subject: ${options.subject}`,
     `MIME-Version: 1.0`,
-    `Content-Type: text/html; charset=utf-8`,
   ]
 
-  if (options.cc) messageParts.splice(2, 0, `Cc: ${options.cc}`)
-  if (options.bcc) messageParts.splice(2, 0, `Bcc: ${options.bcc}`)
+  if (options.cc) headers.splice(2, 0, `Cc: ${options.cc}`)
+  if (options.bcc) headers.splice(2, 0, `Bcc: ${options.bcc}`)
   if (options.inReplyTo) {
-    messageParts.push(`In-Reply-To: ${options.inReplyTo}`)
-    messageParts.push(`References: ${options.references || options.inReplyTo}`)
+    headers.push(`In-Reply-To: ${options.inReplyTo}`)
+    headers.push(`References: ${options.references || options.inReplyTo}`)
   }
 
-  messageParts.push('', options.body)
+  let rawMessage: string
 
-  const rawMessage = messageParts.join('\r\n')
+  if (hasAttachments) {
+    headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`)
+    const parts: string[] = []
+
+    // HTML body part
+    parts.push(`--${boundary}`)
+    parts.push(`Content-Type: text/html; charset=utf-8`)
+    parts.push(`Content-Transfer-Encoding: 7bit`)
+    parts.push('')
+    parts.push(options.body)
+
+    // Attachment parts
+    for (const att of options.attachments!) {
+      parts.push(`--${boundary}`)
+      parts.push(`Content-Type: ${att.mimeType}; name="${att.filename}"`)
+      parts.push(`Content-Disposition: attachment; filename="${att.filename}"`)
+      parts.push(`Content-Transfer-Encoding: base64`)
+      parts.push('')
+      parts.push(att.data.toString('base64'))
+    }
+
+    parts.push(`--${boundary}--`)
+
+    rawMessage = headers.join('\r\n') + '\r\n\r\n' + parts.join('\r\n')
+  } else {
+    headers.push(`Content-Type: text/html; charset=utf-8`)
+    rawMessage = headers.join('\r\n') + '\r\n\r\n' + options.body
+  }
 
   // Base64url encode
   const encoded = Buffer.from(rawMessage)
