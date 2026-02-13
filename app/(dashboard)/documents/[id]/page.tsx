@@ -29,7 +29,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
 
   const { data: customers } = await supabase
     .from('customers')
-    .select('id, display_name, first_name, last_name, email, phone, company')
+    .select('id, display_name, first_name, last_name, email, phone, company, emb_thread_colors, emb_drive_folder_url')
     .order('display_name', { ascending: true })
 
   // Fetch quote builder config from Supabase
