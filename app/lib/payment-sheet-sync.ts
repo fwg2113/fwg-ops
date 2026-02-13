@@ -123,9 +123,9 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
     const isStripePayment = (payment as any).processor === 'stripe'
     const isCardPayment = payment.payment_method === 'card' || payment.payment_method === 'card_present'
 
-    // The actual revenue amount (for Stripe card payments, exclude the processing fee)
+    // Revenue = full payment amount (CC fee is passed to customer, so it's all revenue)
     const actualProcessingFee = isStripePayment && isCardPayment ? (payment.processing_fee || 0) : 0
-    const revenueAmount = payment.amount - actualProcessingFee
+    const revenueAmount = payment.amount
 
     // Account name based on payment method
     const accountName = isStripePayment ? 'Stripe'
