@@ -208,9 +208,9 @@ export class SSActivewearClient {
       .filter(style => {
         const searchTerm = query.toLowerCase()
         return (
-          style.styleName.toLowerCase().includes(searchTerm) ||
-          style.brandName.toLowerCase().includes(searchTerm) ||
-          style.categoryName.toLowerCase().includes(searchTerm) ||
+          style.styleName?.toLowerCase().includes(searchTerm) ||
+          style.brandName?.toLowerCase().includes(searchTerm) ||
+          style.categoryName?.toLowerCase().includes(searchTerm) ||
           style.description?.toLowerCase().includes(searchTerm)
         )
       })
