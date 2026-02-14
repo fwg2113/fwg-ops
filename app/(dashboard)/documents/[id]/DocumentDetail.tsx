@@ -239,7 +239,7 @@ export default function DocumentDetail({
     return groups
   })
   const [lineItems, setLineItems] = useState<LineItem[]>(() => {
-    console.log('🔍 Initial lineItems load:', initialLineItems.length, 'items')
+    console.log('🔍 Initial lineItems load:', initialLineItems.length, 'items', '- Component loaded at:', new Date().toLocaleTimeString())
     initialLineItems.forEach((item, idx) => {
       console.log(`  Item ${idx + 1}:`, {
         id: item.id,
@@ -1683,6 +1683,7 @@ export default function DocumentDetail({
   }
 
   const deleteLineItem = async (itemId: string) => {
+    alert(`🗑️ DELETE CLICKED - Item ID: ${itemId}`)
     console.log('🗑️ deleteLineItem called:', itemId)
     const { error } = await supabase.from('line_items').delete().eq('id', itemId)
     if (error) {
