@@ -36,8 +36,21 @@ export default function SSProductLookup({
   const [loading, setLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Update dropdown position when showing
+  useEffect(() => {
+    if (showDropdown && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width
+      })
+    }
+  }, [showDropdown])
 
   // Search SS Activewear when item number changes
   useEffect(() => {
@@ -56,7 +69,7 @@ export default function SSProductLookup({
         const data = await response.json()
 
         if (data.success && data.data.length > 0) {
-          setResults(data.data.slice(0, 5)) // Limit to 5 results
+          setResults(data.data.slice(0, 10)) // Show up to 10 results
           setShowDropdown(true)
           setSelectedIndex(0)
         } else {
@@ -79,13 +92,18 @@ export default function SSProductLookup({
   // Click outside to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        inputRef.current && !inputRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
         setShowDropdown(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showDropdown])
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -151,19 +169,22 @@ export default function SSProductLookup({
       </div>
 
       {showDropdown && results.length > 0 && (
-        <div style={{
-          position: 'absolute',
-          top: 'calc(100% + 4px)',
-          left: 0,
-          right: 0,
-          background: '#1d1d1d',
-          border: '1px solid rgba(148,163,184,0.3)',
-          borderRadius: '10px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-          maxHeight: '300px',
-          overflowY: 'auto',
-          zIndex: 1000,
-        }}>
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`,
+            background: '#1d1d1d',
+            border: '1px solid rgba(148,163,184,0.3)',
+            borderRadius: '10px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            maxHeight: '400px',
+            overflowY: 'auto',
+            zIndex: 9999,
+          }}
+        >
           {results.map((product, index) => (
             <div
               key={product.styleID}
