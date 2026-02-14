@@ -2686,12 +2686,19 @@ export default function DocumentDetail({
                                       updateLineItem(item.id, 'description', fullDescription)
                                     }
                                     if (selectedColor && selectedColor.sizes) {
+                                      // Apply default 100% markup to SS wholesale prices
+                                      // TODO: Replace with pricing matrix lookup based on document settings
+                                      const DEFAULT_MARKUP = 1.0 // 100% markup (2x wholesale)
+
                                       const sizesObj: Record<string, { qty: number; price: number }> = {}
                                       selectedColor.sizes.forEach((s: any) => {
                                         const existingSize = (af.sizes || {})[s.sizeName]
+                                        const wholesalePrice = s.wholesalePrice || 0
+                                        const retailPrice = wholesalePrice * (1 + DEFAULT_MARKUP)
+
                                         sizesObj[s.sizeName] = {
                                           qty: existingSize?.qty || 0,
-                                          price: s.wholesalePrice || 0
+                                          price: retailPrice
                                         }
                                       })
 
