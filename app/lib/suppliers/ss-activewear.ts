@@ -286,9 +286,17 @@ export class SSActivewearClient {
     }
 
     try {
-      const data = await this.request<SSStyleDetail>(`/styles/${styleId}`)
-      cache.set(cacheKey, data, 30 * 60 * 1000)
-      return data
+      const data = await this.request<SSStyleDetail | SSStyleDetail[]>(`/styles/${styleId}`)
+
+      // SS API returns an array with one element for single style queries
+      const styleDetail = Array.isArray(data) ? data[0] : data
+
+      if (!styleDetail) {
+        return null
+      }
+
+      cache.set(cacheKey, styleDetail, 30 * 60 * 1000)
+      return styleDetail
     } catch (error) {
       console.error(`Failed to fetch style ${styleId}:`, error)
       return null
