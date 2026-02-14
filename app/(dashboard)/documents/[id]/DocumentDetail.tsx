@@ -1586,8 +1586,38 @@ export default function DocumentDetail({
     }
   }
 
-  const deleteGroup = (groupId: string) => {
+  const deleteGroup = async (groupId: string) => {
     if (!confirm('Delete this section and all its items?')) return
+
+    console.log('🗑️ deleteGroup called:', groupId)
+
+    // Delete all line items in this group from database
+    const { error: itemsError } = await supabase
+      .from('line_items')
+      .delete()
+      .eq('group_id', groupId)
+
+    if (itemsError) {
+      console.error('❌ Failed to delete line items:', itemsError)
+      showToast('Failed to delete line items', 'error')
+      return
+    }
+
+    // Delete the group from database
+    const { error: groupError } = await supabase
+      .from('line_item_groups')
+      .delete()
+      .eq('group_id', groupId)
+
+    if (groupError) {
+      console.error('❌ Failed to delete group:', groupError)
+      showToast('Failed to delete section', 'error')
+      return
+    }
+
+    console.log('✅ Group and all line items deleted from database')
+
+    // Update state
     setLineItemGroups(lineItemGroups.filter(g => g.group_id !== groupId))
     const newItems = lineItems.filter(i => i.group_id !== groupId)
     setLineItems(newItems)
