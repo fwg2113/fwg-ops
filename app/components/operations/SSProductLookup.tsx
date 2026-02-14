@@ -12,7 +12,7 @@ interface SSProduct {
   styleID: number
   styleName: string
   brandName: string
-  categoryName: string
+  baseCategory: string
   productThumbnail: string
   colors: Array<{
     colorID: number
@@ -209,7 +209,7 @@ export default function SSProductLookup({
               }}>
                 <span style={{ fontWeight: 600 }}>{product.styleName}</span>
                 {' '}
-                <span style={{ color: '#64748b' }}>({product.brandName} • {product.categoryName})</span>
+                <span style={{ color: '#64748b' }}>({product.brandName} • {product.baseCategory})</span>
               </div>
             </div>
           ))}

@@ -16,7 +16,8 @@ export interface SSProduct {
   styleID: number
   styleName: string
   brandName: string
-  categoryName: string
+  baseCategory: string
+  categoryName?: string  // Legacy field, use baseCategory
   description: string
   colors: SSColor[]
   sizes: string[]
@@ -52,7 +53,7 @@ export interface SSSearchResult {
   styleID: number
   styleName: string
   brandName: string
-  categoryName: string
+  baseCategory: string
   productThumbnail: string
   colors: {
     colorID: number
@@ -64,7 +65,8 @@ export interface SSStyleDetail {
   styleID: number
   styleName: string
   brandName: string
-  categoryName: string
+  baseCategory: string
+  categoryName?: string  // Legacy field, use baseCategory
   description: string
   mill?: string
   gender?: string
@@ -226,7 +228,7 @@ export class SSActivewearClient {
         return (
           style.styleName?.toLowerCase().includes(searchTerm) ||
           style.brandName?.toLowerCase().includes(searchTerm) ||
-          style.categoryName?.toLowerCase().includes(searchTerm) ||
+          (style as any).baseCategory?.toLowerCase().includes(searchTerm) ||
           style.description?.toLowerCase().includes(searchTerm)
         )
       })
@@ -234,7 +236,7 @@ export class SSActivewearClient {
         styleID: style.styleID,
         styleName: style.styleName,
         brandName: style.brandName,
-        categoryName: style.categoryName,
+        baseCategory: (style as any).baseCategory || '',
         productThumbnail: style.productThumbnail,
         colors: (style.colors || []).map(c => ({
           colorID: c.colorID,
