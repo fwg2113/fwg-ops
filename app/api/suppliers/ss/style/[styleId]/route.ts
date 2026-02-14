@@ -41,9 +41,18 @@ export async function GET(
       )
     }
 
+    // Fetch colors and inventory from products endpoint
+    const colors = await ssActivewear.getInventoryByStyleId(styleId)
+
+    // Merge colors into style detail
+    const fullStyleDetail = {
+      ...styleDetail,
+      colors: colors || []
+    }
+
     return NextResponse.json({
       success: true,
-      data: styleDetail
+      data: fullStyleDetail
     })
   } catch (error) {
     console.error(`Error fetching style:`, error)
