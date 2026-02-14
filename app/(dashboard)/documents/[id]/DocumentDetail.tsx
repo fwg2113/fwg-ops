@@ -1603,21 +1603,9 @@ export default function DocumentDetail({
       return
     }
 
-    // Delete the group from database
-    const { error: groupError } = await supabase
-      .from('line_item_groups')
-      .delete()
-      .eq('group_id', groupId)
+    console.log('✅ All line items in group deleted from database')
 
-    if (groupError) {
-      console.error('❌ Failed to delete group:', groupError)
-      showToast('Failed to delete section', 'error')
-      return
-    }
-
-    console.log('✅ Group and all line items deleted from database')
-
-    // Update state
+    // Update state (groups are derived from line items, so just remove the group from state)
     setLineItemGroups(lineItemGroups.filter(g => g.group_id !== groupId))
     const newItems = lineItems.filter(i => i.group_id !== groupId)
     setLineItems(newItems)
