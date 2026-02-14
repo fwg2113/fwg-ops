@@ -162,10 +162,12 @@ export class SSActivewearClient {
 
       if (!response.ok) {
         const errorText = await response.text()
+        console.error(`SS Activewear API error for ${endpoint}:`, response.status, errorText)
         throw new Error(`SS Activewear API error (${response.status}): ${errorText}`)
       }
 
       const data = await response.json()
+      console.log(`SS Activewear API response for ${endpoint}:`, typeof data, Array.isArray(data) ? `array[${data.length}]` : 'object')
       return data as T
     } catch (error) {
       console.error('SS Activewear API request failed:', error)
@@ -185,6 +187,13 @@ export class SSActivewearClient {
     }
 
     const data = await this.request<SSProduct[]>('/styles')
+
+    // Ensure we always return an array
+    if (!data || !Array.isArray(data)) {
+      console.warn('SS Activewear API returned unexpected format:', typeof data)
+      return []
+    }
+
     cache.set(cacheKey, data, 60 * 60 * 1000)
     return data
   }
@@ -203,6 +212,12 @@ export class SSActivewearClient {
     // Get all styles and filter locally for better performance
     // SS API doesn't have a dedicated search endpoint
     const allStyles = await this.getAllStyles()
+
+    // Ensure we have an array to work with
+    if (!Array.isArray(allStyles)) {
+      console.error('getAllStyles did not return an array:', allStyles)
+      return []
+    }
 
     const results = allStyles
       .filter(style => {
