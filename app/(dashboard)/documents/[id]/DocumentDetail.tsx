@@ -2708,6 +2708,7 @@ export default function DocumentDetail({
                                           ...li,
                                           custom_fields: {
                                             ...li.custom_fields,
+                                            color: newColor,  // Include the selected color
                                             sizes: sizesObj,
                                             enabled_sizes: selectedColor.sizes.map((s: any) => s.sizeName)
                                           }
