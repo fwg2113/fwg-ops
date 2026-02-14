@@ -186,24 +186,41 @@ export function calculateDecorationPrice(
   stitchCount: number = 5000
 ): number {
   const qtyBreak = findQuantityBreak(quantity, quantityBreaks)
-  if (!qtyBreak) return 0
+
+  console.log('calculateDecorationPrice:', { quantity, location, stitchCount, qtyBreak })
+
+  if (!qtyBreak) {
+    console.log('No quantity break found')
+    return 0
+  }
 
   const prices = qtyBreak.decoration_prices
+  console.log('Decoration prices:', prices)
 
   // For embroidery (based on stitch count)
   if (prices.up_to_10k !== undefined) {
-    return stitchCount <= 10000 ? prices.up_to_10k : (prices['10k_to_20k'] || prices.up_to_10k)
+    const price = stitchCount <= 10000 ? prices.up_to_10k : (prices['10k_to_20k'] || prices.up_to_10k)
+    console.log('Embroidery price:', price)
+    return price
   }
 
   // For DTF (based on location)
-  if (location === 'front' && prices.front) return prices.front
-  if (location === 'back' && prices.back) return prices.back
+  if (location === 'front' && prices.front) {
+    console.log('DTF front price:', prices.front)
+    return prices.front
+  }
+  if (location === 'back' && prices.back) {
+    console.log('DTF back price:', prices.back)
+    return prices.back
+  }
   if (location === 'left_sleeve' && prices.left_sleeve) return prices.left_sleeve
   if (location === 'right_sleeve' && prices.right_sleeve) return prices.right_sleeve
   if (prices.extra) return prices.extra
 
   // Default to first available price
-  return Object.values(prices)[0] || 0
+  const defaultPrice = Object.values(prices)[0] || 0
+  console.log('Default price:', defaultPrice)
+  return defaultPrice
 }
 
 // ============================================================================
@@ -263,20 +280,28 @@ export async function calculateLineItemPrice(
   if (lineItem.decoration_type && pricingMatrixId) {
     const matrix = await getPricingMatrixById(pricingMatrixId)
     if (matrix) {
-      decorationCost = calculateDecorationPrice(
+      const calculatedPrice = calculateDecorationPrice(
         lineItem.quantity,
         matrix.quantity_breaks,
         'front', // Default location
         5000 // Default stitch count
       )
+      decorationCost = calculatedPrice || 0
       markupPct = getMarkupPercentage(lineItem.quantity, matrix.quantity_breaks)
+
+      console.log('Decoration calculation:', {
+        quantity: lineItem.quantity,
+        calculatedPrice,
+        decorationCost,
+        markupPct
+      })
     }
   } else if (lineItem.manual_override?.decoration_price !== undefined) {
     decorationCost = lineItem.manual_override.decoration_price
   }
 
   // 3. Calculate totals (no size upcharge in current schema)
-  const subtotal = wholesaleCost + decorationCost
+  const subtotal = (wholesaleCost || 0) + (decorationCost || 0)
   const total = subtotal * lineItem.quantity
 
   return {
