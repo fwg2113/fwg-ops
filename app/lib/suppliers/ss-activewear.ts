@@ -315,10 +315,52 @@ export class SSActivewearClient {
     }
 
     try {
-      // SS Activewear's inventory endpoint typically returns colors with inventory data
-      const data = await this.request<{ colors: SSColor[] }>(`/products/${styleId}`)
-      cache.set(cacheKey, data.colors, 5 * 60 * 1000)
-      return data.colors
+      // SS API returns array of products (one per color/size combo)
+      const products = await this.request<any[]>(`/products/?styleid=${styleId}`)
+
+      if (!Array.isArray(products) || products.length === 0) {
+        return []
+      }
+
+      // Group products by color
+      const colorMap = new Map<string, SSColor>()
+
+      products.forEach(product => {
+        const colorKey = product.colorCode || product.colorName
+
+        if (!colorMap.has(colorKey)) {
+          colorMap.set(colorKey, {
+            colorID: product.colorCode ? parseInt(product.colorCode, 10) : 0,
+            colorName: product.colorName,
+            colorHex: product.color1,
+            colorSwatchUrl: product.colorSwatchImage,
+            colorImages: [
+              product.colorFrontImage,
+              product.colorSideImage,
+              product.colorBackImage
+            ].filter(Boolean),
+            sizes: []
+          })
+        }
+
+        // Add size to this color
+        const color = colorMap.get(colorKey)!
+        color.sizes.push({
+          sizeID: product.sizeCode ? parseInt(product.sizeCode, 10) : 0,
+          sizeName: product.sizeName,
+          wholesalePrice: product.piecePrice || 0,
+          retailPrice: product.mapPrice || 0,
+          inventory: product.warehouses?.map((w: any) => ({
+            warehouse: w.warehouseAbbr,
+            qty: w.qty,
+            available: w.qty > 0
+          }))
+        })
+      })
+
+      const colors = Array.from(colorMap.values())
+      cache.set(cacheKey, colors, 5 * 60 * 1000)
+      return colors
     } catch (error) {
       console.error(`Failed to fetch inventory for style ${styleId}:`, error)
       return []
