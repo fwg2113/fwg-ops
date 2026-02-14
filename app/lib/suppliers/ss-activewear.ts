@@ -219,9 +219,10 @@ export class SSActivewearClient {
       return []
     }
 
+    const searchTerm = query.toLowerCase()
+
     const results = allStyles
       .filter(style => {
-        const searchTerm = query.toLowerCase()
         return (
           style.styleName?.toLowerCase().includes(searchTerm) ||
           style.brandName?.toLowerCase().includes(searchTerm) ||
@@ -240,6 +241,31 @@ export class SSActivewearClient {
           colorName: c.colorName
         }))
       }))
+      .sort((a, b) => {
+        const aName = a.styleName?.toLowerCase() || ''
+        const bName = b.styleName?.toLowerCase() || ''
+
+        // 1. Exact match on style name (highest priority)
+        const aExact = aName === searchTerm
+        const bExact = bName === searchTerm
+        if (aExact && !bExact) return -1
+        if (!aExact && bExact) return 1
+
+        // 2. Starts with query
+        const aStarts = aName.startsWith(searchTerm)
+        const bStarts = bName.startsWith(searchTerm)
+        if (aStarts && !bStarts) return -1
+        if (!aStarts && bStarts) return 1
+
+        // 3. Contains query in style name
+        const aContains = aName.includes(searchTerm)
+        const bContains = bName.includes(searchTerm)
+        if (aContains && !bContains) return -1
+        if (!aContains && bContains) return 1
+
+        // 4. Alphabetical by style name
+        return aName.localeCompare(bName)
+      })
       .slice(0, 20) // Limit to 20 results
 
     cache.set(cacheKey, results, 15 * 60 * 1000)
