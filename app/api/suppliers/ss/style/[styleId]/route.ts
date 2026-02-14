@@ -13,10 +13,11 @@ import { ssActivewear } from '@/app/lib/suppliers/ss-activewear'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { styleId: string } }
+  { params }: { params: Promise<{ styleId: string }> }
 ) {
   try {
-    const styleId = parseInt(params.styleId, 10)
+    const { styleId: styleIdParam } = await params
+    const styleId = parseInt(styleIdParam, 10)
 
     if (isNaN(styleId)) {
       return NextResponse.json(
@@ -45,7 +46,7 @@ export async function GET(
       data: styleDetail
     })
   } catch (error) {
-    console.error(`Error fetching style ${params.styleId}:`, error)
+    console.error(`Error fetching style:`, error)
 
     return NextResponse.json(
       {
