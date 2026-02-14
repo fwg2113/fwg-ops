@@ -37,6 +37,7 @@ export default function SSProductLookup({
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const [userIsTyping, setUserIsTyping] = useState(false) // Track if user is actively typing
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -52,12 +53,17 @@ export default function SSProductLookup({
     }
   }, [showDropdown])
 
-  // Search SS Activewear when item number changes
+  // Search SS Activewear when item number changes (only if user is typing)
   useEffect(() => {
     const searchProducts = async () => {
       if (itemNumber.length < 2) {
         setResults([])
         setShowDropdown(false)
+        return
+      }
+
+      // Only search and show dropdown if user is actively typing
+      if (!userIsTyping) {
         return
       }
 
@@ -88,7 +94,7 @@ export default function SSProductLookup({
 
     const debounce = setTimeout(searchProducts, 300)
     return () => clearTimeout(debounce)
-  }, [itemNumber])
+  }, [itemNumber, userIsTyping])
 
   // Click outside to close
   useEffect(() => {
@@ -137,7 +143,10 @@ export default function SSProductLookup({
           ref={inputRef}
           type="text"
           value={itemNumber}
-          onChange={(e) => onItemNumberChange(e.target.value)}
+          onChange={(e) => {
+            setUserIsTyping(true) // Mark as user typing
+            onItemNumberChange(e.target.value)
+          }}
           onKeyDown={handleKeyDown}
           placeholder="ST350, PC54, etc."
           style={{
