@@ -1683,7 +1683,14 @@ export default function DocumentDetail({
   }
 
   const deleteLineItem = async (itemId: string) => {
-    await supabase.from('line_items').delete().eq('id', itemId)
+    console.log('🗑️ deleteLineItem called:', itemId)
+    const { error } = await supabase.from('line_items').delete().eq('id', itemId)
+    if (error) {
+      console.error('❌ Delete failed:', error)
+      showToast('Failed to delete line item', 'error')
+      return
+    }
+    console.log('✅ Line item deleted from database')
     const newItems = lineItems.filter(i => i.id !== itemId)
     setLineItems(newItems)
     // Remove empty groups
