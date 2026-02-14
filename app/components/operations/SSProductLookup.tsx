@@ -190,7 +190,7 @@ export default function SSProductLookup({
               key={product.styleID}
               onClick={() => handleSelect(product)}
               style={{
-                padding: '10px 12px',
+                padding: '8px 12px',
                 borderBottom: index < results.length - 1 ? '1px solid rgba(148,163,184,0.1)' : 'none',
                 cursor: 'pointer',
                 background: index === selectedIndex ? '#282a30' : 'transparent',
@@ -198,35 +198,16 @@ export default function SSProductLookup({
               }}
               onMouseEnter={() => setSelectedIndex(index)}
             >
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                {product.productThumbnail && (
-                  <img
-                    src={product.productThumbnail}
-                    alt={product.styleName}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      objectFit: 'cover',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(148,163,184,0.2)',
-                    }}
-                  />
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    color: '#f1f5f9',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {product.styleName}
-                  </div>
-                  <div style={{ color: '#64748b', fontSize: '11px' }}>
-                    {product.brandName} • {product.categoryName}
-                  </div>
-                </div>
+              <div style={{
+                color: '#f1f5f9',
+                fontSize: '13px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                <span style={{ fontWeight: 600 }}>{product.styleName}</span>
+                {' '}
+                <span style={{ color: '#64748b' }}>({product.brandName} • {product.categoryName})</span>
               </div>
             </div>
           ))}
