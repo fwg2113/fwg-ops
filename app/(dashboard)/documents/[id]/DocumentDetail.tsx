@@ -1404,13 +1404,16 @@ export default function DocumentDetail({
 
   // Handle SS product selection
   const handleSSProductSelect = async (itemId: string, product: any) => {
+    console.log('🔍 handleSSProductSelect called:', { itemId, product })
     try {
       // Fetch full product details including colors and sizes
       const response = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
       const data = await response.json()
+      console.log('📦 SS Style Detail API Response:', data)
 
       if (data.success && data.data) {
         const styleDetail = data.data
+        console.log('✅ Setting SS product cache:', styleDetail)
 
         // Cache the product data
         setSsProductCache(prev => ({
