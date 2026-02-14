@@ -30,6 +30,8 @@ export default function GarmentMockupBuilder({
   const [logos, setLogos] = useState<Logo[]>([])
   const [selectedLogoId, setSelectedLogoId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
+  const [isRotating, setIsRotating] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -108,19 +110,57 @@ export default function GarmentMockupBuilder({
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !selectedLogoId) return
-
+    if (!selectedLogoId) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
 
-    const x = (e.clientX - rect.left) / rect.width
-    const y = (e.clientY - rect.top) / rect.height
+    const mouseX = (e.clientX - rect.left) / rect.width
+    const mouseY = (e.clientY - rect.top) / rect.height
 
-    updateLogo(selectedLogoId, { x, y })
+    if (isDragging) {
+      // Move logo
+      updateLogo(selectedLogoId, { x: mouseX, y: mouseY })
+    } else if (isResizing) {
+      // Resize from bottom-right corner
+      const logo = logos.find(l => l.id === selectedLogoId)
+      if (!logo) return
+
+      const width = Math.max(0.05, mouseX - logo.x)
+      const height = Math.max(0.05, mouseY - logo.y)
+      const size = Math.max(width, height) // Keep aspect ratio
+      updateLogo(selectedLogoId, { width: size, height: size })
+    } else if (isRotating) {
+      // Rotate from center
+      const logo = logos.find(l => l.id === selectedLogoId)
+      if (!logo) return
+
+      const centerX = logo.x + logo.width / 2
+      const centerY = logo.y + logo.height / 2
+      const angle = Math.atan2(mouseY - centerY, mouseX - centerX) * (180 / Math.PI)
+      updateLogo(selectedLogoId, { rotation: Math.round(angle + 90) }) // +90 to start from top
+    }
   }
 
   const handleMouseUp = () => {
     setIsDragging(false)
+    setIsResizing(false)
+    setIsRotating(false)
+  }
+
+  // Handle clicks on resize handle
+  const handleResizeStart = (e: React.MouseEvent, logoId: string) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setSelectedLogoId(logoId)
+    setIsResizing(true)
+  }
+
+  // Handle clicks on rotation handle
+  const handleRotateStart = (e: React.MouseEvent, logoId: string) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setSelectedLogoId(logoId)
+    setIsRotating(true)
   }
 
   // Generate mockup image and save
@@ -284,10 +324,11 @@ export default function GarmentMockupBuilder({
                     width: `${logo.width * 100}%`,
                     height: `${logo.height * 100}%`,
                     transform: `rotate(${logo.rotation}deg)`,
-                    cursor: 'grab',
+                    transformOrigin: 'center center',
+                    cursor: isDragging && selectedLogoId === logo.id ? 'grabbing' : 'grab',
                     border: selectedLogoId === logo.id ? '2px solid #8b5cf6' : '2px dashed transparent',
                     boxSizing: 'border-box',
-                    transition: 'border 0.15s ease'
+                    transition: selectedLogoId === logo.id ? 'none' : 'border 0.15s ease'
                   }}
                 >
                   <img
@@ -301,6 +342,46 @@ export default function GarmentMockupBuilder({
                       userSelect: 'none'
                     }}
                   />
+
+                  {/* Resize Handle - Bottom Right */}
+                  {selectedLogoId === logo.id && (
+                    <>
+                      <div
+                        onMouseDown={(e) => handleResizeStart(e, logo.id)}
+                        style={{
+                          position: 'absolute',
+                          right: '-6px',
+                          bottom: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#8b5cf6',
+                          border: '2px solid white',
+                          borderRadius: '50%',
+                          cursor: 'nwse-resize',
+                          zIndex: 10,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                        }}
+                      />
+
+                      {/* Rotation Handle - Top Right */}
+                      <div
+                        onMouseDown={(e) => handleRotateStart(e, logo.id)}
+                        style={{
+                          position: 'absolute',
+                          right: '-6px',
+                          top: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#22c55e',
+                          border: '2px solid white',
+                          borderRadius: '50%',
+                          cursor: 'grab',
+                          zIndex: 10,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
               ))}
             </div>

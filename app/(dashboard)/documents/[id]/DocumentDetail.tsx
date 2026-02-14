@@ -1458,7 +1458,9 @@ export default function DocumentDetail({
       // Find the color that matches the selected color
       const selectedColor = cachedProduct.colors?.find((c: any) => c.colorName === colorName)
       // colorImages is an array, get the first image if available
-      garmentImageUrl = selectedColor?.colorImages?.[0] || cachedProduct.productThumbnail || ''
+      const relativePath = selectedColor?.colorImages?.[0] || cachedProduct.productThumbnail || ''
+      // SS images are relative paths - prepend the base URL
+      garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
       garmentName = cachedProduct.styleName || garmentName
     }
 
