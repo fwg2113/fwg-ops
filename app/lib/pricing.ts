@@ -9,7 +9,7 @@
  * - Total quote calculations
  */
 
-import { createClient } from '@/utils/supabase/server'
+import { supabase } from '@/app/lib/supabase'
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -88,8 +88,6 @@ export interface QuoteSummary {
  * Get all pricing matrices from database
  */
 export async function getAllPricingMatrices(): Promise<PricingMatrix[]> {
-  const supabase = await createClient()
-
   const { data, error } = await supabase
     .from('apparel_pricing_matrices')
     .select('*')
@@ -107,8 +105,6 @@ export async function getAllPricingMatrices(): Promise<PricingMatrix[]> {
  * Get pricing matrix by ID
  */
 export async function getPricingMatrixById(id: string): Promise<PricingMatrix | null> {
-  const supabase = await createClient()
-
   const { data, error } = await supabase
     .from('apparel_pricing_matrices')
     .select('*')
@@ -127,8 +123,6 @@ export async function getPricingMatrixById(id: string): Promise<PricingMatrix | 
  * Get pricing matrix by decoration type
  */
 export async function getPricingMatrixByType(decorationType: string): Promise<PricingMatrix | null> {
-  const supabase = await createClient()
-
   const { data, error } = await supabase
     .from('apparel_pricing_matrices')
     .select('*')
