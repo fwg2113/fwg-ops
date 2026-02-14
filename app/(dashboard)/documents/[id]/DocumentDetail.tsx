@@ -1412,6 +1412,13 @@ export default function DocumentDetail({
   // SS ACTIVEWEAR INTEGRATION HANDLERS
   // ============================================================================
 
+  // Helper to strip HTML tags from text
+  const stripHtml = (html: string): string => {
+    const tmp = document.createElement('div')
+    tmp.innerHTML = html
+    return tmp.textContent || tmp.innerText || ''
+  }
+
   // Handle SS product selection
   const handleSSProductSelect = async (itemId: string, product: any) => {
     console.log('🔍 handleSSProductSelect called:', { itemId, product })
@@ -1440,8 +1447,9 @@ export default function DocumentDetail({
         // Update description with SS product title and style number
         const item = lineItems.find(i => i.id === itemId)
         if (item) {
-          // Use SS product description (title) + style number (e.g., "Unisex Heavy Cotton™ T-Shirt - 5000")
-          updateLineItem(itemId, 'description', `${styleDetail.description} - ${styleDetail.styleName}`)
+          // Strip HTML from description and combine with style number
+          const cleanDescription = stripHtml(styleDetail.description)
+          updateLineItem(itemId, 'description', `${cleanDescription} - ${styleDetail.styleName}`)
         }
 
         showToast(`Select a color for ${styleDetail.styleName}`, 'info')
