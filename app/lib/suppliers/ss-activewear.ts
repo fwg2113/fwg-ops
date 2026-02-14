@@ -235,7 +235,7 @@ export class SSActivewearClient {
         brandName: style.brandName,
         categoryName: style.categoryName,
         productThumbnail: style.productThumbnail,
-        colors: style.colors.map(c => ({
+        colors: (style.colors || []).map(c => ({
           colorID: c.colorID,
           colorName: c.colorName
         }))
