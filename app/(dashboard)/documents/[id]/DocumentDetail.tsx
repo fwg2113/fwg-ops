@@ -1457,7 +1457,8 @@ export default function DocumentDetail({
     if (cachedProduct) {
       // Find the color that matches the selected color
       const selectedColor = cachedProduct.colors?.find((c: any) => c.colorName === colorName)
-      garmentImageUrl = selectedColor?.colorImage || cachedProduct.productThumbnail || ''
+      // colorImages is an array, get the first image if available
+      garmentImageUrl = selectedColor?.colorImages?.[0] || cachedProduct.productThumbnail || ''
       garmentName = cachedProduct.styleName || garmentName
     }
 
@@ -2674,18 +2675,15 @@ export default function DocumentDetail({
                                   value={af.color || ''}
                                   onChange={async (e) => {
                                     const newColor = e.target.value
-                                    await updateApparelField(item.id, 'color', newColor)
 
                                     // Update description and sizes with new color's pricing
                                     const product = ssProductCache[item.id]
                                     const selectedColor = product.colors.find((c: any) => c.colorName === newColor)
 
-                                    // Update description to include color
-                                    if (product) {
-                                      const fullDescription = `${product.brandName} - ${product.styleName} - ${newColor}`
-                                      updateLineItem(item.id, 'description', fullDescription)
-                                    }
                                     if (selectedColor && selectedColor.sizes) {
+                                      // Build full description with color
+                                      const fullDescription = `${product.brandName} - ${product.styleName} - ${newColor}`
+
                                       // Apply default 100% markup to SS wholesale prices
                                       // TODO: Replace with pricing matrix lookup based on document settings
                                       const DEFAULT_MARKUP = 1.0 // 100% markup (2x wholesale)
@@ -2702,13 +2700,15 @@ export default function DocumentDetail({
                                         }
                                       })
 
+                                      // Single state update: description, color, and sizes
                                       const newItems = lineItems.map(li => {
                                         if (li.id !== item.id) return li
                                         return {
                                           ...li,
+                                          description: fullDescription,  // Update description field
                                           custom_fields: {
                                             ...li.custom_fields,
-                                            color: newColor,  // Include the selected color
+                                            color: newColor,  // Just the color name (e.g., "Black")
                                             sizes: sizesObj,
                                             enabled_sizes: selectedColor.sizes.map((s: any) => s.sizeName)
                                           }
