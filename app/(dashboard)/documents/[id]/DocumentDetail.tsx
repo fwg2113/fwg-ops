@@ -1421,56 +1421,16 @@ export default function DocumentDetail({
         // Update item number
         await updateApparelField(itemId, 'item_number', product.styleName)
 
-        // Update description
+        // Clear color to force user selection
+        await updateApparelField(itemId, 'color', '')
+
+        // Update description with base product info (will be enhanced when color selected)
         const item = lineItems.find(i => i.id === itemId)
         if (item) {
           updateLineItem(itemId, 'description', `${styleDetail.brandName} ${styleDetail.styleName}`)
         }
 
-        // Auto-select first color if available
-        if (styleDetail.colors && styleDetail.colors.length > 0) {
-          const firstColor = styleDetail.colors[0]
-          await updateApparelField(itemId, 'color', firstColor.colorName)
-
-          // Auto-populate sizes with wholesale pricing
-          if (firstColor.sizes && firstColor.sizes.length > 0) {
-            const enabledSizes = firstColor.sizes.map((s: any) => s.sizeName)
-            await updateApparelField(itemId, 'enabled_sizes', enabledSizes)
-
-            // Set up sizes with wholesale pricing
-            const sizesObj: Record<string, { qty: number; price: number }> = {}
-            firstColor.sizes.forEach((s: any) => {
-              sizesObj[s.sizeName] = {
-                qty: 0,
-                price: s.wholesalePrice || 0
-              }
-            })
-
-            // Update all sizes at once by updating the entire custom_fields object
-            const newItems = lineItems.map(item => {
-              if (item.id !== itemId) return item
-              const cf: Record<string, any> = {
-                ...(item.custom_fields || {}),
-                apparel_mode: true,
-                sizes: sizesObj
-              }
-              return {
-                ...item,
-                custom_fields: cf
-              }
-            })
-            setLineItems(newItems)
-
-            const updatedItem = newItems.find(i => i.id === itemId)
-            if (updatedItem) {
-              await supabase.from('line_items').update({
-                custom_fields: updatedItem.custom_fields,
-              }).eq('id', itemId)
-            }
-          }
-        }
-
-        showToast(`Added ${styleDetail.styleName}`, 'success')
+        showToast(`Select a color for ${styleDetail.styleName}`, 'info')
       }
     } catch (error) {
       console.error('Error fetching SS product:', error)
@@ -2713,9 +2673,15 @@ export default function DocumentDetail({
                                     const newColor = e.target.value
                                     await updateApparelField(item.id, 'color', newColor)
 
-                                    // Update sizes with new color's pricing
+                                    // Update description and sizes with new color's pricing
                                     const product = ssProductCache[item.id]
                                     const selectedColor = product.colors.find((c: any) => c.colorName === newColor)
+
+                                    // Update description to include color
+                                    if (product) {
+                                      const fullDescription = `${product.brandName} - ${product.styleName} - ${newColor}`
+                                      updateLineItem(item.id, 'description', fullDescription)
+                                    }
                                     if (selectedColor && selectedColor.sizes) {
                                       const sizesObj: Record<string, { qty: number; price: number }> = {}
                                       selectedColor.sizes.forEach((s: any) => {
@@ -2750,11 +2716,16 @@ export default function DocumentDetail({
                                   style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}
                                 >
                                   <option value="">Select Color</option>
-                                  {ssProductCache[item.id].colors.map((color: any) => (
-                                    <option key={color.colorID} value={color.colorName}>
-                                      {color.colorName}
-                                    </option>
-                                  ))}
+                                  {ssProductCache[item.id].colors.map((color: any) => {
+                                    const product = ssProductCache[item.id]
+                                    // Format like Printavo: Brand - Style# - Color - Description
+                                    const optionText = `${product.brandName} - ${product.styleName} - ${color.colorName}`
+                                    return (
+                                      <option key={color.colorID} value={color.colorName}>
+                                        {optionText}
+                                      </option>
+                                    )
+                                  })}
                                 </select>
                               ) : (
                                 <input
