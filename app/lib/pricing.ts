@@ -18,24 +18,30 @@ import { supabase } from '@/app/lib/supabase'
 export interface PricingMatrix {
   id: string
   name: string
-  description: string | null
   decoration_type: string
-  base_price: number
+  applies_to: string[]
   quantity_breaks: QuantityBreak[]
-  size_upcharges: SizeUpcharge[]
   created_at: string
   updated_at: string
 }
 
 export interface QuantityBreak {
-  min_qty: number
-  max_qty: number | null
-  price_per_unit: number
+  min: number
+  max: number
+  markup_pct: number
+  decoration_prices: DecorationPrices
 }
 
-export interface SizeUpcharge {
-  size: string
-  upcharge_amount: number
+export interface DecorationPrices {
+  // For embroidery (caps and polos)
+  up_to_10k?: number
+  '10k_to_20k'?: number
+  // For DTF
+  front?: number
+  back?: number
+  left_sleeve?: number
+  right_sleeve?: number
+  extra?: number
 }
 
 export interface QuoteLineItem {
@@ -143,84 +149,76 @@ export async function getPricingMatrixByType(decorationType: string): Promise<Pr
 // ============================================================================
 
 /**
- * Calculate the price per unit based on quantity breaks
+ * Find the applicable quantity break for a given quantity
  */
-export function calculateQuantityBreakPrice(
+export function findQuantityBreak(
   quantity: number,
   quantityBreaks: QuantityBreak[]
-): number {
+): QuantityBreak | null {
   if (!quantityBreaks || quantityBreaks.length === 0) {
-    return 0
+    return null
   }
 
-  // Sort quantity breaks by min_qty to ensure correct order
-  const sortedBreaks = [...quantityBreaks].sort((a, b) => a.min_qty - b.min_qty)
+  // Sort quantity breaks by min to ensure correct order
+  const sortedBreaks = [...quantityBreaks].sort((a, b) => a.min - b.min)
 
   // Find the applicable quantity break
   for (const breakPoint of sortedBreaks) {
-    const meetsMin = quantity >= breakPoint.min_qty
-    const meetsMax = breakPoint.max_qty === null || quantity <= breakPoint.max_qty
+    const meetsMin = quantity >= breakPoint.min
+    const meetsMax = quantity <= breakPoint.max
 
     if (meetsMin && meetsMax) {
-      return breakPoint.price_per_unit
+      return breakPoint
     }
   }
 
-  // If no break found, return the last (highest quantity) break price
-  return sortedBreaks[sortedBreaks.length - 1].price_per_unit
+  // If no exact break found, return the last (highest quantity) break
+  return sortedBreaks[sortedBreaks.length - 1]
 }
 
-// ============================================================================
-// SIZE UPCHARGE CALCULATOR
-// ============================================================================
-
 /**
- * Calculate size upcharge for a given size
+ * Calculate decoration price based on quantity and location
  */
-export function calculateSizeUpcharge(
-  size: string,
-  sizeUpcharges: SizeUpcharge[]
+export function calculateDecorationPrice(
+  quantity: number,
+  quantityBreaks: QuantityBreak[],
+  location: string = 'front',
+  stitchCount: number = 5000
 ): number {
-  if (!sizeUpcharges || sizeUpcharges.length === 0) {
-    return 0
+  const qtyBreak = findQuantityBreak(quantity, quantityBreaks)
+  if (!qtyBreak) return 0
+
+  const prices = qtyBreak.decoration_prices
+
+  // For embroidery (based on stitch count)
+  if (prices.up_to_10k !== undefined) {
+    return stitchCount <= 10000 ? prices.up_to_10k : (prices['10k_to_20k'] || prices.up_to_10k)
   }
 
-  const normalizedSize = size.toUpperCase().trim()
+  // For DTF (based on location)
+  if (location === 'front' && prices.front) return prices.front
+  if (location === 'back' && prices.back) return prices.back
+  if (location === 'left_sleeve' && prices.left_sleeve) return prices.left_sleeve
+  if (location === 'right_sleeve' && prices.right_sleeve) return prices.right_sleeve
+  if (prices.extra) return prices.extra
 
-  const upcharge = sizeUpcharges.find(
-    (u) => u.size.toUpperCase().trim() === normalizedSize
-  )
-
-  return upcharge ? upcharge.upcharge_amount : 0
-}
-
-/**
- * Check if a size qualifies for upcharge (2XL, 3XL, 4XL, etc.)
- */
-export function isSizeWithUpcharge(size: string): boolean {
-  const normalizedSize = size.toUpperCase().trim()
-  const upchargeSizes = ['2XL', '3XL', '4XL', '5XL', '6XL', 'XXL', 'XXXL', 'XXXXL']
-  return upchargeSizes.includes(normalizedSize)
+  // Default to first available price
+  return Object.values(prices)[0] || 0
 }
 
 // ============================================================================
-// DECORATION COST CALCULATOR
+// MARKUP CALCULATOR
 // ============================================================================
 
 /**
- * Calculate decoration cost based on quantity and pricing matrix
+ * Calculate markup percentage for a given quantity
  */
-export function calculateDecorationCost(
+export function getMarkupPercentage(
   quantity: number,
-  pricingMatrix: PricingMatrix,
-  locations: number = 1
+  quantityBreaks: QuantityBreak[]
 ): number {
-  const pricePerLocation = calculateQuantityBreakPrice(
-    quantity,
-    pricingMatrix.quantity_breaks
-  )
-
-  return pricePerLocation * locations
+  const qtyBreak = findQuantityBreak(quantity, quantityBreaks)
+  return qtyBreak ? qtyBreak.markup_pct : 200 // Default 200% markup
 }
 
 // ============================================================================
@@ -260,45 +258,40 @@ export async function calculateLineItemPrice(
 
   // 2. Calculate decoration cost
   let decorationCost = 0
+  let markupPct = 200 // Default
+
   if (lineItem.decoration_type && pricingMatrixId) {
     const matrix = await getPricingMatrixById(pricingMatrixId)
     if (matrix) {
-      decorationCost = calculateDecorationCost(
+      decorationCost = calculateDecorationPrice(
         lineItem.quantity,
-        matrix,
-        lineItem.decoration_locations || 1
+        matrix.quantity_breaks,
+        'front', // Default location
+        5000 // Default stitch count
       )
+      markupPct = getMarkupPercentage(lineItem.quantity, matrix.quantity_breaks)
     }
   } else if (lineItem.manual_override?.decoration_price !== undefined) {
     decorationCost = lineItem.manual_override.decoration_price
   }
 
-  // 3. Calculate size upcharge (if applicable)
-  let sizeUpcharge = 0
-  if (pricingMatrixId) {
-    const matrix = await getPricingMatrixById(pricingMatrixId)
-    if (matrix && matrix.size_upcharges) {
-      sizeUpcharge = calculateSizeUpcharge(lineItem.size, matrix.size_upcharges)
-    }
-  }
-
-  // 4. Calculate totals
-  const subtotal = wholesaleCost + decorationCost + sizeUpcharge
+  // 3. Calculate totals (no size upcharge in current schema)
+  const subtotal = wholesaleCost + decorationCost
   const total = subtotal * lineItem.quantity
 
   return {
     line_item: lineItem,
     wholesale_cost: wholesaleCost,
     decoration_cost: decorationCost,
-    size_upcharge: sizeUpcharge,
+    size_upcharge: 0,
     subtotal: subtotal,
     total: total,
     breakdown: {
       base_wholesale: wholesalePrice,
-      quantity_discount: 0, // Can be enhanced to track discount amount
+      quantity_discount: 0,
       decoration_base: decorationCost,
       decoration_multiplier: lineItem.decoration_locations || 1,
-      size_upcharge: sizeUpcharge,
+      size_upcharge: 0,
       manual_override: lineItem.manual_override !== undefined
     }
   }
