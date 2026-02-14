@@ -224,7 +224,7 @@ export default function SSProductLookup({
                     {product.styleName}
                   </div>
                   <div style={{ color: '#64748b', fontSize: '11px' }}>
-                    {product.brandName} • {product.colors.length} colors
+                    {product.brandName} • {product.categoryName}
                   </div>
                 </div>
               </div>
