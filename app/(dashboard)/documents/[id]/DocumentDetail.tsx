@@ -2721,6 +2721,7 @@ export default function DocumentDetail({
                                       const updatedItem = newItems.find(i => i.id === item.id)
                                       if (updatedItem) {
                                         await supabase.from('line_items').update({
+                                          description: updatedItem.description,
                                           custom_fields: updatedItem.custom_fields,
                                         }).eq('id', item.id)
                                       }
