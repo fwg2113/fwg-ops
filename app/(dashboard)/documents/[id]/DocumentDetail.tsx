@@ -238,7 +238,17 @@ export default function DocumentDetail({
     })
     return groups
   })
-  const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
+  const [lineItems, setLineItems] = useState<LineItem[]>(() => {
+    console.log('🔍 Initial lineItems load:', initialLineItems.length, 'items')
+    initialLineItems.forEach((item, idx) => {
+      console.log(`  Item ${idx + 1}:`, {
+        id: item.id,
+        description: item.description,
+        custom_fields: item.custom_fields
+      })
+    })
+    return initialLineItems
+  })
   
   // Fees state - load from document
   const [fees, setFees] = useState<Fee[]>(() => {
@@ -1427,10 +1437,11 @@ export default function DocumentDetail({
         // Clear color to force user selection
         await updateApparelField(itemId, 'color', '')
 
-        // Update description with base product info (will be enhanced when color selected)
+        // Update description with SS product title and style number
         const item = lineItems.find(i => i.id === itemId)
         if (item) {
-          updateLineItem(itemId, 'description', `${styleDetail.brandName} ${styleDetail.styleName}`)
+          // Use SS product description (title) + style number (e.g., "Unisex Heavy Cotton™ T-Shirt - 5000")
+          updateLineItem(itemId, 'description', `${styleDetail.description} - ${styleDetail.styleName}`)
         }
 
         showToast(`Select a color for ${styleDetail.styleName}`, 'info')
@@ -1584,6 +1595,7 @@ export default function DocumentDetail({
   }
 
   const addLineItemToGroup = async (groupId: string, categoryKey: string) => {
+    console.log('➕ addLineItemToGroup called:', { groupId, categoryKey })
     const category = getCategoryByKey(categoryKey)
     const isApparel = category?.apparel_mode === true
     const newItem: any = {
@@ -2678,14 +2690,11 @@ export default function DocumentDetail({
                                   onChange={async (e) => {
                                     const newColor = e.target.value
 
-                                    // Update description and sizes with new color's pricing
+                                    // Update sizes with new color's pricing (keep description unchanged)
                                     const product = ssProductCache[item.id]
                                     const selectedColor = product.colors.find((c: any) => c.colorName === newColor)
 
                                     if (selectedColor && selectedColor.sizes) {
-                                      // Build full description with color
-                                      const fullDescription = `${product.brandName} - ${product.styleName} - ${newColor}`
-
                                       // Apply default 100% markup to SS wholesale prices
                                       // TODO: Replace with pricing matrix lookup based on document settings
                                       const DEFAULT_MARKUP = 1.0 // 100% markup (2x wholesale)
@@ -2702,12 +2711,11 @@ export default function DocumentDetail({
                                         }
                                       })
 
-                                      // Single state update: description, color, and sizes
+                                      // Update custom_fields with color and sizes (don't change description)
                                       const newItems = lineItems.map(li => {
                                         if (li.id !== item.id) return li
                                         return {
                                           ...li,
-                                          description: fullDescription,  // Update description field
                                           custom_fields: {
                                             ...li.custom_fields,
                                             color: newColor,  // Just the color name (e.g., "Black")
@@ -2721,7 +2729,6 @@ export default function DocumentDetail({
                                       const updatedItem = newItems.find(i => i.id === item.id)
                                       if (updatedItem) {
                                         await supabase.from('line_items').update({
-                                          description: updatedItem.description,
                                           custom_fields: updatedItem.custom_fields,
                                         }).eq('id', item.id)
                                       }
