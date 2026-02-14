@@ -69,6 +69,7 @@ export default function SSProductLookup({
         const data = await response.json()
 
         if (data.success && data.data.length > 0) {
+          console.log('SS Search Results:', data.data.slice(0, 3)) // Log first 3 results
           setResults(data.data.slice(0, 10)) // Show up to 10 results
           setShowDropdown(true)
           setSelectedIndex(0)
@@ -124,6 +125,7 @@ export default function SSProductLookup({
   }
 
   const handleSelect = (product: SSProduct) => {
+    console.log('SS Product Selected:', product)
     onSelect(product)
     setShowDropdown(false)
   }
