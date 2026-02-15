@@ -355,6 +355,7 @@ export default function DocumentDetail({
   const [mockupBuilderOpen, setMockupBuilderOpen] = useState(false)
   const [mockupLineItemId, setMockupLineItemId] = useState<string | null>(null)
   const [mockupGarmentUrl, setMockupGarmentUrl] = useState<string>('')
+  const [mockupGarmentUrls, setMockupGarmentUrls] = useState<{ Front: string; Back: string; Sleeves: string } | undefined>(undefined)
   const [mockupGarmentName, setMockupGarmentName] = useState<string>('')
   const [mockupColorName, setMockupColorName] = useState<string>('')
 
@@ -1500,16 +1501,29 @@ export default function DocumentDetail({
 
     // Get garment image URL from cached product data
     let garmentImageUrl = ''
+    let garmentUrls: { Front: string; Back: string; Sleeves: string } | undefined = undefined
     let garmentName = af.item_number || 'Garment'
     let colorName = af.color || ''
 
     if (cachedProduct) {
       // Find the color that matches the selected color
       const selectedColor = cachedProduct.colors?.find((c: any) => c.colorName === colorName)
-      // colorImages is an array, get the first image if available
-      const relativePath = selectedColor?.colorImages?.[0] || cachedProduct.productThumbnail || ''
-      // SS images are relative paths - prepend the base URL
+      // colorImages is an array: [0]=Front, [1]=Side, [2]=Back
+      const colorImages = selectedColor?.colorImages || []
+
+      // Get the primary image (front)
+      const relativePath = colorImages[0] || cachedProduct.productThumbnail || ''
       garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
+
+      // Build the image URLs object for all locations
+      if (colorImages.length >= 3) {
+        garmentUrls = {
+          Front: `https://www.ssactivewear.com/${colorImages[0]}`,
+          Sleeves: `https://www.ssactivewear.com/${colorImages[1]}`, // Side view for sleeves
+          Back: `https://www.ssactivewear.com/${colorImages[2]}`
+        }
+      }
+
       garmentName = cachedProduct.styleName || garmentName
     }
 
@@ -1520,6 +1534,7 @@ export default function DocumentDetail({
 
     setMockupLineItemId(itemId)
     setMockupGarmentUrl(garmentImageUrl)
+    setMockupGarmentUrls(garmentUrls)
     setMockupGarmentName(garmentName)
     setMockupColorName(colorName)
     setMockupBuilderOpen(true)
@@ -4689,6 +4704,7 @@ export default function DocumentDetail({
       {mockupBuilderOpen && (
         <GarmentMockupBuilder
           garmentImageUrl={mockupGarmentUrl}
+          garmentImageUrls={mockupGarmentUrls}
           garmentName={mockupGarmentName}
           colorName={mockupColorName}
           onSave={handleSaveMockup}
