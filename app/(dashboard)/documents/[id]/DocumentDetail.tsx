@@ -205,7 +205,15 @@ export default function DocumentDetail({
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  
+
+  // Background removal modal state
+  const [showBgRemovalModal, setShowBgRemovalModal] = useState(false)
+  const [bgRemovalFile, setBgRemovalFile] = useState<File | null>(null)
+  const [bgRemovalOriginalUrl, setBgRemovalOriginalUrl] = useState<string>('')
+  const [bgRemovalProcessedUrl, setBgRemovalProcessedUrl] = useState<string>('')
+  const [processingBg, setProcessingBg] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+
   const [doc, setDoc] = useState(initialDoc)
   const [attachments, setAttachments] = useState<Attachment[]>(initialDoc.attachments || [])
   
@@ -1756,12 +1764,81 @@ export default function DocumentDetail({
   // ============================================================================
   // FILE HANDLERS
   // ============================================================================
+
+  // Background removal for images
+  const removeBackground = async (imageUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'))
+          return
+        }
+
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const data = imageData.data
+
+        // Remove white and near-white pixels
+        const threshold = 240 // Pixels with RGB values above this become transparent
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i]
+          const g = data[i + 1]
+          const b = data[i + 2]
+
+          // If pixel is close to white, make it transparent
+          if (r > threshold && g > threshold && b > threshold) {
+            data[i + 3] = 0 // Set alpha to 0 (transparent)
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0)
+        resolve(canvas.toDataURL('image/png'))
+      }
+
+      img.onerror = () => reject(new Error('Failed to load image'))
+      img.src = imageUrl
+    })
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
+
+    const filesArray = Array.from(files)
+
+    // Check if any file is an image
+    const imageFiles = filesArray.filter(f => f.type.startsWith('image/'))
+    const nonImageFiles = filesArray.filter(f => !f.type.startsWith('image/'))
+
+    // If there are image files, show modal for first image
+    if (imageFiles.length > 0) {
+      const firstImage = imageFiles[0]
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const url = event.target?.result as string
+        setBgRemovalOriginalUrl(url)
+        setBgRemovalProcessedUrl('')
+        setBgRemovalFile(firstImage)
+        setPendingFiles([...imageFiles.slice(1), ...nonImageFiles])
+        setShowBgRemovalModal(true)
+      }
+      reader.readAsDataURL(firstImage)
+      return
+    }
+
+    // Upload non-image files directly
     setUploading(true)
     const newAttachments: Attachment[] = []
-    for (const file of Array.from(files)) {
+    for (const file of nonImageFiles) {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('documentId', doc.id)
@@ -1778,6 +1855,112 @@ export default function DocumentDetail({
     }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleBgRemoval = async () => {
+    if (!bgRemovalOriginalUrl) return
+    setProcessingBg(true)
+    try {
+      const processedUrl = await removeBackground(bgRemovalOriginalUrl)
+      setBgRemovalProcessedUrl(processedUrl)
+    } catch (error) {
+      console.error('Error removing background:', error)
+      alert('Failed to remove background. Please try again.')
+    }
+    setProcessingBg(false)
+  }
+
+  const handleUploadWithBg = async () => {
+    if (!bgRemovalFile) return
+
+    setShowBgRemovalModal(false)
+    setUploading(true)
+
+    // Upload the original file
+    const formData = new FormData()
+    formData.append('file', bgRemovalFile)
+    formData.append('documentId', doc.id)
+
+    try {
+      const response = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await response.json()
+      if (data.success) {
+        const updated = [...attachments, { url: data.url, key: data.key, filename: data.filename, contentType: data.contentType, size: data.size, uploadedAt: new Date().toISOString() }]
+        setAttachments(updated)
+        await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+
+    // Process pending files
+    await processPendingFiles()
+
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleUploadWithoutBg = async () => {
+    if (!bgRemovalProcessedUrl) {
+      alert('Please remove background first')
+      return
+    }
+
+    setShowBgRemovalModal(false)
+    setUploading(true)
+
+    // Convert data URL to blob
+    const blob = await (await fetch(bgRemovalProcessedUrl)).blob()
+    const file = new File([blob], bgRemovalFile?.name || 'image.png', { type: 'image/png' })
+
+    // Upload the processed file
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('documentId', doc.id)
+
+    try {
+      const response = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await response.json()
+      if (data.success) {
+        const updated = [...attachments, { url: data.url, key: data.key, filename: data.filename, contentType: data.contentType, size: data.size, uploadedAt: new Date().toISOString() }]
+        setAttachments(updated)
+        await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+
+    // Process pending files
+    await processPendingFiles()
+
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const processPendingFiles = async () => {
+    if (pendingFiles.length === 0) return
+
+    const newAttachments: Attachment[] = []
+    for (const file of pendingFiles) {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('documentId', doc.id)
+      try {
+        const response = await fetch('/api/upload', { method: 'POST', body: formData })
+        const data = await response.json()
+        if (data.success) newAttachments.push({ url: data.url, key: data.key, filename: data.filename, contentType: data.contentType, size: data.size, uploadedAt: new Date().toISOString() })
+      } catch (err) {
+        console.error(err)
+      }
+    }
+
+    if (newAttachments.length > 0) {
+      const updated = [...attachments, ...newAttachments]
+      setAttachments(updated)
+      await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+    }
+
+    setPendingFiles([])
   }
 
   const handleLineItemAttachment = async (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -4698,6 +4881,230 @@ export default function DocumentDetail({
             setMockupLineItemId(null)
           }}
         />
+      )}
+
+      {/* Background Removal Modal */}
+      {showBgRemovalModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          zIndex: 3000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#1d1d1d',
+            borderRadius: '12px',
+            maxWidth: '900px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            border: '1px solid rgba(148,163,184,0.2)'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid rgba(148,163,184,0.2)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>
+                Background Removal
+              </h2>
+              <button
+                onClick={() => {
+                  setShowBgRemovalModal(false)
+                  setBgRemovalOriginalUrl('')
+                  setBgRemovalProcessedUrl('')
+                  setBgRemovalFile(null)
+                  setPendingFiles([])
+                  if (fileInputRef.current) fileInputRef.current.value = ''
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: 'white',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: bgRemovalProcessedUrl ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '24px' }}>
+                {/* Original Image */}
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase' }}>
+                    Original
+                  </div>
+                  <div style={{
+                    background: '#161616',
+                    border: '1px solid rgba(148,163,184,0.15)',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '300px',
+                    position: 'relative'
+                  }}>
+                    <img
+                      src={bgRemovalOriginalUrl}
+                      alt="Original"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '400px',
+                        objectFit: 'contain'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Processed Image */}
+                {bgRemovalProcessedUrl && (
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      Background Removed
+                    </div>
+                    <div style={{
+                      background: 'repeating-conic-gradient(#2a2a2a 0% 25%, #1a1a1a 0% 50%) 50% / 20px 20px',
+                      border: '1px solid rgba(148,163,184,0.15)',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '300px',
+                      position: 'relative'
+                    }}>
+                      <img
+                        src={bgRemovalProcessedUrl}
+                        alt="Processed"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '400px',
+                          objectFit: 'contain'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Info Text */}
+              <div style={{
+                background: 'rgba(139,92,246,0.1)',
+                border: '1px solid rgba(139,92,246,0.2)',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '24px'
+              }}>
+                <p style={{ color: '#a78bfa', fontSize: '13px', margin: 0, lineHeight: 1.5 }}>
+                  💡 <strong>Tip:</strong> The background removal tool works best with white or near-white backgrounds.
+                  You can upload with the original background or remove it first.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                {!bgRemovalProcessedUrl && (
+                  <button
+                    onClick={handleBgRemoval}
+                    disabled={processingBg}
+                    style={{
+                      padding: '10px 20px',
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: processingBg ? 'not-allowed' : 'pointer',
+                      opacity: processingBg ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    {processingBg ? (
+                      <>
+                        <div style={{ width: '14px', height: '14px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                          <path d="M2 17l10 5 10-5"/>
+                          <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                        Remove Background
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <button
+                  onClick={handleUploadWithBg}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'rgba(148,163,184,0.1)',
+                    border: '1px solid rgba(148,163,184,0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Upload Original
+                </button>
+
+                {bgRemovalProcessedUrl && (
+                  <button
+                    onClick={handleUploadWithoutBg}
+                    style={{
+                      padding: '10px 20px',
+                      background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: 'white',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Upload Without Background
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
