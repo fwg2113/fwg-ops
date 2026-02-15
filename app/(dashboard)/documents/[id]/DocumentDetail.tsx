@@ -1492,19 +1492,13 @@ export default function DocumentDetail({
       const colorImages = selectedColor?.colorImages || []
       const fallbackImage = cachedProduct.productThumbnail || ''
 
-      // SS Activewear image order: Front (0), Sleeve (1), Back (2)
+      // SS Activewear provides 2-3 images:
+      // - 3 images: [front, side/sleeve, back]
+      // - 2 images: [front, back] (no sleeve)
       // Map them to our UI tab order: Front, Back, Sleeves
       const frontPath = colorImages[0] || fallbackImage
-      const sleevePath = colorImages[1] || colorImages[0] || fallbackImage
-      const backPath = colorImages[2] || colorImages[0] || fallbackImage
-
-      // Debug: Log the actual image paths
-      console.log('SS Activewear colorImages:', colorImages)
-      console.log('Mapping:', {
-        'Front (colorImages[0])': frontPath,
-        'Sleeve (colorImages[1])': sleevePath,
-        'Back (colorImages[2])': backPath
-      })
+      const backPath = colorImages[2] || colorImages[1] || colorImages[0] || fallbackImage
+      const sleevePath = colorImages[2] ? colorImages[1] : colorImages[0] || fallbackImage
 
       // SS images are relative paths - prepend the base URL
       frontUrl = frontPath ? `https://www.ssactivewear.com/${frontPath}` : ''
