@@ -550,22 +550,37 @@ export default function DocumentDetail({
   // Re-fetch SS product data on page load for items with style_id
   useEffect(() => {
     const fetchMissingProducts = async () => {
+      console.log('🔄 Checking for products to re-fetch on page load...')
+      console.log('Line items:', lineItems.map(i => ({
+        id: i.id,
+        type: i.type,
+        style_id: i.custom_fields?.apparel?.style_id,
+        item_number: i.custom_fields?.apparel?.item_number,
+        color: i.custom_fields?.apparel?.color
+      })))
+
       for (const item of lineItems) {
         if (item.type === 'apparel' && item.custom_fields?.apparel) {
           const af = item.custom_fields.apparel
           const styleId = af.style_id
 
+          console.log(`Item ${item.id}: style_id=${styleId}, cached=${!!ssProductCache[item.id]}`)
+
           // If we have a style_id but no cached product, fetch it
           if (styleId && !ssProductCache[item.id]) {
+            console.log(`📦 Fetching product ${styleId} for item ${item.id}`)
             try {
               const response = await fetch(`/api/suppliers/ss/style/${styleId}`)
               const data = await response.json()
 
               if (data.success && data.data) {
+                console.log(`✅ Product ${styleId} fetched successfully`)
                 setSsProductCache(prev => ({
                   ...prev,
                   [item.id]: data.data
                 }))
+              } else {
+                console.error(`❌ Failed to fetch product ${styleId}:`, data)
               }
             } catch (error) {
               console.error(`Failed to fetch product ${styleId}:`, error)
