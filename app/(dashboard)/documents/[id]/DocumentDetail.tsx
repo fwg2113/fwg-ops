@@ -547,6 +547,38 @@ export default function DocumentDetail({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerSearch])
 
+  // Re-fetch SS product data on page load for items with style_id
+  useEffect(() => {
+    const fetchMissingProducts = async () => {
+      for (const item of lineItems) {
+        if (item.type === 'apparel' && item.custom_fields?.apparel) {
+          const af = item.custom_fields.apparel
+          const styleId = af.style_id
+
+          // If we have a style_id but no cached product, fetch it
+          if (styleId && !ssProductCache[item.id]) {
+            try {
+              const response = await fetch(`/api/suppliers/ss/style/${styleId}`)
+              const data = await response.json()
+
+              if (data.success && data.data) {
+                setSsProductCache(prev => ({
+                  ...prev,
+                  [item.id]: data.data
+                }))
+              }
+            } catch (error) {
+              console.error(`Failed to fetch product ${styleId}:`, error)
+            }
+          }
+        }
+      }
+    }
+
+    fetchMissingProducts()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run once on mount
+
   // Lightbox keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1450,8 +1482,9 @@ export default function DocumentDetail({
           [itemId]: styleDetail
         }))
 
-        // Update item number
+        // Update item number and style_id (for persistence across refreshes)
         await updateApparelField(itemId, 'item_number', product.styleName)
+        await updateApparelField(itemId, 'style_id', product.styleID.toString())
 
         // Clear color to force user selection
         await updateApparelField(itemId, 'color', '')
