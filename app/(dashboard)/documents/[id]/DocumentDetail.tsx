@@ -1427,42 +1427,51 @@ export default function DocumentDetail({
   const updateApparelFields = async (itemId: string, updates: Record<string, any>) => {
     console.log('💾 updateApparelFields called:', { itemId, updates })
 
-    const newItems = lineItems.map(item => {
-      if (item.id !== itemId) return item
-      const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
+    let updatedItem: any = null
 
-      // Apply all updates
-      for (const [fieldPath, value] of Object.entries(updates)) {
-        if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes' || fieldPath === 'style_id') {
-          cf[fieldPath] = value
-        } else if (fieldPath.startsWith('size.')) {
-          // e.g. size.XL.qty or size.XL.price
-          const parts = fieldPath.split('.')
-          const sizeName = parts[1]
-          const sizeField = parts[2] // 'qty' or 'price'
-          const sizes = { ...(cf.sizes || {}) }
-          sizes[sizeName] = { ...(sizes[sizeName] || { qty: 0, price: 0 }), [sizeField]: value }
-          cf.sizes = sizes
+    // Use functional update to always read the latest state
+    setLineItems(prevItems => {
+      const newItems = prevItems.map(item => {
+        if (item.id !== itemId) return item
+        const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
+
+        // Apply all updates
+        for (const [fieldPath, value] of Object.entries(updates)) {
+          if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes' || fieldPath === 'style_id') {
+            cf[fieldPath] = value
+          } else if (fieldPath.startsWith('size.')) {
+            // e.g. size.XL.qty or size.XL.price
+            const parts = fieldPath.split('.')
+            const sizeName = parts[1]
+            const sizeField = parts[2] // 'qty' or 'price'
+            const sizes = { ...(cf.sizes || {}) }
+            sizes[sizeName] = { ...(sizes[sizeName] || { qty: 0, price: 0 }), [sizeField]: value }
+            cf.sizes = sizes
+          }
         }
-      }
 
-      console.log('📝 New custom_fields after updates:', cf)
+        console.log('📝 New custom_fields after updates:', cf)
 
-      // Recalculate totals from sizes
-      const { totalQty, totalAmount } = recalcApparelTotals(cf.sizes || {})
-      return {
-        ...item,
-        custom_fields: cf,
-        quantity: totalQty,
-        sqft: totalQty,
-        line_total: totalAmount,
-        unit_price: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
-        rate: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
-      }
+        // Recalculate totals from sizes
+        const { totalQty, totalAmount } = recalcApparelTotals(cf.sizes || {})
+        const updated = {
+          ...item,
+          custom_fields: cf,
+          quantity: totalQty,
+          sqft: totalQty,
+          line_total: totalAmount,
+          unit_price: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+          rate: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+        }
+        updatedItem = updated
+        return updated
+      })
+
+      updateDocumentTotals(newItems)
+      return newItems
     })
-    setLineItems(newItems)
 
-    const updatedItem = newItems.find(i => i.id === itemId)
+    // Save to database after state update
     if (updatedItem) {
       console.log('💾 Saving to database...', { custom_fields: updatedItem.custom_fields })
       const result = await supabase.from('line_items').update({
@@ -1475,7 +1484,6 @@ export default function DocumentDetail({
       }).eq('id', itemId)
       console.log('✅ Database save result:', result)
     }
-    updateDocumentTotals(newItems)
   }
 
   // Update a single apparel field
