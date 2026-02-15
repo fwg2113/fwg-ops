@@ -1444,12 +1444,11 @@ export default function DocumentDetail({
         // Clear color to force user selection
         await updateApparelField(itemId, 'color', '')
 
-        // Update description with product title (brand + style + category)
+        // Update description with product title from SS API
         const item = lineItems.find(i => i.id === itemId)
         if (item) {
-          // Use brand name, style name, and category as the product title
-          const productTitle = `${styleDetail.brandName} ${styleDetail.styleName} - ${styleDetail.baseCategory}`
-          updateLineItem(itemId, 'description', productTitle)
+          // Use the title field from SS API (e.g., "Unisex Heavy Cotton™ T-Shirt")
+          updateLineItem(itemId, 'description', styleDetail.title || styleDetail.styleName)
         }
 
         showToast(`Select a color for ${styleDetail.styleName}`, 'info')

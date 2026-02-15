@@ -67,6 +67,7 @@ export interface SSStyleDetail {
   brandName: string
   baseCategory: string
   categoryName?: string  // Legacy field, use baseCategory
+  title: string  // Product title (e.g., "Unisex Heavy Cotton™ T-Shirt")
   description: string
   mill?: string
   gender?: string
