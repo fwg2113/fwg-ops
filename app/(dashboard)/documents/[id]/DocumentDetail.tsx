@@ -1482,11 +1482,11 @@ export default function DocumentDetail({
       const colorImages = selectedColor?.colorImages || []
       const fallbackImage = cachedProduct.productThumbnail || ''
 
-      // SS Activewear typically provides multiple views: front, back, side, etc.
-      // Map them to our locations (Front, Back, Sleeves)
+      // SS Activewear image order: Front (0), Sleeve (1), Back (2)
+      // Map them to our UI tab order: Front, Back, Sleeves
       const frontPath = colorImages[0] || fallbackImage
-      const backPath = colorImages[1] || colorImages[0] || fallbackImage
-      const sleevePath = colorImages[2] || colorImages[0] || fallbackImage
+      const sleevePath = colorImages[1] || colorImages[0] || fallbackImage
+      const backPath = colorImages[2] || colorImages[0] || fallbackImage
 
       // SS images are relative paths - prepend the base URL
       frontUrl = frontPath ? `https://www.ssactivewear.com/${frontPath}` : ''
