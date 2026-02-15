@@ -1425,6 +1425,8 @@ export default function DocumentDetail({
 
   // Batch update multiple apparel fields at once (avoids race conditions)
   const updateApparelFields = async (itemId: string, updates: Record<string, any>) => {
+    console.log('💾 updateApparelFields called:', { itemId, updates })
+
     const newItems = lineItems.map(item => {
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
@@ -1444,6 +1446,8 @@ export default function DocumentDetail({
         }
       }
 
+      console.log('📝 New custom_fields after updates:', cf)
+
       // Recalculate totals from sizes
       const { totalQty, totalAmount } = recalcApparelTotals(cf.sizes || {})
       return {
@@ -1460,7 +1464,8 @@ export default function DocumentDetail({
 
     const updatedItem = newItems.find(i => i.id === itemId)
     if (updatedItem) {
-      await supabase.from('line_items').update({
+      console.log('💾 Saving to database...', { custom_fields: updatedItem.custom_fields })
+      const result = await supabase.from('line_items').update({
         quantity: updatedItem.quantity,
         sqft: updatedItem.sqft,
         unit_price: updatedItem.unit_price,
@@ -1468,6 +1473,7 @@ export default function DocumentDetail({
         line_total: updatedItem.line_total,
         custom_fields: updatedItem.custom_fields,
       }).eq('id', itemId)
+      console.log('✅ Database save result:', result)
     }
     updateDocumentTotals(newItems)
   }
