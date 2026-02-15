@@ -14,6 +14,17 @@ interface Logo {
   rotation: number
 }
 
+interface TextElement {
+  id: string
+  text: string
+  x: number
+  y: number
+  fontSize: number // in pixels
+  fontFamily: string
+  color: string
+  rotation: number
+}
+
 interface GarmentMockupBuilderProps {
   garmentImageUrl: string
   garmentName: string
@@ -31,12 +42,45 @@ export default function GarmentMockupBuilder({
 }: GarmentMockupBuilderProps) {
   const [logos, setLogos] = useState<Logo[]>([])
   const [selectedLogoId, setSelectedLogoId] = useState<string | null>(null)
+  const [textElements, setTextElements] = useState<TextElement[]>([])
+  const [selectedTextId, setSelectedTextId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [isRotating, setIsRotating] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Popular Google Fonts
+  const GOOGLE_FONTS = [
+    'Arial',
+    'Roboto',
+    'Open Sans',
+    'Montserrat',
+    'Lato',
+    'Oswald',
+    'Raleway',
+    'Poppins',
+    'Bebas Neue',
+    'Anton',
+    'Pacifico',
+    'Lobster',
+    'Impact',
+    'Georgia',
+    'Times New Roman'
+  ]
+
+  // Load Google Fonts dynamically
+  useEffect(() => {
+    const link = document.createElement('link')
+    link.href = `https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Lato:wght@400;600&family=Oswald:wght@400;600&family=Raleway:wght@400;600&family=Poppins:wght@400;600&family=Bebas+Neue&family=Anton&family=Pacifico&family=Lobster&display=swap`
+    link.rel = 'stylesheet'
+    document.head.appendChild(link)
+
+    return () => {
+      document.head.removeChild(link)
+    }
+  }, [])
 
   // Placement presets for common decoration locations
   const PLACEMENT_PRESETS = [
@@ -145,6 +189,38 @@ export default function GarmentMockupBuilder({
     }
   }
 
+  // Add text element
+  const addTextElement = () => {
+    const newText: TextElement = {
+      id: `text_${Date.now()}_${Math.random()}`,
+      text: 'Your Text Here',
+      x: 0.35,
+      y: 0.4,
+      fontSize: 48,
+      fontFamily: 'Arial',
+      color: '#000000',
+      rotation: 0
+    }
+    setTextElements(prev => [...prev, newText])
+    setSelectedTextId(newText.id)
+    setSelectedLogoId(null) // Deselect logo when adding text
+  }
+
+  // Update text element
+  const updateTextElement = (id: string, updates: Partial<TextElement>) => {
+    setTextElements(prev => prev.map(text =>
+      text.id === id ? { ...text, ...updates } : text
+    ))
+  }
+
+  // Delete text element
+  const deleteTextElement = (id: string) => {
+    setTextElements(prev => prev.filter(t => t.id !== id))
+    if (selectedTextId === id) {
+      setSelectedTextId(null)
+    }
+  }
+
   // Apply preset placement
   const applyPreset = (preset: typeof PLACEMENT_PRESETS[0]) => {
     if (!selectedLogoId) return
@@ -186,7 +262,6 @@ export default function GarmentMockupBuilder({
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!selectedLogoId) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
 
@@ -194,9 +269,14 @@ export default function GarmentMockupBuilder({
     const mouseY = (e.clientY - rect.top) / rect.height
 
     if (isDragging) {
-      // Move logo
-      updateLogo(selectedLogoId, { x: mouseX, y: mouseY })
-    } else if (isResizing) {
+      if (selectedLogoId) {
+        // Move logo
+        updateLogo(selectedLogoId, { x: mouseX, y: mouseY })
+      } else if (selectedTextId) {
+        // Move text
+        updateTextElement(selectedTextId, { x: mouseX, y: mouseY })
+      }
+    } else if (isResizing && selectedLogoId) {
       // Resize from bottom-right corner
       const logo = logos.find(l => l.id === selectedLogoId)
       if (!logo) return
@@ -206,15 +286,40 @@ export default function GarmentMockupBuilder({
       const size = Math.max(width, height) // Keep aspect ratio
       updateLogo(selectedLogoId, { width: size, height: size })
     } else if (isRotating) {
-      // Rotate from center
-      const logo = logos.find(l => l.id === selectedLogoId)
-      if (!logo) return
+      if (selectedLogoId) {
+        // Rotate logo
+        const logo = logos.find(l => l.id === selectedLogoId)
+        if (!logo) return
 
-      const centerX = logo.x + logo.width / 2
-      const centerY = logo.y + logo.height / 2
-      const angle = Math.atan2(mouseY - centerY, mouseX - centerX) * (180 / Math.PI)
-      updateLogo(selectedLogoId, { rotation: Math.round(angle + 90) }) // +90 to start from top
+        const centerX = logo.x + logo.width / 2
+        const centerY = logo.y + logo.height / 2
+        const angle = Math.atan2(mouseY - centerY, mouseX - centerX) * (180 / Math.PI)
+        updateLogo(selectedLogoId, { rotation: Math.round(angle + 90) }) // +90 to start from top
+      } else if (selectedTextId) {
+        // Rotate text
+        const text = textElements.find(t => t.id === selectedTextId)
+        if (!text) return
+
+        const angle = Math.atan2(mouseY - text.y, mouseX - text.x) * (180 / Math.PI)
+        updateTextElement(selectedTextId, { rotation: Math.round(angle + 90) })
+      }
     }
+  }
+
+  // Handle text element mouse down
+  const handleTextMouseDown = (e: React.MouseEvent, textId: string) => {
+    e.preventDefault()
+    setSelectedTextId(textId)
+    setSelectedLogoId(null) // Deselect logo
+    setIsDragging(true)
+  }
+
+  // Handle text rotation start
+  const handleTextRotateStart = (e: React.MouseEvent, textId: string) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setSelectedTextId(textId)
+    setIsRotating(true)
   }
 
   const handleMouseUp = () => {
@@ -283,12 +388,29 @@ export default function GarmentMockupBuilder({
       ctx.restore()
     }
 
+    // Draw text elements
+    for (const text of textElements) {
+      const textX = text.x * canvas.width
+      const textY = text.y * canvas.height
+
+      ctx.save()
+      ctx.translate(textX, textY)
+      ctx.rotate((text.rotation * Math.PI) / 180)
+      ctx.font = `${text.fontSize}px ${text.fontFamily}`
+      ctx.fillStyle = text.color
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(text.text, 0, 0)
+      ctx.restore()
+    }
+
     // Export as data URL
     const dataUrl = canvas.toDataURL('image/png')
     onSave(dataUrl)
   }
 
   const selectedLogo = logos.find(l => l.id === selectedLogoId)
+  const selectedText = textElements.find(t => t.id === selectedTextId)
 
   return (
     <div
@@ -460,6 +582,54 @@ export default function GarmentMockupBuilder({
                   )}
                 </div>
               ))}
+
+              {/* Text Elements */}
+              {textElements.map(text => (
+                <div
+                  key={text.id}
+                  onMouseDown={(e) => handleTextMouseDown(e, text.id)}
+                  style={{
+                    position: 'absolute',
+                    left: `${text.x * 100}%`,
+                    top: `${text.y * 100}%`,
+                    transform: `translate(-50%, -50%) rotate(${text.rotation}deg)`,
+                    transformOrigin: 'center center',
+                    cursor: isDragging && selectedTextId === text.id ? 'grabbing' : 'grab',
+                    border: selectedTextId === text.id ? '2px solid #3b82f6' : '2px dashed transparent',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    transition: selectedTextId === text.id ? 'none' : 'border 0.15s ease',
+                    fontFamily: text.fontFamily,
+                    fontSize: `${text.fontSize}px`,
+                    color: text.color,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    userSelect: 'none'
+                  }}
+                >
+                  {text.text}
+
+                  {/* Rotation Handle */}
+                  {selectedTextId === text.id && (
+                    <div
+                      onMouseDown={(e) => handleTextRotateStart(e, text.id)}
+                      style={{
+                        position: 'absolute',
+                        right: '-6px',
+                        top: '-6px',
+                        width: '12px',
+                        height: '12px',
+                        background: '#22c55e',
+                        border: '2px solid white',
+                        borderRadius: '50%',
+                        cursor: 'grab',
+                        zIndex: 10,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -499,6 +669,29 @@ export default function GarmentMockupBuilder({
                 }}
               >
                 + Upload Logo
+              </button>
+            </div>
+
+            {/* Add Text */}
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
+                Add Text
+              </h3>
+              <button
+                onClick={addTextElement}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                + Add Text
               </button>
             </div>
 
@@ -638,6 +831,142 @@ export default function GarmentMockupBuilder({
               </div>
             )}
 
+            {/* Text Properties */}
+            {selectedText && (
+              <div style={{ marginBottom: '24px' }}>
+                <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
+                  Edit Text
+                </h3>
+
+                {/* Text Input */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Text
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedText.text}
+                    onChange={(e) => updateTextElement(selectedText.id, { text: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      background: '#1d1d1d',
+                      border: '1px solid rgba(148,163,184,0.2)',
+                      borderRadius: '6px',
+                      color: '#f1f5f9',
+                      fontSize: '13px'
+                    }}
+                  />
+                </div>
+
+                {/* Font Family */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Font
+                  </label>
+                  <select
+                    value={selectedText.fontFamily}
+                    onChange={(e) => updateTextElement(selectedText.id, { fontFamily: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      background: '#1d1d1d',
+                      border: '1px solid rgba(148,163,184,0.2)',
+                      borderRadius: '6px',
+                      color: '#f1f5f9',
+                      fontSize: '13px'
+                    }}
+                  >
+                    {GOOGLE_FONTS.map(font => (
+                      <option key={font} value={font}>{font}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Font Size */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Size: {selectedText.fontSize}px
+                  </label>
+                  <input
+                    type="range"
+                    min="16"
+                    max="120"
+                    value={selectedText.fontSize}
+                    onChange={(e) => updateTextElement(selectedText.id, { fontSize: parseInt(e.target.value) })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* Color */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Color
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={selectedText.color}
+                      onChange={(e) => updateTextElement(selectedText.id, { color: e.target.value })}
+                      style={{
+                        width: '50px',
+                        height: '36px',
+                        border: '1px solid rgba(148,163,184,0.2)',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={selectedText.color}
+                      onChange={(e) => updateTextElement(selectedText.id, { color: e.target.value })}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        background: '#1d1d1d',
+                        border: '1px solid rgba(148,163,184,0.2)',
+                        borderRadius: '6px',
+                        color: '#f1f5f9',
+                        fontSize: '13px'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Rotation */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Rotation: {selectedText.rotation}°
+                  </label>
+                  <input
+                    type="range"
+                    min="-180"
+                    max="180"
+                    value={selectedText.rotation}
+                    onChange={(e) => updateTextElement(selectedText.id, { rotation: parseInt(e.target.value) })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* Delete */}
+                <button
+                  onClick={() => deleteTextElement(selectedText.id)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    background: 'rgba(239,68,68,0.15)',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    borderRadius: '6px',
+                    color: '#ef4444',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Remove Text
+                </button>
+              </div>
+            )}
+
             {/* Logos List */}
             {logos.length > 0 && (
               <div>
@@ -662,6 +991,36 @@ export default function GarmentMockupBuilder({
                   >
                     <img src={logo.url} alt={`Logo ${index + 1}`} style={{ width: '30px', height: '30px', objectFit: 'contain' }} />
                     <span style={{ color: '#94a3b8', fontSize: '13px' }}>Logo {index + 1}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Text Elements List */}
+            {textElements.length > 0 && (
+              <div>
+                <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
+                  Text Elements ({textElements.length})
+                </h3>
+                {textElements.map((text, index) => (
+                  <div
+                    key={text.id}
+                    onClick={() => {
+                      setSelectedTextId(text.id)
+                      setSelectedLogoId(null)
+                    }}
+                    style={{
+                      padding: '8px',
+                      background: selectedTextId === text.id ? '#282a30' : '#1d1d1d',
+                      border: `1px solid ${selectedTextId === text.id ? '#3b82f6' : 'rgba(148,163,184,0.2)'}`,
+                      borderRadius: '6px',
+                      marginBottom: '8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ color: '#94a3b8', fontSize: '13px' }}>
+                      Text {index + 1}: <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{text.text}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -693,17 +1052,17 @@ export default function GarmentMockupBuilder({
           </button>
           <button
             onClick={handleSaveMockup}
-            disabled={logos.length === 0}
+            disabled={logos.length === 0 && textElements.length === 0}
             style={{
               padding: '10px 24px',
-              background: logos.length === 0 ? '#282a30' : 'linear-gradient(135deg, #22c55e, #16a34a)',
+              background: logos.length === 0 && textElements.length === 0 ? '#282a30' : 'linear-gradient(135deg, #22c55e, #16a34a)',
               border: 'none',
               borderRadius: '8px',
               color: 'white',
               fontSize: '14px',
               fontWeight: 600,
-              cursor: logos.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: logos.length === 0 ? 0.5 : 1
+              cursor: logos.length === 0 && textElements.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: logos.length === 0 && textElements.length === 0 ? 0.5 : 1
             }}
           >
             Save Mockup
