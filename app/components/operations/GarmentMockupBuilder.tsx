@@ -15,6 +15,9 @@ interface Logo {
   width: number
   height: number
   rotation: number
+  isSvg: boolean
+  svgContent?: string // Original SVG content
+  colorMap?: { [originalColor: string]: string } // Map of original colors to new colors
 }
 
 interface TextElement {
@@ -97,31 +100,165 @@ export default function GarmentMockupBuilder({
     { name: 'Left Sleeve', x: 0.05, y: 0.35, width: 0.12 },
   ]
 
+  // Extract unique colors from SVG content
+  const extractSvgColors = (svgContent: string): string[] => {
+    const colors = new Set<string>()
+
+    // Match fill and stroke attributes
+    const fillMatches = svgContent.matchAll(/fill=["']([^"']+)["']/g)
+    const strokeMatches = svgContent.matchAll(/stroke=["']([^"']+)["']/g)
+
+    // Match style attributes
+    const styleMatches = svgContent.matchAll(/style=["']([^"']+)["']/g)
+
+    for (const match of fillMatches) {
+      const color = match[1].toLowerCase()
+      if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+        colors.add(normalizeColor(color))
+      }
+    }
+
+    for (const match of strokeMatches) {
+      const color = match[1].toLowerCase()
+      if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+        colors.add(normalizeColor(color))
+      }
+    }
+
+    for (const match of styleMatches) {
+      const style = match[1]
+      const fillMatch = style.match(/fill:\s*([^;]+)/)
+      const strokeMatch = style.match(/stroke:\s*([^;]+)/)
+
+      if (fillMatch) {
+        const color = fillMatch[1].trim().toLowerCase()
+        if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+          colors.add(normalizeColor(color))
+        }
+      }
+
+      if (strokeMatch) {
+        const color = strokeMatch[1].trim().toLowerCase()
+        if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+          colors.add(normalizeColor(color))
+        }
+      }
+    }
+
+    return Array.from(colors)
+  }
+
+  // Normalize color to hex format
+  const normalizeColor = (color: string): string => {
+    // If already hex, return it
+    if (color.startsWith('#')) return color.toLowerCase()
+
+    // Convert named colors and rgb to hex
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return color
+
+    ctx.fillStyle = color
+    return ctx.fillStyle
+  }
+
+  // Apply color mapping to SVG content
+  const applySvgColorMap = (svgContent: string, colorMap: { [key: string]: string }): string => {
+    let modifiedSvg = svgContent
+
+    Object.entries(colorMap).forEach(([originalColor, newColor]) => {
+      // Replace in fill attributes
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill=["']${originalColor}["']`, 'gi'),
+        `fill="${newColor}"`
+      )
+
+      // Replace in stroke attributes
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke=["']${originalColor}["']`, 'gi'),
+        `stroke="${newColor}"`
+      )
+
+      // Replace in style attributes
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill:\\s*${originalColor}`, 'gi'),
+        `fill: ${newColor}`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke:\\s*${originalColor}`, 'gi'),
+        `stroke: ${newColor}`
+      )
+    })
+
+    return modifiedSvg
+  }
+
   // Upload logo
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
     Array.from(files).forEach(file => {
+      const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
+
       const reader = new FileReader()
       reader.onload = (event) => {
-        const url = event.target?.result as string
-        const newLogo: Logo = {
-          id: `logo_${Date.now()}_${Math.random()}`,
-          url,
-          originalUrl: url,
-          backgroundRemoved: false,
-          location: activeLocation,
-          x: 0.35, // Center horizontally
-          y: 0.3,  // Upper third
-          width: 0.3,
-          height: 0.3,
-          rotation: 0
+        const content = event.target?.result as string
+
+        if (isSvgFile) {
+          // Parse SVG and extract colors
+          const colors = extractSvgColors(content)
+          const initialColorMap: { [key: string]: string } = {}
+          colors.forEach(color => {
+            initialColorMap[color] = color // Initially map to same color
+          })
+
+          // Convert SVG to data URL
+          const svgBlob = new Blob([content], { type: 'image/svg+xml' })
+          const url = URL.createObjectURL(svgBlob)
+
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url,
+            originalUrl: url,
+            backgroundRemoved: false,
+            location: activeLocation,
+            x: 0.35,
+            y: 0.3,
+            width: 0.3,
+            height: 0.3,
+            rotation: 0,
+            isSvg: true,
+            svgContent: content,
+            colorMap: initialColorMap
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
+        } else {
+          // Handle regular image files (PNG, JPG, etc.)
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url: content,
+            originalUrl: content,
+            backgroundRemoved: false,
+            location: activeLocation,
+            x: 0.35,
+            y: 0.3,
+            width: 0.3,
+            height: 0.3,
+            rotation: 0,
+            isSvg: false
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
         }
-        setLogos(prev => [...prev, newLogo])
-        setSelectedLogoId(newLogo.id)
       }
-      reader.readAsDataURL(file)
+
+      if (isSvgFile) {
+        reader.readAsText(file)
+      } else {
+        reader.readAsDataURL(file)
+      }
     })
   }
 
@@ -256,6 +393,33 @@ export default function GarmentMockupBuilder({
     ))
   }
 
+  // Update SVG color mapping
+  const updateSvgColor = (logoId: string, originalColor: string, newColor: string) => {
+    const logo = logos.find(l => l.id === logoId)
+    if (!logo || !logo.isSvg || !logo.svgContent || !logo.colorMap) return
+
+    // Update color map
+    const updatedColorMap = { ...logo.colorMap, [originalColor]: newColor }
+
+    // Apply color map to SVG
+    const modifiedSvg = applySvgColorMap(logo.svgContent, updatedColorMap)
+
+    // Convert modified SVG to blob URL
+    const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml' })
+    const newUrl = URL.createObjectURL(svgBlob)
+
+    // Revoke old URL to prevent memory leaks
+    if (logo.url !== logo.originalUrl) {
+      URL.revokeObjectURL(logo.url)
+    }
+
+    // Update logo with new URL and color map
+    updateLogo(logoId, {
+      url: newUrl,
+      colorMap: updatedColorMap
+    })
+  }
+
   // Mouse handlers for dragging
   const handleMouseDown = (e: React.MouseEvent, logoId: string) => {
     e.preventDefault()
@@ -380,11 +544,31 @@ export default function GarmentMockupBuilder({
     const locationLogos = logos.filter(l => l.location === activeLocation)
     for (const logo of locationLogos) {
       const logoImg = new Image()
-      await new Promise((resolve, reject) => {
-        logoImg.onload = resolve
-        logoImg.onerror = reject
-        logoImg.src = logo.url
-      })
+
+      // For SVG logos, use the modified SVG content directly
+      if (logo.isSvg && logo.svgContent && logo.colorMap) {
+        const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
+        const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml;charset=utf-8' })
+        const svgUrl = URL.createObjectURL(svgBlob)
+
+        await new Promise((resolve, reject) => {
+          logoImg.onload = () => {
+            URL.revokeObjectURL(svgUrl)
+            resolve(null)
+          }
+          logoImg.onerror = (err) => {
+            URL.revokeObjectURL(svgUrl)
+            reject(err)
+          }
+          logoImg.src = svgUrl
+        })
+      } else {
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve
+          logoImg.onerror = reject
+          logoImg.src = logo.url
+        })
+      }
 
       const logoX = logo.x * canvas.width
       const logoY = logo.y * canvas.height
@@ -730,7 +914,7 @@ export default function GarmentMockupBuilder({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.svg"
                 multiple
                 onChange={handleLogoUpload}
                 style={{ display: 'none' }}
@@ -844,54 +1028,140 @@ export default function GarmentMockupBuilder({
                   />
                 </div>
 
-                {/* Background Removal */}
-                <div style={{ marginBottom: '16px' }}>
-                  <button
-                    onClick={() => toggleBackground(selectedLogo.id)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      background: selectedLogo.backgroundRemoved
-                        ? 'linear-gradient(135deg, #22c55e, #16a34a)'
-                        : 'rgba(139,92,246,0.15)',
-                      border: selectedLogo.backgroundRemoved
-                        ? 'none'
-                        : '1px solid rgba(139,92,246,0.3)',
-                      borderRadius: '6px',
-                      color: selectedLogo.backgroundRemoved ? 'white' : '#a78bfa',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {selectedLogo.backgroundRemoved ? (
-                      <>
-                        <span>✓</span>
-                        <span>Background Removed</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>✂</span>
-                        <span>Remove Background</span>
-                      </>
+                {/* SVG Color Swapping */}
+                {selectedLogo.isSvg && selectedLogo.colorMap && Object.keys(selectedLogo.colorMap).length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <h4 style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>
+                      Logo Colors
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {Object.entries(selectedLogo.colorMap).map(([originalColor, currentColor]) => (
+                        <div key={originalColor} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {/* Original color preview */}
+                          <div
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '4px',
+                              border: '1px solid rgba(148,163,184,0.3)',
+                              background: originalColor,
+                              flexShrink: 0
+                            }}
+                            title={`Original: ${originalColor}`}
+                          />
+                          <span style={{ color: '#64748b', fontSize: '12px' }}>→</span>
+                          {/* Color picker for new color */}
+                          <input
+                            type="color"
+                            value={currentColor}
+                            onChange={(e) => updateSvgColor(selectedLogo.id, originalColor, e.target.value)}
+                            style={{
+                              width: '40px',
+                              height: '24px',
+                              border: '1px solid rgba(148,163,184,0.3)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                            title={`Change from ${originalColor}`}
+                          />
+                          {/* Hex input */}
+                          <input
+                            type="text"
+                            value={currentColor}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
+                                updateSvgColor(selectedLogo.id, originalColor, value)
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '4px 6px',
+                              background: '#1d1d1d',
+                              border: '1px solid rgba(148,163,184,0.2)',
+                              borderRadius: '4px',
+                              color: '#f1f5f9',
+                              fontSize: '11px',
+                              fontFamily: 'monospace'
+                            }}
+                            placeholder="#000000"
+                          />
+                          {/* Reset button */}
+                          {currentColor !== originalColor && (
+                            <button
+                              onClick={() => updateSvgColor(selectedLogo.id, originalColor, originalColor)}
+                              style={{
+                                padding: '4px 8px',
+                                background: 'rgba(239,68,68,0.15)',
+                                border: '1px solid rgba(239,68,68,0.3)',
+                                borderRadius: '4px',
+                                color: '#ef4444',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                flexShrink: 0
+                              }}
+                              title="Reset to original"
+                            >
+                              ↺
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Background Removal - Only for non-SVG images */}
+                {!selectedLogo.isSvg && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <button
+                      onClick={() => toggleBackground(selectedLogo.id)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: selectedLogo.backgroundRemoved
+                          ? 'linear-gradient(135deg, #22c55e, #16a34a)'
+                          : 'rgba(139,92,246,0.15)',
+                        border: selectedLogo.backgroundRemoved
+                          ? 'none'
+                          : '1px solid rgba(139,92,246,0.3)',
+                        borderRadius: '6px',
+                        color: selectedLogo.backgroundRemoved ? 'white' : '#a78bfa',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {selectedLogo.backgroundRemoved ? (
+                        <>
+                          <span>✓</span>
+                          <span>Background Removed</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>✂</span>
+                          <span>Remove Background</span>
+                        </>
+                      )}
+                    </button>
+                    {selectedLogo.backgroundRemoved && (
+                      <p style={{
+                        color: '#64748b',
+                        fontSize: '11px',
+                        marginTop: '6px',
+                        textAlign: 'center'
+                      }}>
+                        Click again to restore original
+                      </p>
                     )}
-                  </button>
-                  {selectedLogo.backgroundRemoved && (
-                    <p style={{
-                      color: '#64748b',
-                      fontSize: '11px',
-                      marginTop: '6px',
-                      textAlign: 'center'
-                    }}>
-                      Click again to restore original
-                    </p>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Delete */}
                 <button
