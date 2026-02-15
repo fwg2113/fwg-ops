@@ -2,11 +2,14 @@
 
 import { useState, useRef, useEffect } from 'react'
 
+type Location = 'Front' | 'Back' | 'Sleeves'
+
 interface Logo {
   id: string
   url: string
   originalUrl: string // Store original before background removal
   backgroundRemoved: boolean
+  location: Location
   x: number
   y: number
   width: number
@@ -17,6 +20,7 @@ interface Logo {
 interface TextElement {
   id: string
   text: string
+  location: Location
   x: number
   y: number
   fontSize: number // in pixels
@@ -40,6 +44,7 @@ export default function GarmentMockupBuilder({
   onSave,
   onClose
 }: GarmentMockupBuilderProps) {
+  const [activeLocation, setActiveLocation] = useState<Location>('Front')
   const [logos, setLogos] = useState<Logo[]>([])
   const [selectedLogoId, setSelectedLogoId] = useState<string | null>(null)
   const [textElements, setTextElements] = useState<TextElement[]>([])
@@ -50,6 +55,8 @@ export default function GarmentMockupBuilder({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
 
   // Popular Google Fonts
   const GOOGLE_FONTS = [
@@ -104,6 +111,7 @@ export default function GarmentMockupBuilder({
           url,
           originalUrl: url,
           backgroundRemoved: false,
+          location: activeLocation,
           x: 0.35, // Center horizontally
           y: 0.3,  // Upper third
           width: 0.3,
@@ -194,6 +202,7 @@ export default function GarmentMockupBuilder({
     const newText: TextElement = {
       id: `text_${Date.now()}_${Math.random()}`,
       text: 'Your Text Here',
+      location: activeLocation,
       x: 0.35,
       y: 0.4,
       fontSize: 48,
@@ -367,8 +376,9 @@ export default function GarmentMockupBuilder({
     // Draw garment
     ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
 
-    // Draw logos
-    for (const logo of logos) {
+    // Draw logos for active location only
+    const locationLogos = logos.filter(l => l.location === activeLocation)
+    for (const logo of locationLogos) {
       const logoImg = new Image()
       await new Promise((resolve, reject) => {
         logoImg.onload = resolve
@@ -388,8 +398,9 @@ export default function GarmentMockupBuilder({
       ctx.restore()
     }
 
-    // Draw text elements
-    for (const text of textElements) {
+    // Draw text elements for active location only
+    const locationTexts = textElements.filter(t => t.location === activeLocation)
+    for (const text of locationTexts) {
       const textX = text.x * canvas.width
       const textY = text.y * canvas.height
 
@@ -409,8 +420,19 @@ export default function GarmentMockupBuilder({
     onSave(dataUrl)
   }
 
+  // Filter elements by active location
+  const activeLogos = logos.filter(l => l.location === activeLocation)
+  const activeTexts = textElements.filter(t => t.location === activeLocation)
+
   const selectedLogo = logos.find(l => l.id === selectedLogoId)
   const selectedText = textElements.find(t => t.id === selectedTextId)
+
+  // Get count of decorations per location
+  const getLocationCount = (location: Location) => {
+    const logoCount = logos.filter(l => l.location === location).length
+    const textCount = textElements.filter(t => t.location === location).length
+    return logoCount + textCount
+  }
 
   return (
     <div
@@ -477,12 +499,70 @@ export default function GarmentMockupBuilder({
           {/* Canvas Area */}
           <div style={{
             flex: 1,
-            padding: '24px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            flexDirection: 'column',
             background: '#0a0a0a'
           }}>
+            {/* Location Tabs */}
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              padding: '16px 24px 0 24px',
+              borderBottom: '1px solid rgba(148,163,184,0.1)'
+            }}>
+              {LOCATIONS.map(location => {
+                const count = getLocationCount(location)
+                return (
+                  <button
+                    key={location}
+                    onClick={() => {
+                      setActiveLocation(location)
+                      setSelectedLogoId(null)
+                      setSelectedTextId(null)
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      background: activeLocation === location
+                        ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
+                        : 'transparent',
+                      border: activeLocation === location
+                        ? 'none'
+                        : '1px solid rgba(148,163,184,0.2)',
+                      borderRadius: '8px 8px 0 0',
+                      color: activeLocation === location ? 'white' : '#94a3b8',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      position: 'relative'
+                    }}
+                  >
+                    {location}
+                    {count > 0 && (
+                      <span style={{
+                        marginLeft: '8px',
+                        padding: '2px 6px',
+                        background: activeLocation === location ? 'rgba(255,255,255,0.2)' : 'rgba(139,92,246,0.2)',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 700
+                      }}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Canvas Container */}
+            <div style={{
+              flex: 1,
+              padding: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
             <div
               ref={canvasRef}
               style={{
@@ -511,7 +591,7 @@ export default function GarmentMockupBuilder({
               />
 
               {/* Logos */}
-              {logos.map(logo => (
+              {activeLogos.map(logo => (
                 <div
                   key={logo.id}
                   onMouseDown={(e) => handleMouseDown(e, logo.id)}
@@ -584,7 +664,7 @@ export default function GarmentMockupBuilder({
               ))}
 
               {/* Text Elements */}
-              {textElements.map(text => (
+              {activeTexts.map(text => (
                 <div
                   key={text.id}
                   onMouseDown={(e) => handleTextMouseDown(e, text.id)}
@@ -630,6 +710,7 @@ export default function GarmentMockupBuilder({
                   )}
                 </div>
               ))}
+            </div>
             </div>
           </div>
 
@@ -968,12 +1049,12 @@ export default function GarmentMockupBuilder({
             )}
 
             {/* Logos List */}
-            {logos.length > 0 && (
+            {activeLogos.length > 0 && (
               <div>
                 <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
-                  Logos ({logos.length})
+                  Logos ({activeLogos.length})
                 </h3>
-                {logos.map((logo, index) => (
+                {activeLogos.map((logo, index) => (
                   <div
                     key={logo.id}
                     onClick={() => setSelectedLogoId(logo.id)}
@@ -997,12 +1078,12 @@ export default function GarmentMockupBuilder({
             )}
 
             {/* Text Elements List */}
-            {textElements.length > 0 && (
+            {activeTexts.length > 0 && (
               <div>
                 <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>
-                  Text Elements ({textElements.length})
+                  Text Elements ({activeTexts.length})
                 </h3>
-                {textElements.map((text, index) => (
+                {activeTexts.map((text, index) => (
                   <div
                     key={text.id}
                     onClick={() => {
