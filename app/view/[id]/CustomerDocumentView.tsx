@@ -1323,6 +1323,78 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
                           {/* Inline image gallery for this line item */}
                           {itemImages.length > 0 && (() => {
+                            const isEmbroidery = item.category?.toUpperCase() === 'EMBROIDERY'
+                            const isApparel = item.custom_fields?.apparel_mode === true
+                            const shouldShowAllImages = isEmbroidery || isApparel
+
+                            if (shouldShowAllImages) {
+                              // Show all images side by side for Embroidery/Apparel
+                              return (
+                                <div style={{
+                                  marginTop: '12px',
+                                  display: 'grid',
+                                  gridTemplateColumns: itemImages.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
+                                  gap: '12px'
+                                }}>
+                                  {itemImages.map((img, imgIdx) => (
+                                    <div
+                                      key={imgIdx}
+                                      onClick={() => {
+                                        const flatIndex = galleryImages.findIndex(g => g.url === img.url)
+                                        if (flatIndex >= 0) setLightboxIndex(flatIndex)
+                                      }}
+                                      style={{
+                                        position: 'relative',
+                                        width: '100%',
+                                        paddingBottom: '75%',
+                                        borderRadius: '10px',
+                                        overflow: 'hidden',
+                                        cursor: 'pointer',
+                                        background: '#f1f5f9'
+                                      }}
+                                    >
+                                      <img
+                                        src={img.url}
+                                        alt={img.name}
+                                        style={{
+                                          position: 'absolute',
+                                          top: 0,
+                                          left: 0,
+                                          width: '100%',
+                                          height: '100%',
+                                          objectFit: 'contain',
+                                          transition: 'transform 0.3s ease'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                      />
+                                      {/* Enlarge hint */}
+                                      <div style={{
+                                        position: 'absolute',
+                                        bottom: '10px',
+                                        right: '10px',
+                                        background: 'rgba(0,0,0,0.6)',
+                                        color: 'white',
+                                        padding: '5px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        pointerEvents: 'none'
+                                      }}>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                        </svg>
+                                        Click to enlarge
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            }
+
+                            // Default carousel behavior for other categories
                             const heroIdx = itemHeroIndexes[item.id] || 0
                             return (
                               <div style={{ marginTop: '12px' }}>
