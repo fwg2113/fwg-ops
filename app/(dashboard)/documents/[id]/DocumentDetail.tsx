@@ -1335,9 +1335,10 @@ export default function DocumentDetail({
   // APPAREL / SIZE HELPERS
   // ============================================================================
   const ALL_SIZES = [
-    '6M','12M','18M','24M','2T','3T','4T','5T',
-    'Youth-XS','Youth-S','Youth-M','Youth-L','Youth-XL',
+    'Customer Provided',
     'XS','S','M','L','XL','2XL','3XL','4XL','5XL','6XL',
+    'Youth-XS','Youth-S','Youth-M','Youth-L','Youth-XL',
+    '6M','12M','18M','24M','2T','3T','4T','5T',
   ]
 
   const isApparelCategory = (categoryKey: string) => {
@@ -2705,7 +2706,7 @@ export default function DocumentDetail({
             const isApparel = isApparelCategory(group.category_key)
 
             return (
-              <div key={group.group_id} style={{ border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', overflow: 'hidden' }}>
+              <div key={group.group_id} style={{ border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', overflow: 'visible' }}>
                 {/* Group Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#1d1d1d', borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
                   <div style={{ width: '4px', height: '24px', borderRadius: '2px', background: category?.calendar_color || '#94a3b8' }} />
@@ -2871,9 +2872,17 @@ export default function DocumentDetail({
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                               {enabledSizes.map(size => {
                                 const sizeData = sizes[size] || { qty: 0, price: 0 }
+                                const isCustomerProvided = size === 'Customer Provided'
                                 return (
-                                  <div key={size} style={{ background: '#161616', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '8px', padding: '8px 10px', minWidth: '90px', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#a78bfa', marginBottom: '6px' }}>{size}</div>
+                                  <div key={size} style={{
+                                    background: isCustomerProvided ? '#1a1a2e' : '#161616',
+                                    border: isCustomerProvided ? '1px solid rgba(167,139,250,0.3)' : '1px solid rgba(148,163,184,0.15)',
+                                    borderRadius: '8px',
+                                    padding: '8px 10px',
+                                    minWidth: isCustomerProvided ? '160px' : '90px',
+                                    textAlign: 'center'
+                                  }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: isCustomerProvided ? '#a78bfa' : '#a78bfa', marginBottom: '6px' }}>{size}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                       <input
                                         type="number"
