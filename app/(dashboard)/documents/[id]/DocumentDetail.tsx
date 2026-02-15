@@ -1444,12 +1444,12 @@ export default function DocumentDetail({
         // Clear color to force user selection
         await updateApparelField(itemId, 'color', '')
 
-        // Update description with SS product title and style number
+        // Update description with SS product title
         const item = lineItems.find(i => i.id === itemId)
         if (item) {
-          // Strip HTML from description and combine with style number
-          const cleanDescription = stripHtml(styleDetail.description)
-          updateLineItem(itemId, 'description', `${cleanDescription} - ${styleDetail.styleName}`)
+          // Use brand, style name, and category as the product title
+          const productTitle = `${styleDetail.brandName} ${styleDetail.styleName} - ${styleDetail.baseCategory}`
+          updateLineItem(itemId, 'description', productTitle)
         }
 
         showToast(`Select a color for ${styleDetail.styleName}`, 'info')
