@@ -82,6 +82,8 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [approving, setApproving] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [lightboxZoom, setLightboxZoom] = useState(1)
+  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
   const [revisionMessage, setRevisionMessage] = useState('')
   const [contactPreference, setContactPreference] = useState<'sms' | 'email'>('sms')
   const [submittingRevision, setSubmittingRevision] = useState(false)
@@ -291,7 +293,65 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     setIsDragging(false)
   }, [])
 
-  // Keyboard nav for lightbox
+  // ============================================================================
+  // STANDARD LIGHTBOX HANDLERS (zoom/pan)
+  // ============================================================================
+  const handleLightboxDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (lightboxZoom > 1) {
+      // Reset zoom
+      setLightboxZoom(1)
+      setLightboxPan({ x: 0, y: 0 })
+    } else {
+      // Zoom in to 2.5x centered on click point
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = e.clientX - rect.left - rect.width / 2
+      const y = e.clientY - rect.top - rect.height / 2
+      setLightboxZoom(2.5)
+      setLightboxPan({ x: -x * 1.5, y: -y * 1.5 })
+    }
+  }, [lightboxZoom])
+
+  const handleLightboxMouseDown = useCallback((e: React.MouseEvent) => {
+    if (lightboxZoom <= 1) return
+    e.preventDefault()
+    setIsDragging(true)
+    dragStart.current = { x: e.clientX, y: e.clientY }
+    panStart.current = { ...lightboxPan }
+  }, [lightboxZoom, lightboxPan])
+
+  const handleLightboxMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging || lightboxZoom <= 1) return
+    const dx = e.clientX - dragStart.current.x
+    const dy = e.clientY - dragStart.current.y
+    setLightboxPan({
+      x: panStart.current.x + dx,
+      y: panStart.current.y + dy
+    })
+  }, [isDragging, lightboxZoom])
+
+  const handleLightboxMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  const handleLightboxNav = useCallback((dir: 'prev' | 'next') => {
+    if (lightboxIndex === null) return
+    const newIndex = dir === 'next'
+      ? (lightboxIndex + 1) % galleryImages.length
+      : (lightboxIndex - 1 + galleryImages.length) % galleryImages.length
+    setLightboxIndex(newIndex)
+    // Reset zoom when navigating
+    setLightboxZoom(1)
+    setLightboxPan({ x: 0, y: 0 })
+  }, [lightboxIndex, galleryImages.length])
+
+  const handleLightboxClose = useCallback(() => {
+    setLightboxIndex(null)
+    setLightboxZoom(1)
+    setLightboxPan({ x: 0, y: 0 })
+  }, [])
+
+  // Keyboard nav for option lightbox
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!optLightbox) return
@@ -302,6 +362,18 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [optLightbox, handleOptLightboxClose, handleOptLightboxNav])
+
+  // Keyboard nav for standard lightbox
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (lightboxIndex === null) return
+      if (e.key === 'Escape') handleLightboxClose()
+      if (e.key === 'ArrowLeft') handleLightboxNav('prev')
+      if (e.key === 'ArrowRight') handleLightboxNav('next')
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [lightboxIndex, handleLightboxClose, handleLightboxNav])
 
   // ============================================================================
   // HANDLERS
@@ -2032,7 +2104,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
       )}
 
       {/* ================================================================ */}
-      {/* STANDARD LIGHTBOX (non-options gallery) */}
+      {/* STANDARD LIGHTBOX (with zoom/pan support) */}
       {/* ================================================================ */}
       {lightboxIndex !== null && galleryImages[lightboxIndex] && (
         <div style={{
@@ -2046,24 +2118,27 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           flexDirection: 'column',
           zIndex: 2000
         }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            padding: '16px 24px' 
+          {/* Top bar */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '16px 24px',
+            flexShrink: 0
           }}>
             <span style={{ color: 'white', fontSize: '14px' }}>
               {lightboxIndex + 1} / {galleryImages.length}
+              {lightboxZoom > 1 && <span style={{ marginLeft: '10px', opacity: 0.7 }}>• {lightboxZoom}x zoom</span>}
             </span>
-            <button 
-              onClick={() => setLightboxIndex(null)}
-              style={{ 
-                background: 'rgba(255,255,255,0.1)', 
-                border: 'none', 
-                color: 'white', 
-                width: '40px', 
-                height: '40px', 
-                borderRadius: '50%', 
+            <button
+              onClick={handleLightboxClose}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                color: 'white',
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -2076,29 +2151,38 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
               </svg>
             </button>
           </div>
-          <div style={{ 
-            flex: 1, 
-            display: 'flex', 
-            alignItems: 'center', 
+
+          {/* Image area - click backdrop to close */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
-            position: 'relative'
-          }}>
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleLightboxClose()
+          }}
+          >
+            {/* Nav prev */}
             {galleryImages.length > 1 && (
-              <button 
-                onClick={() => setLightboxIndex(i => i !== null ? (i > 0 ? i - 1 : galleryImages.length - 1) : null)}
-                style={{ 
-                  position: 'absolute', 
-                  left: '20px', 
-                  background: 'rgba(255,255,255,0.1)', 
-                  border: 'none', 
-                  color: 'white', 
-                  width: '50px', 
-                  height: '50px', 
-                  borderRadius: '50%', 
+              <button
+                onClick={() => handleLightboxNav('prev')}
+                style={{
+                  position: 'absolute',
+                  left: '20px',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: 'white',
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  zIndex: 10
                 }}
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2106,33 +2190,80 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                 </svg>
               </button>
             )}
-            <img 
-              src={galleryImages[lightboxIndex].url} 
-              alt=""
-              style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: '8px' }}
-            />
+
+            {/* Image with zoom/pan */}
+            <div
+              onDoubleClick={handleLightboxDoubleClick}
+              onMouseDown={handleLightboxMouseDown}
+              onMouseMove={handleLightboxMouseMove}
+              onMouseUp={handleLightboxMouseUp}
+              onMouseLeave={handleLightboxMouseUp}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                cursor: lightboxZoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                userSelect: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <img
+                src={galleryImages[lightboxIndex].url}
+                alt=""
+                draggable={false}
+                style={{
+                  maxWidth: lightboxZoom === 1 ? '90vw' : 'none',
+                  maxHeight: lightboxZoom === 1 ? '80vh' : 'none',
+                  transform: `translate(${lightboxPan.x}px, ${lightboxPan.y}px) scale(${lightboxZoom})`,
+                  transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+
+            {/* Nav next */}
             {galleryImages.length > 1 && (
-              <button 
-                onClick={() => setLightboxIndex(i => i !== null ? (i < galleryImages.length - 1 ? i + 1 : 0) : null)}
-                style={{ 
-                  position: 'absolute', 
-                  right: '20px', 
-                  background: 'rgba(255,255,255,0.1)', 
-                  border: 'none', 
-                  color: 'white', 
-                  width: '50px', 
-                  height: '50px', 
-                  borderRadius: '50%', 
+              <button
+                onClick={() => handleLightboxNav('next')}
+                style={{
+                  position: 'absolute',
+                  right: '20px',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: 'white',
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  zIndex: 10
                 }}
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
               </button>
+            )}
+
+            {/* Zoom instruction hint */}
+            {lightboxZoom === 1 && (
+              <div style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(0,0,0,0.7)',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '13px',
+                pointerEvents: 'none',
+                opacity: 0.8
+              }}>
+                Double-click to zoom
+              </div>
             )}
           </div>
         </div>
