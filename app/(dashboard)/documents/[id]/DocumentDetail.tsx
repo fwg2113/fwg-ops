@@ -213,6 +213,7 @@ export default function DocumentDetail({
   const [bgRemovalProcessedUrl, setBgRemovalProcessedUrl] = useState<string>('')
   const [processingBg, setProcessingBg] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [bgRemovalLineItemId, setBgRemovalLineItemId] = useState<string | null>(null)
 
   const [doc, setDoc] = useState(initialDoc)
   const [attachments, setAttachments] = useState<Attachment[]>(initialDoc.attachments || [])
@@ -1881,13 +1882,33 @@ export default function DocumentDetail({
     formData.append('file', bgRemovalFile)
     formData.append('documentId', doc.id)
 
+    // If uploading to a line item, add that info
+    if (bgRemovalLineItemId) {
+      formData.append('prefix', 'doc-line-item')
+      formData.append('lineItemId', bgRemovalLineItemId)
+    }
+
     try {
       const response = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await response.json()
       if (data.success) {
-        const updated = [...attachments, { url: data.url, key: data.key, filename: data.filename, contentType: data.contentType, size: data.size, uploadedAt: new Date().toISOString() }]
-        setAttachments(updated)
-        await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+        const newAttachment = { url: data.url, key: data.key, filename: data.filename, contentType: data.contentType, size: data.size, uploadedAt: new Date().toISOString() }
+
+        if (bgRemovalLineItemId) {
+          // Update line item attachments
+          const item = lineItems.find(i => i.id === bgRemovalLineItemId)
+          if (item) {
+            const updated = [...(item.attachments || []), newAttachment]
+            const updatedItems = lineItems.map(i => i.id === bgRemovalLineItemId ? { ...i, attachments: updated } : i)
+            setLineItems(updatedItems)
+            await supabase.from('line_items').update({ attachments: updated }).eq('id', bgRemovalLineItemId)
+          }
+        } else {
+          // Update document attachments
+          const updated = [...attachments, newAttachment]
+          setAttachments(updated)
+          await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+        }
       }
     } catch (err) {
       console.error(err)
@@ -1897,6 +1918,7 @@ export default function DocumentDetail({
     await processPendingFiles()
 
     setUploading(false)
+    setBgRemovalLineItemId(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -1918,13 +1940,33 @@ export default function DocumentDetail({
     formData.append('file', file)
     formData.append('documentId', doc.id)
 
+    // If uploading to a line item, add that info
+    if (bgRemovalLineItemId) {
+      formData.append('prefix', 'doc-line-item')
+      formData.append('lineItemId', bgRemovalLineItemId)
+    }
+
     try {
       const response = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await response.json()
       if (data.success) {
-        const updated = [...attachments, { url: data.url, key: data.key, filename: data.filename, contentType: data.contentType, size: data.size, uploadedAt: new Date().toISOString() }]
-        setAttachments(updated)
-        await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+        const newAttachment = { url: data.url, key: data.key, filename: data.filename, contentType: data.contentType, size: data.size, uploadedAt: new Date().toISOString() }
+
+        if (bgRemovalLineItemId) {
+          // Update line item attachments
+          const item = lineItems.find(i => i.id === bgRemovalLineItemId)
+          if (item) {
+            const updated = [...(item.attachments || []), newAttachment]
+            const updatedItems = lineItems.map(i => i.id === bgRemovalLineItemId ? { ...i, attachments: updated } : i)
+            setLineItems(updatedItems)
+            await supabase.from('line_items').update({ attachments: updated }).eq('id', bgRemovalLineItemId)
+          }
+        } else {
+          // Update document attachments
+          const updated = [...attachments, newAttachment]
+          setAttachments(updated)
+          await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+        }
       }
     } catch (err) {
       console.error(err)
@@ -1934,6 +1976,7 @@ export default function DocumentDetail({
     await processPendingFiles()
 
     setUploading(false)
+    setBgRemovalLineItemId(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -1945,6 +1988,13 @@ export default function DocumentDetail({
       const formData = new FormData()
       formData.append('file', file)
       formData.append('documentId', doc.id)
+
+      // If uploading to a line item, add that info
+      if (bgRemovalLineItemId) {
+        formData.append('prefix', 'doc-line-item')
+        formData.append('lineItemId', bgRemovalLineItemId)
+      }
+
       try {
         const response = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await response.json()
@@ -1955,9 +2005,21 @@ export default function DocumentDetail({
     }
 
     if (newAttachments.length > 0) {
-      const updated = [...attachments, ...newAttachments]
-      setAttachments(updated)
-      await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+      if (bgRemovalLineItemId) {
+        // Update line item attachments
+        const item = lineItems.find(i => i.id === bgRemovalLineItemId)
+        if (item) {
+          const updated = [...(item.attachments || []), ...newAttachments]
+          const updatedItems = lineItems.map(i => i.id === bgRemovalLineItemId ? { ...i, attachments: updated } : i)
+          setLineItems(updatedItems)
+          await supabase.from('line_items').update({ attachments: updated }).eq('id', bgRemovalLineItemId)
+        }
+      } else {
+        // Update document attachments
+        const updated = [...attachments, ...newAttachments]
+        setAttachments(updated)
+        await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+      }
     }
 
     setPendingFiles([])
@@ -1966,19 +2028,43 @@ export default function DocumentDetail({
   const handleLineItemAttachment = async (itemId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
-    
+
     const item = lineItems.find(i => i.id === itemId)
     if (!item) return
-    
+
+    const filesArray = Array.from(files)
+
+    // Check if any file is an image
+    const imageFiles = filesArray.filter(f => f.type.startsWith('image/'))
+    const nonImageFiles = filesArray.filter(f => !f.type.startsWith('image/'))
+
+    // If there are image files, show modal for first image
+    if (imageFiles.length > 0) {
+      const firstImage = imageFiles[0]
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const url = event.target?.result as string
+        setBgRemovalOriginalUrl(url)
+        setBgRemovalProcessedUrl('')
+        setBgRemovalFile(firstImage)
+        setPendingFiles([...imageFiles.slice(1), ...nonImageFiles])
+        setBgRemovalLineItemId(itemId)
+        setShowBgRemovalModal(true)
+      }
+      reader.readAsDataURL(firstImage)
+      return
+    }
+
+    // Upload non-image files directly
     const newAttachments: Attachment[] = [...(item.attachments || [])]
-    
-    for (const file of Array.from(files)) {
+
+    for (const file of nonImageFiles) {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('documentId', doc.id)
       formData.append('prefix', 'doc-line-item')
       formData.append('lineItemId', itemId)
-      
+
       try {
         const response = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await response.json()
@@ -1996,14 +2082,14 @@ export default function DocumentDetail({
         console.error('Upload error:', err)
       }
     }
-    
+
     // Update line item with new attachments
     const updatedItems = lineItems.map(i => i.id === itemId ? { ...i, attachments: newAttachments } : i)
     setLineItems(updatedItems)
-    
+
     // Save to database
     await supabase.from('line_items').update({ attachments: newAttachments }).eq('id', itemId)
-    
+
     // Reset file input
     e.target.value = ''
   }
@@ -4925,6 +5011,7 @@ export default function DocumentDetail({
                   setBgRemovalProcessedUrl('')
                   setBgRemovalFile(null)
                   setPendingFiles([])
+                  setBgRemovalLineItemId(null)
                   if (fileInputRef.current) fileInputRef.current.value = ''
                 }}
                 style={{
