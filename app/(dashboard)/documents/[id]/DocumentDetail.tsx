@@ -1423,21 +1423,25 @@ export default function DocumentDetail({
     return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
   }
 
-  const updateApparelField = async (itemId: string, fieldPath: string, value: any) => {
+  // Batch update multiple apparel fields at once (avoids race conditions)
+  const updateApparelFields = async (itemId: string, updates: Record<string, any>) => {
     const newItems = lineItems.map(item => {
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
-      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes' || fieldPath === 'style_id') {
-        cf[fieldPath] = value
-      } else if (fieldPath.startsWith('size.')) {
-        // e.g. size.XL.qty or size.XL.price
-        const parts = fieldPath.split('.')
-        const sizeName = parts[1]
-        const sizeField = parts[2] // 'qty' or 'price'
-        const sizes = { ...(cf.sizes || {}) }
-        sizes[sizeName] = { ...(sizes[sizeName] || { qty: 0, price: 0 }), [sizeField]: value }
-        cf.sizes = sizes
+      // Apply all updates
+      for (const [fieldPath, value] of Object.entries(updates)) {
+        if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes' || fieldPath === 'style_id') {
+          cf[fieldPath] = value
+        } else if (fieldPath.startsWith('size.')) {
+          // e.g. size.XL.qty or size.XL.price
+          const parts = fieldPath.split('.')
+          const sizeName = parts[1]
+          const sizeField = parts[2] // 'qty' or 'price'
+          const sizes = { ...(cf.sizes || {}) }
+          sizes[sizeName] = { ...(sizes[sizeName] || { qty: 0, price: 0 }), [sizeField]: value }
+          cf.sizes = sizes
+        }
       }
 
       // Recalculate totals from sizes
@@ -1466,6 +1470,11 @@ export default function DocumentDetail({
       }).eq('id', itemId)
     }
     updateDocumentTotals(newItems)
+  }
+
+  // Update a single apparel field
+  const updateApparelField = async (itemId: string, fieldPath: string, value: any) => {
+    await updateApparelFields(itemId, { [fieldPath]: value })
   }
 
   // ============================================================================
@@ -1498,12 +1507,12 @@ export default function DocumentDetail({
           [itemId]: styleDetail
         }))
 
-        // Update item number and style_id (for persistence across refreshes)
-        await updateApparelField(itemId, 'item_number', product.styleName)
-        await updateApparelField(itemId, 'style_id', product.styleID.toString())
-
-        // Clear color to force user selection
-        await updateApparelField(itemId, 'color', '')
+        // Update all fields at once (avoids React state race condition)
+        await updateApparelFields(itemId, {
+          item_number: product.styleName,
+          style_id: product.styleID.toString(),
+          color: '' // Clear color to force user selection
+        })
 
         // Update description with product title from SS API
         const item = lineItems.find(i => i.id === itemId)
