@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { isAutomationEnabled } from '../../../lib/automation-settings'
+import SSProductLookup from '@/app/components/operations/SSProductLookup'
+import GarmentMockupBuilder from '@/app/components/operations/GarmentMockupBuilder'
 
 const buttonStyles = `
   .action-btn {
@@ -236,7 +238,17 @@ export default function DocumentDetail({
     })
     return groups
   })
-  const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
+  const [lineItems, setLineItems] = useState<LineItem[]>(() => {
+    console.log('🔍 Initial lineItems load:', initialLineItems.length, 'items', '- Component loaded at:', new Date().toLocaleTimeString())
+    initialLineItems.forEach((item, idx) => {
+      console.log(`  Item ${idx + 1}:`, {
+        id: item.id,
+        description: item.description,
+        custom_fields: item.custom_fields
+      })
+    })
+    return initialLineItems
+  })
   
   // Fees state - load from document
   const [fees, setFees] = useState<Fee[]>(() => {
@@ -338,6 +350,16 @@ export default function DocumentDetail({
 
   // Apparel size management
   const [apparelSizeMenu, setApparelSizeMenu] = useState<string | null>(null)
+
+  // Mockup builder state
+  const [mockupBuilderOpen, setMockupBuilderOpen] = useState(false)
+  const [mockupLineItemId, setMockupLineItemId] = useState<string | null>(null)
+  const [mockupGarmentUrl, setMockupGarmentUrl] = useState<string>('')
+  const [mockupGarmentName, setMockupGarmentName] = useState<string>('')
+  const [mockupColorName, setMockupColorName] = useState<string>('')
+
+  // SS Product cache for line items (stores fetched product data)
+  const [ssProductCache, setSsProductCache] = useState<Record<string, any>>({})
 
   // Send to Zayn (embroidery digitizing)
   const [showZaynModal, setShowZaynModal] = useState(false)
@@ -1387,6 +1409,159 @@ export default function DocumentDetail({
   }
 
   // ============================================================================
+  // SS ACTIVEWEAR INTEGRATION HANDLERS
+  // ============================================================================
+
+  // Helper to strip HTML tags from text
+  const stripHtml = (html: string): string => {
+    const tmp = document.createElement('div')
+    tmp.innerHTML = html
+    return tmp.textContent || tmp.innerText || ''
+  }
+
+  // Handle SS product selection
+  const handleSSProductSelect = async (itemId: string, product: any) => {
+    console.log('🔍 handleSSProductSelect called:', { itemId, product })
+    try {
+      // Fetch full product details including colors and sizes
+      const response = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+      const data = await response.json()
+      console.log('📦 SS Style Detail API Response:', data)
+
+      if (data.success && data.data) {
+        const styleDetail = data.data
+        console.log('✅ Setting SS product cache:', styleDetail)
+
+        // Cache the product data
+        setSsProductCache(prev => ({
+          ...prev,
+          [itemId]: styleDetail
+        }))
+
+        // Update item number
+        await updateApparelField(itemId, 'item_number', product.styleName)
+
+        // Clear color to force user selection
+        await updateApparelField(itemId, 'color', '')
+
+        // Update description with SS product title and style number
+        const item = lineItems.find(i => i.id === itemId)
+        if (item) {
+          // Strip HTML from description and combine with style number
+          const cleanDescription = stripHtml(styleDetail.description)
+          updateLineItem(itemId, 'description', `${cleanDescription} - ${styleDetail.styleName}`)
+        }
+
+        showToast(`Select a color for ${styleDetail.styleName}`, 'info')
+      }
+    } catch (error) {
+      console.error('Error fetching SS product:', error)
+      showToast('Failed to load product details', 'error')
+    }
+  }
+
+  // Open mockup builder for a line item
+  const handleOpenMockupBuilder = (itemId: string) => {
+    const item = lineItems.find(i => i.id === itemId)
+    if (!item) return
+
+    const af = getApparelFields(item)
+    const cachedProduct = ssProductCache[itemId]
+
+    // Get garment image URL from cached product data
+    let garmentImageUrl = ''
+    let garmentName = af.item_number || 'Garment'
+    let colorName = af.color || ''
+
+    if (cachedProduct) {
+      // Find the color that matches the selected color
+      const selectedColor = cachedProduct.colors?.find((c: any) => c.colorName === colorName)
+      // colorImages is an array, get the first image if available
+      const relativePath = selectedColor?.colorImages?.[0] || cachedProduct.productThumbnail || ''
+      // SS images are relative paths - prepend the base URL
+      garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
+      garmentName = cachedProduct.styleName || garmentName
+    }
+
+    if (!garmentImageUrl) {
+      showToast('Please select a product with a garment image first', 'error')
+      return
+    }
+
+    setMockupLineItemId(itemId)
+    setMockupGarmentUrl(garmentImageUrl)
+    setMockupGarmentName(garmentName)
+    setMockupColorName(colorName)
+    setMockupBuilderOpen(true)
+  }
+
+  // Save mockup as line item attachment
+  const handleSaveMockup = async (mockupDataUrl: string) => {
+    if (!mockupLineItemId) return
+
+    try {
+      // Convert data URL to blob
+      const response = await fetch(mockupDataUrl)
+      const blob = await response.blob()
+
+      // Create a File object from the blob
+      const fileName = `mockup_${mockupGarmentName}_${mockupColorName}_${Date.now()}.png`
+      const file = new File([blob], fileName, { type: 'image/png' })
+
+      // Upload using existing upload API
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('documentId', doc.id)
+      formData.append('prefix', 'doc-line-item')
+      formData.append('lineItemId', mockupLineItemId)
+
+      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData })
+      const uploadData = await uploadResponse.json()
+
+      if (!uploadData.success) {
+        throw new Error(uploadData.error || 'Upload failed')
+      }
+
+      // Add attachment to line item
+      const item = lineItems.find(i => i.id === mockupLineItemId)
+      if (!item) return
+
+      const newAttachment = {
+        url: uploadData.url,
+        key: uploadData.key,
+        filename: uploadData.filename || fileName,
+        contentType: uploadData.contentType || 'image/png',
+        size: uploadData.size || blob.size,
+        uploadedAt: new Date().toISOString()
+      }
+
+      const updatedAttachments = [...(item.attachments || []), newAttachment]
+
+      // Update line item in database
+      const { error: updateError } = await supabase
+        .from('line_items')
+        .update({ attachments: updatedAttachments })
+        .eq('id', mockupLineItemId)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      setLineItems(lineItems.map(i =>
+        i.id === mockupLineItemId
+          ? { ...i, attachments: updatedAttachments }
+          : i
+      ))
+
+      showToast('Mockup saved successfully', 'success')
+      setMockupBuilderOpen(false)
+      setMockupLineItemId(null)
+    } catch (error) {
+      console.error('Error saving mockup:', error)
+      showToast('Failed to save mockup', 'error')
+    }
+  }
+
+  // ============================================================================
   // LINE ITEM HANDLERS
   // ============================================================================
   const addSection = async (categoryKey: string) => {
@@ -1419,8 +1594,26 @@ export default function DocumentDetail({
     }
   }
 
-  const deleteGroup = (groupId: string) => {
+  const deleteGroup = async (groupId: string) => {
     if (!confirm('Delete this section and all its items?')) return
+
+    console.log('🗑️ deleteGroup called:', groupId)
+
+    // Delete all line items in this group from database
+    const { error: itemsError } = await supabase
+      .from('line_items')
+      .delete()
+      .eq('group_id', groupId)
+
+    if (itemsError) {
+      console.error('❌ Failed to delete line items:', itemsError)
+      showToast('Failed to delete line items', 'error')
+      return
+    }
+
+    console.log('✅ All line items in group deleted from database')
+
+    // Update state (groups are derived from line items, so just remove the group from state)
     setLineItemGroups(lineItemGroups.filter(g => g.group_id !== groupId))
     const newItems = lineItems.filter(i => i.group_id !== groupId)
     setLineItems(newItems)
@@ -1428,6 +1621,7 @@ export default function DocumentDetail({
   }
 
   const addLineItemToGroup = async (groupId: string, categoryKey: string) => {
+    console.log('➕ addLineItemToGroup called:', { groupId, categoryKey })
     const category = getCategoryByKey(categoryKey)
     const isApparel = category?.apparel_mode === true
     const newItem: any = {
@@ -1515,7 +1709,15 @@ export default function DocumentDetail({
   }
 
   const deleteLineItem = async (itemId: string) => {
-    await supabase.from('line_items').delete().eq('id', itemId)
+    alert(`🗑️ DELETE CLICKED - Item ID: ${itemId}`)
+    console.log('🗑️ deleteLineItem called:', itemId)
+    const { error } = await supabase.from('line_items').delete().eq('id', itemId)
+    if (error) {
+      console.error('❌ Delete failed:', error)
+      showToast('Failed to delete line item', 'error')
+      return
+    }
+    console.log('✅ Line item deleted from database')
     const newItems = lineItems.filter(i => i.id !== itemId)
     setLineItems(newItems)
     // Remove empty groups
@@ -2506,13 +2708,89 @@ export default function DocumentDetail({
                         <div key={item.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.1)', padding: '16px' }}>
                           {/* Top row: Item #, Color, Description, Manage Sizes */}
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '12px' }}>
-                            <div style={{ width: '100px' }}>
-                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Item #</div>
-                              <input type="text" value={af.item_number || ''} onChange={e => updateApparelField(item.id, 'item_number', e.target.value)} placeholder="J716" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
+                            <div style={{ width: '180px' }}>
+                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Item # (Search SS)</div>
+                              <SSProductLookup
+                                itemNumber={af.item_number || ''}
+                                onSelect={(product) => handleSSProductSelect(item.id, product)}
+                                onItemNumberChange={(value) => updateApparelField(item.id, 'item_number', value)}
+                              />
                             </div>
-                            <div style={{ width: '120px' }}>
+                            <div style={{ width: '140px' }}>
                               <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Color</div>
-                              <input type="text" value={af.color || ''} onChange={e => updateApparelField(item.id, 'color', e.target.value)} placeholder="Deep Black" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
+                              {ssProductCache[item.id] && ssProductCache[item.id].colors ? (
+                                <select
+                                  value={af.color || ''}
+                                  onChange={async (e) => {
+                                    const newColor = e.target.value
+
+                                    // Update sizes with new color's pricing (keep description unchanged)
+                                    const product = ssProductCache[item.id]
+                                    const selectedColor = product.colors.find((c: any) => c.colorName === newColor)
+
+                                    if (selectedColor && selectedColor.sizes) {
+                                      // Apply default 100% markup to SS wholesale prices
+                                      // TODO: Replace with pricing matrix lookup based on document settings
+                                      const DEFAULT_MARKUP = 1.0 // 100% markup (2x wholesale)
+
+                                      const sizesObj: Record<string, { qty: number; price: number }> = {}
+                                      selectedColor.sizes.forEach((s: any) => {
+                                        const existingSize = (af.sizes || {})[s.sizeName]
+                                        const wholesalePrice = s.wholesalePrice || 0
+                                        const retailPrice = wholesalePrice * (1 + DEFAULT_MARKUP)
+
+                                        sizesObj[s.sizeName] = {
+                                          qty: existingSize?.qty || 0,
+                                          price: retailPrice
+                                        }
+                                      })
+
+                                      // Update custom_fields with color and sizes (don't change description)
+                                      const newItems = lineItems.map(li => {
+                                        if (li.id !== item.id) return li
+                                        return {
+                                          ...li,
+                                          custom_fields: {
+                                            ...li.custom_fields,
+                                            color: newColor,  // Just the color name (e.g., "Black")
+                                            sizes: sizesObj,
+                                            enabled_sizes: selectedColor.sizes.map((s: any) => s.sizeName)
+                                          }
+                                        }
+                                      })
+                                      setLineItems(newItems)
+
+                                      const updatedItem = newItems.find(i => i.id === item.id)
+                                      if (updatedItem) {
+                                        await supabase.from('line_items').update({
+                                          custom_fields: updatedItem.custom_fields,
+                                        }).eq('id', item.id)
+                                      }
+                                    }
+                                  }}
+                                  style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}
+                                >
+                                  <option value="">Select Color</option>
+                                  {ssProductCache[item.id].colors.map((color: any) => {
+                                    const product = ssProductCache[item.id]
+                                    // Format like Printavo: Brand - Style# - Color - Description
+                                    const optionText = `${product.brandName} - ${product.styleName} - ${color.colorName}`
+                                    return (
+                                      <option key={color.colorID} value={color.colorName}>
+                                        {optionText}
+                                      </option>
+                                    )
+                                  })}
+                                </select>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={af.color || ''}
+                                  onChange={e => updateApparelField(item.id, 'color', e.target.value)}
+                                  placeholder="Deep Black"
+                                  style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}
+                                />
+                              )}
                             </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Product</div>
@@ -2609,6 +2887,33 @@ export default function DocumentDetail({
 
                           {/* Attachments row */}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                            {/* Mockup Creator Button */}
+                            <button
+                              onClick={() => handleOpenMockupBuilder(item.id)}
+                              style={{
+                                padding: '8px 12px',
+                                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                                border: 'none',
+                                borderRadius: '6px',
+                                color: 'white',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 8px rgba(139,92,246,0.3)'
+                              }}
+                              title="Create visual mockup with logo placement"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <circle cx="8.5" cy="8.5" r="1.5"/>
+                                <polyline points="21 15 16 10 5 21"/>
+                              </svg>
+                              Mockup Creator
+                            </button>
+
                             {(item.attachments || []).map((att, attIdx) => {
                               const url = att.url || att.file_url || ''
                               const name = att.name || att.filename || att.file_name || 'File'
@@ -4348,6 +4653,20 @@ export default function DocumentDetail({
             <a href={lightboxUrl} download style={{ color: '#d71cd1', textDecoration: 'none', fontSize: '14px' }}>Download</a>
           </div>
         </div>
+      )}
+
+      {/* Garment Mockup Builder Modal */}
+      {mockupBuilderOpen && (
+        <GarmentMockupBuilder
+          garmentImageUrl={mockupGarmentUrl}
+          garmentName={mockupGarmentName}
+          colorName={mockupColorName}
+          onSave={handleSaveMockup}
+          onClose={() => {
+            setMockupBuilderOpen(false)
+            setMockupLineItemId(null)
+          }}
+        />
       )}
     </div>
   )
