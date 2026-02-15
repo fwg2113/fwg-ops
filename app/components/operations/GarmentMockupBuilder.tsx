@@ -5,6 +5,8 @@ import { useState, useRef, useEffect } from 'react'
 interface Logo {
   id: string
   url: string
+  originalUrl: string // Store original before background removal
+  backgroundRemoved: boolean
   x: number
   y: number
   width: number
@@ -56,6 +58,8 @@ export default function GarmentMockupBuilder({
         const newLogo: Logo = {
           id: `logo_${Date.now()}_${Math.random()}`,
           url,
+          originalUrl: url,
+          backgroundRemoved: false,
           x: 0.35, // Center horizontally
           y: 0.3,  // Upper third
           width: 0.3,
@@ -67,6 +71,78 @@ export default function GarmentMockupBuilder({
       }
       reader.readAsDataURL(file)
     })
+  }
+
+  // Remove white background from image
+  const removeBackground = async (logoId: string) => {
+    const logo = logos.find(l => l.id === logoId)
+    if (!logo) return
+
+    try {
+      // Create a canvas to process the image
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = logo.originalUrl
+      })
+
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      if (!ctx) return
+
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx.drawImage(img, 0, 0)
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const data = imageData.data
+
+      // Remove white and near-white pixels
+      // Adjust threshold for sensitivity (higher = more aggressive removal)
+      const threshold = 240 // Pixels with RGB values above this become transparent
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+
+        // If pixel is close to white, make it transparent
+        if (r > threshold && g > threshold && b > threshold) {
+          data[i + 3] = 0 // Set alpha to 0 (transparent)
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0)
+      const processedUrl = canvas.toDataURL('image/png')
+
+      // Update the logo with the processed image
+      updateLogo(logoId, {
+        url: processedUrl,
+        backgroundRemoved: true
+      })
+    } catch (error) {
+      console.error('Error removing background:', error)
+    }
+  }
+
+  // Toggle between original and background-removed version
+  const toggleBackground = (logoId: string) => {
+    const logo = logos.find(l => l.id === logoId)
+    if (!logo) return
+
+    if (logo.backgroundRemoved) {
+      // Switch back to original
+      updateLogo(logoId, {
+        url: logo.originalUrl,
+        backgroundRemoved: false
+      })
+    } else {
+      // Remove background
+      removeBackground(logoId)
+    }
   }
 
   // Apply preset placement
@@ -492,6 +568,55 @@ export default function GarmentMockupBuilder({
                     onChange={(e) => updateLogo(selectedLogo.id, { rotation: parseInt(e.target.value) })}
                     style={{ width: '100%' }}
                   />
+                </div>
+
+                {/* Background Removal */}
+                <div style={{ marginBottom: '16px' }}>
+                  <button
+                    onClick={() => toggleBackground(selectedLogo.id)}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      background: selectedLogo.backgroundRemoved
+                        ? 'linear-gradient(135deg, #22c55e, #16a34a)'
+                        : 'rgba(139,92,246,0.15)',
+                      border: selectedLogo.backgroundRemoved
+                        ? 'none'
+                        : '1px solid rgba(139,92,246,0.3)',
+                      borderRadius: '6px',
+                      color: selectedLogo.backgroundRemoved ? 'white' : '#a78bfa',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {selectedLogo.backgroundRemoved ? (
+                      <>
+                        <span>✓</span>
+                        <span>Background Removed</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✂</span>
+                        <span>Remove Background</span>
+                      </>
+                    )}
+                  </button>
+                  {selectedLogo.backgroundRemoved && (
+                    <p style={{
+                      color: '#64748b',
+                      fontSize: '11px',
+                      marginTop: '6px',
+                      textAlign: 'center'
+                    }}>
+                      Click again to restore original
+                    </p>
+                  )}
                 </div>
 
                 {/* Delete */}
