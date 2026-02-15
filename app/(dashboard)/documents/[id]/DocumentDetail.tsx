@@ -1461,12 +1461,42 @@ export default function DocumentDetail({
   }
 
   // Open mockup builder for a line item
-  const handleOpenMockupBuilder = (itemId: string) => {
+  const handleOpenMockupBuilder = async (itemId: string) => {
     const item = lineItems.find(i => i.id === itemId)
     if (!item) return
 
     const af = getApparelFields(item)
-    const cachedProduct = ssProductCache[itemId]
+    let cachedProduct = ssProductCache[itemId]
+
+    // If no cached product but item has item_number, fetch it from API
+    if (!cachedProduct && af.item_number) {
+      try {
+        // Search for the product by style name
+        const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
+        const searchData = await searchResponse.json()
+
+        if (searchData.success && searchData.data && searchData.data.length > 0) {
+          // Find exact match by style name
+          const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
+          const product = exactMatch || searchData.data[0]
+
+          // Fetch full product details
+          const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+          const detailData = await detailResponse.json()
+
+          if (detailData.success && detailData.data) {
+            // Cache the product data
+            setSsProductCache(prev => ({
+              ...prev,
+              [itemId]: detailData.data
+            }))
+            cachedProduct = detailData.data
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching product for mockup:', error)
+      }
+    }
 
     // Get garment image URL from cached product data
     let garmentImageUrl = ''
