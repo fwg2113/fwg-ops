@@ -1498,6 +1498,14 @@ export default function DocumentDetail({
       const sleevePath = colorImages[1] || colorImages[0] || fallbackImage
       const backPath = colorImages[2] || colorImages[0] || fallbackImage
 
+      // Debug: Log the actual image paths
+      console.log('SS Activewear colorImages:', colorImages)
+      console.log('Mapping:', {
+        'Front (colorImages[0])': frontPath,
+        'Sleeve (colorImages[1])': sleevePath,
+        'Back (colorImages[2])': backPath
+      })
+
       // SS images are relative paths - prepend the base URL
       frontUrl = frontPath ? `https://www.ssactivewear.com/${frontPath}` : ''
       backUrl = backPath ? `https://www.ssactivewear.com/${backPath}` : ''
