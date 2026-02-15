@@ -34,6 +34,11 @@ interface TextElement {
 
 interface GarmentMockupBuilderProps {
   garmentImageUrl: string
+  garmentImageUrls?: {
+    Front: string
+    Back: string
+    Sleeves: string
+  }
   garmentName: string
   colorName: string
   onSave: (mockupDataUrl: string) => void
@@ -42,6 +47,7 @@ interface GarmentMockupBuilderProps {
 
 export default function GarmentMockupBuilder({
   garmentImageUrl,
+  garmentImageUrls,
   garmentName,
   colorName,
   onSave,
@@ -530,7 +536,7 @@ export default function GarmentMockupBuilder({
     await new Promise((resolve, reject) => {
       garmentImg.onload = resolve
       garmentImg.onerror = reject
-      garmentImg.src = garmentImageUrl
+      garmentImg.src = getCurrentGarmentImage()
     })
 
     // Set canvas size to garment image size
@@ -616,6 +622,14 @@ export default function GarmentMockupBuilder({
     const logoCount = logos.filter(l => l.location === location).length
     const textCount = textElements.filter(t => t.location === location).length
     return logoCount + textCount
+  }
+
+  // Get the appropriate image URL for the current location
+  const getCurrentGarmentImage = () => {
+    if (garmentImageUrls) {
+      return garmentImageUrls[activeLocation] || garmentImageUrl
+    }
+    return garmentImageUrl
   }
 
   return (
@@ -763,7 +777,7 @@ export default function GarmentMockupBuilder({
             >
               {/* Garment Image */}
               <img
-                src={garmentImageUrl}
+                src={getCurrentGarmentImage()}
                 alt={garmentName}
                 style={{
                   width: '100%',
