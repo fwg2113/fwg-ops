@@ -553,15 +553,16 @@ export default function DocumentDetail({
       console.log('🔄 Checking for products to re-fetch on page load...')
       console.log('Line items:', lineItems.map(i => ({
         id: i.id,
-        type: i.type,
-        style_id: i.custom_fields?.apparel?.style_id,
-        item_number: i.custom_fields?.apparel?.item_number,
-        color: i.custom_fields?.apparel?.color
+        apparel_mode: i.custom_fields?.apparel_mode,
+        style_id: i.custom_fields?.style_id,
+        item_number: i.custom_fields?.item_number,
+        color: i.custom_fields?.color
       })))
 
       for (const item of lineItems) {
-        if (item.type === 'apparel' && item.custom_fields?.apparel) {
-          const af = item.custom_fields.apparel
+        const af = getApparelFields(item)
+
+        if (af.apparel_mode) {
           const styleId = af.style_id
 
           console.log(`Item ${item.id}: style_id=${styleId}, cached=${!!ssProductCache[item.id]}`)
@@ -1427,7 +1428,7 @@ export default function DocumentDetail({
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
-      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes') {
+      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes' || fieldPath === 'style_id') {
         cf[fieldPath] = value
       } else if (fieldPath.startsWith('size.')) {
         // e.g. size.XL.qty or size.XL.price
