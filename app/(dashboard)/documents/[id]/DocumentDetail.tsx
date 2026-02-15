@@ -354,7 +354,9 @@ export default function DocumentDetail({
   // Mockup builder state
   const [mockupBuilderOpen, setMockupBuilderOpen] = useState(false)
   const [mockupLineItemId, setMockupLineItemId] = useState<string | null>(null)
-  const [mockupGarmentUrl, setMockupGarmentUrl] = useState<string>('')
+  const [mockupFrontUrl, setMockupFrontUrl] = useState<string>('')
+  const [mockupBackUrl, setMockupBackUrl] = useState<string>('')
+  const [mockupSleeveUrl, setMockupSleeveUrl] = useState<string>('')
   const [mockupGarmentName, setMockupGarmentName] = useState<string>('')
   const [mockupColorName, setMockupColorName] = useState<string>('')
 
@@ -1467,74 +1469,93 @@ export default function DocumentDetail({
     const af = getApparelFields(item)
     const cachedProduct = ssProductCache[itemId]
 
-    // Get garment image URL from cached product data
-    let garmentImageUrl = ''
+    // Get garment image URLs from cached product data
+    let frontUrl = ''
+    let backUrl = ''
+    let sleeveUrl = ''
     let garmentName = af.item_number || 'Garment'
     let colorName = af.color || ''
 
     if (cachedProduct) {
       // Find the color that matches the selected color
       const selectedColor = cachedProduct.colors?.find((c: any) => c.colorName === colorName)
-      // colorImages is an array, get the first image if available
-      const relativePath = selectedColor?.colorImages?.[0] || cachedProduct.productThumbnail || ''
+      const colorImages = selectedColor?.colorImages || []
+      const fallbackImage = cachedProduct.productThumbnail || ''
+
+      // SS Activewear typically provides multiple views: front, back, side, etc.
+      // Map them to our locations (Front, Back, Sleeves)
+      const frontPath = colorImages[0] || fallbackImage
+      const backPath = colorImages[1] || colorImages[0] || fallbackImage
+      const sleevePath = colorImages[2] || colorImages[0] || fallbackImage
+
       // SS images are relative paths - prepend the base URL
-      garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
+      frontUrl = frontPath ? `https://www.ssactivewear.com/${frontPath}` : ''
+      backUrl = backPath ? `https://www.ssactivewear.com/${backPath}` : ''
+      sleeveUrl = sleevePath ? `https://www.ssactivewear.com/${sleevePath}` : ''
+
       garmentName = cachedProduct.styleName || garmentName
     }
 
-    if (!garmentImageUrl) {
+    if (!frontUrl) {
       showToast('Please select a product with a garment image first', 'error')
       return
     }
 
     setMockupLineItemId(itemId)
-    setMockupGarmentUrl(garmentImageUrl)
+    setMockupFrontUrl(frontUrl)
+    setMockupBackUrl(backUrl)
+    setMockupSleeveUrl(sleeveUrl)
     setMockupGarmentName(garmentName)
     setMockupColorName(colorName)
     setMockupBuilderOpen(true)
   }
 
-  // Save mockup as line item attachment
-  const handleSaveMockup = async (mockupDataUrl: string) => {
+  // Save mockups as line item attachments
+  const handleSaveMockup = async (mockups: Array<{ location: string; dataUrl: string }>) => {
     if (!mockupLineItemId) return
 
     try {
-      // Convert data URL to blob
-      const response = await fetch(mockupDataUrl)
-      const blob = await response.blob()
-
-      // Create a File object from the blob
-      const fileName = `mockup_${mockupGarmentName}_${mockupColorName}_${Date.now()}.png`
-      const file = new File([blob], fileName, { type: 'image/png' })
-
-      // Upload using existing upload API
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('documentId', doc.id)
-      formData.append('prefix', 'doc-line-item')
-      formData.append('lineItemId', mockupLineItemId)
-
-      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData })
-      const uploadData = await uploadResponse.json()
-
-      if (!uploadData.success) {
-        throw new Error(uploadData.error || 'Upload failed')
-      }
-
-      // Add attachment to line item
       const item = lineItems.find(i => i.id === mockupLineItemId)
       if (!item) return
 
-      const newAttachment = {
-        url: uploadData.url,
-        key: uploadData.key,
-        filename: uploadData.filename || fileName,
-        contentType: uploadData.contentType || 'image/png',
-        size: uploadData.size || blob.size,
-        uploadedAt: new Date().toISOString()
+      const newAttachments = []
+
+      // Upload each mockup
+      for (const mockup of mockups) {
+        // Convert data URL to blob
+        const response = await fetch(mockup.dataUrl)
+        const blob = await response.blob()
+
+        // Create a File object from the blob with location in filename
+        const fileName = `mockup_${mockupGarmentName}_${mockupColorName}_${mockup.location}_${Date.now()}.png`
+        const file = new File([blob], fileName, { type: 'image/png' })
+
+        // Upload using existing upload API
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('documentId', doc.id)
+        formData.append('prefix', 'doc-line-item')
+        formData.append('lineItemId', mockupLineItemId)
+
+        const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData })
+        const uploadData = await uploadResponse.json()
+
+        if (!uploadData.success) {
+          throw new Error(uploadData.error || 'Upload failed')
+        }
+
+        newAttachments.push({
+          url: uploadData.url,
+          key: uploadData.key,
+          filename: uploadData.filename || fileName,
+          contentType: uploadData.contentType || 'image/png',
+          size: uploadData.size || blob.size,
+          uploadedAt: new Date().toISOString()
+        })
       }
 
-      const updatedAttachments = [...(item.attachments || []), newAttachment]
+      // Add all new attachments to line item
+      const updatedAttachments = [...(item.attachments || []), ...newAttachments]
 
       // Update line item in database
       const { error: updateError } = await supabase
@@ -1551,7 +1572,7 @@ export default function DocumentDetail({
           : i
       ))
 
-      showToast('Mockup saved successfully', 'success')
+      showToast(`${mockups.length} mockup(s) saved successfully`, 'success')
       setMockupBuilderOpen(false)
       setMockupLineItemId(null)
     } catch (error) {
@@ -4657,7 +4678,9 @@ export default function DocumentDetail({
       {/* Garment Mockup Builder Modal */}
       {mockupBuilderOpen && (
         <GarmentMockupBuilder
-          garmentImageUrl={mockupGarmentUrl}
+          frontImageUrl={mockupFrontUrl}
+          backImageUrl={mockupBackUrl}
+          sleeveImageUrl={mockupSleeveUrl}
           garmentName={mockupGarmentName}
           colorName={mockupColorName}
           onSave={handleSaveMockup}
