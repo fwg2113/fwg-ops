@@ -2515,7 +2515,7 @@ export default function DocumentDetail({
                               <input type="text" value={af.color || ''} onChange={e => updateApparelField(item.id, 'color', e.target.value)} placeholder="Deep Black" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
                             </div>
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Description</div>
+                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Product</div>
                               <input type="text" value={item.description || ''} onChange={e => updateLineItem(item.id, 'description', e.target.value)} placeholder="Port Authority Active 1/2-Zip Soft Shell Jacket" style={{ ...inputStyle, padding: '8px', fontSize: '13px' }} />
                             </div>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', paddingBottom: '1px' }}>
