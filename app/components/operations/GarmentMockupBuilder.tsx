@@ -30,15 +30,19 @@ interface TextElement {
 }
 
 interface GarmentMockupBuilderProps {
-  garmentImageUrl: string
+  frontImageUrl: string
+  backImageUrl?: string
+  sleeveImageUrl?: string
   garmentName: string
   colorName: string
-  onSave: (mockupDataUrl: string) => void
+  onSave: (mockups: Array<{ location: Location; dataUrl: string }>) => void
   onClose: () => void
 }
 
 export default function GarmentMockupBuilder({
-  garmentImageUrl,
+  frontImageUrl,
+  backImageUrl,
+  sleeveImageUrl,
   garmentName,
   colorName,
   onSave,
@@ -53,10 +57,25 @@ export default function GarmentMockupBuilder({
   const [isResizing, setIsResizing] = useState(false)
   const [isRotating, setIsRotating] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [resizeStartFontSize, setResizeStartFontSize] = useState(0)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
+
+  // Get image URL for current location
+  const getLocationImageUrl = (location: Location): string => {
+    switch (location) {
+      case 'Front':
+        return frontImageUrl
+      case 'Back':
+        return backImageUrl || frontImageUrl
+      case 'Sleeves':
+        return sleeveImageUrl || frontImageUrl
+    }
+  }
+
+  const currentImageUrl = getLocationImageUrl(activeLocation)
 
   // Popular Google Fonts
   const GOOGLE_FONTS = [
@@ -285,15 +304,32 @@ export default function GarmentMockupBuilder({
         // Move text
         updateTextElement(selectedTextId, { x: mouseX, y: mouseY })
       }
-    } else if (isResizing && selectedLogoId) {
-      // Resize from bottom-right corner
-      const logo = logos.find(l => l.id === selectedLogoId)
-      if (!logo) return
+    } else if (isResizing) {
+      if (selectedLogoId) {
+        // Resize logo from bottom-right corner
+        const logo = logos.find(l => l.id === selectedLogoId)
+        if (!logo) return
 
-      const width = Math.max(0.05, mouseX - logo.x)
-      const height = Math.max(0.05, mouseY - logo.y)
-      const size = Math.max(width, height) // Keep aspect ratio
-      updateLogo(selectedLogoId, { width: size, height: size })
+        const width = Math.max(0.05, mouseX - logo.x)
+        const height = Math.max(0.05, mouseY - logo.y)
+        const size = Math.max(width, height) // Keep aspect ratio
+        updateLogo(selectedLogoId, { width: size, height: size })
+      } else if (selectedTextId) {
+        // Resize text by changing font size
+        const text = textElements.find(t => t.id === selectedTextId)
+        if (!text) return
+
+        // Calculate distance from text position to mouse
+        const dx = mouseX - text.x
+        const dy = mouseY - text.y
+        const distance = Math.sqrt(dx * dx + dy * dy)
+
+        // Convert distance to font size (scale factor)
+        const scaleFactor = distance * 500 // Adjust multiplier for sensitivity
+        const newFontSize = Math.max(16, Math.min(120, Math.round(scaleFactor)))
+
+        updateTextElement(selectedTextId, { fontSize: newFontSize })
+      }
     } else if (isRotating) {
       if (selectedLogoId) {
         // Rotate logo
@@ -331,6 +367,18 @@ export default function GarmentMockupBuilder({
     setIsRotating(true)
   }
 
+  // Handle text resize start
+  const handleTextResizeStart = (e: React.MouseEvent, textId: string) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setSelectedTextId(textId)
+    setIsResizing(true)
+    const text = textElements.find(t => t.id === textId)
+    if (text) {
+      setResizeStartFontSize(text.fontSize)
+    }
+  }
+
   const handleMouseUp = () => {
     setIsDragging(false)
     setIsResizing(false)
@@ -353,71 +401,88 @@ export default function GarmentMockupBuilder({
     setIsRotating(true)
   }
 
-  // Generate mockup image and save
+  // Generate mockup images for all locations with designs
   const handleSaveMockup = async () => {
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const mockups: Array<{ location: Location; dataUrl: string }> = []
 
-    // Load garment image
-    const garmentImg = new Image()
-    garmentImg.crossOrigin = 'anonymous'
+    // Loop through all locations
+    for (const location of LOCATIONS) {
+      const locationLogos = logos.filter(l => l.location === location)
+      const locationTexts = textElements.filter(t => t.location === location)
 
-    await new Promise((resolve, reject) => {
-      garmentImg.onload = resolve
-      garmentImg.onerror = reject
-      garmentImg.src = garmentImageUrl
-    })
+      // Skip locations with no designs
+      if (locationLogos.length === 0 && locationTexts.length === 0) {
+        continue
+      }
 
-    // Set canvas size to garment image size
-    canvas.width = garmentImg.width || 800
-    canvas.height = garmentImg.height || 1000
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) continue
 
-    // Draw garment
-    ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
+      // Get image URL for this location
+      const imageUrl = getLocationImageUrl(location)
 
-    // Draw logos for active location only
-    const locationLogos = logos.filter(l => l.location === activeLocation)
-    for (const logo of locationLogos) {
-      const logoImg = new Image()
+      // Load garment image
+      const garmentImg = new Image()
+      garmentImg.crossOrigin = 'anonymous'
+
       await new Promise((resolve, reject) => {
-        logoImg.onload = resolve
-        logoImg.onerror = reject
-        logoImg.src = logo.url
+        garmentImg.onload = resolve
+        garmentImg.onerror = reject
+        garmentImg.src = imageUrl
       })
 
-      const logoX = logo.x * canvas.width
-      const logoY = logo.y * canvas.height
-      const logoW = logo.width * canvas.width
-      const logoH = logo.height * canvas.height
+      // Set canvas size to garment image size
+      canvas.width = garmentImg.width || 800
+      canvas.height = garmentImg.height || 1000
 
-      ctx.save()
-      ctx.translate(logoX + logoW / 2, logoY + logoH / 2)
-      ctx.rotate((logo.rotation * Math.PI) / 180)
-      ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
-      ctx.restore()
+      // Draw garment
+      ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
+
+      // Draw logos
+      for (const logo of locationLogos) {
+        const logoImg = new Image()
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve
+          logoImg.onerror = reject
+          logoImg.src = logo.url
+        })
+
+        const logoX = logo.x * canvas.width
+        const logoY = logo.y * canvas.height
+        const logoW = logo.width * canvas.width
+        const logoH = logo.height * canvas.height
+
+        ctx.save()
+        ctx.translate(logoX + logoW / 2, logoY + logoH / 2)
+        ctx.rotate((logo.rotation * Math.PI) / 180)
+        ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
+        ctx.restore()
+      }
+
+      // Draw text elements
+      for (const text of locationTexts) {
+        const textX = text.x * canvas.width
+        const textY = text.y * canvas.height
+
+        ctx.save()
+        ctx.translate(textX, textY)
+        ctx.rotate((text.rotation * Math.PI) / 180)
+        ctx.font = `${text.fontSize}px ${text.fontFamily}`
+        ctx.fillStyle = text.color
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(text.text, 0, 0)
+        ctx.restore()
+      }
+
+      // Export as data URL
+      const dataUrl = canvas.toDataURL('image/png')
+      mockups.push({ location, dataUrl })
     }
 
-    // Draw text elements for active location only
-    const locationTexts = textElements.filter(t => t.location === activeLocation)
-    for (const text of locationTexts) {
-      const textX = text.x * canvas.width
-      const textY = text.y * canvas.height
-
-      ctx.save()
-      ctx.translate(textX, textY)
-      ctx.rotate((text.rotation * Math.PI) / 180)
-      ctx.font = `${text.fontSize}px ${text.fontFamily}`
-      ctx.fillStyle = text.color
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(text.text, 0, 0)
-      ctx.restore()
-    }
-
-    // Export as data URL
-    const dataUrl = canvas.toDataURL('image/png')
-    onSave(dataUrl)
+    // Save all mockups
+    onSave(mockups)
   }
 
   // Filter elements by active location
@@ -579,8 +644,8 @@ export default function GarmentMockupBuilder({
             >
               {/* Garment Image */}
               <img
-                src={garmentImageUrl}
-                alt={garmentName}
+                src={currentImageUrl}
+                alt={`${garmentName} - ${activeLocation}`}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -689,24 +754,43 @@ export default function GarmentMockupBuilder({
                 >
                   {text.text}
 
-                  {/* Rotation Handle */}
                   {selectedTextId === text.id && (
-                    <div
-                      onMouseDown={(e) => handleTextRotateStart(e, text.id)}
-                      style={{
-                        position: 'absolute',
-                        right: '-6px',
-                        top: '-6px',
-                        width: '12px',
-                        height: '12px',
-                        background: '#22c55e',
-                        border: '2px solid white',
-                        borderRadius: '50%',
-                        cursor: 'grab',
-                        zIndex: 10,
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                      }}
-                    />
+                    <>
+                      {/* Rotation Handle */}
+                      <div
+                        onMouseDown={(e) => handleTextRotateStart(e, text.id)}
+                        style={{
+                          position: 'absolute',
+                          right: '-6px',
+                          top: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#22c55e',
+                          border: '2px solid white',
+                          borderRadius: '50%',
+                          cursor: 'grab',
+                          zIndex: 10,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                        }}
+                      />
+                      {/* Resize Handle */}
+                      <div
+                        onMouseDown={(e) => handleTextResizeStart(e, text.id)}
+                        style={{
+                          position: 'absolute',
+                          right: '-6px',
+                          bottom: '-6px',
+                          width: '12px',
+                          height: '12px',
+                          background: '#8b5cf6',
+                          border: '2px solid white',
+                          borderRadius: '50%',
+                          cursor: 'nwse-resize',
+                          zIndex: 10,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                        }}
+                      />
+                    </>
                   )}
                 </div>
               ))}
