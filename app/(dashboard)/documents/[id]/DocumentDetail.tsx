@@ -1983,19 +1983,38 @@ export default function DocumentDetail({
 
   const handleDeleteLineItemAttachment = async (itemId: string, fileId: string) => {
     if (!confirm('Delete this attachment?')) return
-    
+
     const item = lineItems.find(i => i.id === itemId)
-    if (!item) return
-    
+    if (!item) {
+      console.error('Item not found:', itemId)
+      return
+    }
+
     const currentAttachments = item.attachments || []
-    const updatedAttachments = currentAttachments.filter((att, idx) => (att.file_id || att.key || String(idx)) !== fileId)
-    
+    console.log('Deleting attachment:', fileId, 'from', currentAttachments.length, 'attachments')
+
+    const updatedAttachments = currentAttachments.filter((att, idx) => {
+      const attId = att.file_id || att.key || String(idx)
+      const keep = attId !== fileId
+      if (!keep) console.log('Removing attachment:', attId, att)
+      return keep
+    })
+
+    console.log('Updated attachments:', updatedAttachments.length)
+
     // Update local state
     const updatedItems = lineItems.map(i => i.id === itemId ? { ...i, attachments: updatedAttachments } : i)
     setLineItems(updatedItems)
-    
+
     // Save to database
-    await supabase.from('line_items').update({ attachments: updatedAttachments }).eq('id', itemId)
+    const { error } = await supabase.from('line_items').update({ attachments: updatedAttachments }).eq('id', itemId)
+
+    if (error) {
+      console.error('Error deleting attachment:', error)
+      showToast('Failed to delete attachment', 'error')
+    } else {
+      showToast('Attachment deleted successfully', 'success')
+    }
   }
 
   const handleDeleteAttachment = async (key: string) => {
