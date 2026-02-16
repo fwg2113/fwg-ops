@@ -3672,8 +3672,11 @@ export default function DocumentDetail({
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         <input
                                           type="number"
-                                          value={sizeData.qty || ''}
-                                          onChange={e => updateApparelField(item.id, `size.${size}.qty`, parseInt(e.target.value) || 0)}
+                                          value={sizeData.qty === 0 ? '' : sizeData.qty}
+                                          onChange={e => {
+                                            const inputValue = e.target.value
+                                            updateApparelField(item.id, `size.${size}.qty`, inputValue === '' ? 0 : parseInt(inputValue) || 0)
+                                          }}
                                           placeholder="Qty"
                                           style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '13px', textAlign: 'center', fontFamily: 'inherit' }}
                                         />
@@ -3682,9 +3685,15 @@ export default function DocumentDetail({
                                           <input
                                             type="number"
                                             step="0.01"
-                                            value={finalUnitPrice.toFixed(2)}
+                                            value={finalUnitPrice === 0 ? '' : finalUnitPrice}
                                             onChange={e => {
-                                              const newFinalPrice = parseFloat(e.target.value) || 0
+                                              const inputValue = e.target.value
+                                              // Allow empty string for deletion
+                                              if (inputValue === '') {
+                                                updateApparelField(item.id, `size.${size}.price`, 0)
+                                                return
+                                              }
+                                              const newFinalPrice = parseFloat(inputValue) || 0
                                               if (manualOverride) {
                                                 // Manual override: set price directly
                                                 updateApparelField(item.id, `size.${size}.price`, newFinalPrice)
