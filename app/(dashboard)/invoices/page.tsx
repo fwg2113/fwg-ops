@@ -10,6 +10,8 @@ export default async function InvoicesPage() {
     .from('documents')
     .select('*')
     .eq('doc_type', 'invoice')
+    .neq('status', 'archived')
+    .not('bucket', 'in', '("ARCHIVE_WON","ARCHIVE_LOST","COLD")')
     .order('created_at', { ascending: false })
     .limit(50)
 
