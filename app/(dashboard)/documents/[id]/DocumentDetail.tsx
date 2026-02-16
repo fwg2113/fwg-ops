@@ -1486,6 +1486,42 @@ export default function DocumentDetail({
     return af.apparel_mode === true && item.category?.toUpperCase() !== 'EMBROIDERY'
   }
 
+  // Manual recalculation function for apparel line totals
+  const recalculateApparelLineTotal = async (itemId: string) => {
+    const item = lineItems.find(i => i.id === itemId)
+    if (!item) return
+
+    const af = getApparelFields(item)
+    const sizes = af.sizes || {}
+    const { totalQty, totalAmount } = recalcApparelTotals(sizes, item)
+
+    const newItems = lineItems.map(i =>
+      i.id === itemId
+        ? {
+            ...i,
+            quantity: totalQty,
+            sqft: totalQty,
+            line_total: totalAmount,
+            unit_price: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+            rate: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+          }
+        : i
+    )
+    setLineItems(newItems)
+
+    const updatedItem = newItems.find(i => i.id === itemId)
+    if (updatedItem) {
+      await supabase.from('line_items').update({
+        quantity: updatedItem.quantity,
+        sqft: updatedItem.sqft,
+        unit_price: updatedItem.unit_price,
+        rate: updatedItem.rate,
+        line_total: updatedItem.line_total,
+      }).eq('id', itemId)
+    }
+    updateDocumentTotals(newItems)
+  }
+
   const updateApparelField = async (itemId: string, fieldPath: string, value: any) => {
     const newItems = lineItems.map(item => {
       if (item.id !== itemId) return item
@@ -1776,11 +1812,19 @@ export default function DocumentDetail({
       if (updateError) throw updateError
 
       // Update local state
-      setLineItems(lineItems.map(i =>
+      const updatedItems = lineItems.map(i =>
         i.id === mockupLineItemId
           ? { ...i, attachments: updatedAttachments, custom_fields: updatedCustomFields }
           : i
-      ))
+      )
+      setLineItems(updatedItems)
+
+      // Auto-recalculate line total to include new decoration locations
+      const updatedItem = updatedItems.find(i => i.id === mockupLineItemId)
+      if (updatedItem && isDTFApparel(updatedItem)) {
+        // Trigger recalculation after state update
+        setTimeout(() => recalculateApparelLineTotal(mockupLineItemId), 100)
+      }
 
       const mockupCount = mockups.length
       showToast(`${mockupCount} mockup${mockupCount > 1 ? 's' : ''} saved successfully`, 'success')
@@ -3508,6 +3552,32 @@ export default function DocumentDetail({
                                     title={`Reset to auto (${autoMarkup}%)`}
                                   >
                                     Reset
+                                  </button>
+                                </div>
+
+                                {/* Recalculate Total Button */}
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={() => recalculateApparelLineTotal(item.id)}
+                                    style={{
+                                      padding: '6px 12px',
+                                      background: 'rgba(34,197,94,0.1)',
+                                      border: '1px solid rgba(34,197,94,0.3)',
+                                      borderRadius: '6px',
+                                      color: '#22c55e',
+                                      fontSize: '12px',
+                                      cursor: 'pointer',
+                                      fontWeight: 600,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                    title="Recalculate line total including decoration fees"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                                    </svg>
+                                    Recalculate Total
                                   </button>
                                 </div>
                               </div>
