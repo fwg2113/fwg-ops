@@ -1353,19 +1353,19 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   </div>
 
                                   {/* Size breakdown grid */}
-                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                     {enabledSizes.map(size => {
                                       const s = sizes[size] || { qty: 0, price: 0 }
                                       if (s.qty <= 0) return null
                                       return (
                                         <div key={size} style={{
                                           display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                                          padding: '12px 24px', background: '#f8f9fa', borderRadius: '8px',
-                                          border: '1px solid #e5e7eb', minWidth: '120px'
+                                          padding: '6px 12px', background: '#f8f9fa', borderRadius: '8px',
+                                          border: '1px solid #e5e7eb', minWidth: '60px'
                                         }}>
-                                          <div style={{ fontSize: '22px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
-                                          <div style={{ fontSize: '26px', fontWeight: 600, color: '#1a1a1a', marginTop: '4px' }}>{s.qty}</div>
-                                          <div style={{ fontSize: '22px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
+                                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
+                                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginTop: '2px' }}>{s.qty}</div>
+                                          <div style={{ fontSize: '11px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
                                         </div>
                                       )
                                     })}
@@ -1412,53 +1412,77 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   gridTemplateColumns: itemImages.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
                                   gap: '12px'
                                 }}>
-                                  {itemImages.map((img, imgIdx) => (
-                                    <div
-                                      key={imgIdx}
-                                      onClick={() => {
-                                        const flatIndex = galleryImages.findIndex(g => g.url === img.url)
-                                        if (flatIndex >= 0) setLightboxIndex(flatIndex)
-                                      }}
-                                      style={{
-                                        position: 'relative',
-                                        width: '100%',
-                                        paddingBottom: '75%',
-                                        borderRadius: '10px',
-                                        overflow: 'hidden',
-                                        cursor: 'pointer',
-                                        background: '#f1f5f9'
-                                      }}
-                                    >
-                                      <img
-                                        src={img.url}
-                                        alt={img.name}
-                                        style={{
-                                          position: 'absolute',
-                                          top: 0,
-                                          left: 0,
-                                          width: '100%',
-                                          height: '100%',
-                                          objectFit: 'contain',
-                                          transition: 'transform 0.3s ease'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                      />
-                                      {/* Enlarge hint */}
-                                      <div style={{
-                                        position: 'absolute', bottom: '10px', right: '10px',
-                                        background: 'rgba(0,0,0,0.6)', color: 'white',
-                                        padding: '5px 10px', borderRadius: '6px',
-                                        fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
-                                        pointerEvents: 'none'
-                                      }}>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                                        </svg>
-                                        Click to enlarge
+                                  {itemImages.map((img, imgIdx) => {
+                                    // Extract location from filename (format: mockup_Location_...)
+                                    let location = ''
+                                    const filenameParts = img.name.split('_')
+                                    if (filenameParts[0] === 'mockup' && filenameParts.length > 1) {
+                                      location = filenameParts[1] // "Front", "Back", "Sleeves"
+                                    }
+
+                                    return (
+                                      <div key={imgIdx}>
+                                        {/* Location Label */}
+                                        {location && (
+                                          <div style={{
+                                            fontSize: '13px',
+                                            fontWeight: 600,
+                                            color: '#1a1a1a',
+                                            marginBottom: '8px',
+                                            textTransform: 'capitalize'
+                                          }}>
+                                            {location}
+                                          </div>
+                                        )}
+
+                                        {/* Image */}
+                                        <div
+                                          onClick={() => {
+                                            const flatIndex = galleryImages.findIndex(g => g.url === img.url)
+                                            if (flatIndex >= 0) setLightboxIndex(flatIndex)
+                                          }}
+                                          style={{
+                                            position: 'relative',
+                                            width: '100%',
+                                            paddingBottom: '75%',
+                                            borderRadius: '10px',
+                                            overflow: 'hidden',
+                                            cursor: 'pointer',
+                                            background: '#f1f5f9'
+                                          }}
+                                        >
+                                          <img
+                                            src={img.url}
+                                            alt={img.name}
+                                            style={{
+                                              position: 'absolute',
+                                              top: 0,
+                                              left: 0,
+                                              width: '100%',
+                                              height: '100%',
+                                              objectFit: 'contain',
+                                              transition: 'transform 0.3s ease'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                          />
+                                          {/* Enlarge hint */}
+                                          <div style={{
+                                            position: 'absolute', bottom: '10px', right: '10px',
+                                            background: 'rgba(0,0,0,0.6)', color: 'white',
+                                            padding: '5px 10px', borderRadius: '6px',
+                                            fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
+                                            pointerEvents: 'none'
+                                          }}>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                            </svg>
+                                            Click to enlarge
+                                          </div>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               )
                             }
