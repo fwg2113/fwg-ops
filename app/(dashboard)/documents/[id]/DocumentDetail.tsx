@@ -1427,7 +1427,8 @@ export default function DocumentDetail({
         textElements: any[]
       }
       // DTF Pricing fields
-      design_location_fee_per_location?: number  // Default $5, editable
+      design_fee_per_location?: number  // Default $5, editable
+      press_fee_per_location?: number   // Default $2.25, editable
       markup_percent?: number  // Auto-calculated from quantity tiers, editable
     }
   }
@@ -1444,9 +1445,11 @@ export default function DocumentDetail({
     if (item && isDTFApparel(item)) {
       const af = getApparelFields(item)
       const designLocationsCount = countDesignLocations(item)
-      const feePerLocation = af.design_location_fee_per_location ?? 5.00
-      const totalDesignFee = designLocationsCount * feePerLocation
-      totalAmount += totalDesignFee
+      const designFee = af.design_fee_per_location ?? 5.00
+      const pressFee = af.press_fee_per_location ?? 2.25
+      const totalFeePerLocation = designFee + pressFee
+      const totalDecorationFee = designLocationsCount * totalFeePerLocation
+      totalAmount += totalDecorationFee
     }
 
     return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
@@ -1559,7 +1562,7 @@ export default function DocumentDetail({
 
       if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
         cf[fieldPath] = value
-      } else if (fieldPath === 'design_location_fee_per_location' || fieldPath === 'markup_percent') {
+      } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location' || fieldPath === 'markup_percent') {
         // DTF pricing fields
         cf[fieldPath] = value
       } else if (fieldPath.startsWith('size.')) {
@@ -3519,16 +3522,20 @@ export default function DocumentDetail({
                             let perUnitDecorationFee = 0
                             if (isDTFApparel(item)) {
                               const designLocationsCount = countDesignLocations(item)
-                              const feePerLocation = af.design_location_fee_per_location ?? 5.00
-                              const totalDesignFee = designLocationsCount * feePerLocation
-                              perUnitDecorationFee = totalQty > 0 ? totalDesignFee / totalQty : 0
+                              const designFee = af.design_fee_per_location ?? 5.00
+                              const pressFee = af.press_fee_per_location ?? 2.25
+                              const totalFeePerLocation = designFee + pressFee
+                              const totalDecorationFee = designLocationsCount * totalFeePerLocation
+                              perUnitDecorationFee = totalQty > 0 ? totalDecorationFee / totalQty : 0
 
                               // Debug logging
                               if (totalQty > 0) {
                                 console.log('🧮 Per-unit decoration fee calc:', {
                                   designLocationsCount,
-                                  feePerLocation,
-                                  totalDesignFee,
+                                  designFee,
+                                  pressFee,
+                                  totalFeePerLocation,
+                                  totalDecorationFee,
                                   totalQty,
                                   perUnitDecorationFee
                                 })
@@ -3593,8 +3600,12 @@ export default function DocumentDetail({
                           {/* DTF Pricing Section */}
                           {isDTFApparel(item) && enabledSizes.length > 0 && (() => {
                             const designLocationsCount = countDesignLocations(item)
-                            const feePerLocation = af.design_location_fee_per_location ?? 5.00
-                            const totalDesignFee = designLocationsCount * feePerLocation
+                            const designFee = af.design_fee_per_location ?? 5.00
+                            const pressFee = af.press_fee_per_location ?? 2.25
+                            const totalFeePerLocation = designFee + pressFee
+                            const totalDesignFee = designLocationsCount * designFee
+                            const totalPressFee = designLocationsCount * pressFee
+                            const totalDecorationFee = designLocationsCount * totalFeePerLocation
                             const { totalQty } = recalcApparelTotals(sizes)
                             const autoMarkup = getDTFMarkupPercent(totalQty)
                             const currentMarkup = af.markup_percent ?? autoMarkup
@@ -3603,25 +3614,53 @@ export default function DocumentDetail({
                               <div style={{ marginTop: '12px', padding: '12px', background: '#1a1a2e', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px' }}>
                                 <div style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', textTransform: 'uppercase', marginBottom: '10px' }}>DTF Pricing</div>
 
-                                {/* Design Location Fees */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                {/* Design Fees */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                                   <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Design Fees:</span>
                                   <span style={{ fontSize: '12px', color: '#f1f5f9' }}>{designLocationsCount} location{designLocationsCount !== 1 ? 's' : ''} × $</span>
                                   <input
                                     type="number"
                                     step="0.01"
-                                    value={feePerLocation}
-                                    onChange={e => updateApparelField(item.id, 'design_location_fee_per_location', parseFloat(e.target.value) || 0)}
+                                    value={designFee}
+                                    onChange={e => updateApparelField(item.id, 'design_fee_per_location', parseFloat(e.target.value) || 0)}
                                     style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
                                   />
                                   <span style={{ fontSize: '12px', color: '#22c55e', fontWeight: 600 }}> = ${totalDesignFee.toFixed(2)}</span>
                                   <button
-                                    onClick={() => updateApparelField(item.id, 'design_location_fee_per_location', 5.00)}
+                                    onClick={() => updateApparelField(item.id, 'design_fee_per_location', 5.00)}
                                     style={{ padding: '2px 8px', background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
                                     title="Reset to $5.00"
                                   >
                                     Reset
                                   </button>
+                                </div>
+
+                                {/* Press Fees */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Press Fees:</span>
+                                  <span style={{ fontSize: '12px', color: '#f1f5f9' }}>{designLocationsCount} location{designLocationsCount !== 1 ? 's' : ''} × $</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={pressFee}
+                                    onChange={e => updateApparelField(item.id, 'press_fee_per_location', parseFloat(e.target.value) || 0)}
+                                    style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
+                                  />
+                                  <span style={{ fontSize: '12px', color: '#22c55e', fontWeight: 600 }}> = ${totalPressFee.toFixed(2)}</span>
+                                  <button
+                                    onClick={() => updateApparelField(item.id, 'press_fee_per_location', 2.25)}
+                                    style={{ padding: '2px 8px', background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                                    title="Reset to $2.25"
+                                  >
+                                    Reset
+                                  </button>
+                                </div>
+
+                                {/* Total Decoration Fees */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', paddingTop: '6px', borderTop: '1px solid rgba(148,163,184,0.1)' }}>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Total Decoration:</span>
+                                  <span style={{ fontSize: '13px', color: '#22c55e', fontWeight: 700 }}>${totalDecorationFee.toFixed(2)}</span>
+                                  <span style={{ fontSize: '11px', color: '#64748b' }}>({designLocationsCount} × ${totalFeePerLocation.toFixed(2)})</span>
                                 </div>
 
                                 {/* Markup Percentage */}
