@@ -1441,7 +1441,7 @@ export default function DocumentDetail({
       totalAmount += (s.qty || 0) * (s.price || 0)
     }
 
-    // Add design location fees for DTF apparel
+    // Add design location fees for DTF apparel (per unit, so multiply by qty)
     if (item && isDTFApparel(item)) {
       const af = getApparelFields(item)
       const designLocationsCount = countDesignLocations(item)
@@ -1449,7 +1449,7 @@ export default function DocumentDetail({
       const pressFee = af.press_fee_per_location ?? 2.25
       const totalFeePerLocation = designFee + pressFee
       const totalDecorationFee = designLocationsCount * totalFeePerLocation
-      totalAmount += totalDecorationFee
+      totalAmount += totalDecorationFee * totalQty
     }
 
     return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
@@ -3526,7 +3526,7 @@ export default function DocumentDetail({
                               const pressFee = af.press_fee_per_location ?? 2.25
                               const totalFeePerLocation = designFee + pressFee
                               const totalDecorationFee = designLocationsCount * totalFeePerLocation
-                              perUnitDecorationFee = totalQty > 0 ? totalDecorationFee / totalQty : 0
+                              perUnitDecorationFee = totalDecorationFee
 
                               // Debug logging
                               if (totalQty > 0) {
