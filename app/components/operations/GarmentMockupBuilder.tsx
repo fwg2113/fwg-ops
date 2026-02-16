@@ -546,84 +546,88 @@ export default function GarmentMockupBuilder({
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Canvas context not available')
 
-    // Load garment image for this location
-    const garmentImg = new Image()
-    garmentImg.crossOrigin = 'anonymous'
+    // Track blob URLs to revoke after drawing
+    const blobUrlsToRevoke: string[] = []
 
-    await new Promise((resolve, reject) => {
-      garmentImg.onload = resolve
-      garmentImg.onerror = reject
-      garmentImg.src = getGarmentImageForLocation(location)
-    })
+    try {
+      // Load garment image for this location
+      const garmentImg = new Image()
+      garmentImg.crossOrigin = 'anonymous'
 
-    // Set canvas size to garment image size
-    canvas.width = garmentImg.width || 800
-    canvas.height = garmentImg.height || 1000
+      await new Promise((resolve, reject) => {
+        garmentImg.onload = resolve
+        garmentImg.onerror = reject
+        garmentImg.src = getGarmentImageForLocation(location)
+      })
 
-    // Draw garment
-    ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
+      // Set canvas size to garment image size
+      canvas.width = garmentImg.width || 800
+      canvas.height = garmentImg.height || 1000
 
-    // Draw logos for this location
-    const locationLogos = logos.filter(l => l.location === location)
-    for (const logo of locationLogos) {
-      const logoImg = new Image()
+      // Draw garment
+      ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
 
-      // For SVG logos, use the modified SVG content directly
-      if (logo.isSvg && logo.svgContent && logo.colorMap) {
-        const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
-        const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml;charset=utf-8' })
-        const svgUrl = URL.createObjectURL(svgBlob)
+      // Draw logos for this location
+      const locationLogos = logos.filter(l => l.location === location)
+      for (const logo of locationLogos) {
+        const logoImg = new Image()
+        logoImg.crossOrigin = 'anonymous'
 
-        await new Promise((resolve, reject) => {
-          logoImg.onload = () => {
-            URL.revokeObjectURL(svgUrl)
-            resolve(null)
-          }
-          logoImg.onerror = (err) => {
-            URL.revokeObjectURL(svgUrl)
-            reject(err)
-          }
-          logoImg.src = svgUrl
-        })
-      } else {
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
-          logoImg.src = logo.url
-        })
+        // For SVG logos, use the modified SVG content directly
+        if (logo.isSvg && logo.svgContent && logo.colorMap) {
+          const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
+          const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml;charset=utf-8' })
+          const svgUrl = URL.createObjectURL(svgBlob)
+          blobUrlsToRevoke.push(svgUrl) // Track for cleanup later
+
+          await new Promise((resolve, reject) => {
+            logoImg.onload = resolve
+            logoImg.onerror = reject
+            logoImg.src = svgUrl
+          })
+        } else {
+          await new Promise((resolve, reject) => {
+            logoImg.onload = resolve
+            logoImg.onerror = reject
+            logoImg.src = logo.url
+          })
+        }
+
+        const logoX = logo.x * canvas.width
+        const logoY = logo.y * canvas.height
+        const logoW = logo.width * canvas.width
+        const logoH = logo.height * canvas.height
+
+        ctx.save()
+        ctx.translate(logoX + logoW / 2, logoY + logoH / 2)
+        ctx.rotate((logo.rotation * Math.PI) / 180)
+        ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
+        ctx.restore()
       }
 
-      const logoX = logo.x * canvas.width
-      const logoY = logo.y * canvas.height
-      const logoW = logo.width * canvas.width
-      const logoH = logo.height * canvas.height
+      // Draw text elements for this location
+      const locationTexts = textElements.filter(t => t.location === location)
+      for (const text of locationTexts) {
+        const textX = text.x * canvas.width
+        const textY = text.y * canvas.height
 
-      ctx.save()
-      ctx.translate(logoX + logoW / 2, logoY + logoH / 2)
-      ctx.rotate((logo.rotation * Math.PI) / 180)
-      ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
-      ctx.restore()
+        ctx.save()
+        ctx.translate(textX, textY)
+        ctx.rotate((text.rotation * Math.PI) / 180)
+        ctx.font = `${text.fontSize}px ${text.fontFamily}`
+        ctx.fillStyle = text.color
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(text.text, 0, 0)
+        ctx.restore()
+      }
+
+      // Export as data URL
+      return canvas.toDataURL('image/png')
+    } finally {
+      // Clean up blob URLs after canvas export is complete
+      blobUrlsToRevoke.forEach(url => URL.revokeObjectURL(url))
     }
-
-    // Draw text elements for this location
-    const locationTexts = textElements.filter(t => t.location === location)
-    for (const text of locationTexts) {
-      const textX = text.x * canvas.width
-      const textY = text.y * canvas.height
-
-      ctx.save()
-      ctx.translate(textX, textY)
-      ctx.rotate((text.rotation * Math.PI) / 180)
-      ctx.font = `${text.fontSize}px ${text.fontFamily}`
-      ctx.fillStyle = text.color
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(text.text, 0, 0)
-      ctx.restore()
-    }
-
-    // Export as data URL
-    return canvas.toDataURL('image/png')
   }
 
   // Generate mockup images for all locations with designs and save
