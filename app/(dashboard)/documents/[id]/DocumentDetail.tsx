@@ -1590,9 +1590,28 @@ export default function DocumentDetail({
 
       if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
         cf[fieldPath] = value
-      } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location' || fieldPath === 'markup_percent') {
-        // DTF pricing fields
+      } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location') {
+        // DTF pricing fields (non-markup)
         cf[fieldPath] = value
+      } else if (fieldPath === 'markup_percent') {
+        // Markup percentage - recalculate garment prices
+        cf[fieldPath] = value
+
+        // If markup changed and this is DTF apparel, recalculate garment prices
+        if (isDTFApparel({ ...item, custom_fields: cf })) {
+          const sizes = { ...(cf.sizes || {}) }
+          const newMarkupPercent = value !== undefined ? value : getDTFMarkupPercent(1)
+          const newMarkupMultiplier = newMarkupPercent / 100
+
+          // Recalculate all garment prices using stored wholesale prices
+          Object.keys(sizes).forEach(sizeName => {
+            const sizeData = sizes[sizeName]
+            if (sizeData.wholesale !== undefined && sizeData.wholesale > 0) {
+              sizeData.price = sizeData.wholesale * newMarkupMultiplier
+            }
+          })
+          cf.sizes = sizes
+        }
       } else if (fieldPath.startsWith('size.')) {
         // e.g. size.XL.qty or size.XL.price
         const parts = fieldPath.split('.')
