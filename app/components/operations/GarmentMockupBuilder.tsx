@@ -122,23 +122,36 @@ export default function GarmentMockupBuilder({
   const extractSvgColors = (svgContent: string): string[] => {
     const colors = new Set<string>()
 
-    // Match fill and stroke attributes
-    const fillMatches = svgContent.matchAll(/fill=["']([^"']+)["']/g)
-    const strokeMatches = svgContent.matchAll(/stroke=["']([^"']+)["']/g)
+    // Match fill and stroke attributes (with or without quotes)
+    const fillMatches = svgContent.matchAll(/fill=["']?([^"'\s>]+)["']?/g)
+    const strokeMatches = svgContent.matchAll(/stroke=["']?([^"'\s>]+)["']?/g)
 
     // Match style attributes
     const styleMatches = svgContent.matchAll(/style=["']([^"']+)["']/g)
 
+    // Match <style> tag CSS rules
+    const styleTagMatch = svgContent.match(/<style[^>]*>([\s\S]*?)<\/style>/i)
+    if (styleTagMatch) {
+      const cssContent = styleTagMatch[1]
+      const cssColorMatches = cssContent.matchAll(/(?:fill|stroke)\s*:\s*([^;}\s]+)/g)
+      for (const match of cssColorMatches) {
+        const color = match[1].trim().toLowerCase()
+        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(') && !color.includes('var(')) {
+          colors.add(normalizeColor(color))
+        }
+      }
+    }
+
     for (const match of fillMatches) {
       const color = match[1].toLowerCase()
-      if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+      if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
         colors.add(normalizeColor(color))
       }
     }
 
     for (const match of strokeMatches) {
       const color = match[1].toLowerCase()
-      if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+      if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
         colors.add(normalizeColor(color))
       }
     }
@@ -150,19 +163,20 @@ export default function GarmentMockupBuilder({
 
       if (fillMatch) {
         const color = fillMatch[1].trim().toLowerCase()
-        if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
           colors.add(normalizeColor(color))
         }
       }
 
       if (strokeMatch) {
         const color = strokeMatch[1].trim().toLowerCase()
-        if (color !== 'none' && color !== 'transparent' && !color.includes('url(')) {
+        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
           colors.add(normalizeColor(color))
         }
       }
     }
 
+    console.log('SVG Colors detected:', Array.from(colors))
     return Array.from(colors)
   }
 
@@ -185,26 +199,47 @@ export default function GarmentMockupBuilder({
     let modifiedSvg = svgContent
 
     Object.entries(colorMap).forEach(([originalColor, newColor]) => {
-      // Replace in fill attributes
+      // Escape special regex characters in color strings
+      const escapedOriginal = originalColor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+      // Replace in fill attributes (with or without quotes)
       modifiedSvg = modifiedSvg.replace(
-        new RegExp(`fill=["']${originalColor}["']`, 'gi'),
+        new RegExp(`fill=["']${escapedOriginal}["']`, 'gi'),
+        `fill="${newColor}"`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill=${escapedOriginal}(?=[\\s>])`, 'gi'),
         `fill="${newColor}"`
       )
 
-      // Replace in stroke attributes
+      // Replace in stroke attributes (with or without quotes)
       modifiedSvg = modifiedSvg.replace(
-        new RegExp(`stroke=["']${originalColor}["']`, 'gi'),
+        new RegExp(`stroke=["']${escapedOriginal}["']`, 'gi'),
+        `stroke="${newColor}"`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke=${escapedOriginal}(?=[\\s>])`, 'gi'),
         `stroke="${newColor}"`
       )
 
       // Replace in style attributes
       modifiedSvg = modifiedSvg.replace(
-        new RegExp(`fill:\\s*${originalColor}`, 'gi'),
+        new RegExp(`fill:\\s*${escapedOriginal}`, 'gi'),
         `fill: ${newColor}`
       )
       modifiedSvg = modifiedSvg.replace(
-        new RegExp(`stroke:\\s*${originalColor}`, 'gi'),
+        new RegExp(`stroke:\\s*${escapedOriginal}`, 'gi'),
         `stroke: ${newColor}`
+      )
+
+      // Replace in CSS style tags
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill\\s*:\\s*${escapedOriginal}\\s*;`, 'gi'),
+        `fill: ${newColor};`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke\\s*:\\s*${escapedOriginal}\\s*;`, 'gi'),
+        `stroke: ${newColor};`
       )
     })
 
@@ -298,7 +333,10 @@ export default function GarmentMockupBuilder({
 
         if (isSvgFile) {
           // Parse SVG and extract colors
+          console.log('Processing SVG file, content length:', content.length)
+          console.log('SVG content preview:', content.substring(0, 500))
           const colors = extractSvgColors(content)
+          console.log('Extracted colors:', colors)
           const initialColorMap: { [key: string]: string } = {}
           colors.forEach(color => {
             initialColorMap[color] = color // Initially map to same color
