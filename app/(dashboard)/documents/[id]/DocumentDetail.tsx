@@ -1422,6 +1422,9 @@ export default function DocumentDetail({
         logos: any[]
         textElements: any[]
       }
+      // DTF Pricing fields
+      design_location_fee_per_location?: number  // Default $5, editable
+      markup_percent?: number  // Auto-calculated from quantity tiers, editable
     }
   }
 
@@ -1435,12 +1438,49 @@ export default function DocumentDetail({
     return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
   }
 
+  // DTF Pricing Helpers
+  const countDesignLocations = (item: LineItem): number => {
+    if (!item.attachments) return 0
+    const mockupAttachments = item.attachments.filter(att =>
+      att.filename?.startsWith('mockup_')
+    )
+    const uniqueLocations = new Set<string>()
+    mockupAttachments.forEach(att => {
+      // Extract location from filename: mockup_Front_...
+      const parts = att.filename?.split('_')
+      if (parts && parts.length >= 2) {
+        uniqueLocations.add(parts[1]) // Front, Back, LeftSleeve, RightSleeve, etc.
+      }
+    })
+    return uniqueLocations.size
+  }
+
+  const getDTFMarkupPercent = (quantity: number): number => {
+    // Based on your pricing matrix screenshot
+    if (quantity >= 499) return 125
+    if (quantity >= 249) return 150
+    if (quantity >= 99) return 160
+    if (quantity >= 49) return 175
+    if (quantity >= 24) return 185
+    if (quantity >= 2) return 225
+    return 350 // 1 qty
+  }
+
+  const isDTFApparel = (item: LineItem): boolean => {
+    const af = getApparelFields(item)
+    // DTF apparel = apparel items that are NOT embroidery
+    return af.apparel_mode === true && item.category?.toUpperCase() !== 'EMBROIDERY'
+  }
+
   const updateApparelField = async (itemId: string, fieldPath: string, value: any) => {
     const newItems = lineItems.map(item => {
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
       if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
+        cf[fieldPath] = value
+      } else if (fieldPath === 'design_location_fee_per_location' || fieldPath === 'markup_percent') {
+        // DTF pricing fields
         cf[fieldPath] = value
       } else if (fieldPath.startsWith('size.')) {
         // e.g. size.XL.qty or size.XL.price
@@ -3387,6 +3427,64 @@ export default function DocumentDetail({
                               Click <strong>Sizes</strong> to choose which sizes to include
                             </div>
                           )}
+
+                          {/* DTF Pricing Section */}
+                          {isDTFApparel(item) && enabledSizes.length > 0 && (() => {
+                            const designLocationsCount = countDesignLocations(item)
+                            const feePerLocation = af.design_location_fee_per_location ?? 5.00
+                            const totalDesignFee = designLocationsCount * feePerLocation
+                            const { totalQty } = recalcApparelTotals(sizes)
+                            const autoMarkup = getDTFMarkupPercent(totalQty)
+                            const currentMarkup = af.markup_percent ?? autoMarkup
+
+                            return (
+                              <div style={{ marginTop: '12px', padding: '12px', background: '#1a1a2e', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', textTransform: 'uppercase', marginBottom: '10px' }}>DTF Pricing</div>
+
+                                {/* Design Location Fees */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Design Fees:</span>
+                                  <span style={{ fontSize: '12px', color: '#f1f5f9' }}>{designLocationsCount} location{designLocationsCount !== 1 ? 's' : ''} × $</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={feePerLocation}
+                                    onChange={e => updateApparelField(item.id, 'design_location_fee_per_location', parseFloat(e.target.value) || 0)}
+                                    style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
+                                  />
+                                  <span style={{ fontSize: '12px', color: '#22c55e', fontWeight: 600 }}> = ${totalDesignFee.toFixed(2)}</span>
+                                  <button
+                                    onClick={() => updateApparelField(item.id, 'design_location_fee_per_location', 5.00)}
+                                    style={{ padding: '2px 8px', background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                                    title="Reset to $5.00"
+                                  >
+                                    Reset
+                                  </button>
+                                </div>
+
+                                {/* Markup Percentage */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Markup:</span>
+                                  <input
+                                    type="number"
+                                    step="1"
+                                    value={currentMarkup}
+                                    onChange={e => updateApparelField(item.id, 'markup_percent', parseFloat(e.target.value) || 0)}
+                                    style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
+                                  />
+                                  <span style={{ fontSize: '12px', color: '#f1f5f9' }}>%</span>
+                                  <span style={{ fontSize: '11px', color: '#64748b' }}>(Qty: {totalQty}, Auto: {autoMarkup}%)</span>
+                                  <button
+                                    onClick={() => updateApparelField(item.id, 'markup_percent', undefined as any)}
+                                    style={{ padding: '2px 8px', background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                                    title={`Reset to auto (${autoMarkup}%)`}
+                                  >
+                                    Reset
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })()}
 
                           {/* Mockup Creator Button */}
                           <div style={{ display: 'flex', marginTop: '10px' }}>
