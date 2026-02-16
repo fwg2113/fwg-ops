@@ -1605,7 +1605,6 @@ export default function DocumentDetail({
     }
 
     // Load existing mockup config if it exists
-    const af = getApparelFields(item)
     const mockupConfig = af.mockup_config || { logos: [], textElements: [] }
 
     setMockupLineItemId(itemId)
