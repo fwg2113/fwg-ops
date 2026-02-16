@@ -1454,6 +1454,22 @@ export default function DocumentDetail({
 
   // DTF Pricing Helpers
   const countDesignLocations = (item: LineItem): number => {
+    const af = getApparelFields(item)
+
+    // First, try to count from mockup_config (this is the live data before mockups are saved)
+    if (af.mockup_config?.logos && Array.isArray(af.mockup_config.logos)) {
+      const uniqueLocations = new Set<string>()
+      af.mockup_config.logos.forEach((logo: any) => {
+        if (logo.location) {
+          uniqueLocations.add(logo.location)
+        }
+      })
+      if (uniqueLocations.size > 0) {
+        return uniqueLocations.size
+      }
+    }
+
+    // Fallback: count from saved mockup attachments (for backward compatibility)
     if (!item.attachments) return 0
     const mockupAttachments = item.attachments.filter(att =>
       att.filename?.startsWith('mockup_')
