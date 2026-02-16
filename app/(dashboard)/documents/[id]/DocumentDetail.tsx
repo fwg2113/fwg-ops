@@ -1571,8 +1571,39 @@ export default function DocumentDetail({
         const sizeName = parts[1]
         const sizeField = parts[2] // 'qty' or 'price'
         const sizes = { ...(cf.sizes || {}) }
-        sizes[sizeName] = { ...(sizes[sizeName] || { qty: 0, price: 0 }), [sizeField]: value }
+        const sizeData = { ...(sizes[sizeName] || { qty: 0, price: 0, wholesale: 0 }) }
+        sizeData[sizeField] = value
+
+        // If manually updating price, back-calculate wholesale based on current markup
+        if (sizeField === 'price' && isDTFApparel({ ...item, custom_fields: cf })) {
+          const currentTotalQty = Object.values(sizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
+          const currentMarkup = getDTFMarkupPercent(currentTotalQty || 1)
+          const markupMultiplier = currentMarkup / 100
+          sizeData.wholesale = markupMultiplier > 0 ? value / markupMultiplier : value
+        }
+
+        sizes[sizeName] = sizeData
         cf.sizes = sizes
+      }
+
+      // If quantity changed and this is DTF apparel, recalculate garment prices with new markup
+      if (fieldPath.includes('.qty') && isDTFApparel({ ...item, custom_fields: cf })) {
+        const sizes = { ...(cf.sizes || {}) }
+        // Calculate new total quantity
+        const newTotalQty = Object.values(sizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
+        // Get new markup percentage based on total quantity
+        const newMarkupPercent = getDTFMarkupPercent(newTotalQty)
+        const newMarkupMultiplier = newMarkupPercent / 100
+
+        // Recalculate all garment prices using stored wholesale prices
+        Object.keys(sizes).forEach(sizeName => {
+          const sizeData = sizes[sizeName]
+          if (sizeData.wholesale !== undefined) {
+            sizeData.price = sizeData.wholesale * newMarkupMultiplier
+          }
+        })
+        cf.sizes = sizes
+        cf.markup_percent = newMarkupPercent
       }
 
       // Recalculate totals from sizes (pass item with updated custom_fields for fee calculation)
@@ -3398,19 +3429,22 @@ export default function DocumentDetail({
                                     const selectedColor = product.colors.find((c: any) => c.colorName === newColor)
 
                                     if (selectedColor && selectedColor.sizes) {
-                                      // Apply default 100% markup to SS wholesale prices
-                                      // TODO: Replace with pricing matrix lookup based on document settings
-                                      const DEFAULT_MARKUP = 1.0 // 100% markup (2x wholesale)
+                                      // Calculate total quantity to determine markup
+                                      const existingSizes = af.sizes || {}
+                                      const totalQty = Object.values(existingSizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
+                                      const markupPercent = getDTFMarkupPercent(totalQty || 1)
+                                      const markupMultiplier = markupPercent / 100
 
-                                      const sizesObj: Record<string, { qty: number; price: number }> = {}
+                                      const sizesObj: Record<string, { qty: number; price: number; wholesale: number }> = {}
                                       selectedColor.sizes.forEach((s: any) => {
                                         const existingSize = (af.sizes || {})[s.sizeName]
                                         const wholesalePrice = s.wholesalePrice || 0
-                                        const retailPrice = wholesalePrice * (1 + DEFAULT_MARKUP)
+                                        const retailPrice = wholesalePrice * markupMultiplier
 
                                         sizesObj[s.sizeName] = {
                                           qty: existingSize?.qty || 0,
-                                          price: retailPrice
+                                          price: retailPrice,
+                                          wholesale: wholesalePrice
                                         }
                                       })
 
