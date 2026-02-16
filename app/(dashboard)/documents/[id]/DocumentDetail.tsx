@@ -1010,11 +1010,13 @@ export default function DocumentDetail({
     setSaving(true)
     const bucketValue = archiveBucket === 'won' ? 'ARCHIVE_WON' : 'ARCHIVE_LOST'
     const reason = archiveBucket === 'lost' ? (archiveReason === 'OTHER' ? archiveOtherReason : archiveReason) : null
-    
-    await supabase.from('documents').update({ 
-      status: 'archived', 
+
+    await supabase.from('documents').update({
+      status: 'archived',
       bucket: bucketValue,
-      archive_reason: reason
+      archive_reason: reason,
+      pre_archive_status: doc.status,
+      pre_archive_bucket: doc.bucket
     }).eq('id', doc.id)
     
     setShowArchiveModal(false)
