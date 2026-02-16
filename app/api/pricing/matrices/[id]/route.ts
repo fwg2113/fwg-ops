@@ -9,10 +9,10 @@ import { getPricingMatrixById } from '@/app/lib/pricing'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json(
@@ -41,7 +41,8 @@ export async function GET(
       data: matrix
     })
   } catch (error) {
-    console.error(`Error fetching pricing matrix ${params.id}:`, error)
+    const resolvedParams = await params
+    console.error(`Error fetching pricing matrix ${resolvedParams.id}:`, error)
 
     return NextResponse.json(
       {

@@ -15,6 +15,10 @@ interface Logo {
   width: number
   height: number
   rotation: number
+  isSvg: boolean
+  svgContent?: string // Original SVG content
+  colorMap?: { [originalColor: string]: string } // Map of original colors to new colors
+  aspectRatio?: number // width / height of the actual image
 }
 
 interface TextElement {
@@ -29,35 +33,48 @@ interface TextElement {
   rotation: number
 }
 
+interface MockupImage {
+  location: Location
+  dataUrl: string
+}
+
 interface GarmentMockupBuilderProps {
-  frontImageUrl: string
-  backImageUrl?: string
-  sleeveImageUrl?: string
+  garmentImageUrl: string
+  garmentImageUrls?: {
+    Front: string
+    Back: string
+    Sleeves: string
+  }
   garmentName: string
   colorName: string
-  onSave: (mockups: Array<{ location: Location; dataUrl: string }>) => void
+  initialLogos?: Logo[]
+  initialTextElements?: TextElement[]
+  onSave: (mockups: MockupImage[], logos: Logo[], textElements: TextElement[]) => void
+  onSaveConfig: (logos: Logo[], textElements: TextElement[]) => void
   onClose: () => void
 }
 
 export default function GarmentMockupBuilder({
-  frontImageUrl,
-  backImageUrl,
-  sleeveImageUrl,
+  garmentImageUrl,
+  garmentImageUrls,
   garmentName,
   colorName,
+  initialLogos,
+  initialTextElements,
   onSave,
+  onSaveConfig,
   onClose
 }: GarmentMockupBuilderProps) {
   const [activeLocation, setActiveLocation] = useState<Location>('Front')
-  const [logos, setLogos] = useState<Logo[]>([])
+  const [logos, setLogos] = useState<Logo[]>(initialLogos || [])
   const [selectedLogoId, setSelectedLogoId] = useState<string | null>(null)
-  const [textElements, setTextElements] = useState<TextElement[]>([])
+  const [textElements, setTextElements] = useState<TextElement[]>(initialTextElements || [])
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [isRotating, setIsRotating] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [resizeStartFontSize, setResizeStartFontSize] = useState(0)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -116,31 +133,298 @@ export default function GarmentMockupBuilder({
     { name: 'Left Sleeve', x: 0.05, y: 0.35, width: 0.12 },
   ]
 
+  // Extract unique colors from SVG content
+  const extractSvgColors = (svgContent: string): string[] => {
+    const colors = new Set<string>()
+
+    // Match fill and stroke attributes (with or without quotes)
+    const fillMatches = svgContent.matchAll(/fill=["']?([^"'\s>]+)["']?/g)
+    const strokeMatches = svgContent.matchAll(/stroke=["']?([^"'\s>]+)["']?/g)
+
+    // Match style attributes
+    const styleMatches = svgContent.matchAll(/style=["']([^"']+)["']/g)
+
+    // Match <style> tag CSS rules
+    const styleTagMatch = svgContent.match(/<style[^>]*>([\s\S]*?)<\/style>/i)
+    if (styleTagMatch) {
+      const cssContent = styleTagMatch[1]
+      const cssColorMatches = cssContent.matchAll(/(?:fill|stroke)\s*:\s*([^;}\s]+)/g)
+      for (const match of cssColorMatches) {
+        const color = match[1].trim().toLowerCase()
+        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(') && !color.includes('var(')) {
+          colors.add(normalizeColor(color))
+        }
+      }
+    }
+
+    for (const match of fillMatches) {
+      const color = match[1].toLowerCase()
+      if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
+        colors.add(normalizeColor(color))
+      }
+    }
+
+    for (const match of strokeMatches) {
+      const color = match[1].toLowerCase()
+      if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
+        colors.add(normalizeColor(color))
+      }
+    }
+
+    for (const match of styleMatches) {
+      const style = match[1]
+      const fillMatch = style.match(/fill:\s*([^;]+)/)
+      const strokeMatch = style.match(/stroke:\s*([^;]+)/)
+
+      if (fillMatch) {
+        const color = fillMatch[1].trim().toLowerCase()
+        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
+          colors.add(normalizeColor(color))
+        }
+      }
+
+      if (strokeMatch) {
+        const color = strokeMatch[1].trim().toLowerCase()
+        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
+          colors.add(normalizeColor(color))
+        }
+      }
+    }
+
+    console.log('SVG Colors detected:', Array.from(colors))
+    return Array.from(colors)
+  }
+
+  // Normalize color to hex format
+  const normalizeColor = (color: string): string => {
+    // If already hex, return it
+    if (color.startsWith('#')) return color.toLowerCase()
+
+    // Convert named colors and rgb to hex
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return color
+
+    ctx.fillStyle = color
+    return ctx.fillStyle
+  }
+
+  // Apply color mapping to SVG content
+  const applySvgColorMap = (svgContent: string, colorMap: { [key: string]: string }): string => {
+    let modifiedSvg = svgContent
+
+    Object.entries(colorMap).forEach(([originalColor, newColor]) => {
+      // Escape special regex characters in color strings
+      const escapedOriginal = originalColor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+      // Replace in fill attributes (with or without quotes)
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill=["']${escapedOriginal}["']`, 'gi'),
+        `fill="${newColor}"`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill=${escapedOriginal}(?=[\\s>])`, 'gi'),
+        `fill="${newColor}"`
+      )
+
+      // Replace in stroke attributes (with or without quotes)
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke=["']${escapedOriginal}["']`, 'gi'),
+        `stroke="${newColor}"`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke=${escapedOriginal}(?=[\\s>])`, 'gi'),
+        `stroke="${newColor}"`
+      )
+
+      // Replace in style attributes
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill:\\s*${escapedOriginal}`, 'gi'),
+        `fill: ${newColor}`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke:\\s*${escapedOriginal}`, 'gi'),
+        `stroke: ${newColor}`
+      )
+
+      // Replace in CSS style tags
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`fill\\s*:\\s*${escapedOriginal}\\s*;`, 'gi'),
+        `fill: ${newColor};`
+      )
+      modifiedSvg = modifiedSvg.replace(
+        new RegExp(`stroke\\s*:\\s*${escapedOriginal}\\s*;`, 'gi'),
+        `stroke: ${newColor};`
+      )
+    })
+
+    return modifiedSvg
+  }
+
+  // Regenerate blob URLs for loaded logos (blob URLs don't persist across sessions)
+  useEffect(() => {
+    if (!initialLogos || initialLogos.length === 0) return
+
+    const regenerateUrls = async () => {
+      const updatedLogos = await Promise.all(initialLogos.map(async (logo) => {
+        // For SVG logos with saved content, regenerate the blob URL
+        if (logo.isSvg && logo.svgContent && logo.colorMap) {
+          const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
+          const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml' })
+          const newUrl = URL.createObjectURL(svgBlob)
+          return { ...logo, url: newUrl, originalUrl: newUrl }
+        }
+
+        // Handle legacy SVG logos that don't have colorMap/svgContent
+        // Check if the URL contains SVG data or if file appears to be SVG
+        if (logo.url && (logo.url.includes('data:image/svg') || logo.url.includes('.svg'))) {
+          try {
+            // Fetch the SVG content
+            let svgContent = ''
+            if (logo.url.startsWith('data:image/svg+xml')) {
+              // Extract from data URL
+              const base64Match = logo.url.match(/data:image\/svg\+xml;base64,(.+)/)
+              if (base64Match) {
+                svgContent = atob(base64Match[1])
+              } else {
+                // URL encoded
+                const urlEncodedMatch = logo.url.match(/data:image\/svg\+xml[^,]*,(.+)/)
+                if (urlEncodedMatch) {
+                  svgContent = decodeURIComponent(urlEncodedMatch[1])
+                }
+              }
+            } else if (logo.url.includes('.svg')) {
+              // Try to fetch it
+              const response = await fetch(logo.url)
+              svgContent = await response.text()
+            }
+
+            if (svgContent) {
+              // Extract colors and create color map
+              const colors = extractSvgColors(svgContent)
+              const colorMap: { [key: string]: string } = {}
+              colors.forEach(color => {
+                colorMap[color] = color // Initially map to same color
+              })
+
+              // Create blob URL
+              const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' })
+              const newUrl = URL.createObjectURL(svgBlob)
+
+              return {
+                ...logo,
+                isSvg: true,
+                svgContent,
+                colorMap,
+                url: newUrl,
+                originalUrl: newUrl
+              }
+            }
+          } catch (error) {
+            console.error('Error processing legacy SVG logo:', error)
+          }
+        }
+
+        // For regular images, the data URL should still be valid
+        return logo
+      }))
+      setLogos(updatedLogos)
+    }
+
+    regenerateUrls()
+  }, [initialLogos])
+
   // Upload logo
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
     Array.from(files).forEach(file => {
+      const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
+
       const reader = new FileReader()
-      reader.onload = (event) => {
-        const url = event.target?.result as string
-        const newLogo: Logo = {
-          id: `logo_${Date.now()}_${Math.random()}`,
-          url,
-          originalUrl: url,
-          backgroundRemoved: false,
-          location: activeLocation,
-          x: 0.35, // Center horizontally
-          y: 0.3,  // Upper third
-          width: 0.3,
-          height: 0.3,
-          rotation: 0
+      reader.onload = async (event) => {
+        const content = event.target?.result as string
+
+        if (isSvgFile) {
+          // Parse SVG and extract colors
+          console.log('Processing SVG file, content length:', content.length)
+          console.log('SVG content preview:', content.substring(0, 500))
+          const colors = extractSvgColors(content)
+          console.log('Extracted colors:', colors)
+          const initialColorMap: { [key: string]: string } = {}
+          colors.forEach(color => {
+            initialColorMap[color] = color // Initially map to same color
+          })
+
+          // Convert SVG to data URL
+          const svgBlob = new Blob([content], { type: 'image/svg+xml' })
+          const url = URL.createObjectURL(svgBlob)
+
+          // Load image to get dimensions
+          const img = new Image()
+          await new Promise((resolve) => {
+            img.onload = resolve
+            img.src = url
+          })
+
+          const aspectRatio = img.naturalWidth / img.naturalHeight
+          const height = 0.3 / aspectRatio // Maintain aspect ratio with width of 0.3
+
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url,
+            originalUrl: url,
+            backgroundRemoved: false,
+            location: activeLocation,
+            x: 0.35,
+            y: 0.3,
+            width: 0.3,
+            height: height,
+            rotation: 0,
+            isSvg: true,
+            svgContent: content,
+            colorMap: initialColorMap,
+            aspectRatio
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
+        } else {
+          // Handle regular image files (PNG, JPG, etc.)
+          // Load image to get dimensions
+          const img = new Image()
+          await new Promise((resolve) => {
+            img.onload = resolve
+            img.src = content
+          })
+
+          const aspectRatio = img.naturalWidth / img.naturalHeight
+          const height = 0.3 / aspectRatio // Maintain aspect ratio with width of 0.3
+
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url: content,
+            originalUrl: content,
+            backgroundRemoved: false,
+            location: activeLocation,
+            x: 0.35,
+            y: 0.3,
+            width: 0.3,
+            height: height,
+            rotation: 0,
+            isSvg: false,
+            aspectRatio
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
         }
-        setLogos(prev => [...prev, newLogo])
-        setSelectedLogoId(newLogo.id)
       }
-      reader.readAsDataURL(file)
+
+      if (isSvgFile) {
+        reader.readAsText(file)
+      } else {
+        reader.readAsDataURL(file)
+      }
     })
   }
 
@@ -253,11 +537,13 @@ export default function GarmentMockupBuilder({
   const applyPreset = (preset: typeof PLACEMENT_PRESETS[0]) => {
     if (!selectedLogoId) return
 
-    setLogos(prev => prev.map(logo =>
-      logo.id === selectedLogoId
-        ? { ...logo, x: preset.x, y: preset.y, width: preset.width, height: preset.width }
-        : logo
-    ))
+    setLogos(prev => prev.map(logo => {
+      if (logo.id === selectedLogoId) {
+        const height = logo.aspectRatio ? preset.width / logo.aspectRatio : preset.width
+        return { ...logo, x: preset.x, y: preset.y, width: preset.width, height }
+      }
+      return logo
+    }))
   }
 
   // Delete logo
@@ -275,6 +561,33 @@ export default function GarmentMockupBuilder({
     ))
   }
 
+  // Update SVG color mapping
+  const updateSvgColor = (logoId: string, originalColor: string, newColor: string) => {
+    const logo = logos.find(l => l.id === logoId)
+    if (!logo || !logo.isSvg || !logo.svgContent || !logo.colorMap) return
+
+    // Update color map
+    const updatedColorMap = { ...logo.colorMap, [originalColor]: newColor }
+
+    // Apply color map to SVG
+    const modifiedSvg = applySvgColorMap(logo.svgContent, updatedColorMap)
+
+    // Convert modified SVG to blob URL
+    const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml' })
+    const newUrl = URL.createObjectURL(svgBlob)
+
+    // Revoke old URL to prevent memory leaks
+    if (logo.url !== logo.originalUrl) {
+      URL.revokeObjectURL(logo.url)
+    }
+
+    // Update logo with new URL and color map
+    updateLogo(logoId, {
+      url: newUrl,
+      colorMap: updatedColorMap
+    })
+  }
+
   // Mouse handlers for dragging
   const handleMouseDown = (e: React.MouseEvent, logoId: string) => {
     e.preventDefault()
@@ -282,10 +595,19 @@ export default function GarmentMockupBuilder({
     setIsDragging(true)
     const rect = canvasRef.current?.getBoundingClientRect()
     if (rect) {
-      setDragStart({
-        x: (e.clientX - rect.left) / rect.width,
-        y: (e.clientY - rect.top) / rect.height
-      })
+      const mouseX = (e.clientX - rect.left) / rect.width
+      const mouseY = (e.clientY - rect.top) / rect.height
+
+      // Calculate offset from mouse position to logo position
+      const logo = logos.find(l => l.id === logoId)
+      if (logo) {
+        setDragOffset({
+          x: mouseX - logo.x,
+          y: mouseY - logo.y
+        })
+      }
+
+      setDragStart({ x: mouseX, y: mouseY })
     }
   }
 
@@ -298,11 +620,11 @@ export default function GarmentMockupBuilder({
 
     if (isDragging) {
       if (selectedLogoId) {
-        // Move logo
-        updateLogo(selectedLogoId, { x: mouseX, y: mouseY })
+        // Move logo - apply drag offset to maintain grab point
+        updateLogo(selectedLogoId, { x: mouseX - dragOffset.x, y: mouseY - dragOffset.y })
       } else if (selectedTextId) {
-        // Move text
-        updateTextElement(selectedTextId, { x: mouseX, y: mouseY })
+        // Move text - apply drag offset to maintain grab point
+        updateTextElement(selectedTextId, { x: mouseX - dragOffset.x, y: mouseY - dragOffset.y })
       }
     } else if (isResizing) {
       if (selectedLogoId) {
@@ -310,26 +632,9 @@ export default function GarmentMockupBuilder({
         const logo = logos.find(l => l.id === selectedLogoId)
         if (!logo) return
 
-        const width = Math.max(0.05, mouseX - logo.x)
-        const height = Math.max(0.05, mouseY - logo.y)
-        const size = Math.max(width, height) // Keep aspect ratio
-        updateLogo(selectedLogoId, { width: size, height: size })
-      } else if (selectedTextId) {
-        // Resize text by changing font size
-        const text = textElements.find(t => t.id === selectedTextId)
-        if (!text) return
-
-        // Calculate distance from text position to mouse
-        const dx = mouseX - text.x
-        const dy = mouseY - text.y
-        const distance = Math.sqrt(dx * dx + dy * dy)
-
-        // Convert distance to font size (scale factor)
-        const scaleFactor = distance * 500 // Adjust multiplier for sensitivity
-        const newFontSize = Math.max(16, Math.min(120, Math.round(scaleFactor)))
-
-        updateTextElement(selectedTextId, { fontSize: newFontSize })
-      }
+      const width = Math.max(0.05, mouseX - logo.x)
+      const height = logo.aspectRatio ? width / logo.aspectRatio : width
+      updateLogo(selectedLogoId, { width, height })
     } else if (isRotating) {
       if (selectedLogoId) {
         // Rotate logo
@@ -357,6 +662,23 @@ export default function GarmentMockupBuilder({
     setSelectedTextId(textId)
     setSelectedLogoId(null) // Deselect logo
     setIsDragging(true)
+
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (rect) {
+      const mouseX = (e.clientX - rect.left) / rect.width
+      const mouseY = (e.clientY - rect.top) / rect.height
+
+      // Calculate offset from mouse position to text position
+      const text = textElements.find(t => t.id === textId)
+      if (text) {
+        setDragOffset({
+          x: mouseX - text.x,
+          y: mouseY - text.y
+        })
+      }
+
+      setDragStart({ x: mouseX, y: mouseY })
+    }
   }
 
   // Handle text rotation start
@@ -401,19 +723,29 @@ export default function GarmentMockupBuilder({
     setIsRotating(true)
   }
 
-  // Generate mockup images for all locations with designs
-  const handleSaveMockup = async () => {
-    const mockups: Array<{ location: Location; dataUrl: string }> = []
+  // Get garment image URL for a specific location
+  const getGarmentImageForLocation = (location: Location) => {
+    if (garmentImageUrls) {
+      return garmentImageUrls[location] || garmentImageUrl
+    }
+    return garmentImageUrl
+  }
 
-    // Loop through all locations
-    for (const location of LOCATIONS) {
-      const locationLogos = logos.filter(l => l.location === location)
-      const locationTexts = textElements.filter(t => t.location === location)
+  // Generate mockup image for a specific location
+  const generateMockupForLocation = async (location: Location): Promise<string> => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas context not available')
 
-      // Skip locations with no designs
-      if (locationLogos.length === 0 && locationTexts.length === 0) {
-        continue
-      }
+    // Load garment image for this location
+    const garmentImg = new Image()
+    garmentImg.crossOrigin = 'anonymous'
+
+    await new Promise((resolve, reject) => {
+      garmentImg.onload = resolve
+      garmentImg.onerror = reject
+      garmentImg.src = getGarmentImageForLocation(location)
+    })
 
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
@@ -426,41 +758,62 @@ export default function GarmentMockupBuilder({
       const garmentImg = new Image()
       garmentImg.crossOrigin = 'anonymous'
 
-      await new Promise((resolve, reject) => {
-        garmentImg.onload = resolve
-        garmentImg.onerror = reject
-        garmentImg.src = imageUrl
-      })
-
-      // Set canvas size to garment image size
-      canvas.width = garmentImg.width || 800
-      canvas.height = garmentImg.height || 1000
-
-      // Draw garment
-      ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
-
-      // Draw logos
+      // Draw logos for this location
+      const locationLogos = logos.filter(l => l.location === location)
       for (const logo of locationLogos) {
         const logoImg = new Image()
-        await new Promise((resolve, reject) => {
-          logoImg.onload = resolve
-          logoImg.onerror = reject
-          logoImg.src = logo.url
-        })
 
+        // For SVG logos, convert to data URL for reliable canvas rendering
+        if (logo.isSvg && logo.svgContent && logo.colorMap) {
+          const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
+          // Convert SVG to data URL (more reliable than blob URLs for canvas)
+          const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(modifiedSvg)
+
+          await new Promise((resolve, reject) => {
+            logoImg.onload = resolve
+            logoImg.onerror = reject
+            logoImg.src = svgDataUrl
+          })
+        } else {
+          // For regular images, set crossOrigin before src
+          logoImg.crossOrigin = 'anonymous'
+          await new Promise((resolve, reject) => {
+            logoImg.onload = resolve
+            logoImg.onerror = reject
+            logoImg.src = logo.url
+          })
+        }
+
+        // Calculate actual dimensions preserving aspect ratio
         const logoX = logo.x * canvas.width
         const logoY = logo.y * canvas.height
-        const logoW = logo.width * canvas.width
-        const logoH = logo.height * canvas.height
+        const maxWidth = logo.width * canvas.width
+        const maxHeight = logo.height * canvas.height
+
+        // Get the natural aspect ratio of the loaded image
+        const imageAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight
+        const boxAspectRatio = maxWidth / maxHeight
+
+        let logoW, logoH
+        if (imageAspectRatio > boxAspectRatio) {
+          // Image is wider than box - fit to width
+          logoW = maxWidth
+          logoH = maxWidth / imageAspectRatio
+        } else {
+          // Image is taller than box - fit to height
+          logoH = maxHeight
+          logoW = maxHeight * imageAspectRatio
+        }
 
         ctx.save()
-        ctx.translate(logoX + logoW / 2, logoY + logoH / 2)
+        ctx.translate(logoX + maxWidth / 2, logoY + maxHeight / 2)
         ctx.rotate((logo.rotation * Math.PI) / 180)
         ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
         ctx.restore()
       }
 
-      // Draw text elements
+      // Draw text elements for this location
+      const locationTexts = textElements.filter(t => t.location === location)
       for (const text of locationTexts) {
         const textX = text.x * canvas.width
         const textY = text.y * canvas.height
@@ -476,13 +829,43 @@ export default function GarmentMockupBuilder({
         ctx.restore()
       }
 
-      // Export as data URL
-      const dataUrl = canvas.toDataURL('image/png')
-      mockups.push({ location, dataUrl })
+    // Export as data URL
+    return canvas.toDataURL('image/png')
+  }
+
+  // Generate mockup images for all locations with designs and save
+  const handleSaveMockup = async () => {
+    const mockups: MockupImage[] = []
+
+    // Generate a mockup for each location that has designs
+    for (const location of LOCATIONS) {
+      const locationLogos = logos.filter(l => l.location === location)
+      const locationTexts = textElements.filter(t => t.location === location)
+
+      // Only generate mockup if this location has designs
+      if (locationLogos.length > 0 || locationTexts.length > 0) {
+        try {
+          const dataUrl = await generateMockupForLocation(location)
+          mockups.push({ location, dataUrl })
+        } catch (error) {
+          console.error(`Error generating mockup for ${location}:`, error)
+        }
+      }
     }
 
-    // Save all mockups
-    onSave(mockups)
+    if (mockups.length === 0) {
+      console.warn('No mockups generated - no designs found')
+      return
+    }
+
+    onSave(mockups, logos, textElements)
+  }
+
+  // Handle close - save config before closing
+  const handleClose = () => {
+    // Save the current config (logos and text) before closing
+    onSaveConfig(logos, textElements)
+    onClose()
   }
 
   // Filter elements by active location
@@ -497,6 +880,14 @@ export default function GarmentMockupBuilder({
     const logoCount = logos.filter(l => l.location === location).length
     const textCount = textElements.filter(t => t.location === location).length
     return logoCount + textCount
+  }
+
+  // Get the appropriate image URL for the current location
+  const getCurrentGarmentImage = () => {
+    if (garmentImageUrls) {
+      return garmentImageUrls[activeLocation] || garmentImageUrl
+    }
+    return garmentImageUrl
   }
 
   return (
@@ -544,7 +935,7 @@ export default function GarmentMockupBuilder({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               background: 'none',
               border: 'none',
@@ -644,8 +1035,8 @@ export default function GarmentMockupBuilder({
             >
               {/* Garment Image */}
               <img
-                src={currentImageUrl}
-                alt={`${garmentName} - ${activeLocation}`}
+                src={getCurrentGarmentImage()}
+                alt={garmentName}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -814,7 +1205,7 @@ export default function GarmentMockupBuilder({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.svg"
                 multiple
                 onChange={handleLogoUpload}
                 style={{ display: 'none' }}
@@ -906,8 +1297,9 @@ export default function GarmentMockupBuilder({
                     max="80"
                     value={selectedLogo.width * 100}
                     onChange={(e) => {
-                      const size = parseFloat(e.target.value) / 100
-                      updateLogo(selectedLogo.id, { width: size, height: size })
+                      const width = parseFloat(e.target.value) / 100
+                      const height = selectedLogo.aspectRatio ? width / selectedLogo.aspectRatio : width
+                      updateLogo(selectedLogo.id, { width, height })
                     }}
                     style={{ width: '100%' }}
                   />
@@ -928,54 +1320,148 @@ export default function GarmentMockupBuilder({
                   />
                 </div>
 
-                {/* Background Removal */}
+                {/* SVG Color Controls - Always visible */}
                 <div style={{ marginBottom: '16px' }}>
-                  <button
-                    onClick={() => toggleBackground(selectedLogo.id)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      background: selectedLogo.backgroundRemoved
-                        ? 'linear-gradient(135deg, #22c55e, #16a34a)'
-                        : 'rgba(139,92,246,0.15)',
-                      border: selectedLogo.backgroundRemoved
-                        ? 'none'
-                        : '1px solid rgba(139,92,246,0.3)',
-                      borderRadius: '6px',
-                      color: selectedLogo.backgroundRemoved ? 'white' : '#a78bfa',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {selectedLogo.backgroundRemoved ? (
-                      <>
-                        <span>✓</span>
-                        <span>Background Removed</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>✂</span>
-                        <span>Remove Background</span>
-                      </>
-                    )}
-                  </button>
-                  {selectedLogo.backgroundRemoved && (
-                    <p style={{
-                      color: '#64748b',
-                      fontSize: '11px',
-                      marginTop: '6px',
-                      textAlign: 'center'
-                    }}>
-                      Click again to restore original
-                    </p>
+                  <h4 style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>
+                    Logo Colors (SVG)
+                  </h4>
+                  {selectedLogo.isSvg && selectedLogo.colorMap && Object.keys(selectedLogo.colorMap).length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {Object.entries(selectedLogo.colorMap).map(([originalColor, currentColor]) => (
+                        <div key={originalColor} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {/* Original color preview */}
+                          <div
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '4px',
+                              border: '1px solid rgba(148,163,184,0.3)',
+                              background: originalColor,
+                              flexShrink: 0
+                            }}
+                            title={`Original: ${originalColor}`}
+                          />
+                          <span style={{ color: '#64748b', fontSize: '12px' }}>→</span>
+                          {/* Color picker for new color */}
+                          <input
+                            type="color"
+                            value={currentColor}
+                            onChange={(e) => updateSvgColor(selectedLogo.id, originalColor, e.target.value)}
+                            style={{
+                              width: '40px',
+                              height: '24px',
+                              border: '1px solid rgba(148,163,184,0.3)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                            title={`Change from ${originalColor}`}
+                          />
+                          {/* Hex input */}
+                          <input
+                            type="text"
+                            value={currentColor}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
+                                updateSvgColor(selectedLogo.id, originalColor, value)
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '4px 6px',
+                              background: '#1d1d1d',
+                              border: '1px solid rgba(148,163,184,0.2)',
+                              borderRadius: '4px',
+                              color: '#f1f5f9',
+                              fontSize: '11px',
+                              fontFamily: 'monospace'
+                            }}
+                            placeholder="#000000"
+                          />
+                          {/* Reset button */}
+                          {currentColor !== originalColor && (
+                            <button
+                              onClick={() => updateSvgColor(selectedLogo.id, originalColor, originalColor)}
+                              style={{
+                                padding: '4px 8px',
+                                background: 'rgba(239,68,68,0.15)',
+                                border: '1px solid rgba(239,68,68,0.3)',
+                                borderRadius: '4px',
+                                color: '#ef4444',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                flexShrink: 0
+                              }}
+                              title="Reset to original"
+                            >
+                              ↺
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '12px', background: '#1d1d1d', borderRadius: '6px', border: '1px solid rgba(148,163,184,0.2)' }}>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                        {selectedLogo.isSvg
+                          ? 'No colors detected in this SVG. Try re-uploading the logo.'
+                          : 'This is not an SVG logo. Only SVG logos support color changing.'}
+                      </p>
+                    </div>
                   )}
                 </div>
+
+                {/* Background Removal - Only for non-SVG images */}
+                {!selectedLogo.isSvg && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <button
+                      onClick={() => toggleBackground(selectedLogo.id)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: selectedLogo.backgroundRemoved
+                          ? 'linear-gradient(135deg, #22c55e, #16a34a)'
+                          : 'rgba(139,92,246,0.15)',
+                        border: selectedLogo.backgroundRemoved
+                          ? 'none'
+                          : '1px solid rgba(139,92,246,0.3)',
+                        borderRadius: '6px',
+                        color: selectedLogo.backgroundRemoved ? 'white' : '#a78bfa',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {selectedLogo.backgroundRemoved ? (
+                        <>
+                          <span>✓</span>
+                          <span>Background Removed</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>✂</span>
+                          <span>Remove Background</span>
+                        </>
+                      )}
+                    </button>
+                    {selectedLogo.backgroundRemoved && (
+                      <p style={{
+                        color: '#64748b',
+                        fontSize: '11px',
+                        marginTop: '6px',
+                        textAlign: 'center'
+                      }}>
+                        Click again to restore original
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Delete */}
                 <button
@@ -1202,7 +1688,7 @@ export default function GarmentMockupBuilder({
           gap: '12px'
         }}>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               padding: '10px 20px',
               background: 'transparent',

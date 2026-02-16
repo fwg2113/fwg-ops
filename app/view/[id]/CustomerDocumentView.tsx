@@ -110,6 +110,13 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const dragStart = useRef({ x: 0, y: 0 })
   const panStart = useRef({ x: 0, y: 0 })
 
+  // Standard lightbox zoom/pan state
+  const [lightboxZoom, setLightboxZoom] = useState(1)
+  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
+  const [isLightboxDragging, setIsLightboxDragging] = useState(false)
+  const lightboxDragStart = useRef({ x: 0, y: 0 })
+  const lightboxPanStart = useRef({ x: 0, y: 0 })
+
   // Mark as viewed on mount
   useEffect(() => {
     if (doc.status === 'sent') {
@@ -362,6 +369,76 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [optLightbox, handleOptLightboxClose, handleOptLightboxNav])
+
+  // Keyboard nav for standard lightbox
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (lightboxIndex === null) return
+      if (e.key === 'Escape') handleLightboxClose()
+      if (e.key === 'ArrowLeft') handleLightboxNav('prev')
+      if (e.key === 'ArrowRight') handleLightboxNav('next')
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [lightboxIndex, handleLightboxClose, handleLightboxNav])
+
+  // ============================================================================
+  // STANDARD LIGHTBOX HANDLERS (zoom/pan)
+  // ============================================================================
+  const handleLightboxDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (lightboxZoom > 1) {
+      setLightboxZoom(1)
+      setLightboxPan({ x: 0, y: 0 })
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = e.clientX - rect.left - rect.width / 2
+      const y = e.clientY - rect.top - rect.height / 2
+      setLightboxZoom(2.5)
+      setLightboxPan({ x: -x * 1.5, y: -y * 1.5 })
+    }
+  }, [lightboxZoom])
+
+  const handleLightboxMouseDown = useCallback((e: React.MouseEvent) => {
+    if (lightboxZoom <= 1) return
+    e.preventDefault()
+    setIsLightboxDragging(true)
+    lightboxDragStart.current = { x: e.clientX, y: e.clientY }
+    lightboxPanStart.current = { ...lightboxPan }
+  }, [lightboxZoom, lightboxPan])
+
+  const handleLightboxMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isLightboxDragging || lightboxZoom <= 1) return
+    const dx = e.clientX - lightboxDragStart.current.x
+    const dy = e.clientY - lightboxDragStart.current.y
+    setLightboxPan({
+      x: lightboxPanStart.current.x + dx,
+      y: lightboxPanStart.current.y + dy
+    })
+  }, [isLightboxDragging, lightboxZoom])
+
+  const handleLightboxMouseUp = useCallback(() => {
+    setIsLightboxDragging(false)
+  }, [])
+
+  const handleLightboxNav = useCallback((dir: 'prev' | 'next') => {
+    setLightboxIndex(i => {
+      if (i === null) return null
+      const newIndex = dir === 'next'
+        ? (i + 1) % galleryImages.length
+        : (i - 1 + galleryImages.length) % galleryImages.length
+      // Reset zoom when navigating
+      setLightboxZoom(1)
+      setLightboxPan({ x: 0, y: 0 })
+      return newIndex
+    })
+  }, [])
+
+  const handleLightboxClose = useCallback(() => {
+    setLightboxIndex(null)
+    setLightboxZoom(1)
+    setLightboxPan({ x: 0, y: 0 })
+  }, [])
 
   // Keyboard nav for standard lightbox
   useEffect(() => {
@@ -1348,19 +1425,19 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   </div>
 
                                   {/* Size breakdown grid */}
-                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                     {enabledSizes.map(size => {
                                       const s = sizes[size] || { qty: 0, price: 0 }
                                       if (s.qty <= 0) return null
                                       return (
                                         <div key={size} style={{
                                           display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                                          padding: '6px 12px', background: '#f8f9fa', borderRadius: '8px',
-                                          border: '1px solid #e5e7eb', minWidth: '60px'
+                                          padding: '8px 15px', background: '#f8f9fa', borderRadius: '8px',
+                                          border: '1px solid #e5e7eb', minWidth: '75px'
                                         }}>
-                                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
-                                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginTop: '2px' }}>{s.qty}</div>
-                                          <div style={{ fontSize: '11px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
+                                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
+                                          <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{s.qty}</div>
+                                          <div style={{ fontSize: '14px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
                                         </div>
                                       )
                                     })}
@@ -1395,78 +1472,94 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
                           {/* Inline image gallery for this line item */}
                           {itemImages.length > 0 && (() => {
-                            const isEmbroidery = item.category?.toUpperCase() === 'EMBROIDERY'
-                            const isApparel = item.custom_fields?.apparel_mode === true
-                            const shouldShowAllImages = isEmbroidery || isApparel
+                            const cf = item.custom_fields || {}
+                            const isEmbroideryOrApparel = item.category === 'EMBROIDERY' || cf.apparel_mode === true
 
-                            if (shouldShowAllImages) {
-                              // Show all images side by side for Embroidery/Apparel
+                            // For Embroidery & Apparel: show all images side-by-side in grid
+                            if (isEmbroideryOrApparel) {
                               return (
                                 <div style={{
-                                  marginTop: '12px',
+                                  marginTop: '24px',
                                   display: 'grid',
                                   gridTemplateColumns: itemImages.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
                                   gap: '12px'
                                 }}>
-                                  {itemImages.map((img, imgIdx) => (
-                                    <div
-                                      key={imgIdx}
-                                      onClick={() => {
-                                        const flatIndex = galleryImages.findIndex(g => g.url === img.url)
-                                        if (flatIndex >= 0) setLightboxIndex(flatIndex)
-                                      }}
-                                      style={{
-                                        position: 'relative',
-                                        width: '100%',
-                                        paddingBottom: '75%',
-                                        borderRadius: '10px',
-                                        overflow: 'hidden',
-                                        cursor: 'pointer',
-                                        background: '#f1f5f9'
-                                      }}
-                                    >
-                                      <img
-                                        src={img.url}
-                                        alt={img.name}
-                                        style={{
-                                          position: 'absolute',
-                                          top: 0,
-                                          left: 0,
-                                          width: '100%',
-                                          height: '100%',
-                                          objectFit: 'contain',
-                                          transition: 'transform 0.3s ease'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                      />
-                                      {/* Enlarge hint */}
-                                      <div style={{
-                                        position: 'absolute',
-                                        bottom: '10px',
-                                        right: '10px',
-                                        background: 'rgba(0,0,0,0.6)',
-                                        color: 'white',
-                                        padding: '5px 10px',
-                                        borderRadius: '6px',
-                                        fontSize: '12px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '5px',
-                                        pointerEvents: 'none'
-                                      }}>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                                        </svg>
-                                        Click to enlarge
+                                  {itemImages.map((img, imgIdx) => {
+                                    // Extract location from filename (format: mockup_Location_...)
+                                    let location = ''
+                                    const filenameParts = img.name.split('_')
+                                    if (filenameParts[0] === 'mockup' && filenameParts.length > 1) {
+                                      location = filenameParts[1] // "Front", "Back", "Sleeves"
+                                    }
+
+                                    return (
+                                      <div key={imgIdx}>
+                                        {/* Location Label */}
+                                        {location && (
+                                          <div style={{
+                                            fontSize: '13px',
+                                            fontWeight: 600,
+                                            color: '#1a1a1a',
+                                            marginBottom: '8px',
+                                            textTransform: 'capitalize'
+                                          }}>
+                                            {location}
+                                          </div>
+                                        )}
+
+                                        {/* Image */}
+                                        <div
+                                          onClick={() => {
+                                            const flatIndex = galleryImages.findIndex(g => g.url === img.url)
+                                            if (flatIndex >= 0) setLightboxIndex(flatIndex)
+                                          }}
+                                          style={{
+                                            position: 'relative',
+                                            width: '100%',
+                                            paddingBottom: '75%',
+                                            borderRadius: '10px',
+                                            overflow: 'hidden',
+                                            cursor: 'pointer',
+                                            background: '#f1f5f9'
+                                          }}
+                                        >
+                                          <img
+                                            src={img.url}
+                                            alt={img.name}
+                                            style={{
+                                              position: 'absolute',
+                                              top: 0,
+                                              left: 0,
+                                              width: '100%',
+                                              height: '100%',
+                                              objectFit: 'contain',
+                                              transition: 'transform 0.3s ease'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                          />
+                                          {/* Enlarge hint */}
+                                          <div style={{
+                                            position: 'absolute', bottom: '10px', right: '10px',
+                                            background: 'rgba(0,0,0,0.6)', color: 'white',
+                                            padding: '5px 10px', borderRadius: '6px',
+                                            fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
+                                            pointerEvents: 'none'
+                                          }}>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                            </svg>
+                                            Click to enlarge
+                                          </div>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               )
                             }
 
-                            // Default carousel behavior for other categories
+                            // For other items: show hero image carousel
                             const heroIdx = itemHeroIndexes[item.id] || 0
                             return (
                               <div style={{ marginTop: '12px' }}>
@@ -1491,7 +1584,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                     alt={itemImages[heroIdx]?.name}
                                     style={{
                                       position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                                      objectFit: 'cover', transition: 'transform 0.3s ease'
+                                      objectFit: 'contain', transition: 'transform 0.3s ease'
                                     }}
                                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
                                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
@@ -1552,7 +1645,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                         <img
                                           src={img.url}
                                           alt=""
-                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                         />
                                       </div>
                                     ))}
@@ -2104,7 +2197,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
       )}
 
       {/* ================================================================ */}
-      {/* STANDARD LIGHTBOX (with zoom/pan support) */}
+      {/* STANDARD LIGHTBOX (with zoom, pan, nav) */}
       {/* ================================================================ */}
       {lightboxIndex !== null && galleryImages[lightboxIndex] && (
         <div style={{
@@ -2117,7 +2210,11 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           display: 'flex',
           flexDirection: 'column',
           zIndex: 2000
-        }}>
+        }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleLightboxClose()
+          }}
+        >
           {/* Top bar */}
           <div style={{
             display: 'flex',
@@ -2128,7 +2225,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           }}>
             <span style={{ color: 'white', fontSize: '14px' }}>
               {lightboxIndex + 1} / {galleryImages.length}
-              {lightboxZoom > 1 && <span style={{ marginLeft: '10px', opacity: 0.7 }}>• {lightboxZoom}x zoom</span>}
+              {lightboxZoom > 1 && ` • ${lightboxZoom}x zoom`}
             </span>
             <button
               onClick={handleLightboxClose}
@@ -2152,7 +2249,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
             </button>
           </div>
 
-          {/* Image area - click backdrop to close */}
+          {/* Image area */}
           <div style={{
             flex: 1,
             display: 'flex',
@@ -2161,9 +2258,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
             position: 'relative',
             overflow: 'hidden'
           }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) handleLightboxClose()
-          }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) handleLightboxClose()
+            }}
           >
             {/* Nav prev */}
             {galleryImages.length > 1 && (
@@ -2200,7 +2297,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
               onMouseLeave={handleLightboxMouseUp}
               onClick={(e) => e.stopPropagation()}
               style={{
-                cursor: lightboxZoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+                cursor: lightboxZoom > 1 ? (isLightboxDragging ? 'grabbing' : 'grab') : 'zoom-in',
                 userSelect: 'none',
                 display: 'flex',
                 alignItems: 'center',
@@ -2215,7 +2312,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   maxWidth: lightboxZoom === 1 ? '90vw' : 'none',
                   maxHeight: lightboxZoom === 1 ? '80vh' : 'none',
                   transform: `translate(${lightboxPan.x}px, ${lightboxPan.y}px) scale(${lightboxZoom})`,
-                  transition: isDragging ? 'none' : 'transform 0.2s ease-out',
+                  transition: isLightboxDragging ? 'none' : 'transform 0.2s ease-out',
                   borderRadius: '4px'
                 }}
               />
@@ -2265,6 +2362,17 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                 Double-click to zoom
               </div>
             )}
+          </div>
+
+          {/* Hint text at bottom */}
+          <div style={{
+            textAlign: 'center',
+            padding: '12px',
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '13px',
+            flexShrink: 0
+          }}>
+            Double-click to zoom
           </div>
         </div>
       )}

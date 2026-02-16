@@ -363,11 +363,12 @@ export default function DocumentDetail({
   // Mockup builder state
   const [mockupBuilderOpen, setMockupBuilderOpen] = useState(false)
   const [mockupLineItemId, setMockupLineItemId] = useState<string | null>(null)
-  const [mockupFrontUrl, setMockupFrontUrl] = useState<string>('')
-  const [mockupBackUrl, setMockupBackUrl] = useState<string>('')
-  const [mockupSleeveUrl, setMockupSleeveUrl] = useState<string>('')
+  const [mockupGarmentUrl, setMockupGarmentUrl] = useState<string>('')
+  const [mockupGarmentUrls, setMockupGarmentUrls] = useState<{ Front: string; Back: string; Sleeves: string } | undefined>(undefined)
   const [mockupGarmentName, setMockupGarmentName] = useState<string>('')
   const [mockupColorName, setMockupColorName] = useState<string>('')
+  const [mockupInitialLogos, setMockupInitialLogos] = useState<any[]>([])
+  const [mockupInitialTextElements, setMockupInitialTextElements] = useState<any[]>([])
 
   // SS Product cache for line items (stores fetched product data)
   const [ssProductCache, setSsProductCache] = useState<Record<string, any>>({})
@@ -524,6 +525,50 @@ export default function DocumentDetail({
       setDepositRequired(total)
     }
   }, [total, depositType])
+
+  // Pre-load SS product cache for existing apparel line items
+  useEffect(() => {
+    const loadSSProducts = async () => {
+      const cache: Record<string, any> = {}
+
+      for (const item of lineItems) {
+        const af = getApparelFields(item)
+
+        // Only fetch if item has item_number and not already in cache
+        if (af.item_number && !ssProductCache[item.id]) {
+          try {
+            // Search for the product by style name
+            const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
+            const searchData = await searchResponse.json()
+
+            if (searchData.success && searchData.data && searchData.data.length > 0) {
+              // Find exact match by style name
+              const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
+              const product = exactMatch || searchData.data[0]
+
+              // Fetch full product details
+              const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+              const detailData = await detailResponse.json()
+
+              if (detailData.success && detailData.data) {
+                cache[item.id] = detailData.data
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading SS product for ${af.item_number}:`, error)
+          }
+        }
+      }
+
+      // Update cache if we fetched anything
+      if (Object.keys(cache).length > 0) {
+        setSsProductCache(prev => ({ ...prev, ...cache }))
+      }
+    }
+
+    loadSSProducts()
+  }, []) // Run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   // Track customer field changes
   useEffect(() => {
@@ -1360,8 +1405,13 @@ export default function DocumentDetail({
       apparel_mode?: boolean
       color?: string
       item_number?: string
+      style_id?: string  // SS Activewear style ID
       enabled_sizes?: string[]
       sizes?: Record<string, { qty: number; price: number }>
+      mockup_config?: {
+        logos: any[]
+        textElements: any[]
+      }
     }
   }
 
@@ -1380,7 +1430,7 @@ export default function DocumentDetail({
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
-      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes') {
+      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
         cf[fieldPath] = value
       } else if (fieldPath.startsWith('size.')) {
         // e.g. size.XL.qty or size.XL.price
@@ -1450,17 +1500,39 @@ export default function DocumentDetail({
           [itemId]: styleDetail
         }))
 
-        // Update item number
-        await updateApparelField(itemId, 'item_number', product.styleName)
+        // Build product title
+        const productTitle = `${styleDetail.brandName} ${styleDetail.styleName} - ${styleDetail.baseCategory}`
 
-        // Clear color to force user selection
-        await updateApparelField(itemId, 'color', '')
+        // Combined update to avoid race conditions between state updates
+        const newItems = lineItems.map(item => {
+          if (item.id !== itemId) return item
+          const cf: Record<string, any> = {
+            ...(item.custom_fields || {}),
+            apparel_mode: true,
+            item_number: product.styleName,
+            style_id: product.styleID.toString(),
+            color: '' // Clear color to force user selection
+          }
+          return {
+            ...item,
+            description: productTitle,
+            custom_fields: cf
+          }
+        })
+        setLineItems(newItems)
 
-        // Update description with product title from SS API
-        const item = lineItems.find(i => i.id === itemId)
-        if (item) {
-          // Use the title field from SS API (e.g., "Unisex Heavy Cotton™ T-Shirt")
-          updateLineItem(itemId, 'description', styleDetail.title || styleDetail.styleName)
+        // Save to database
+        const updatedItem = newItems.find(i => i.id === itemId)
+        if (updatedItem) {
+          console.log('💾 Saving product selection to database...', {
+            description: updatedItem.description,
+            custom_fields: updatedItem.custom_fields
+          })
+          await supabase.from('line_items').update({
+            description: updatedItem.description,
+            custom_fields: updatedItem.custom_fields,
+          }).eq('id', itemId)
+          console.log('✅ Product selection saved')
         }
 
         showToast(`Select a color for ${styleDetail.styleName}`, 'info')
@@ -1472,36 +1544,67 @@ export default function DocumentDetail({
   }
 
   // Open mockup builder for a line item
-  const handleOpenMockupBuilder = (itemId: string) => {
+  const handleOpenMockupBuilder = async (itemId: string) => {
     const item = lineItems.find(i => i.id === itemId)
     if (!item) return
 
     const af = getApparelFields(item)
-    const cachedProduct = ssProductCache[itemId]
+    let cachedProduct = ssProductCache[itemId]
 
-    // Get garment image URLs from cached product data
-    let frontUrl = ''
-    let backUrl = ''
-    let sleeveUrl = ''
+    // If no cached product but item has item_number, fetch it from API
+    if (!cachedProduct && af.item_number) {
+      try {
+        // Search for the product by style name
+        const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
+        const searchData = await searchResponse.json()
+
+        if (searchData.success && searchData.data && searchData.data.length > 0) {
+          // Find exact match by style name
+          const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
+          const product = exactMatch || searchData.data[0]
+
+          // Fetch full product details
+          const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+          const detailData = await detailResponse.json()
+
+          if (detailData.success && detailData.data) {
+            // Cache the product data
+            setSsProductCache(prev => ({
+              ...prev,
+              [itemId]: detailData.data
+            }))
+            cachedProduct = detailData.data
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching product for mockup:', error)
+      }
+    }
+
+    // Get garment image URL from cached product data
+    let garmentImageUrl = ''
+    let garmentUrls: { Front: string; Back: string; Sleeves: string } | undefined = undefined
     let garmentName = af.item_number || 'Garment'
     let colorName = af.color || ''
 
     if (cachedProduct) {
       // Find the color that matches the selected color
       const selectedColor = cachedProduct.colors?.find((c: any) => c.colorName === colorName)
+      // colorImages is an array: [0]=Front, [1]=Side, [2]=Back
       const colorImages = selectedColor?.colorImages || []
-      const fallbackImage = cachedProduct.productThumbnail || ''
 
-      // SS Activewear image order: Front (0), Sleeve (1), Back (2)
-      // Map them to our UI tab order: Front, Back, Sleeves
-      const frontPath = colorImages[0] || fallbackImage
-      const sleevePath = colorImages[1] || colorImages[0] || fallbackImage
-      const backPath = colorImages[2] || colorImages[0] || fallbackImage
+      // Get the primary image (front)
+      const relativePath = colorImages[0] || cachedProduct.productThumbnail || ''
+      garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
 
-      // SS images are relative paths - prepend the base URL
-      frontUrl = frontPath ? `https://www.ssactivewear.com/${frontPath}` : ''
-      backUrl = backPath ? `https://www.ssactivewear.com/${backPath}` : ''
-      sleeveUrl = sleevePath ? `https://www.ssactivewear.com/${sleevePath}` : ''
+      // Build the image URLs object for all locations
+      if (colorImages.length >= 3) {
+        garmentUrls = {
+          Front: `https://www.ssactivewear.com/${colorImages[0]}`,
+          Sleeves: `https://www.ssactivewear.com/${colorImages[1]}`, // Side view for sleeves
+          Back: `https://www.ssactivewear.com/${colorImages[2]}`
+        }
+      }
 
       garmentName = cachedProduct.styleName || garmentName
     }
@@ -1511,17 +1614,21 @@ export default function DocumentDetail({
       return
     }
 
+    // Load existing mockup config if it exists
+    const mockupConfig = af.mockup_config || { logos: [], textElements: [] }
+
     setMockupLineItemId(itemId)
-    setMockupFrontUrl(frontUrl)
-    setMockupBackUrl(backUrl)
-    setMockupSleeveUrl(sleeveUrl)
+    setMockupGarmentUrl(garmentImageUrl)
+    setMockupGarmentUrls(garmentUrls)
     setMockupGarmentName(garmentName)
     setMockupColorName(colorName)
+    setMockupInitialLogos(mockupConfig.logos)
+    setMockupInitialTextElements(mockupConfig.textElements)
     setMockupBuilderOpen(true)
   }
 
-  // Save mockups as line item attachments
-  const handleSaveMockup = async (mockups: Array<{ location: string; dataUrl: string }>) => {
+  // Save mockup as line item attachments
+  const handleSaveMockup = async (mockups: Array<{ location: string, dataUrl: string }>, logos: any[], textElements: any[]) => {
     if (!mockupLineItemId) return
 
     try {
@@ -1530,14 +1637,14 @@ export default function DocumentDetail({
 
       const newAttachments = []
 
-      // Upload each mockup
+      // Upload each mockup (one per location with designs)
       for (const mockup of mockups) {
         // Convert data URL to blob
         const response = await fetch(mockup.dataUrl)
         const blob = await response.blob()
 
-        // Create a File object from the blob with location in filename
-        const fileName = `mockup_${mockupGarmentName}_${mockupColorName}_${mockup.location}_${Date.now()}.png`
+        // Create a File object with location in the name
+        const fileName = `mockup_${mockup.location}_${mockupGarmentName}_${mockupColorName}_${Date.now()}.png`
         const file = new File([blob], fileName, { type: 'image/png' })
 
         // Upload using existing upload API
@@ -1564,13 +1671,28 @@ export default function DocumentDetail({
         })
       }
 
-      // Add all new attachments to line item
-      const updatedAttachments = [...(item.attachments || []), ...newAttachments]
+      // Remove existing mockups (they have "mockup_" in filename) and add new ones
+      const existingAttachments = (item.attachments || []).filter(att =>
+        !att.filename?.startsWith('mockup_')
+      )
+      const updatedAttachments = [...existingAttachments, ...newAttachments]
 
-      // Update line item in database
+      // Save mockup configuration to custom_fields
+      const updatedCustomFields = {
+        ...(item.custom_fields || {}),
+        mockup_config: {
+          logos,
+          textElements
+        }
+      }
+
+      // Update line item in database with attachments AND mockup config
       const { error: updateError } = await supabase
         .from('line_items')
-        .update({ attachments: updatedAttachments })
+        .update({
+          attachments: updatedAttachments,
+          custom_fields: updatedCustomFields
+        })
         .eq('id', mockupLineItemId)
 
       if (updateError) throw updateError
@@ -1578,16 +1700,55 @@ export default function DocumentDetail({
       // Update local state
       setLineItems(lineItems.map(i =>
         i.id === mockupLineItemId
-          ? { ...i, attachments: updatedAttachments }
+          ? { ...i, attachments: updatedAttachments, custom_fields: updatedCustomFields }
           : i
       ))
 
-      showToast(`${mockups.length} mockup(s) saved successfully`, 'success')
+      const mockupCount = mockups.length
+      showToast(`${mockupCount} mockup${mockupCount > 1 ? 's' : ''} saved successfully`, 'success')
       setMockupBuilderOpen(false)
       setMockupLineItemId(null)
     } catch (error) {
       console.error('Error saving mockup:', error)
       showToast('Failed to save mockup', 'error')
+    }
+  }
+
+  // Save mockup config only (no new images)
+  const handleSaveConfigOnly = async (logos: any[], textElements: any[]) => {
+    if (!mockupLineItemId) return
+
+    try {
+      const item = lineItems.find(i => i.id === mockupLineItemId)
+      if (!item) return
+
+      // Save mockup configuration to custom_fields
+      const updatedCustomFields = {
+        ...(item.custom_fields || {}),
+        mockup_config: {
+          logos,
+          textElements
+        }
+      }
+
+      // Update line item in database with new mockup config
+      const { error: updateError } = await supabase
+        .from('line_items')
+        .update({
+          custom_fields: updatedCustomFields
+        })
+        .eq('id', mockupLineItemId)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      setLineItems(lineItems.map(i =>
+        i.id === mockupLineItemId
+          ? { ...i, custom_fields: updatedCustomFields }
+          : i
+      ))
+    } catch (error) {
+      console.error('Error saving mockup config:', error)
     }
   }
 
@@ -2096,19 +2257,38 @@ export default function DocumentDetail({
 
   const handleDeleteLineItemAttachment = async (itemId: string, fileId: string) => {
     if (!confirm('Delete this attachment?')) return
-    
+
     const item = lineItems.find(i => i.id === itemId)
-    if (!item) return
-    
+    if (!item) {
+      console.error('Item not found:', itemId)
+      return
+    }
+
     const currentAttachments = item.attachments || []
-    const updatedAttachments = currentAttachments.filter((att, idx) => (att.file_id || att.key || String(idx)) !== fileId)
-    
+    console.log('Deleting attachment:', fileId, 'from', currentAttachments.length, 'attachments')
+
+    const updatedAttachments = currentAttachments.filter((att, idx) => {
+      const attId = att.file_id || att.key || String(idx)
+      const keep = attId !== fileId
+      if (!keep) console.log('Removing attachment:', attId, att)
+      return keep
+    })
+
+    console.log('Updated attachments:', updatedAttachments.length)
+
     // Update local state
     const updatedItems = lineItems.map(i => i.id === itemId ? { ...i, attachments: updatedAttachments } : i)
     setLineItems(updatedItems)
-    
+
     // Save to database
-    await supabase.from('line_items').update({ attachments: updatedAttachments }).eq('id', itemId)
+    const { error } = await supabase.from('line_items').update({ attachments: updatedAttachments }).eq('id', itemId)
+
+    if (error) {
+      console.error('Error deleting attachment:', error)
+      showToast('Failed to delete attachment', 'error')
+    } else {
+      showToast('Attachment deleted successfully', 'success')
+    }
   }
 
   const handleDeleteAttachment = async (key: string) => {
@@ -3006,7 +3186,7 @@ export default function DocumentDetail({
                                 onItemNumberChange={(value) => updateApparelField(item.id, 'item_number', value)}
                               />
                             </div>
-                            <div style={{ width: '140px' }}>
+                            <div style={{ width: '210px' }}>
                               <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Color</div>
                               {ssProductCache[item.id] && ssProductCache[item.id].colors ? (
                                 <select
@@ -4956,12 +5136,14 @@ export default function DocumentDetail({
       {/* Garment Mockup Builder Modal */}
       {mockupBuilderOpen && (
         <GarmentMockupBuilder
-          frontImageUrl={mockupFrontUrl}
-          backImageUrl={mockupBackUrl}
-          sleeveImageUrl={mockupSleeveUrl}
+          garmentImageUrl={mockupGarmentUrl}
+          garmentImageUrls={mockupGarmentUrls}
           garmentName={mockupGarmentName}
           colorName={mockupColorName}
+          initialLogos={mockupInitialLogos}
+          initialTextElements={mockupInitialTextElements}
           onSave={handleSaveMockup}
+          onSaveConfig={handleSaveConfigOnly}
           onClose={() => {
             setMockupBuilderOpen(false)
             setMockupLineItemId(null)
