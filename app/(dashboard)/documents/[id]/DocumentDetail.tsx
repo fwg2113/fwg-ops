@@ -1661,7 +1661,11 @@ export default function DocumentDetail({
         })
       }
 
-      const updatedAttachments = [...(item.attachments || []), ...newAttachments]
+      // Remove existing mockups (they have "mockup_" in filename) and add new ones
+      const existingAttachments = (item.attachments || []).filter(att =>
+        !att.filename?.startsWith('mockup_')
+      )
+      const updatedAttachments = [...existingAttachments, ...newAttachments]
 
       // Save mockup configuration to custom_fields
       const updatedCustomFields = {
