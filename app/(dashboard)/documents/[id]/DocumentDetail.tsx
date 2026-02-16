@@ -1432,13 +1432,23 @@ export default function DocumentDetail({
     }
   }
 
-  const recalcApparelTotals = (sizes: Record<string, { qty: number; price: number }>) => {
+  const recalcApparelTotals = (sizes: Record<string, { qty: number; price: number }>, item?: LineItem) => {
     let totalQty = 0
     let totalAmount = 0
     for (const s of Object.values(sizes)) {
       totalQty += s.qty || 0
       totalAmount += (s.qty || 0) * (s.price || 0)
     }
+
+    // Add design location fees for DTF apparel
+    if (item && isDTFApparel(item)) {
+      const af = getApparelFields(item)
+      const designLocationsCount = countDesignLocations(item)
+      const feePerLocation = af.design_location_fee_per_location ?? 5.00
+      const totalDesignFee = designLocationsCount * feePerLocation
+      totalAmount += totalDesignFee
+    }
+
     return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
   }
 
@@ -1496,8 +1506,9 @@ export default function DocumentDetail({
         cf.sizes = sizes
       }
 
-      // Recalculate totals from sizes
-      const { totalQty, totalAmount } = recalcApparelTotals(cf.sizes || {})
+      // Recalculate totals from sizes (pass item with updated custom_fields for fee calculation)
+      const itemWithUpdatedFields = { ...item, custom_fields: cf }
+      const { totalQty, totalAmount } = recalcApparelTotals(cf.sizes || {}, itemWithUpdatedFields)
       return {
         ...item,
         custom_fields: cf,
@@ -3323,12 +3334,12 @@ export default function DocumentDetail({
                                   style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}
                                 >
                                   <option value="">Select Color</option>
-                                  {ssProductCache[item.id].colors.map((color: any) => {
+                                  {ssProductCache[item.id].colors.map((color: any, index: number) => {
                                     const product = ssProductCache[item.id]
                                     // Format like Printavo: Brand - Style# - Color - Description
                                     const optionText = `${product.brandName} - ${product.styleName} - ${color.colorName}`
                                     return (
-                                      <option key={color.colorID} value={color.colorName}>
+                                      <option key={color.colorID || `color-${index}`} value={color.colorName}>
                                         {optionText}
                                       </option>
                                     )
