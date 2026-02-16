@@ -1595,11 +1595,22 @@ export default function DocumentDetail({
         const newMarkupPercent = getDTFMarkupPercent(newTotalQty)
         const newMarkupMultiplier = newMarkupPercent / 100
 
+        console.log('💰 Recalculating garment prices:', {
+          newTotalQty,
+          newMarkupPercent,
+          newMarkupMultiplier,
+          sizesBeforeRecalc: JSON.parse(JSON.stringify(sizes))
+        })
+
         // Recalculate all garment prices using stored wholesale prices
         Object.keys(sizes).forEach(sizeName => {
           const sizeData = sizes[sizeName]
-          if (sizeData.wholesale !== undefined) {
+          if (sizeData.wholesale !== undefined && sizeData.wholesale > 0) {
+            const oldPrice = sizeData.price
             sizeData.price = sizeData.wholesale * newMarkupMultiplier
+            console.log(`  ${sizeName}: $${oldPrice?.toFixed(2)} → $${sizeData.price.toFixed(2)} (wholesale: $${sizeData.wholesale})`)
+          } else {
+            console.log(`  ${sizeName}: NO WHOLESALE PRICE (${sizeData.wholesale})`)
           }
         })
         cf.sizes = sizes
@@ -3435,11 +3446,20 @@ export default function DocumentDetail({
                                       const markupPercent = getDTFMarkupPercent(totalQty || 1)
                                       const markupMultiplier = markupPercent / 100
 
+                                      console.log('🎨 Color selected - storing wholesale prices:', {
+                                        color: newColor,
+                                        totalQty,
+                                        markupPercent,
+                                        markupMultiplier
+                                      })
+
                                       const sizesObj: Record<string, { qty: number; price: number; wholesale: number }> = {}
                                       selectedColor.sizes.forEach((s: any) => {
                                         const existingSize = (af.sizes || {})[s.sizeName]
                                         const wholesalePrice = s.wholesalePrice || 0
                                         const retailPrice = wholesalePrice * markupMultiplier
+
+                                        console.log(`  ${s.sizeName}: wholesale=$${wholesalePrice}, retail=$${retailPrice.toFixed(2)}`)
 
                                         sizesObj[s.sizeName] = {
                                           qty: existingSize?.qty || 0,
