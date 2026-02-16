@@ -41,7 +41,9 @@ interface GarmentMockupBuilderProps {
   }
   garmentName: string
   colorName: string
-  onSave: (mockupDataUrl: string) => void
+  initialLogos?: Logo[]
+  initialTextElements?: TextElement[]
+  onSave: (mockupDataUrl: string, logos: Logo[], textElements: TextElement[]) => void
   onClose: () => void
 }
 
@@ -50,13 +52,15 @@ export default function GarmentMockupBuilder({
   garmentImageUrls,
   garmentName,
   colorName,
+  initialLogos,
+  initialTextElements,
   onSave,
   onClose
 }: GarmentMockupBuilderProps) {
   const [activeLocation, setActiveLocation] = useState<Location>('Front')
-  const [logos, setLogos] = useState<Logo[]>([])
+  const [logos, setLogos] = useState<Logo[]>(initialLogos || [])
   const [selectedLogoId, setSelectedLogoId] = useState<string | null>(null)
-  const [textElements, setTextElements] = useState<TextElement[]>([])
+  const [textElements, setTextElements] = useState<TextElement[]>(initialTextElements || [])
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
@@ -607,7 +611,7 @@ export default function GarmentMockupBuilder({
 
     // Export as data URL
     const dataUrl = canvas.toDataURL('image/png')
-    onSave(dataUrl)
+    onSave(dataUrl, logos, textElements)
   }
 
   // Filter elements by active location
