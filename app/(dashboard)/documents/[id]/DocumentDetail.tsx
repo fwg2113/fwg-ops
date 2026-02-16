@@ -3685,7 +3685,7 @@ export default function DocumentDetail({
                                           <input
                                             type="number"
                                             step="0.01"
-                                            value={finalUnitPrice === 0 ? '' : finalUnitPrice}
+                                            value={finalUnitPrice === 0 ? '' : parseFloat(finalUnitPrice.toFixed(2))}
                                             onChange={e => {
                                               const inputValue = e.target.value
                                               // Allow empty string for deletion
