@@ -3454,46 +3454,66 @@ export default function DocumentDetail({
                           </div>
 
                           {/* Size Grid */}
-                          {enabledSizes.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                              {enabledSizes.map(size => {
-                                const sizeData = sizes[size] || { qty: 0, price: 0 }
-                                const isCustomerProvided = size === 'Customer Provided'
-                                return (
-                                  <div key={size} style={{
-                                    background: isCustomerProvided ? '#1a1a2e' : '#161616',
-                                    border: isCustomerProvided ? '1px solid rgba(167,139,250,0.3)' : '1px solid rgba(148,163,184,0.15)',
-                                    borderRadius: '8px',
-                                    padding: '8px 10px',
-                                    minWidth: isCustomerProvided ? '160px' : '90px',
-                                    textAlign: 'center'
-                                  }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 700, color: isCustomerProvided ? '#a78bfa' : '#a78bfa', marginBottom: '6px' }}>{size}</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                      <input
-                                        type="number"
-                                        value={sizeData.qty || ''}
-                                        onChange={e => updateApparelField(item.id, `size.${size}.qty`, parseInt(e.target.value) || 0)}
-                                        placeholder="Qty"
-                                        style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '13px', textAlign: 'center', fontFamily: 'inherit' }}
-                                      />
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                        <span style={{ color: '#64748b', fontSize: '11px' }}>$</span>
+                          {enabledSizes.length > 0 && (() => {
+                            // Calculate per-unit decoration fee for DTF apparel
+                            const { totalQty } = recalcApparelTotals(sizes)
+                            let perUnitDecorationFee = 0
+                            if (isDTFApparel(item)) {
+                              const designLocationsCount = countDesignLocations(item)
+                              const feePerLocation = af.design_location_fee_per_location ?? 5.00
+                              const totalDesignFee = designLocationsCount * feePerLocation
+                              perUnitDecorationFee = totalQty > 0 ? totalDesignFee / totalQty : 0
+                            }
+
+                            return (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {enabledSizes.map(size => {
+                                  const sizeData = sizes[size] || { qty: 0, price: 0 }
+                                  const isCustomerProvided = size === 'Customer Provided'
+                                  // Final unit price = garment price + per-unit decoration fee
+                                  const finalUnitPrice = (sizeData.price || 0) + perUnitDecorationFee
+
+                                  return (
+                                    <div key={size} style={{
+                                      background: isCustomerProvided ? '#1a1a2e' : '#161616',
+                                      border: isCustomerProvided ? '1px solid rgba(167,139,250,0.3)' : '1px solid rgba(148,163,184,0.15)',
+                                      borderRadius: '8px',
+                                      padding: '8px 10px',
+                                      minWidth: isCustomerProvided ? '160px' : '90px',
+                                      textAlign: 'center'
+                                    }}>
+                                      <div style={{ fontSize: '11px', fontWeight: 700, color: isCustomerProvided ? '#a78bfa' : '#a78bfa', marginBottom: '6px' }}>{size}</div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         <input
                                           type="number"
-                                          step="0.01"
-                                          value={sizeData.price || ''}
-                                          onChange={e => updateApparelField(item.id, `size.${size}.price`, parseFloat(e.target.value) || 0)}
-                                          placeholder="0.00"
-                                          style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center', fontFamily: 'inherit' }}
+                                          value={sizeData.qty || ''}
+                                          onChange={e => updateApparelField(item.id, `size.${size}.qty`, parseInt(e.target.value) || 0)}
+                                          placeholder="Qty"
+                                          style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '13px', textAlign: 'center', fontFamily: 'inherit' }}
                                         />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                          <span style={{ color: '#64748b', fontSize: '11px' }}>$</span>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={finalUnitPrice.toFixed(2)}
+                                            onChange={e => {
+                                              // Back-calculate garment price from final unit price
+                                              const newFinalPrice = parseFloat(e.target.value) || 0
+                                              const newGarmentPrice = newFinalPrice - perUnitDecorationFee
+                                              updateApparelField(item.id, `size.${size}.price`, Math.max(0, newGarmentPrice))
+                                            }}
+                                            placeholder="0.00"
+                                            style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center', fontFamily: 'inherit' }}
+                                          />
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
+                                  )
+                                })}
+                              </div>
+                            )
+                          })()}
                           {enabledSizes.length === 0 && (
                             <div style={{ padding: '12px', textAlign: 'center', color: '#475569', fontSize: '13px', background: '#161616', borderRadius: '8px' }}>
                               Click <strong>Sizes</strong> to choose which sizes to include
