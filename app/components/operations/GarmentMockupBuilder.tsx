@@ -210,6 +210,28 @@ export default function GarmentMockupBuilder({
     return modifiedSvg
   }
 
+  // Regenerate blob URLs for loaded logos (blob URLs don't persist across sessions)
+  useEffect(() => {
+    if (!initialLogos || initialLogos.length === 0) return
+
+    const regenerateUrls = () => {
+      const updatedLogos = initialLogos.map(logo => {
+        // For SVG logos with saved content, regenerate the blob URL
+        if (logo.isSvg && logo.svgContent && logo.colorMap) {
+          const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
+          const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml' })
+          const newUrl = URL.createObjectURL(svgBlob)
+          return { ...logo, url: newUrl, originalUrl: newUrl }
+        }
+        // For regular images, the data URL should still be valid
+        return logo
+      })
+      setLogos(updatedLogos)
+    }
+
+    regenerateUrls()
+  }, [initialLogos])
+
   // Upload logo
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
