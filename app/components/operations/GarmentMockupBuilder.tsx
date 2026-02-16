@@ -75,7 +75,7 @@ export default function GarmentMockupBuilder({
   const [isRotating, setIsRotating] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
