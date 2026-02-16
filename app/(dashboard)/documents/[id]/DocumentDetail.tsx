@@ -1617,47 +1617,51 @@ export default function DocumentDetail({
     setMockupBuilderOpen(true)
   }
 
-  // Save mockup as line item attachment
-  const handleSaveMockup = async (mockupDataUrl: string, logos: any[], textElements: any[]) => {
+  // Save mockup as line item attachments
+  const handleSaveMockup = async (mockups: Array<{ location: string, dataUrl: string }>, logos: any[], textElements: any[]) => {
     if (!mockupLineItemId) return
 
     try {
-      // Convert data URL to blob
-      const response = await fetch(mockupDataUrl)
-      const blob = await response.blob()
-
-      // Create a File object from the blob
-      const fileName = `mockup_${mockupGarmentName}_${mockupColorName}_${Date.now()}.png`
-      const file = new File([blob], fileName, { type: 'image/png' })
-
-      // Upload using existing upload API
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('documentId', doc.id)
-      formData.append('prefix', 'doc-line-item')
-      formData.append('lineItemId', mockupLineItemId)
-
-      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData })
-      const uploadData = await uploadResponse.json()
-
-      if (!uploadData.success) {
-        throw new Error(uploadData.error || 'Upload failed')
-      }
-
-      // Add attachment to line item
       const item = lineItems.find(i => i.id === mockupLineItemId)
       if (!item) return
 
-      const newAttachment = {
-        url: uploadData.url,
-        key: uploadData.key,
-        filename: uploadData.filename || fileName,
-        contentType: uploadData.contentType || 'image/png',
-        size: uploadData.size || blob.size,
-        uploadedAt: new Date().toISOString()
+      const newAttachments = []
+
+      // Upload each mockup (one per location with designs)
+      for (const mockup of mockups) {
+        // Convert data URL to blob
+        const response = await fetch(mockup.dataUrl)
+        const blob = await response.blob()
+
+        // Create a File object with location in the name
+        const fileName = `mockup_${mockup.location}_${mockupGarmentName}_${mockupColorName}_${Date.now()}.png`
+        const file = new File([blob], fileName, { type: 'image/png' })
+
+        // Upload using existing upload API
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('documentId', doc.id)
+        formData.append('prefix', 'doc-line-item')
+        formData.append('lineItemId', mockupLineItemId)
+
+        const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData })
+        const uploadData = await uploadResponse.json()
+
+        if (!uploadData.success) {
+          throw new Error(uploadData.error || 'Upload failed')
+        }
+
+        newAttachments.push({
+          url: uploadData.url,
+          key: uploadData.key,
+          filename: uploadData.filename || fileName,
+          contentType: uploadData.contentType || 'image/png',
+          size: uploadData.size || blob.size,
+          uploadedAt: new Date().toISOString()
+        })
       }
 
-      const updatedAttachments = [...(item.attachments || []), newAttachment]
+      const updatedAttachments = [...(item.attachments || []), ...newAttachments]
 
       // Save mockup configuration to custom_fields
       const updatedCustomFields = {
@@ -1686,7 +1690,8 @@ export default function DocumentDetail({
           : i
       ))
 
-      showToast('Mockup saved successfully', 'success')
+      const mockupCount = mockups.length
+      showToast(`${mockupCount} mockup${mockupCount > 1 ? 's' : ''} saved successfully`, 'success')
       setMockupBuilderOpen(false)
       setMockupLineItemId(null)
     } catch (error) {
