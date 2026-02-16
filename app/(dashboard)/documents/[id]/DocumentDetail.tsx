@@ -1014,7 +1014,6 @@ export default function DocumentDetail({
     const { data, error } = await supabase.from('documents').update({
       status: 'archived',
       bucket: bucketValue,
-      archive_reason: reason,
       pre_archive_status: doc.status,
       pre_archive_bucket: doc.bucket,
       in_production: false
