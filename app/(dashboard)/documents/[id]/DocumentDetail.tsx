@@ -1011,15 +1011,24 @@ export default function DocumentDetail({
     const bucketValue = archiveBucket === 'won' ? 'ARCHIVE_WON' : 'ARCHIVE_LOST'
     const reason = archiveBucket === 'lost' ? (archiveReason === 'OTHER' ? archiveOtherReason : archiveReason) : null
 
-    await supabase.from('documents').update({
+    const { data, error } = await supabase.from('documents').update({
       status: 'archived',
       bucket: bucketValue,
       archive_reason: reason,
       pre_archive_status: doc.status,
-      pre_archive_bucket: doc.bucket
-    }).eq('id', doc.id)
-    
+      pre_archive_bucket: doc.bucket,
+      in_production: false
+    }).eq('id', doc.id).select()
+
+    if (error) {
+      console.error('Archive error:', error)
+      alert(`Failed to archive: ${error.message}`)
+      setSaving(false)
+      return
+    }
+
     setShowArchiveModal(false)
+    setDoc({ ...doc, status: 'archived', bucket: bucketValue })
     await appendHistory('Archived', `Archived as ${archiveBucket}${reason ? ': ' + reason : ''}`)
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
     setSaving(false)
