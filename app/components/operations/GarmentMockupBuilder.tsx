@@ -548,46 +548,42 @@ export default function GarmentMockupBuilder({
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Canvas context not available')
 
-    // Track blob URLs to revoke after drawing
-    const blobUrlsToRevoke: string[] = []
+    // Load garment image for this location
+    const garmentImg = new Image()
+    garmentImg.crossOrigin = 'anonymous'
 
-    try {
-      // Load garment image for this location
-      const garmentImg = new Image()
-      garmentImg.crossOrigin = 'anonymous'
+    await new Promise((resolve, reject) => {
+      garmentImg.onload = resolve
+      garmentImg.onerror = reject
+      garmentImg.src = getGarmentImageForLocation(location)
+    })
 
-      await new Promise((resolve, reject) => {
-        garmentImg.onload = resolve
-        garmentImg.onerror = reject
-        garmentImg.src = getGarmentImageForLocation(location)
-      })
+    // Set canvas size to garment image size
+    canvas.width = garmentImg.width || 800
+    canvas.height = garmentImg.height || 1000
 
-      // Set canvas size to garment image size
-      canvas.width = garmentImg.width || 800
-      canvas.height = garmentImg.height || 1000
-
-      // Draw garment
-      ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
+    // Draw garment
+    ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
 
       // Draw logos for this location
       const locationLogos = logos.filter(l => l.location === location)
       for (const logo of locationLogos) {
         const logoImg = new Image()
-        logoImg.crossOrigin = 'anonymous'
 
-        // For SVG logos, use the modified SVG content directly
+        // For SVG logos, convert to data URL for reliable canvas rendering
         if (logo.isSvg && logo.svgContent && logo.colorMap) {
           const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
-          const svgBlob = new Blob([modifiedSvg], { type: 'image/svg+xml;charset=utf-8' })
-          const svgUrl = URL.createObjectURL(svgBlob)
-          blobUrlsToRevoke.push(svgUrl) // Track for cleanup later
+          // Convert SVG to data URL (more reliable than blob URLs for canvas)
+          const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(modifiedSvg)
 
           await new Promise((resolve, reject) => {
             logoImg.onload = resolve
             logoImg.onerror = reject
-            logoImg.src = svgUrl
+            logoImg.src = svgDataUrl
           })
         } else {
+          // For regular images, set crossOrigin before src
+          logoImg.crossOrigin = 'anonymous'
           await new Promise((resolve, reject) => {
             logoImg.onload = resolve
             logoImg.onerror = reject
@@ -624,12 +620,8 @@ export default function GarmentMockupBuilder({
         ctx.restore()
       }
 
-      // Export as data URL
-      return canvas.toDataURL('image/png')
-    } finally {
-      // Clean up blob URLs after canvas export is complete
-      blobUrlsToRevoke.forEach(url => URL.revokeObjectURL(url))
-    }
+    // Export as data URL
+    return canvas.toDataURL('image/png')
   }
 
   // Generate mockup images for all locations with designs and save
