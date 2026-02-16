@@ -1700,6 +1700,44 @@ export default function DocumentDetail({
     }
   }
 
+  // Save mockup config only (no new images)
+  const handleSaveConfigOnly = async (logos: any[], textElements: any[]) => {
+    if (!mockupLineItemId) return
+
+    try {
+      const item = lineItems.find(i => i.id === mockupLineItemId)
+      if (!item) return
+
+      // Save mockup configuration to custom_fields
+      const updatedCustomFields = {
+        ...(item.custom_fields || {}),
+        mockup_config: {
+          logos,
+          textElements
+        }
+      }
+
+      // Update line item in database with new mockup config
+      const { error: updateError } = await supabase
+        .from('line_items')
+        .update({
+          custom_fields: updatedCustomFields
+        })
+        .eq('id', mockupLineItemId)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      setLineItems(lineItems.map(i =>
+        i.id === mockupLineItemId
+          ? { ...i, custom_fields: updatedCustomFields }
+          : i
+      ))
+    } catch (error) {
+      console.error('Error saving mockup config:', error)
+    }
+  }
+
   // ============================================================================
   // LINE ITEM HANDLERS
   // ============================================================================
@@ -4804,6 +4842,7 @@ export default function DocumentDetail({
           initialLogos={mockupInitialLogos}
           initialTextElements={mockupInitialTextElements}
           onSave={handleSaveMockup}
+          onSaveConfig={handleSaveConfigOnly}
           onClose={() => {
             setMockupBuilderOpen(false)
             setMockupLineItemId(null)
