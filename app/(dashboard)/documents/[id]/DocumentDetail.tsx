@@ -3397,7 +3397,7 @@ export default function DocumentDetail({
                               const name = att.name || att.filename || att.file_name || 'File'
                               const isImage = /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
                               return (
-                                <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '50px', height: '50px', borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
+                                <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '65px', height: '65px', borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
                                   {isImage && url ? (
                                     <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                   ) : (
@@ -3409,7 +3409,7 @@ export default function DocumentDetail({
                                 </div>
                               )
                             })}
-                            <label style={{ width: '50px', height: '50px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
+                            <label style={{ width: '65px', height: '65px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                               <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
                             </label>
@@ -3496,7 +3496,7 @@ export default function DocumentDetail({
                                   uploadedAt: att.uploadedAt || att.uploaded_at || ''
                                 }
                                 return (
-                                  <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
+                                  <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '78px', height: '78px', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
                                     {isImage && url ? (
                                       <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     ) : (
@@ -3509,7 +3509,7 @@ export default function DocumentDetail({
                                   </div>
                                 )
                               })}
-                              <label style={{ width: '60px', height: '60px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '10px', background: 'transparent', transition: 'all 0.15s' }}>
+                              <label style={{ width: '78px', height: '78px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '10px', background: 'transparent', transition: 'all 0.15s' }}>
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                 <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
                               </label>
