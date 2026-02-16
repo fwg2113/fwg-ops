@@ -1759,16 +1759,26 @@ export default function DocumentDetail({
 
   // Save mockup as line item attachments
   const handleSaveMockup = async (mockups: Array<{ location: string, dataUrl: string }>, logos: any[], textElements: any[]) => {
-    if (!mockupLineItemId) return
+    console.log('💾 DocumentDetail handleSaveMockup called with:', { mockupsCount: mockups.length, logosCount: logos.length, textElementsCount: textElements.length })
+
+    if (!mockupLineItemId) {
+      console.error('❌ No mockupLineItemId')
+      return
+    }
 
     try {
       const item = lineItems.find(i => i.id === mockupLineItemId)
-      if (!item) return
+      if (!item) {
+        console.error('❌ Line item not found:', mockupLineItemId)
+        return
+      }
 
+      console.log('📤 Starting mockup uploads...')
       const newAttachments = []
 
       // Upload each mockup (one per location with designs)
       for (const mockup of mockups) {
+        console.log(`📤 Uploading mockup for ${mockup.location}...`)
         // Convert data URL to blob
         const response = await fetch(mockup.dataUrl)
         const blob = await response.blob()
@@ -1787,9 +1797,14 @@ export default function DocumentDetail({
         const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData })
         const uploadData = await uploadResponse.json()
 
+        console.log(`📤 Upload response for ${mockup.location}:`, uploadData)
+
         if (!uploadData.success) {
+          console.error(`❌ Upload failed for ${mockup.location}:`, uploadData.error)
           throw new Error(uploadData.error || 'Upload failed')
         }
+
+        console.log(`✅ Upload successful for ${mockup.location}`)
 
         newAttachments.push({
           url: uploadData.url,
@@ -1801,11 +1816,15 @@ export default function DocumentDetail({
         })
       }
 
+      console.log('✅ All mockups uploaded successfully. New attachments:', newAttachments.length)
+
       // Remove existing mockups (they have "mockup_" in filename) and add new ones
       const existingAttachments = (item.attachments || []).filter(att =>
         !att.filename?.startsWith('mockup_')
       )
+      console.log('🗑️ Removing existing mockups. Existing non-mockup attachments:', existingAttachments.length)
       const updatedAttachments = [...existingAttachments, ...newAttachments]
+      console.log('📎 Total attachments after update:', updatedAttachments.length)
 
       // Save mockup configuration to custom_fields
       const updatedCustomFields = {
@@ -1817,6 +1836,7 @@ export default function DocumentDetail({
       }
 
       // Update line item in database with attachments AND mockup config
+      console.log('💾 Updating line item in database...')
       const { error: updateError } = await supabase
         .from('line_items')
         .update({
@@ -1825,7 +1845,12 @@ export default function DocumentDetail({
         })
         .eq('id', mockupLineItemId)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('❌ Database update error:', updateError)
+        throw updateError
+      }
+
+      console.log('✅ Database updated successfully')
 
       // Update local state
       const updatedItems = lineItems.map(i =>
@@ -1835,14 +1860,18 @@ export default function DocumentDetail({
       )
       setLineItems(updatedItems)
 
+      console.log('✅ Local state updated')
+
       // Auto-recalculate line total to include new decoration locations
       const updatedItem = updatedItems.find(i => i.id === mockupLineItemId)
       if (updatedItem && isDTFApparel(updatedItem)) {
+        console.log('🧮 Triggering auto-recalculation of line total...')
         // Trigger recalculation after state update
         setTimeout(() => recalculateApparelLineTotal(mockupLineItemId), 100)
       }
 
       const mockupCount = mockups.length
+      console.log('✅ Mockup save complete! Showing success toast and closing modal.')
       showToast(`${mockupCount} mockup${mockupCount > 1 ? 's' : ''} saved successfully`, 'success')
       setMockupBuilderOpen(false)
       setMockupLineItemId(null)
