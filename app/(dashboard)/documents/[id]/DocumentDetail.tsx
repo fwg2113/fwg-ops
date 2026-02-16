@@ -1459,14 +1459,19 @@ export default function DocumentDetail({
     }
 
     // Add design location fees for DTF apparel (per unit, so multiply by qty)
+    // Only if manual override is NOT enabled
     if (item && isDTFApparel(item)) {
       const af = getApparelFields(item)
-      const designLocationsCount = countDesignLocations(item)
-      const designFee = af.design_fee_per_location ?? 5.00
-      const pressFee = af.press_fee_per_location ?? 2.25
-      const totalFeePerLocation = designFee + pressFee
-      const totalDecorationFee = designLocationsCount * totalFeePerLocation
-      totalAmount += totalDecorationFee * totalQty
+      const manualOverride = af.manual_price_override || false
+
+      if (!manualOverride) {
+        const designLocationsCount = countDesignLocations(item)
+        const designFee = af.design_fee_per_location ?? 5.00
+        const pressFee = af.press_fee_per_location ?? 2.25
+        const totalFeePerLocation = designFee + pressFee
+        const totalDecorationFee = designLocationsCount * totalFeePerLocation
+        totalAmount += totalDecorationFee * totalQty
+      }
     }
 
     return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
@@ -1590,7 +1595,7 @@ export default function DocumentDetail({
 
       if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
         cf[fieldPath] = value
-      } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location') {
+      } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location' || fieldPath === 'manual_price_override') {
         // DTF pricing fields (non-markup)
         cf[fieldPath] = value
       } else if (fieldPath === 'markup_percent') {
@@ -3597,6 +3602,26 @@ export default function DocumentDetail({
                             </div>
                           </div>
 
+                          {/* Manual Price Override Checkbox */}
+                          {enabledSizes.length > 0 && isDTFApparel(item) && (
+                            <div style={{ marginBottom: '8px', padding: '8px 10px', background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '6px' }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={af.manual_price_override || false}
+                                  onChange={e => updateApparelField(item.id, 'manual_price_override', e.target.checked)}
+                                  style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#a78bfa' }}>Manual Price Override</span>
+                                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                    {af.manual_price_override ? 'Enter any price (automatic math disabled)' : 'Automatic decoration fee calculation enabled'}
+                                  </span>
+                                </div>
+                              </label>
+                            </div>
+                          )}
+
                           {/* Size Grid */}
                           {enabledSizes.length > 0 && (() => {
                             // Calculate per-unit decoration fee for DTF apparel
@@ -3624,13 +3649,15 @@ export default function DocumentDetail({
                               }
                             }
 
+                            const manualOverride = af.manual_price_override || false
+
                             return (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                 {enabledSizes.map(size => {
                                   const sizeData = sizes[size] || { qty: 0, price: 0 }
                                   const isCustomerProvided = size === 'Customer Provided'
-                                  // Final unit price = garment price + per-unit decoration fee
-                                  const finalUnitPrice = (sizeData.price || 0) + perUnitDecorationFee
+                                  // Final unit price = garment price + per-unit decoration fee (unless manual override)
+                                  const finalUnitPrice = manualOverride ? (sizeData.price || 0) : (sizeData.price || 0) + perUnitDecorationFee
 
                                   return (
                                     <div key={size} style={{
@@ -3657,10 +3684,15 @@ export default function DocumentDetail({
                                             step="0.01"
                                             value={finalUnitPrice.toFixed(2)}
                                             onChange={e => {
-                                              // Back-calculate garment price from final unit price
                                               const newFinalPrice = parseFloat(e.target.value) || 0
-                                              const newGarmentPrice = newFinalPrice - perUnitDecorationFee
-                                              updateApparelField(item.id, `size.${size}.price`, Math.max(0, newGarmentPrice))
+                                              if (manualOverride) {
+                                                // Manual override: set price directly
+                                                updateApparelField(item.id, `size.${size}.price`, newFinalPrice)
+                                              } else {
+                                                // Automatic mode: back-calculate garment price from final unit price
+                                                const newGarmentPrice = newFinalPrice - perUnitDecorationFee
+                                                updateApparelField(item.id, `size.${size}.price`, Math.max(0, newGarmentPrice))
+                                              }
                                             }}
                                             placeholder="0.00"
                                             style={{ width: '100%', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center', fontFamily: 'inherit' }}
