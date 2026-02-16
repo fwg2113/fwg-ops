@@ -170,6 +170,21 @@ type Payment = {
   created_at: string
 }
 
+type DtfPricingMatrix = {
+  id: string
+  name: string
+  decoration_type: string
+  applies_to: string[]
+  quantity_breaks: {
+    min: number
+    max: number
+    markup_pct: number
+    decoration_prices: Record<string, number>
+  }[]
+  created_at: string
+  updated_at: string
+}
+
 type Props = {
   document: Document
   initialLineItems: LineItem[]
@@ -179,6 +194,7 @@ type Props = {
   lineItemTypes: LineItemType[]
   feeTypes: FeeType[]
   payments: Payment[]
+  dtfPricingMatrix?: DtfPricingMatrix | null
 }
 
 // ============================================================================
@@ -190,15 +206,16 @@ const hasPackages = (cat: Category) => cat.has_packages === true
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export default function DocumentDetail({ 
-  document: initialDoc, 
-  initialLineItems, 
+export default function DocumentDetail({
+  document: initialDoc,
+  initialLineItems,
   customers = [],
   categories = [],
   packages = [],
   lineItemTypes = [],
   feeTypes = [],
-  payments: initialPayments = []
+  payments: initialPayments = [],
+  dtfPricingMatrix = null
 }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1503,7 +1520,18 @@ export default function DocumentDetail({
   }
 
   const getDTFMarkupPercent = (quantity: number): number => {
-    // Based on your pricing matrix screenshot
+    // Use database pricing matrix if available
+    if (dtfPricingMatrix && dtfPricingMatrix.quantity_breaks) {
+      // Find the applicable quantity break
+      const qtyBreak = dtfPricingMatrix.quantity_breaks.find(
+        (breakPoint) => quantity >= breakPoint.min && quantity <= breakPoint.max
+      )
+      if (qtyBreak) {
+        return qtyBreak.markup_pct
+      }
+    }
+
+    // Fallback to hardcoded values if database pricing not available
     if (quantity >= 499) return 125
     if (quantity >= 249) return 150
     if (quantity >= 99) return 160
@@ -1595,22 +1623,11 @@ export default function DocumentDetail({
         const newMarkupPercent = getDTFMarkupPercent(newTotalQty)
         const newMarkupMultiplier = newMarkupPercent / 100
 
-        console.log('💰 Recalculating garment prices:', {
-          newTotalQty,
-          newMarkupPercent,
-          newMarkupMultiplier,
-          sizesBeforeRecalc: JSON.parse(JSON.stringify(sizes))
-        })
-
         // Recalculate all garment prices using stored wholesale prices
         Object.keys(sizes).forEach(sizeName => {
           const sizeData = sizes[sizeName]
           if (sizeData.wholesale !== undefined && sizeData.wholesale > 0) {
-            const oldPrice = sizeData.price
             sizeData.price = sizeData.wholesale * newMarkupMultiplier
-            console.log(`  ${sizeName}: $${oldPrice?.toFixed(2)} → $${sizeData.price.toFixed(2)} (wholesale: $${sizeData.wholesale})`)
-          } else {
-            console.log(`  ${sizeName}: NO WHOLESALE PRICE (${sizeData.wholesale})`)
           }
         })
         cf.sizes = sizes
@@ -3446,20 +3463,11 @@ export default function DocumentDetail({
                                       const markupPercent = getDTFMarkupPercent(totalQty || 1)
                                       const markupMultiplier = markupPercent / 100
 
-                                      console.log('🎨 Color selected - storing wholesale prices:', {
-                                        color: newColor,
-                                        totalQty,
-                                        markupPercent,
-                                        markupMultiplier
-                                      })
-
                                       const sizesObj: Record<string, { qty: number; price: number; wholesale: number }> = {}
                                       selectedColor.sizes.forEach((s: any) => {
                                         const existingSize = (af.sizes || {})[s.sizeName]
                                         const wholesalePrice = s.wholesalePrice || 0
                                         const retailPrice = wholesalePrice * markupMultiplier
-
-                                        console.log(`  ${s.sizeName}: wholesale=$${wholesalePrice}, retail=$${retailPrice.toFixed(2)}`)
 
                                         sizesObj[s.sizeName] = {
                                           qty: existingSize?.qty || 0,

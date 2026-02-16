@@ -63,20 +63,28 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     .eq('document_id', id)
     .order('created_at', { ascending: false })
 
+  // Fetch DTF pricing matrix
+  const { data: dtfPricingMatrix } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'dtf')
+    .single()
+
   if (!document) {
     return <div style={{ color: '#f1f5f9', padding: '40px' }}>Document not found</div>
   }
 
   return (
-    <DocumentDetail 
-      document={document} 
-      initialLineItems={lineItems || []} 
+    <DocumentDetail
+      document={document}
+      initialLineItems={lineItems || []}
       customers={customers || []}
       categories={categories || []}
       packages={packages || []}
       lineItemTypes={lineItemTypes || []}
       feeTypes={feeTypes || []}
       payments={payments || []}
+      dtfPricingMatrix={dtfPricingMatrix || null}
     />
   )
 }

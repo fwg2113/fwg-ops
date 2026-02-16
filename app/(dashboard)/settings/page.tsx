@@ -101,6 +101,13 @@ export default async function SettingsPage() {
     `)
     .order('sort_order', { ascending: true })
 
+  // DTF Pricing Matrix
+  const { data: dtfPricing } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'dtf')
+    .single()
+
   const calendarConnected = !!calendarSettings?.value
   const gmailConnected = !!gmailSettings?.value
 
@@ -120,6 +127,7 @@ export default async function SettingsPage() {
       initialProjectTypes={projectTypes || []}
       initialPricingMatrix={pricingMatrix || []}
       initialCustomerWorkflows={customerWorkflows || []}
+      initialDtfPricing={dtfPricing}
     />
   )
 }
