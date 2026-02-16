@@ -1447,6 +1447,7 @@ export default function DocumentDetail({
       design_fee_per_location?: number  // Default $5, editable
       press_fee_per_location?: number   // Default $2.25, editable
       markup_percent?: number  // Auto-calculated from quantity tiers, editable
+      manual_price_override?: boolean   // Override auto-calculation
     }
   }
 
