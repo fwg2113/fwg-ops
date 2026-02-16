@@ -1457,13 +1457,27 @@ export default function DocumentDetail({
     const af = getApparelFields(item)
 
     // First, try to count from mockup_config (this is the live data before mockups are saved)
-    if (af.mockup_config?.logos && Array.isArray(af.mockup_config.logos)) {
+    if (af.mockup_config) {
       const uniqueLocations = new Set<string>()
-      af.mockup_config.logos.forEach((logo: any) => {
-        if (logo.location) {
-          uniqueLocations.add(logo.location)
-        }
-      })
+
+      // Count locations from logos
+      if (Array.isArray(af.mockup_config.logos)) {
+        af.mockup_config.logos.forEach((logo: any) => {
+          if (logo.location) {
+            uniqueLocations.add(logo.location)
+          }
+        })
+      }
+
+      // ALSO count locations from text elements!
+      if (Array.isArray(af.mockup_config.textElements)) {
+        af.mockup_config.textElements.forEach((text: any) => {
+          if (text.location) {
+            uniqueLocations.add(text.location)
+          }
+        })
+      }
+
       if (uniqueLocations.size > 0) {
         return uniqueLocations.size
       }
