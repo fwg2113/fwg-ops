@@ -166,7 +166,22 @@ type NotificationSettings = {
   email_alert_address: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications'
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing'
+
+type DtfPricingMatrix = {
+  id: string
+  name: string
+  decoration_type: string
+  applies_to: string[]
+  quantity_breaks: {
+    min: number
+    max: number
+    markup_pct: number
+    decoration_prices: Record<string, number>
+  }[]
+  created_at: string
+  updated_at: string
+}
 
 export default function SettingsView({
   initialCategories,
@@ -182,7 +197,8 @@ export default function SettingsView({
   initialVehicleCategories,
   initialProjectTypes,
   initialPricingMatrix,
-  initialCustomerWorkflows
+  initialCustomerWorkflows,
+  initialDtfPricing
 }: {
   initialCategories: Category[]
   initialMaterials: Material[]
@@ -198,6 +214,7 @@ export default function SettingsView({
   initialProjectTypes: ProjectType[]
   initialPricingMatrix: PricingRow[]
   initialCustomerWorkflows: CustomerWorkflowTemplate[]
+  initialDtfPricing?: DtfPricingMatrix | null
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories, setCategories] = useState<Category[]>(initialCategories)
@@ -227,6 +244,10 @@ export default function SettingsView({
   const [editingVehicle, setEditingVehicle] = useState<VehicleCategory | null>(null)
   const [editingPricing, setEditingPricing] = useState<PricingRow | null>(null)
   const [savingEstimator, setSavingEstimator] = useState(false)
+  // DTF Pricing state
+  const [dtfPricing, setDtfPricing] = useState<DtfPricingMatrix | null>(initialDtfPricing || null)
+  const [editingDtfBreak, setEditingDtfBreak] = useState<number | null>(null)
+  const [savingDtfPricing, setSavingDtfPricing] = useState(false)
   // Customer Workflows state
   const [customerWorkflows, setCustomerWorkflows] = useState<CustomerWorkflowTemplate[]>(initialCustomerWorkflows)
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null)
@@ -459,6 +480,7 @@ export default function SettingsView({
     { key: 'statuses', label: 'Task Statuses' },
     { key: 'priorities', label: 'Task Priorities' },
     { key: 'estimator', label: 'Estimator Config' },
+    { key: 'dtf-pricing', label: 'DTF Pricing' },
     { key: 'automations', label: 'Automations' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'calls', label: 'Call Forwarding' },
@@ -3478,6 +3500,131 @@ export default function SettingsView({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* DTF Pricing Tab */}
+      {activeTab === 'dtf-pricing' && dtfPricing && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>DTF Apparel Pricing Matrix</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage quantity breaks and markup percentages for DTF apparel</p>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'rgba(148, 163, 184, 0.05)' }}>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Qty Range</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Markup %</th>
+                <th style={{ padding: '12px 20px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dtfPricing.quantity_breaks.map((qtyBreak, index) => (
+                editingDtfBreak === index ? (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          value={qtyBreak.min}
+                          onChange={e => {
+                            const newBreaks = [...dtfPricing.quantity_breaks]
+                            newBreaks[index].min = parseInt(e.target.value) || 0
+                            setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                        <span style={{ color: '#64748b' }}>to</span>
+                        <input
+                          type="number"
+                          value={qtyBreak.max}
+                          onChange={e => {
+                            const newBreaks = [...dtfPricing.quantity_breaks]
+                            newBreaks[index].max = parseInt(e.target.value) || 0
+                            setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          value={qtyBreak.markup_pct}
+                          onChange={e => {
+                            const newBreaks = [...dtfPricing.quantity_breaks]
+                            newBreaks[index].markup_pct = parseInt(e.target.value) || 0
+                            setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                        <span style={{ color: '#64748b' }}>%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => setEditingDtfBreak(null)}
+                          style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSavingDtfPricing(true)
+                            try {
+                              const res = await fetch('/api/settings/dtf-pricing', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: dtfPricing.id, quantity_breaks: dtfPricing.quantity_breaks })
+                              })
+                              if (res.ok) {
+                                setEditingDtfBreak(null)
+                              } else {
+                                alert('Failed to save pricing')
+                              }
+                            } catch (err) {
+                              alert('Error saving pricing')
+                            }
+                            setSavingDtfPricing(false)
+                          }}
+                          disabled={savingDtfPricing}
+                          style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingDtfPricing ? 0.6 : 1 }}
+                        >
+                          {savingDtfPricing ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>
+                      {qtyBreak.min} - {qtyBreak.max === 99999 ? '∞' : qtyBreak.max}
+                    </td>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
+                      {qtyBreak.markup_pct}%
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <button
+                        onClick={() => setEditingDtfBreak(index)}
+                        style={{ padding: '6px 12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                )
+              ))}
+            </tbody>
+          </table>
+
+          <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
+            <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
+              💡 <strong>Note:</strong> These markup percentages are applied to garment wholesale prices. When you change quantity in a quote, garment prices will automatically recalculate based on these tiers.
+            </p>
+          </div>
         </div>
       )}
 
