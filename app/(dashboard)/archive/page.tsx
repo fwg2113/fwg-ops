@@ -11,11 +11,11 @@ export default async function ArchivePage() {
     .eq('bucket', 'ARCHIVE_WON')
     .order('created_at', { ascending: false })
 
-  // Cold leads (COLD bucket)
+  // Cold leads (COLD bucket) and Lost projects (ARCHIVE_LOST)
   const { data: coldDocs } = await supabase
     .from('documents')
     .select('id, doc_number, doc_type, status, customer_name, vehicle_description, project_description, category, total, created_at, bucket, pre_archive_status, pre_archive_bucket')
-    .eq('bucket', 'COLD')
+    .in('bucket', ['COLD', 'ARCHIVE_LOST'])
     .order('created_at', { ascending: false })
 
   // Archived submissions
