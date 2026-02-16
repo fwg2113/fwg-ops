@@ -539,6 +539,8 @@ export default function DocumentDetail({
           try {
             // Search for the product by style name
             const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
+            if (!searchResponse.ok) continue
+
             const searchData = await searchResponse.json()
 
             if (searchData.success && searchData.data && searchData.data.length > 0) {
@@ -548,6 +550,8 @@ export default function DocumentDetail({
 
               // Fetch full product details
               const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+              if (!detailResponse.ok) continue
+
               const detailData = await detailResponse.json()
 
               if (detailData.success && detailData.data) {
@@ -1537,6 +1541,11 @@ export default function DocumentDetail({
     try {
       // Fetch full product details including colors and sizes
       const response = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+      if (!response.ok) {
+        console.error('SS API error:', response.status, response.statusText)
+        return
+      }
+
       const data = await response.json()
       console.log('📦 SS Style Detail API Response:', data)
 
@@ -1606,24 +1615,32 @@ export default function DocumentDetail({
       try {
         // Search for the product by style name
         const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
-        const searchData = await searchResponse.json()
+        if (!searchResponse.ok) {
+          console.error('SS API error:', searchResponse.status, searchResponse.statusText)
+        } else {
+          const searchData = await searchResponse.json()
 
-        if (searchData.success && searchData.data && searchData.data.length > 0) {
-          // Find exact match by style name
-          const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
-          const product = exactMatch || searchData.data[0]
+          if (searchData.success && searchData.data && searchData.data.length > 0) {
+            // Find exact match by style name
+            const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
+            const product = exactMatch || searchData.data[0]
 
-          // Fetch full product details
-          const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
-          const detailData = await detailResponse.json()
+            // Fetch full product details
+            const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+            if (!detailResponse.ok) {
+              console.error('SS API error:', detailResponse.status, detailResponse.statusText)
+            } else {
+              const detailData = await detailResponse.json()
 
-          if (detailData.success && detailData.data) {
-            // Cache the product data
-            setSsProductCache(prev => ({
-              ...prev,
-              [itemId]: detailData.data
-            }))
-            cachedProduct = detailData.data
+              if (detailData.success && detailData.data) {
+                // Cache the product data
+                setSsProductCache(prev => ({
+                  ...prev,
+                  [itemId]: detailData.data
+                }))
+                cachedProduct = detailData.data
+              }
+            }
           }
         }
       } catch (error) {

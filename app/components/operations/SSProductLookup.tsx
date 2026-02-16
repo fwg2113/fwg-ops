@@ -72,6 +72,15 @@ export default function SSProductLookup({
         const response = await fetch(
           `/api/suppliers/ss/search?q=${encodeURIComponent(itemNumber)}`
         )
+
+        if (!response.ok) {
+          console.error('SS API error:', response.status, response.statusText)
+          setResults([])
+          setShowDropdown(false)
+          setLoading(false)
+          return
+        }
+
         const data = await response.json()
 
         if (data.success && data.data.length > 0) {
