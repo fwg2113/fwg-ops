@@ -591,13 +591,29 @@ export default function GarmentMockupBuilder({
           })
         }
 
+        // Calculate actual dimensions preserving aspect ratio
         const logoX = logo.x * canvas.width
         const logoY = logo.y * canvas.height
-        const logoW = logo.width * canvas.width
-        const logoH = logo.height * canvas.height
+        const maxWidth = logo.width * canvas.width
+        const maxHeight = logo.height * canvas.height
+
+        // Get the natural aspect ratio of the loaded image
+        const imageAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight
+        const boxAspectRatio = maxWidth / maxHeight
+
+        let logoW, logoH
+        if (imageAspectRatio > boxAspectRatio) {
+          // Image is wider than box - fit to width
+          logoW = maxWidth
+          logoH = maxWidth / imageAspectRatio
+        } else {
+          // Image is taller than box - fit to height
+          logoH = maxHeight
+          logoW = maxHeight * imageAspectRatio
+        }
 
         ctx.save()
-        ctx.translate(logoX + logoW / 2, logoY + logoH / 2)
+        ctx.translate(logoX + maxWidth / 2, logoY + maxHeight / 2)
         ctx.rotate((logo.rotation * Math.PI) / 180)
         ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
         ctx.restore()
