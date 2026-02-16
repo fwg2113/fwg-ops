@@ -32,6 +32,11 @@ interface TextElement {
   rotation: number
 }
 
+interface MockupImage {
+  location: Location
+  dataUrl: string
+}
+
 interface GarmentMockupBuilderProps {
   garmentImageUrl: string
   garmentImageUrls?: {
@@ -43,7 +48,7 @@ interface GarmentMockupBuilderProps {
   colorName: string
   initialLogos?: Logo[]
   initialTextElements?: TextElement[]
-  onSave: (mockupDataUrl: string, logos: Logo[], textElements: TextElement[]) => void
+  onSave: (mockups: MockupImage[], logos: Logo[], textElements: TextElement[]) => void
   onClose: () => void
 }
 
@@ -527,20 +532,28 @@ export default function GarmentMockupBuilder({
     setIsRotating(true)
   }
 
-  // Generate mockup image and save
-  const handleSaveMockup = async () => {
+  // Get garment image URL for a specific location
+  const getGarmentImageForLocation = (location: Location) => {
+    if (garmentImageUrls) {
+      return garmentImageUrls[location] || garmentImageUrl
+    }
+    return garmentImageUrl
+  }
+
+  // Generate mockup image for a specific location
+  const generateMockupForLocation = async (location: Location): Promise<string> => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) throw new Error('Canvas context not available')
 
-    // Load garment image
+    // Load garment image for this location
     const garmentImg = new Image()
     garmentImg.crossOrigin = 'anonymous'
 
     await new Promise((resolve, reject) => {
       garmentImg.onload = resolve
       garmentImg.onerror = reject
-      garmentImg.src = getCurrentGarmentImage()
+      garmentImg.src = getGarmentImageForLocation(location)
     })
 
     // Set canvas size to garment image size
@@ -550,8 +563,8 @@ export default function GarmentMockupBuilder({
     // Draw garment
     ctx.drawImage(garmentImg, 0, 0, canvas.width, canvas.height)
 
-    // Draw logos for active location only
-    const locationLogos = logos.filter(l => l.location === activeLocation)
+    // Draw logos for this location
+    const locationLogos = logos.filter(l => l.location === location)
     for (const logo of locationLogos) {
       const logoImg = new Image()
 
@@ -592,8 +605,8 @@ export default function GarmentMockupBuilder({
       ctx.restore()
     }
 
-    // Draw text elements for active location only
-    const locationTexts = textElements.filter(t => t.location === activeLocation)
+    // Draw text elements for this location
+    const locationTexts = textElements.filter(t => t.location === location)
     for (const text of locationTexts) {
       const textX = text.x * canvas.width
       const textY = text.y * canvas.height
@@ -610,8 +623,35 @@ export default function GarmentMockupBuilder({
     }
 
     // Export as data URL
-    const dataUrl = canvas.toDataURL('image/png')
-    onSave(dataUrl, logos, textElements)
+    return canvas.toDataURL('image/png')
+  }
+
+  // Generate mockup images for all locations with designs and save
+  const handleSaveMockup = async () => {
+    const mockups: MockupImage[] = []
+
+    // Generate a mockup for each location that has designs
+    for (const location of LOCATIONS) {
+      const locationLogos = logos.filter(l => l.location === location)
+      const locationTexts = textElements.filter(t => t.location === location)
+
+      // Only generate mockup if this location has designs
+      if (locationLogos.length > 0 || locationTexts.length > 0) {
+        try {
+          const dataUrl = await generateMockupForLocation(location)
+          mockups.push({ location, dataUrl })
+        } catch (error) {
+          console.error(`Error generating mockup for ${location}:`, error)
+        }
+      }
+    }
+
+    if (mockups.length === 0) {
+      console.warn('No mockups generated - no designs found')
+      return
+    }
+
+    onSave(mockups, logos, textElements)
   }
 
   // Filter elements by active location
