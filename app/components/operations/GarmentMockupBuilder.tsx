@@ -18,6 +18,7 @@ interface Logo {
   isSvg: boolean
   svgContent?: string // Original SVG content
   colorMap?: { [originalColor: string]: string } // Map of original colors to new colors
+  aspectRatio?: number // width / height of the actual image
 }
 
 interface TextElement {
@@ -328,7 +329,7 @@ export default function GarmentMockupBuilder({
       const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
 
       const reader = new FileReader()
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const content = event.target?.result as string
 
         if (isSvgFile) {
@@ -346,6 +347,16 @@ export default function GarmentMockupBuilder({
           const svgBlob = new Blob([content], { type: 'image/svg+xml' })
           const url = URL.createObjectURL(svgBlob)
 
+          // Load image to get dimensions
+          const img = new Image()
+          await new Promise((resolve) => {
+            img.onload = resolve
+            img.src = url
+          })
+
+          const aspectRatio = img.naturalWidth / img.naturalHeight
+          const height = 0.3 / aspectRatio // Maintain aspect ratio with width of 0.3
+
           const newLogo: Logo = {
             id: `logo_${Date.now()}_${Math.random()}`,
             url,
@@ -355,16 +366,27 @@ export default function GarmentMockupBuilder({
             x: 0.35,
             y: 0.3,
             width: 0.3,
-            height: 0.3,
+            height: height,
             rotation: 0,
             isSvg: true,
             svgContent: content,
-            colorMap: initialColorMap
+            colorMap: initialColorMap,
+            aspectRatio
           }
           setLogos(prev => [...prev, newLogo])
           setSelectedLogoId(newLogo.id)
         } else {
           // Handle regular image files (PNG, JPG, etc.)
+          // Load image to get dimensions
+          const img = new Image()
+          await new Promise((resolve) => {
+            img.onload = resolve
+            img.src = content
+          })
+
+          const aspectRatio = img.naturalWidth / img.naturalHeight
+          const height = 0.3 / aspectRatio // Maintain aspect ratio with width of 0.3
+
           const newLogo: Logo = {
             id: `logo_${Date.now()}_${Math.random()}`,
             url: content,
@@ -374,9 +396,10 @@ export default function GarmentMockupBuilder({
             x: 0.35,
             y: 0.3,
             width: 0.3,
-            height: 0.3,
+            height: height,
             rotation: 0,
-            isSvg: false
+            isSvg: false,
+            aspectRatio
           }
           setLogos(prev => [...prev, newLogo])
           setSelectedLogoId(newLogo.id)
@@ -500,11 +523,13 @@ export default function GarmentMockupBuilder({
   const applyPreset = (preset: typeof PLACEMENT_PRESETS[0]) => {
     if (!selectedLogoId) return
 
-    setLogos(prev => prev.map(logo =>
-      logo.id === selectedLogoId
-        ? { ...logo, x: preset.x, y: preset.y, width: preset.width, height: preset.width }
-        : logo
-    ))
+    setLogos(prev => prev.map(logo => {
+      if (logo.id === selectedLogoId) {
+        const height = logo.aspectRatio ? preset.width / logo.aspectRatio : preset.width
+        return { ...logo, x: preset.x, y: preset.y, width: preset.width, height }
+      }
+      return logo
+    }))
   }
 
   // Delete logo
@@ -593,9 +618,8 @@ export default function GarmentMockupBuilder({
       if (!logo) return
 
       const width = Math.max(0.05, mouseX - logo.x)
-      const height = Math.max(0.05, mouseY - logo.y)
-      const size = Math.max(width, height) // Keep aspect ratio
-      updateLogo(selectedLogoId, { width: size, height: size })
+      const height = logo.aspectRatio ? width / logo.aspectRatio : width
+      updateLogo(selectedLogoId, { width, height })
     } else if (isRotating) {
       if (selectedLogoId) {
         // Rotate logo
@@ -1223,8 +1247,9 @@ export default function GarmentMockupBuilder({
                     max="80"
                     value={selectedLogo.width * 100}
                     onChange={(e) => {
-                      const size = parseFloat(e.target.value) / 100
-                      updateLogo(selectedLogo.id, { width: size, height: size })
+                      const width = parseFloat(e.target.value) / 100
+                      const height = selectedLogo.aspectRatio ? width / selectedLogo.aspectRatio : width
+                      updateLogo(selectedLogo.id, { width, height })
                     }}
                     style={{ width: '100%' }}
                   />
