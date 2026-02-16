@@ -1609,7 +1609,7 @@ export default function DocumentDetail({
       garmentName = cachedProduct.styleName || garmentName
     }
 
-    if (!frontUrl) {
+    if (!garmentImageUrl) {
       showToast('Please select a product with a garment image first', 'error')
       return
     }

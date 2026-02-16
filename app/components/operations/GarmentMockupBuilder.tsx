@@ -77,8 +77,14 @@ export default function GarmentMockupBuilder({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [resizeStartFontSize, setResizeStartFontSize] = useState(48)
 
   const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
+
+  // Get image URL for current location based on garmentImageUrls
+  const frontImageUrl = garmentImageUrls?.Front || garmentImageUrl
+  const backImageUrl = garmentImageUrls?.Back
+  const sleeveImageUrl = garmentImageUrls?.Sleeves
 
   // Get image URL for current location
   const getLocationImageUrl = (location: Location): string => {
@@ -632,9 +638,10 @@ export default function GarmentMockupBuilder({
         const logo = logos.find(l => l.id === selectedLogoId)
         if (!logo) return
 
-      const width = Math.max(0.05, mouseX - logo.x)
-      const height = logo.aspectRatio ? width / logo.aspectRatio : width
-      updateLogo(selectedLogoId, { width, height })
+        const width = Math.max(0.05, mouseX - logo.x)
+        const height = logo.aspectRatio ? width / logo.aspectRatio : width
+        updateLogo(selectedLogoId, { width, height })
+      }
     } else if (isRotating) {
       if (selectedLogoId) {
         // Rotate logo
@@ -747,87 +754,83 @@ export default function GarmentMockupBuilder({
       garmentImg.src = getGarmentImageForLocation(location)
     })
 
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      if (!ctx) continue
+    // Set canvas size to match garment image
+    canvas.width = garmentImg.naturalWidth
+    canvas.height = garmentImg.naturalHeight
 
-      // Get image URL for this location
-      const imageUrl = getLocationImageUrl(location)
+    // Draw garment image
+    ctx.drawImage(garmentImg, 0, 0)
 
-      // Load garment image
-      const garmentImg = new Image()
-      garmentImg.crossOrigin = 'anonymous'
+    // Draw logos for this location
+    const locationLogos = logos.filter(l => l.location === location)
+    for (const logo of locationLogos) {
+      const logoImg = new Image()
 
-      // Draw logos for this location
-      const locationLogos = logos.filter(l => l.location === location)
-      for (const logo of locationLogos) {
-        const logoImg = new Image()
+      // For SVG logos, convert to data URL for reliable canvas rendering
+      if (logo.isSvg && logo.svgContent && logo.colorMap) {
+        const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
+        // Convert SVG to data URL (more reliable than blob URLs for canvas)
+        const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(modifiedSvg)
 
-        // For SVG logos, convert to data URL for reliable canvas rendering
-        if (logo.isSvg && logo.svgContent && logo.colorMap) {
-          const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
-          // Convert SVG to data URL (more reliable than blob URLs for canvas)
-          const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(modifiedSvg)
-
-          await new Promise((resolve, reject) => {
-            logoImg.onload = resolve
-            logoImg.onerror = reject
-            logoImg.src = svgDataUrl
-          })
-        } else {
-          // For regular images, set crossOrigin before src
-          logoImg.crossOrigin = 'anonymous'
-          await new Promise((resolve, reject) => {
-            logoImg.onload = resolve
-            logoImg.onerror = reject
-            logoImg.src = logo.url
-          })
-        }
-
-        // Calculate actual dimensions preserving aspect ratio
-        const logoX = logo.x * canvas.width
-        const logoY = logo.y * canvas.height
-        const maxWidth = logo.width * canvas.width
-        const maxHeight = logo.height * canvas.height
-
-        // Get the natural aspect ratio of the loaded image
-        const imageAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight
-        const boxAspectRatio = maxWidth / maxHeight
-
-        let logoW, logoH
-        if (imageAspectRatio > boxAspectRatio) {
-          // Image is wider than box - fit to width
-          logoW = maxWidth
-          logoH = maxWidth / imageAspectRatio
-        } else {
-          // Image is taller than box - fit to height
-          logoH = maxHeight
-          logoW = maxHeight * imageAspectRatio
-        }
-
-        ctx.save()
-        ctx.translate(logoX + maxWidth / 2, logoY + maxHeight / 2)
-        ctx.rotate((logo.rotation * Math.PI) / 180)
-        ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
-        ctx.restore()
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve
+          logoImg.onerror = reject
+          logoImg.src = svgDataUrl
+        })
+      } else {
+        // For regular images, set crossOrigin before src
+        logoImg.crossOrigin = 'anonymous'
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve
+          logoImg.onerror = reject
+          logoImg.src = logo.url
+        })
       }
 
-      // Draw text elements for this location
-      const locationTexts = textElements.filter(t => t.location === location)
-      for (const text of locationTexts) {
-        const textX = text.x * canvas.width
-        const textY = text.y * canvas.height
+      // Calculate actual dimensions preserving aspect ratio
+      const logoX = logo.x * canvas.width
+      const logoY = logo.y * canvas.height
+      const maxWidth = logo.width * canvas.width
+      const maxHeight = logo.height * canvas.height
 
-        ctx.save()
-        ctx.translate(textX, textY)
-        ctx.rotate((text.rotation * Math.PI) / 180)
-        ctx.font = `${text.fontSize}px ${text.fontFamily}`
-        ctx.fillStyle = text.color
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(text.text, 0, 0)
-        ctx.restore()
+      // Get the natural aspect ratio of the loaded image
+      const imageAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight
+      const boxAspectRatio = maxWidth / maxHeight
+
+      let logoW, logoH
+      if (imageAspectRatio > boxAspectRatio) {
+        // Image is wider than box - fit to width
+        logoW = maxWidth
+        logoH = maxWidth / imageAspectRatio
+      } else {
+        // Image is taller than box - fit to height
+        logoH = maxHeight
+        logoW = maxHeight * imageAspectRatio
       }
+
+      ctx.save()
+      ctx.translate(logoX + maxWidth / 2, logoY + maxHeight / 2)
+      ctx.rotate((logo.rotation * Math.PI) / 180)
+      ctx.drawImage(logoImg, -logoW / 2, -logoH / 2, logoW, logoH)
+      ctx.restore()
+    }
+
+    // Draw text elements for this location
+    const locationTexts = textElements.filter(t => t.location === location)
+    for (const text of locationTexts) {
+      const textX = text.x * canvas.width
+      const textY = text.y * canvas.height
+
+      ctx.save()
+      ctx.translate(textX, textY)
+      ctx.rotate((text.rotation * Math.PI) / 180)
+      ctx.font = `${text.fontSize}px ${text.fontFamily}`
+      ctx.fillStyle = text.color
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(text.text, 0, 0)
+      ctx.restore()
+    }
 
     // Export as data URL
     return canvas.toDataURL('image/png')
