@@ -515,6 +515,50 @@ export default function DocumentDetail({
     }
   }, [total, depositType])
 
+  // Pre-load SS product cache for existing apparel line items
+  useEffect(() => {
+    const loadSSProducts = async () => {
+      const cache: Record<string, any> = {}
+
+      for (const item of lineItems) {
+        const af = getApparelFields(item)
+
+        // Only fetch if item has item_number and not already in cache
+        if (af.item_number && !ssProductCache[item.id]) {
+          try {
+            // Search for the product by style name
+            const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
+            const searchData = await searchResponse.json()
+
+            if (searchData.success && searchData.data && searchData.data.length > 0) {
+              // Find exact match by style name
+              const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
+              const product = exactMatch || searchData.data[0]
+
+              // Fetch full product details
+              const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+              const detailData = await detailResponse.json()
+
+              if (detailData.success && detailData.data) {
+                cache[item.id] = detailData.data
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading SS product for ${af.item_number}:`, error)
+          }
+        }
+      }
+
+      // Update cache if we fetched anything
+      if (Object.keys(cache).length > 0) {
+        setSsProductCache(prev => ({ ...prev, ...cache }))
+      }
+    }
+
+    loadSSProducts()
+  }, []) // Run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   // Track customer field changes
   useEffect(() => {
     const changed = customerName !== (initialDoc.customer_name || '') || companyName !== (initialDoc.company_name || '') ||
