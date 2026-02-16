@@ -1349,6 +1349,7 @@ export default function DocumentDetail({
       apparel_mode?: boolean
       color?: string
       item_number?: string
+      style_id?: string  // SS Activewear style ID
       enabled_sizes?: string[]
       sizes?: Record<string, { qty: number; price: number }>
     }
@@ -1369,7 +1370,7 @@ export default function DocumentDetail({
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
-      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'enabled_sizes') {
+      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
         cf[fieldPath] = value
       } else if (fieldPath.startsWith('size.')) {
         // e.g. size.XL.qty or size.XL.price
@@ -1439,18 +1440,39 @@ export default function DocumentDetail({
           [itemId]: styleDetail
         }))
 
-        // Update item number
-        await updateApparelField(itemId, 'item_number', product.styleName)
+        // Build product title
+        const productTitle = `${styleDetail.brandName} ${styleDetail.styleName} - ${styleDetail.baseCategory}`
 
-        // Clear color to force user selection
-        await updateApparelField(itemId, 'color', '')
+        // Combined update to avoid race conditions between state updates
+        const newItems = lineItems.map(item => {
+          if (item.id !== itemId) return item
+          const cf: Record<string, any> = {
+            ...(item.custom_fields || {}),
+            apparel_mode: true,
+            item_number: product.styleName,
+            style_id: product.styleID.toString(),
+            color: '' // Clear color to force user selection
+          }
+          return {
+            ...item,
+            description: productTitle,
+            custom_fields: cf
+          }
+        })
+        setLineItems(newItems)
 
-        // Update description with SS product title
-        const item = lineItems.find(i => i.id === itemId)
-        if (item) {
-          // Use brand, style name, and category as the product title
-          const productTitle = `${styleDetail.brandName} ${styleDetail.styleName} - ${styleDetail.baseCategory}`
-          updateLineItem(itemId, 'description', productTitle)
+        // Save to database
+        const updatedItem = newItems.find(i => i.id === itemId)
+        if (updatedItem) {
+          console.log('💾 Saving product selection to database...', {
+            description: updatedItem.description,
+            custom_fields: updatedItem.custom_fields
+          })
+          await supabase.from('line_items').update({
+            description: updatedItem.description,
+            custom_fields: updatedItem.custom_fields,
+          }).eq('id', itemId)
+          console.log('✅ Product selection saved')
         }
 
         showToast(`Select a color for ${styleDetail.styleName}`, 'info')
