@@ -358,6 +358,8 @@ export default function DocumentDetail({
   const [mockupGarmentUrls, setMockupGarmentUrls] = useState<{ Front: string; Back: string; Sleeves: string } | undefined>(undefined)
   const [mockupGarmentName, setMockupGarmentName] = useState<string>('')
   const [mockupColorName, setMockupColorName] = useState<string>('')
+  const [mockupInitialLogos, setMockupInitialLogos] = useState<any[]>([])
+  const [mockupInitialTextElements, setMockupInitialTextElements] = useState<any[]>([])
 
   // SS Product cache for line items (stores fetched product data)
   const [ssProductCache, setSsProductCache] = useState<Record<string, any>>({})
@@ -1396,6 +1398,10 @@ export default function DocumentDetail({
       style_id?: string  // SS Activewear style ID
       enabled_sizes?: string[]
       sizes?: Record<string, { qty: number; price: number }>
+      mockup_config?: {
+        logos: any[]
+        textElements: any[]
+      }
     }
   }
 
@@ -1598,16 +1604,22 @@ export default function DocumentDetail({
       return
     }
 
+    // Load existing mockup config if it exists
+    const af = getApparelFields(item)
+    const mockupConfig = af.mockup_config || { logos: [], textElements: [] }
+
     setMockupLineItemId(itemId)
     setMockupGarmentUrl(garmentImageUrl)
     setMockupGarmentUrls(garmentUrls)
     setMockupGarmentName(garmentName)
     setMockupColorName(colorName)
+    setMockupInitialLogos(mockupConfig.logos)
+    setMockupInitialTextElements(mockupConfig.textElements)
     setMockupBuilderOpen(true)
   }
 
   // Save mockup as line item attachment
-  const handleSaveMockup = async (mockupDataUrl: string) => {
+  const handleSaveMockup = async (mockupDataUrl: string, logos: any[], textElements: any[]) => {
     if (!mockupLineItemId) return
 
     try {
@@ -1648,10 +1660,22 @@ export default function DocumentDetail({
 
       const updatedAttachments = [...(item.attachments || []), newAttachment]
 
-      // Update line item in database
+      // Save mockup configuration to custom_fields
+      const updatedCustomFields = {
+        ...(item.custom_fields || {}),
+        mockup_config: {
+          logos,
+          textElements
+        }
+      }
+
+      // Update line item in database with attachments AND mockup config
       const { error: updateError } = await supabase
         .from('line_items')
-        .update({ attachments: updatedAttachments })
+        .update({
+          attachments: updatedAttachments,
+          custom_fields: updatedCustomFields
+        })
         .eq('id', mockupLineItemId)
 
       if (updateError) throw updateError
@@ -1659,7 +1683,7 @@ export default function DocumentDetail({
       // Update local state
       setLineItems(lineItems.map(i =>
         i.id === mockupLineItemId
-          ? { ...i, attachments: updatedAttachments }
+          ? { ...i, attachments: updatedAttachments, custom_fields: updatedCustomFields }
           : i
       ))
 
@@ -4773,6 +4797,8 @@ export default function DocumentDetail({
           garmentImageUrls={mockupGarmentUrls}
           garmentName={mockupGarmentName}
           colorName={mockupColorName}
+          initialLogos={mockupInitialLogos}
+          initialTextElements={mockupInitialTextElements}
           onSave={handleSaveMockup}
           onClose={() => {
             setMockupBuilderOpen(false)
