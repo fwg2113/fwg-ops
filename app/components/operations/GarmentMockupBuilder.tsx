@@ -49,6 +49,7 @@ interface GarmentMockupBuilderProps {
   initialLogos?: Logo[]
   initialTextElements?: TextElement[]
   onSave: (mockups: MockupImage[], logos: Logo[], textElements: TextElement[]) => void
+  onSaveConfig: (logos: Logo[], textElements: TextElement[]) => void
   onClose: () => void
 }
 
@@ -60,6 +61,7 @@ export default function GarmentMockupBuilder({
   initialLogos,
   initialTextElements,
   onSave,
+  onSaveConfig,
   onClose
 }: GarmentMockupBuilderProps) {
   const [activeLocation, setActiveLocation] = useState<Location>('Front')
@@ -658,6 +660,13 @@ export default function GarmentMockupBuilder({
     onSave(mockups, logos, textElements)
   }
 
+  // Handle close - save config before closing
+  const handleClose = () => {
+    // Save the current config (logos and text) before closing
+    onSaveConfig(logos, textElements)
+    onClose()
+  }
+
   // Filter elements by active location
   const activeLogos = logos.filter(l => l.location === activeLocation)
   const activeTexts = textElements.filter(t => t.location === activeLocation)
@@ -725,7 +734,7 @@ export default function GarmentMockupBuilder({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               background: 'none',
               border: 'none',
@@ -1450,7 +1459,7 @@ export default function GarmentMockupBuilder({
           gap: '12px'
         }}>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               padding: '10px 20px',
               background: 'transparent',
