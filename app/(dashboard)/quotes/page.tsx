@@ -10,6 +10,8 @@ export default async function QuotesPage() {
     .from('documents')
     .select('*')
     .eq('doc_type', 'quote')
+    .neq('status', 'archived')
+    .not('bucket', 'in', '("ARCHIVE_WON","ARCHIVE_LOST","COLD")')
     .order('created_at', { ascending: false })
     .limit(50)
 
