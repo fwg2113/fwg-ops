@@ -1353,19 +1353,19 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   </div>
 
                                   {/* Size breakdown grid */}
-                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                     {enabledSizes.map(size => {
                                       const s = sizes[size] || { qty: 0, price: 0 }
                                       if (s.qty <= 0) return null
                                       return (
                                         <div key={size} style={{
                                           display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                                          padding: '6px 12px', background: '#f8f9fa', borderRadius: '8px',
-                                          border: '1px solid #e5e7eb', minWidth: '60px'
+                                          padding: '8px 15px', background: '#f8f9fa', borderRadius: '8px',
+                                          border: '1px solid #e5e7eb', minWidth: '75px'
                                         }}>
-                                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
-                                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginTop: '2px' }}>{s.qty}</div>
-                                          <div style={{ fontSize: '11px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
+                                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
+                                          <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{s.qty}</div>
+                                          <div style={{ fontSize: '14px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
                                         </div>
                                       )
                                     })}
