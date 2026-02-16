@@ -1624,7 +1624,8 @@ export default function DocumentDetail({
         // If manually updating price, back-calculate wholesale based on current markup
         if (sizeField === 'price' && isDTFApparel({ ...item, custom_fields: cf })) {
           const currentTotalQty = Object.values(sizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
-          const currentMarkup = getDTFMarkupPercent(currentTotalQty || 1)
+          // Use manually-set markup if available, otherwise use auto markup
+          const currentMarkup = cf.markup_percent ?? getDTFMarkupPercent(currentTotalQty || 1)
           const markupMultiplier = currentMarkup / 100
           sizeData.wholesale = markupMultiplier > 0 ? value / markupMultiplier : value
         }
