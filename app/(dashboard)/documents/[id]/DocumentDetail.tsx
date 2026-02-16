@@ -3463,6 +3463,17 @@ export default function DocumentDetail({
                               const feePerLocation = af.design_location_fee_per_location ?? 5.00
                               const totalDesignFee = designLocationsCount * feePerLocation
                               perUnitDecorationFee = totalQty > 0 ? totalDesignFee / totalQty : 0
+
+                              // Debug logging
+                              if (totalQty > 0) {
+                                console.log('🧮 Per-unit decoration fee calc:', {
+                                  designLocationsCount,
+                                  feePerLocation,
+                                  totalDesignFee,
+                                  totalQty,
+                                  perUnitDecorationFee
+                                })
+                              }
                             }
 
                             return (
