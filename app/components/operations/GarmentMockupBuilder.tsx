@@ -215,8 +215,8 @@ export default function GarmentMockupBuilder({
   useEffect(() => {
     if (!initialLogos || initialLogos.length === 0) return
 
-    const regenerateUrls = () => {
-      const updatedLogos = initialLogos.map(logo => {
+    const regenerateUrls = async () => {
+      const updatedLogos = await Promise.all(initialLogos.map(async (logo) => {
         // For SVG logos with saved content, regenerate the blob URL
         if (logo.isSvg && logo.svgContent && logo.colorMap) {
           const modifiedSvg = applySvgColorMap(logo.svgContent, logo.colorMap)
@@ -224,9 +224,60 @@ export default function GarmentMockupBuilder({
           const newUrl = URL.createObjectURL(svgBlob)
           return { ...logo, url: newUrl, originalUrl: newUrl }
         }
+
+        // Handle legacy SVG logos that don't have colorMap/svgContent
+        // Check if the URL contains SVG data or if file appears to be SVG
+        if (logo.url && (logo.url.includes('data:image/svg') || logo.url.includes('.svg'))) {
+          try {
+            // Fetch the SVG content
+            let svgContent = ''
+            if (logo.url.startsWith('data:image/svg+xml')) {
+              // Extract from data URL
+              const base64Match = logo.url.match(/data:image\/svg\+xml;base64,(.+)/)
+              if (base64Match) {
+                svgContent = atob(base64Match[1])
+              } else {
+                // URL encoded
+                const urlEncodedMatch = logo.url.match(/data:image\/svg\+xml[^,]*,(.+)/)
+                if (urlEncodedMatch) {
+                  svgContent = decodeURIComponent(urlEncodedMatch[1])
+                }
+              }
+            } else if (logo.url.includes('.svg')) {
+              // Try to fetch it
+              const response = await fetch(logo.url)
+              svgContent = await response.text()
+            }
+
+            if (svgContent) {
+              // Extract colors and create color map
+              const colors = extractSvgColors(svgContent)
+              const colorMap: { [key: string]: string } = {}
+              colors.forEach(color => {
+                colorMap[color] = color // Initially map to same color
+              })
+
+              // Create blob URL
+              const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' })
+              const newUrl = URL.createObjectURL(svgBlob)
+
+              return {
+                ...logo,
+                isSvg: true,
+                svgContent,
+                colorMap,
+                url: newUrl,
+                originalUrl: newUrl
+              }
+            }
+          } catch (error) {
+            console.error('Error processing legacy SVG logo:', error)
+          }
+        }
+
         // For regular images, the data URL should still be valid
         return logo
-      })
+      }))
       setLogos(updatedLogos)
     }
 
