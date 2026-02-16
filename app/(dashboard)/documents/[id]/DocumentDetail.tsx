@@ -2777,12 +2777,12 @@ export default function DocumentDetail({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Project Files</h3></div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
           {attachments.map((a) => (
-            <div key={a.key} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', overflow: 'hidden', cursor: 'pointer' }} onClick={() => a.contentType?.startsWith('image/') ? openLightbox(a) : window.open(a.url, '_blank')}>
+            <div key={a.key} style={{ position: 'relative', width: '104px', height: '104px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', overflow: 'hidden', cursor: 'pointer' }} onClick={() => a.contentType?.startsWith('image/') ? openLightbox(a) : window.open(a.url, '_blank')}>
               {a.contentType?.startsWith('image/') ? <img src={a.url} alt={a.filename} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: '10px' }}>{a.filename?.split('.').pop()?.toUpperCase()}</div>}
               <button onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(a.key) }} style={{ position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(239,68,68,0.9)', border: 'none', color: 'white', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
             </div>
           ))}
-          <label style={{ width: '80px', height: '80px', borderRadius: '8px', border: '2px dashed rgba(148,163,184,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px' }}>
+          <label style={{ width: '104px', height: '104px', borderRadius: '8px', border: '2px dashed rgba(148,163,184,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px' }}>
             <span style={{ fontSize: '20px' }}>+</span><span>Add</span>
             <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} disabled={uploading} style={{ display: 'none' }} />
           </label>
