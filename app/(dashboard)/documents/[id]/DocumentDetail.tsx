@@ -2912,7 +2912,7 @@ export default function DocumentDetail({
                                 onItemNumberChange={(value) => updateApparelField(item.id, 'item_number', value)}
                               />
                             </div>
-                            <div style={{ width: '140px' }}>
+                            <div style={{ width: '210px' }}>
                               <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Color</div>
                               {ssProductCache[item.id] && ssProductCache[item.id].colors ? (
                                 <select
