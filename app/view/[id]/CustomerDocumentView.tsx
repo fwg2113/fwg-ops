@@ -111,8 +111,6 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const panStart = useRef({ x: 0, y: 0 })
 
   // Standard lightbox zoom/pan state
-  const [lightboxZoom, setLightboxZoom] = useState(1)
-  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
   const [isLightboxDragging, setIsLightboxDragging] = useState(false)
   const lightboxDragStart = useRef({ x: 0, y: 0 })
   const lightboxPanStart = useRef({ x: 0, y: 0 })
@@ -300,64 +298,6 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     setIsDragging(false)
   }, [])
 
-  // ============================================================================
-  // STANDARD LIGHTBOX HANDLERS (zoom/pan)
-  // ============================================================================
-  const handleLightboxDoubleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (lightboxZoom > 1) {
-      // Reset zoom
-      setLightboxZoom(1)
-      setLightboxPan({ x: 0, y: 0 })
-    } else {
-      // Zoom in to 2.5x centered on click point
-      const rect = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - rect.left - rect.width / 2
-      const y = e.clientY - rect.top - rect.height / 2
-      setLightboxZoom(2.5)
-      setLightboxPan({ x: -x * 1.5, y: -y * 1.5 })
-    }
-  }, [lightboxZoom])
-
-  const handleLightboxMouseDown = useCallback((e: React.MouseEvent) => {
-    if (lightboxZoom <= 1) return
-    e.preventDefault()
-    setIsDragging(true)
-    dragStart.current = { x: e.clientX, y: e.clientY }
-    panStart.current = { ...lightboxPan }
-  }, [lightboxZoom, lightboxPan])
-
-  const handleLightboxMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || lightboxZoom <= 1) return
-    const dx = e.clientX - dragStart.current.x
-    const dy = e.clientY - dragStart.current.y
-    setLightboxPan({
-      x: panStart.current.x + dx,
-      y: panStart.current.y + dy
-    })
-  }, [isDragging, lightboxZoom])
-
-  const handleLightboxMouseUp = useCallback(() => {
-    setIsDragging(false)
-  }, [])
-
-  const handleLightboxNav = useCallback((dir: 'prev' | 'next') => {
-    if (lightboxIndex === null) return
-    const newIndex = dir === 'next'
-      ? (lightboxIndex + 1) % galleryImages.length
-      : (lightboxIndex - 1 + galleryImages.length) % galleryImages.length
-    setLightboxIndex(newIndex)
-    // Reset zoom when navigating
-    setLightboxZoom(1)
-    setLightboxPan({ x: 0, y: 0 })
-  }, [lightboxIndex, galleryImages.length])
-
-  const handleLightboxClose = useCallback(() => {
-    setLightboxIndex(null)
-    setLightboxZoom(1)
-    setLightboxPan({ x: 0, y: 0 })
-  }, [])
-
   // Keyboard nav for option lightbox
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -369,18 +309,6 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [optLightbox, handleOptLightboxClose, handleOptLightboxNav])
-
-  // Keyboard nav for standard lightbox
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (lightboxIndex === null) return
-      if (e.key === 'Escape') handleLightboxClose()
-      if (e.key === 'ArrowLeft') handleLightboxNav('prev')
-      if (e.key === 'ArrowRight') handleLightboxNav('next')
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [lightboxIndex, handleLightboxClose, handleLightboxNav])
 
   // ============================================================================
   // STANDARD LIGHTBOX HANDLERS (zoom/pan)
