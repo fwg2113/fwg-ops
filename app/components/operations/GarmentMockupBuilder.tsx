@@ -1207,12 +1207,12 @@ export default function GarmentMockupBuilder({
                   />
                 </div>
 
-                {/* SVG Color Swapping */}
-                {selectedLogo.isSvg && selectedLogo.colorMap && Object.keys(selectedLogo.colorMap).length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <h4 style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>
-                      Logo Colors
-                    </h4>
+                {/* SVG Color Controls - Always visible */}
+                <div style={{ marginBottom: '16px' }}>
+                  <h4 style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>
+                    Logo Colors (SVG)
+                  </h4>
+                  {selectedLogo.isSvg && selectedLogo.colorMap && Object.keys(selectedLogo.colorMap).length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {Object.entries(selectedLogo.colorMap).map(([originalColor, currentColor]) => (
                         <div key={originalColor} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1288,8 +1288,16 @@ export default function GarmentMockupBuilder({
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ padding: '12px', background: '#1d1d1d', borderRadius: '6px', border: '1px solid rgba(148,163,184,0.2)' }}>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                        {selectedLogo.isSvg
+                          ? 'No colors detected in this SVG. Try re-uploading the logo.'
+                          : 'This is not an SVG logo. Only SVG logos support color changing.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Background Removal - Only for non-SVG images */}
                 {!selectedLogo.isSvg && (
