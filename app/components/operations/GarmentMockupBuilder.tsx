@@ -73,6 +73,7 @@ export default function GarmentMockupBuilder({
   const [isResizing, setIsResizing] = useState(false)
   const [isRotating, setIsRotating] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -466,10 +467,19 @@ export default function GarmentMockupBuilder({
     setIsDragging(true)
     const rect = canvasRef.current?.getBoundingClientRect()
     if (rect) {
-      setDragStart({
-        x: (e.clientX - rect.left) / rect.width,
-        y: (e.clientY - rect.top) / rect.height
-      })
+      const mouseX = (e.clientX - rect.left) / rect.width
+      const mouseY = (e.clientY - rect.top) / rect.height
+
+      // Calculate offset from mouse position to logo position
+      const logo = logos.find(l => l.id === logoId)
+      if (logo) {
+        setDragOffset({
+          x: mouseX - logo.x,
+          y: mouseY - logo.y
+        })
+      }
+
+      setDragStart({ x: mouseX, y: mouseY })
     }
   }
 
@@ -482,11 +492,11 @@ export default function GarmentMockupBuilder({
 
     if (isDragging) {
       if (selectedLogoId) {
-        // Move logo
-        updateLogo(selectedLogoId, { x: mouseX, y: mouseY })
+        // Move logo - apply drag offset to maintain grab point
+        updateLogo(selectedLogoId, { x: mouseX - dragOffset.x, y: mouseY - dragOffset.y })
       } else if (selectedTextId) {
-        // Move text
-        updateTextElement(selectedTextId, { x: mouseX, y: mouseY })
+        // Move text - apply drag offset to maintain grab point
+        updateTextElement(selectedTextId, { x: mouseX - dragOffset.x, y: mouseY - dragOffset.y })
       }
     } else if (isResizing && selectedLogoId) {
       // Resize from bottom-right corner
@@ -524,6 +534,23 @@ export default function GarmentMockupBuilder({
     setSelectedTextId(textId)
     setSelectedLogoId(null) // Deselect logo
     setIsDragging(true)
+
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (rect) {
+      const mouseX = (e.clientX - rect.left) / rect.width
+      const mouseY = (e.clientY - rect.top) / rect.height
+
+      // Calculate offset from mouse position to text position
+      const text = textElements.find(t => t.id === textId)
+      if (text) {
+        setDragOffset({
+          x: mouseX - text.x,
+          y: mouseY - text.y
+        })
+      }
+
+      setDragStart({ x: mouseX, y: mouseY })
+    }
   }
 
   // Handle text rotation start
