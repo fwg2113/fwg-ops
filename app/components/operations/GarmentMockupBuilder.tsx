@@ -241,24 +241,124 @@ export default function GarmentMockupBuilder({
     return [...new Set(variants)]
   }
 
-  // Apply color mapping to SVG content
+  // Apply color mapping to SVG content using DOM manipulation for accuracy.
+  // This handles implicit colors (e.g. default black with no fill attribute)
+  // that pure regex replacement would miss.
   const applySvgColorMap = (svgContent: string, colorMap: { [key: string]: string }): string => {
+    // Build lookup: normalized hex → new color
+    const lookup = new Map<string, string>()
+    for (const [orig, replacement] of Object.entries(colorMap)) {
+      if (orig !== replacement) {
+        lookup.set(orig.toLowerCase(), replacement)
+      }
+    }
+    if (lookup.size === 0) return svgContent
+
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(svgContent, 'image/svg+xml')
+
+    // Check parse errors
+    const parseError = doc.querySelector('parsererror')
+    if (parseError) {
+      console.warn('SVG parse error, falling back to regex replacement')
+      return applySvgColorMapRegex(svgContent, colorMap)
+    }
+
+    const skipTags = new Set([
+      'svg', 'defs', 'title', 'desc', 'metadata', 'style',
+      'clippath', 'mask', 'pattern', 'lineargradient',
+      'radialgradient', 'stop', 'symbol', 'filter',
+    ])
+
+    // Helper: normalize a raw color value to hex and look up replacement
+    const getReplacement = (raw: string): string | null => {
+      if (isSkipColor(raw)) return null
+      const hex = colorToHex(raw)
+      return lookup.get(hex) ?? null
+    }
+
+    // 1. Collect CSS classes that already define a fill (so we don't
+    //    incorrectly treat those elements as implicit-black).
+    const classesWithFill = new Set<string>()
+    const styleTags = doc.querySelectorAll('style')
+    for (const tag of styleTags) {
+      const css = tag.textContent || ''
+      const matches = css.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{[^}]*fill\s*:/g)
+      for (const m of matches) classesWithFill.add(m[1])
+    }
+
+    // 2. Replace colors in <style> tag CSS rules
+    for (const tag of styleTags) {
+      let css = tag.textContent || ''
+      css = css.replace(/(fill|stroke)\s*:\s*([^;}\n]+)/g, (_match, prop, val) => {
+        const replacement = getReplacement(val.trim())
+        return replacement ? `${prop}: ${replacement}` : _match
+      })
+      tag.textContent = css
+    }
+
+    const renderingTags = new Set(['path', 'rect', 'circle', 'ellipse', 'polygon', 'polyline', 'line', 'text', 'tspan'])
+
+    // 3. Walk rendering elements — update attributes and inline styles
+    const elements = doc.querySelectorAll('*')
+    for (const el of elements) {
+      if (skipTags.has(el.tagName.toLowerCase())) continue
+
+      // fill attribute
+      const fill = el.getAttribute('fill')
+      if (fill) {
+        const r = getReplacement(fill)
+        if (r) el.setAttribute('fill', r)
+      }
+
+      // stroke attribute
+      const stroke = el.getAttribute('stroke')
+      if (stroke) {
+        const r = getReplacement(stroke)
+        if (r) el.setAttribute('stroke', r)
+      }
+
+      // Inline style
+      const style = el.getAttribute('style')
+      if (style) {
+        const newStyle = style.replace(/(fill|stroke)\s*:\s*([^;]+)/g, (_m, prop, val) => {
+          const r = getReplacement(val.trim())
+          return r ? `${prop}: ${r}` : _m
+        })
+        if (newStyle !== style) el.setAttribute('style', newStyle)
+      }
+
+      // Handle implicit default fill — elements with no fill attribute,
+      // no inline fill, and no CSS class providing fill default to black.
+      if (!fill && !style?.includes('fill') && !el.closest('defs') && renderingTags.has(el.tagName.toLowerCase())) {
+        const elClasses = (el.getAttribute('class') || '').split(/\s+/)
+        const hasCssFill = elClasses.some(c => classesWithFill.has(c))
+        if (!hasCssFill) {
+          const blackReplacement = lookup.get('#000000')
+          if (blackReplacement) el.setAttribute('fill', blackReplacement)
+        }
+      }
+    }
+
+    const serializer = new XMLSerializer()
+    return serializer.serializeToString(doc.documentElement)
+  }
+
+  // Regex fallback for applySvgColorMap (used when XML parsing fails)
+  const applySvgColorMapRegex = (svgContent: string, colorMap: { [key: string]: string }): string => {
     let modifiedSvg = svgContent
 
     for (const [originalColor, newColor] of Object.entries(colorMap)) {
       if (originalColor === newColor) continue
 
-      // Try all possible text representations of the original color
       for (const variant of getColorVariants(originalColor)) {
         const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-        // Replace in fill/stroke attributes
         modifiedSvg = modifiedSvg.replace(new RegExp(`(fill=["'])${escaped}(["'])`, 'gi'), `$1${newColor}$2`)
         modifiedSvg = modifiedSvg.replace(new RegExp(`(fill=)${escaped}(?=[\\s>/])`, 'gi'), `$1"${newColor}"`)
         modifiedSvg = modifiedSvg.replace(new RegExp(`(stroke=["'])${escaped}(["'])`, 'gi'), `$1${newColor}$2`)
         modifiedSvg = modifiedSvg.replace(new RegExp(`(stroke=)${escaped}(?=[\\s>/])`, 'gi'), `$1"${newColor}"`)
 
-        // Replace in CSS (inline style and <style> tags)
         modifiedSvg = modifiedSvg.replace(new RegExp(`(fill\\s*:\\s*)${escaped}`, 'gi'), `$1${newColor}`)
         modifiedSvg = modifiedSvg.replace(new RegExp(`(stroke\\s*:\\s*)${escaped}`, 'gi'), `$1${newColor}`)
       }
@@ -762,12 +862,30 @@ export default function GarmentMockupBuilder({
     // Load garment image for this location via proxy for CORS-safe canvas export
     const garmentImg = await loadImageForCanvas(getGarmentImageForLocation(location))
 
-    // Set canvas size to match garment image
-    canvas.width = garmentImg.naturalWidth
-    canvas.height = garmentImg.naturalHeight
+    // Use the same 4:5 aspect ratio as the preview container so logo
+    // positions (stored as percentages of the container) map correctly.
+    const CANVAS_W = 1200
+    const CANVAS_H = 1500 // 4:5
+    canvas.width = CANVAS_W
+    canvas.height = CANVAS_H
 
-    // Draw garment image
-    ctx.drawImage(garmentImg, 0, 0)
+    // Draw garment image with object-fit:contain behaviour (matches preview)
+    const imgAspect = garmentImg.naturalWidth / garmentImg.naturalHeight
+    const canvasAspect = CANVAS_W / CANVAS_H
+
+    let gw, gh, gx, gy
+    if (imgAspect > canvasAspect) {
+      gw = CANVAS_W
+      gh = CANVAS_W / imgAspect
+      gx = 0
+      gy = (CANVAS_H - gh) / 2
+    } else {
+      gh = CANVAS_H
+      gw = CANVAS_H * imgAspect
+      gx = (CANVAS_W - gw) / 2
+      gy = 0
+    }
+    ctx.drawImage(garmentImg, gx, gy, gw, gh)
 
     // Draw logos for this location
     const locationLogos = logos.filter(l => l.location === location)
