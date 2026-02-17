@@ -862,10 +862,16 @@ export default function GarmentMockupBuilder({
     // Load garment image for this location via proxy for CORS-safe canvas export
     const garmentImg = await loadImageForCanvas(getGarmentImageForLocation(location))
 
-    // Use the same 4:5 aspect ratio as the preview container so logo
-    // positions (stored as percentages of the container) map correctly.
+    // Match the exact aspect ratio of the preview container so logo
+    // positions (stored as percentages of the container) map pixel-perfect.
+    const containerEl = canvasRef.current
+    const containerW = containerEl?.clientWidth || 480
+    const containerH = containerEl?.clientHeight || 600
+    const containerAspect = containerW / containerH
+
+    // Use high resolution while preserving the container's aspect ratio
     const CANVAS_W = 1200
-    const CANVAS_H = 1500 // 4:5
+    const CANVAS_H = Math.round(CANVAS_W / containerAspect)
     canvas.width = CANVAS_W
     canvas.height = CANVAS_H
 
