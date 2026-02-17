@@ -139,130 +139,130 @@ export default function GarmentMockupBuilder({
     { name: 'Left Sleeve', x: 0.05, y: 0.35, width: 0.12 },
   ]
 
-  // Extract unique colors from SVG content
+  // Convert any CSS color string to hex
+  const colorToHex = (color: string): string => {
+    const trimmed = color.trim()
+    // Already hex
+    if (trimmed.startsWith('#')) {
+      // Normalize shorthand (#000 → #000000)
+      if (trimmed.length === 4) {
+        return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`.toLowerCase()
+      }
+      return trimmed.toLowerCase()
+    }
+    // Use canvas to convert named colors, rgb(), etc. to hex
+    const canvas = document.createElement('canvas')
+    canvas.width = 1
+    canvas.height = 1
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return trimmed
+    ctx.fillStyle = trimmed
+    return ctx.fillStyle // Always returns #rrggbb
+  }
+
+  const isSkipColor = (c: string): boolean => {
+    const lower = c.trim().toLowerCase()
+    return ['none', 'transparent', 'currentcolor', 'inherit'].includes(lower) ||
+      lower.startsWith('url(') || lower.startsWith('var(')
+  }
+
+  // Extract unique colors from SVG content using DOM parsing for accuracy
   const extractSvgColors = (svgContent: string): string[] => {
     const colors = new Set<string>()
 
-    // Match fill and stroke attributes (with or without quotes)
-    const fillMatches = svgContent.matchAll(/fill=["']?([^"'\s>]+)["']?/g)
-    const strokeMatches = svgContent.matchAll(/stroke=["']?([^"'\s>]+)["']?/g)
+    // Render SVG offscreen so the browser resolves CSS classes, inheritance, defaults
+    const container = document.createElement('div')
+    container.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:0;height:0;overflow:hidden'
+    container.innerHTML = svgContent
+    document.body.appendChild(container)
 
-    // Match style attributes
-    const styleMatches = svgContent.matchAll(/style=["']([^"']+)["']/g)
+    try {
+      const skipTags = new Set([
+        'svg', 'defs', 'title', 'desc', 'metadata', 'style',
+        'clippath', 'mask', 'pattern', 'lineargradient',
+        'radialgradient', 'stop', 'symbol', 'filter',
+        'fegaussianblur', 'feoffset', 'feblend', 'fecolormatrix',
+      ])
 
-    // Match <style> tag CSS rules
-    const styleTagMatch = svgContent.match(/<style[^>]*>([\s\S]*?)<\/style>/i)
-    if (styleTagMatch) {
-      const cssContent = styleTagMatch[1]
-      const cssColorMatches = cssContent.matchAll(/(?:fill|stroke)\s*:\s*([^;}\s]+)/g)
-      for (const match of cssColorMatches) {
-        const color = match[1].trim().toLowerCase()
-        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(') && !color.includes('var(')) {
-          colors.add(normalizeColor(color))
+      const elements = container.querySelectorAll('svg *')
+      for (const el of elements) {
+        if (skipTags.has(el.tagName.toLowerCase())) continue
+
+        const computed = getComputedStyle(el)
+
+        // Check fill (getComputedStyle returns rgb() format)
+        const fill = computed.fill
+        if (fill && !isSkipColor(fill)) {
+          colors.add(colorToHex(fill))
+        }
+
+        // Check stroke
+        const stroke = computed.stroke
+        if (stroke && !isSkipColor(stroke)) {
+          colors.add(colorToHex(stroke))
         }
       }
-    }
-
-    for (const match of fillMatches) {
-      const color = match[1].toLowerCase()
-      if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
-        colors.add(normalizeColor(color))
-      }
-    }
-
-    for (const match of strokeMatches) {
-      const color = match[1].toLowerCase()
-      if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
-        colors.add(normalizeColor(color))
-      }
-    }
-
-    for (const match of styleMatches) {
-      const style = match[1]
-      const fillMatch = style.match(/fill:\s*([^;]+)/)
-      const strokeMatch = style.match(/stroke:\s*([^;]+)/)
-
-      if (fillMatch) {
-        const color = fillMatch[1].trim().toLowerCase()
-        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
-          colors.add(normalizeColor(color))
-        }
-      }
-
-      if (strokeMatch) {
-        const color = strokeMatch[1].trim().toLowerCase()
-        if (color !== 'none' && color !== 'transparent' && color !== 'currentcolor' && !color.includes('url(')) {
-          colors.add(normalizeColor(color))
-        }
-      }
+    } finally {
+      document.body.removeChild(container)
     }
 
     console.log('SVG Colors detected:', Array.from(colors))
     return Array.from(colors)
   }
 
-  // Normalize color to hex format
-  const normalizeColor = (color: string): string => {
-    // If already hex, return it
-    if (color.startsWith('#')) return color.toLowerCase()
+  // Get all possible text representations of a hex color for SVG replacement
+  const getColorVariants = (hexColor: string): string[] => {
+    const variants = [hexColor, hexColor.toUpperCase()]
 
-    // Convert named colors and rgb to hex
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return color
+    // Shorthand hex (e.g., #000000 → #000)
+    if (hexColor.length === 7 &&
+        hexColor[1] === hexColor[2] && hexColor[3] === hexColor[4] && hexColor[5] === hexColor[6]) {
+      const short = `#${hexColor[1]}${hexColor[3]}${hexColor[5]}`
+      variants.push(short, short.toUpperCase())
+    }
 
-    ctx.fillStyle = color
-    return ctx.fillStyle
+    // rgb() variants
+    const r = parseInt(hexColor.slice(1, 3), 16)
+    const g = parseInt(hexColor.slice(3, 5), 16)
+    const b = parseInt(hexColor.slice(5, 7), 16)
+    variants.push(`rgb(${r},${g},${b})`, `rgb(${r}, ${g}, ${b})`)
+
+    // Common named colors
+    const namedColors: Record<string, string> = {
+      '#000000': 'black', '#ffffff': 'white', '#ff0000': 'red',
+      '#00ff00': 'lime', '#0000ff': 'blue', '#ffff00': 'yellow',
+      '#808080': 'gray', '#c0c0c0': 'silver', '#800000': 'maroon',
+      '#008000': 'green', '#800080': 'purple', '#000080': 'navy',
+      '#ffa500': 'orange',
+    }
+    const named = namedColors[hexColor.toLowerCase()]
+    if (named) variants.push(named)
+
+    return [...new Set(variants)]
   }
 
   // Apply color mapping to SVG content
   const applySvgColorMap = (svgContent: string, colorMap: { [key: string]: string }): string => {
     let modifiedSvg = svgContent
 
-    Object.entries(colorMap).forEach(([originalColor, newColor]) => {
-      // Escape special regex characters in color strings
-      const escapedOriginal = originalColor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    for (const [originalColor, newColor] of Object.entries(colorMap)) {
+      if (originalColor === newColor) continue
 
-      // Replace in fill attributes (with or without quotes)
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`fill=["']${escapedOriginal}["']`, 'gi'),
-        `fill="${newColor}"`
-      )
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`fill=${escapedOriginal}(?=[\\s>])`, 'gi'),
-        `fill="${newColor}"`
-      )
+      // Try all possible text representations of the original color
+      for (const variant of getColorVariants(originalColor)) {
+        const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-      // Replace in stroke attributes (with or without quotes)
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`stroke=["']${escapedOriginal}["']`, 'gi'),
-        `stroke="${newColor}"`
-      )
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`stroke=${escapedOriginal}(?=[\\s>])`, 'gi'),
-        `stroke="${newColor}"`
-      )
+        // Replace in fill/stroke attributes
+        modifiedSvg = modifiedSvg.replace(new RegExp(`(fill=["'])${escaped}(["'])`, 'gi'), `$1${newColor}$2`)
+        modifiedSvg = modifiedSvg.replace(new RegExp(`(fill=)${escaped}(?=[\\s>/])`, 'gi'), `$1"${newColor}"`)
+        modifiedSvg = modifiedSvg.replace(new RegExp(`(stroke=["'])${escaped}(["'])`, 'gi'), `$1${newColor}$2`)
+        modifiedSvg = modifiedSvg.replace(new RegExp(`(stroke=)${escaped}(?=[\\s>/])`, 'gi'), `$1"${newColor}"`)
 
-      // Replace in style attributes
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`fill:\\s*${escapedOriginal}`, 'gi'),
-        `fill: ${newColor}`
-      )
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`stroke:\\s*${escapedOriginal}`, 'gi'),
-        `stroke: ${newColor}`
-      )
-
-      // Replace in CSS style tags
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`fill\\s*:\\s*${escapedOriginal}\\s*;`, 'gi'),
-        `fill: ${newColor};`
-      )
-      modifiedSvg = modifiedSvg.replace(
-        new RegExp(`stroke\\s*:\\s*${escapedOriginal}\\s*;`, 'gi'),
-        `stroke: ${newColor};`
-      )
-    })
+        // Replace in CSS (inline style and <style> tags)
+        modifiedSvg = modifiedSvg.replace(new RegExp(`(fill\\s*:\\s*)${escaped}`, 'gi'), `$1${newColor}`)
+        modifiedSvg = modifiedSvg.replace(new RegExp(`(stroke\\s*:\\s*)${escaped}`, 'gi'), `$1${newColor}`)
+      }
+    }
 
     return modifiedSvg
   }
