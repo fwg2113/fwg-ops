@@ -32,6 +32,11 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ i
     .eq('document_id', id)
     .order('created_at', { ascending: false })
 
+  // Fetch pricing matrices for tier breakdown display
+  const { data: pricingMatrices } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+
   if (!document) {
     return (
       <div style={{ 
@@ -51,10 +56,11 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <CustomerDocumentView 
-      document={document} 
+    <CustomerDocumentView
+      document={document}
       lineItems={lineItems}
       payments={payments || []}
+      pricingMatrices={pricingMatrices || []}
     />
   )
 }
