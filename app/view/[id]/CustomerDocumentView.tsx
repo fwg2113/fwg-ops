@@ -38,6 +38,20 @@ type LineItem = {
   id: string; document_id: string; group_id: string; category: string; line_type: string; package_key: string
   description: string; quantity: number; sqft: number; unit_price: number; rate: number; line_total: number
   sort_order: number; attachments?: Attachment[]; custom_fields?: Record<string, any>; taxable?: boolean
+  decoration_type?: string; decoration_locations?: any; stitch_count?: string
+}
+
+type PricingMatrix = {
+  id: string
+  name: string
+  decoration_type: string
+  applies_to: string[]
+  quantity_breaks: {
+    min: number
+    max: number
+    markup_pct: number
+    decoration_prices: Record<string, number>
+  }[]
 }
 
 type Fee = { fee_type: string; description: string; amount: number }
@@ -56,6 +70,94 @@ type Props = {
   document: Document
   lineItems: LineItem[]
   payments?: Payment[]
+  pricingMatrices?: PricingMatrix[]
+}
+
+// ============================================================================
+// HELPER: Count design locations from an item's mockup_config or attachments
+// ============================================================================
+function countItemDesignLocations(item: LineItem): number {
+  const cf = item.custom_fields || {}
+  const mc = cf.mockup_config
+  if (mc) {
+    const locs = new Set<string>()
+    if (Array.isArray(mc.logos)) mc.logos.forEach((l: any) => { if (l.location) locs.add(l.location) })
+    if (Array.isArray(mc.textElements)) mc.textElements.forEach((t: any) => { if (t.location) locs.add(t.location) })
+    if (locs.size > 0) return locs.size
+  }
+  // Fallback: count from mockup attachments
+  const atts = item.attachments || []
+  const mockupLocs = new Set<string>()
+  atts.forEach(att => {
+    const name = att.name || att.filename || att.file_name || ''
+    if (name.startsWith('mockup_')) {
+      const parts = name.split('_')
+      if (parts[1]) mockupLocs.add(parts[1])
+    }
+  })
+  return mockupLocs.size || 1
+}
+
+// ============================================================================
+// HELPER: Build qty tier pricing table for an apparel item
+// ============================================================================
+function buildTierPricing(
+  item: LineItem,
+  matrices: PricingMatrix[]
+): { label: string; pricePerPiece: number }[] | null {
+  const cf = item.custom_fields || {}
+  if (!cf.apparel_mode) return null
+
+  // Get the average wholesale cost from sizes
+  const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number; wholesale: number }>
+  const sizeEntries = Object.values(sizes)
+  if (sizeEntries.length === 0) return null
+  const wholesalePrices = sizeEntries.map(s => s.wholesale || 0).filter(w => w > 0)
+  if (wholesalePrices.length === 0) return null
+  const avgWholesale = wholesalePrices.reduce((a, b) => a + b, 0) / wholesalePrices.length
+
+  // Find applicable pricing matrix
+  const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
+  const decType = isEmbroidery ? 'embroidery' : 'dtf'
+  const matrix = matrices.find(m => m.decoration_type === decType)
+  if (!matrix || !matrix.quantity_breaks || matrix.quantity_breaks.length === 0) return null
+
+  // Calculate decoration fee per unit
+  const designLocations = countItemDesignLocations(item)
+  const designFee = cf.design_fee_per_location ?? 5.00
+  const pressFee = cf.press_fee_per_location ?? 2.25
+  const manualOverride = cf.manual_price_override || false
+
+  const sortedBreaks = [...matrix.quantity_breaks].sort((a, b) => a.min - b.min)
+
+  return sortedBreaks.map(tier => {
+    const markupMultiplier = tier.markup_pct / 100
+    const garmentPrice = avgWholesale * markupMultiplier
+
+    let decorationFee = 0
+    if (!manualOverride) {
+      if (isEmbroidery) {
+        // Embroidery: use stitch count pricing from tier
+        const stitchTier = item.stitch_count || cf.stitch_count || 'up_to_10k'
+        const stitchKey = stitchTier === '10k_to_20k' || stitchTier === '20k_plus' ? '10k_to_20k' : 'up_to_10k'
+        decorationFee = (tier.decoration_prices[stitchKey] || 0) * designLocations
+      } else {
+        // DTF: use per-location fees from item
+        decorationFee = designLocations * (designFee + pressFee)
+      }
+    }
+
+    const pricePerPiece = garmentPrice + decorationFee
+
+    // Format label
+    const label = tier.max >= 99999
+      ? `${tier.min}+`
+      : tier.min === tier.max
+        ? `${tier.min}`
+        : `${tier.min}-${tier.max}`
+
+    return { label, pricePerPiece }
+  })
 }
 
 // ============================================================================
@@ -78,7 +180,7 @@ function getOptionImages(opt: QuoteOption): { url: string; name: string }[] {
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export default function CustomerDocumentView({ document: doc, lineItems, payments = [] }: Props) {
+export default function CustomerDocumentView({ document: doc, lineItems, payments = [], pricingMatrices = [] }: Props) {
   const [approving, setApproving] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [lightboxZoom, setLightboxZoom] = useState(1)
@@ -1075,6 +1177,115 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                         </div>
                       )}
 
+                      {/* Quantity Tier Pricing Breakdown */}
+                      {isGroupOption && pricingMatrices.length > 0 && (() => {
+                        // Build tier tables for apparel items in this group
+                        const apparelItemsWithTiers = groupItems
+                          .filter((item: LineItem) => item.custom_fields?.apparel_mode === true)
+                          .map((item: LineItem) => ({
+                            item,
+                            tiers: buildTierPricing(item, pricingMatrices)
+                          }))
+                          .filter(x => x.tiers && x.tiers.length > 0)
+
+                        if (apparelItemsWithTiers.length === 0) return null
+
+                        return (
+                          <div style={{
+                            marginBottom: '16px', padding: '16px',
+                            background: '#f8f9fa', borderRadius: '12px',
+                            border: '1px solid #e5e7eb'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#be1e2d" strokeWidth="2">
+                                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                              </svg>
+                              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>
+                                Price Per Piece by Quantity
+                              </span>
+                            </div>
+
+                            {apparelItemsWithTiers.map(({ item, tiers }) => {
+                              const cf = item.custom_fields || {} as any
+                              return (
+                                <div key={item.id} style={{ marginBottom: apparelItemsWithTiers.length > 1 ? '14px' : '0' }}>
+                                  {apparelItemsWithTiers.length > 1 && (
+                                    <div style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280', marginBottom: '8px' }}>
+                                      {item.description}{cf.color ? ` — ${cf.color}` : ''}
+                                    </div>
+                                  )}
+                                  <div style={{ overflowX: 'auto' }}>
+                                    <table style={{
+                                      width: '100%', borderCollapse: 'collapse', fontSize: '13px'
+                                    }}>
+                                      <thead>
+                                        <tr>
+                                          <th style={{
+                                            padding: '8px 12px', textAlign: 'left',
+                                            borderBottom: '2px solid #e5e7eb',
+                                            color: '#6b7280', fontWeight: 600, fontSize: '11px',
+                                            textTransform: 'uppercase', letterSpacing: '0.5px'
+                                          }}>Qty</th>
+                                          <th style={{
+                                            padding: '8px 12px', textAlign: 'right',
+                                            borderBottom: '2px solid #e5e7eb',
+                                            color: '#6b7280', fontWeight: 600, fontSize: '11px',
+                                            textTransform: 'uppercase', letterSpacing: '0.5px'
+                                          }}>Per Piece</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {tiers!.map((tier, tidx) => {
+                                          // Highlight the tier that matches the current quantity
+                                          const currentQty = item.quantity || 0
+                                          const tierBreak = pricingMatrices
+                                            .find(m => m.decoration_type === (item.category === 'EMBROIDERY' ? 'embroidery' : 'dtf'))
+                                            ?.quantity_breaks.sort((a, b) => a.min - b.min)[tidx]
+                                          const isActiveTier = tierBreak && currentQty >= tierBreak.min && currentQty <= tierBreak.max
+
+                                          return (
+                                            <tr key={tidx} style={{
+                                              background: isActiveTier ? 'rgba(190,30,45,0.06)' : tidx % 2 === 0 ? '#ffffff' : 'transparent'
+                                            }}>
+                                              <td style={{
+                                                padding: '8px 12px',
+                                                borderBottom: '1px solid #f1f5f9',
+                                                fontWeight: isActiveTier ? 700 : 500,
+                                                color: isActiveTier ? '#be1e2d' : '#1a1a1a',
+                                                whiteSpace: 'nowrap'
+                                              }}>
+                                                {tier.label} pcs
+                                                {isActiveTier && (
+                                                  <span style={{
+                                                    marginLeft: '8px', fontSize: '10px', fontWeight: 600,
+                                                    background: '#be1e2d', color: 'white',
+                                                    padding: '2px 6px', borderRadius: '4px',
+                                                    textTransform: 'uppercase', letterSpacing: '0.3px'
+                                                  }}>Current</span>
+                                                )}
+                                              </td>
+                                              <td style={{
+                                                padding: '8px 12px',
+                                                borderBottom: '1px solid #f1f5f9',
+                                                textAlign: 'right',
+                                                fontWeight: isActiveTier ? 700 : 600,
+                                                color: isActiveTier ? '#be1e2d' : '#1a1a1a'
+                                              }}>
+                                                {formatCurrency(tier.pricePerPiece)}
+                                              </td>
+                                            </tr>
+                                          )
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
+
                       {/* Action Buttons (default state) */}
                       {!actionMode && (
                         <div style={{ display: 'flex', gap: '12px' }}>
@@ -1667,6 +1878,42 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                       )
                                     })}
                                   </div>
+
+                                  {/* Qty tier pricing table */}
+                                  {pricingMatrices.length > 0 && (() => {
+                                    const tiers = buildTierPricing(item, pricingMatrices)
+                                    if (!tiers || tiers.length === 0) return null
+                                    const currentQty = item.quantity || 0
+                                    const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
+                                    const matrix = pricingMatrices.find(m => m.decoration_type === (isEmbroidery ? 'embroidery' : 'dtf'))
+                                    const sortedBreaks = matrix ? [...matrix.quantity_breaks].sort((a, b) => a.min - b.min) : []
+
+                                    return (
+                                      <div style={{ marginTop: '12px', marginLeft: '20px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                                          Price Per Piece by Qty
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                          {tiers.map((tier, tidx) => {
+                                            const tierBreak = sortedBreaks[tidx]
+                                            const isActive = tierBreak && currentQty >= tierBreak.min && currentQty <= tierBreak.max
+                                            return (
+                                              <div key={tidx} style={{
+                                                display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                                padding: '6px 12px', borderRadius: '6px',
+                                                background: isActive ? 'rgba(190,30,45,0.08)' : '#ffffff',
+                                                border: isActive ? '2px solid #be1e2d' : '1px solid #e5e7eb',
+                                                minWidth: '70px'
+                                              }}>
+                                                <div style={{ fontSize: '11px', fontWeight: 600, color: isActive ? '#be1e2d' : '#6b7280' }}>{tier.label} pcs</div>
+                                                <div style={{ fontSize: '14px', fontWeight: 700, color: isActive ? '#be1e2d' : '#1a1a1a', marginTop: '2px' }}>{formatCurrency(tier.pricePerPiece)}</div>
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                      </div>
+                                    )
+                                  })()}
                                 </div>
                               )
                             }

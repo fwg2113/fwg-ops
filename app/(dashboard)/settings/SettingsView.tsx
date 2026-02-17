@@ -168,7 +168,7 @@ type NotificationSettings = {
   email_alert_address: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-pricing'
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-pricing' | 'qty-tiers'
 
 type DtfPricingMatrix = {
   id: string
@@ -256,6 +256,24 @@ export default function SettingsView({
   const [embroideryPricing, setEmbroideryPricing] = useState<DtfPricingMatrix | null>(initialEmbroideryPricing || null)
   const [editingEmbroideryBreak, setEditingEmbroideryBreak] = useState<number | null>(null)
   const [savingEmbroideryPricing, setSavingEmbroideryPricing] = useState(false)
+  // Universal Qty Tiers state
+  const [qtyTiers, setQtyTiers] = useState<{ min: number; max: number }[]>([])
+  const [qtyTiersLoaded, setQtyTiersLoaded] = useState(false)
+  const [editingTierIdx, setEditingTierIdx] = useState<number | null>(null)
+  const [savingQtyTiers, setSavingQtyTiers] = useState(false)
+  const [addingTier, setAddingTier] = useState(false)
+  const [newTier, setNewTier] = useState({ min: 0, max: 0 })
+  // Derive qty tiers from existing pricing matrix on mount
+  useEffect(() => {
+    if (!qtyTiersLoaded) {
+      const source = dtfPricing || embroideryPricing
+      if (source && source.quantity_breaks) {
+        const sorted = [...source.quantity_breaks].sort((a, b) => a.min - b.min)
+        setQtyTiers(sorted.map(qb => ({ min: qb.min, max: qb.max })))
+        setQtyTiersLoaded(true)
+      }
+    }
+  }, [dtfPricing, embroideryPricing, qtyTiersLoaded])
   // Customer Workflows state
   const [customerWorkflows, setCustomerWorkflows] = useState<CustomerWorkflowTemplate[]>(initialCustomerWorkflows)
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null)
@@ -488,6 +506,7 @@ export default function SettingsView({
     { key: 'statuses', label: 'Task Statuses' },
     { key: 'priorities', label: 'Task Priorities' },
     { key: 'estimator', label: 'Estimator Config' },
+    { key: 'qty-tiers', label: 'Qty Tiers' },
     { key: 'dtf-pricing', label: 'DTF Pricing' },
     { key: 'embroidery-pricing', label: 'Embroidery Pricing' },
     { key: 'automations', label: 'Automations' },
@@ -3574,6 +3593,238 @@ export default function SettingsView({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Qty Tiers Tab */}
+      {activeTab === 'qty-tiers' && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Universal Quantity Tiers</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+              Set the quantity breakpoints used across all pricing matrices (DTF, Embroidery). Changes here update all matrices at once.
+            </p>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'rgba(148, 163, 184, 0.05)' }}>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Tier</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Min Qty</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Max Qty</th>
+                <th style={{ padding: '12px 20px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {qtyTiers.map((tier, index) => (
+                editingTierIdx === index ? (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px', color: '#94a3b8', fontSize: '13px', fontWeight: 600 }}>Tier {index + 1}</td>
+                    <td style={{ padding: '12px 20px' }}>
+                      <input
+                        type="number"
+                        value={tier.min}
+                        onChange={e => {
+                          const updated = [...qtyTiers]
+                          updated[index] = { ...updated[index], min: parseInt(e.target.value) || 0 }
+                          setQtyTiers(updated)
+                        }}
+                        style={{ width: '90px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 20px' }}>
+                      <input
+                        type="number"
+                        value={tier.max}
+                        onChange={e => {
+                          const updated = [...qtyTiers]
+                          updated[index] = { ...updated[index], max: parseInt(e.target.value) || 0 }
+                          setQtyTiers(updated)
+                        }}
+                        style={{ width: '90px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => {
+                            // Reload original tiers from pricing data
+                            const source = dtfPricing || embroideryPricing
+                            if (source && source.quantity_breaks) {
+                              const sorted = [...source.quantity_breaks].sort((a, b) => a.min - b.min)
+                              setQtyTiers(sorted.map(qb => ({ min: qb.min, max: qb.max })))
+                            }
+                            setEditingTierIdx(null)
+                          }}
+                          style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                        >Cancel</button>
+                        <button
+                          onClick={async () => {
+                            setSavingQtyTiers(true)
+                            try {
+                              const res = await fetch('/api/settings/qty-tiers', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ tiers: qtyTiers })
+                              })
+                              if (res.ok) {
+                                setEditingTierIdx(null)
+                                // Refresh DTF and Embroidery pricing to reflect new ranges
+                                const [dtfRes, embRes] = await Promise.all([
+                                  fetch('/api/settings/dtf-pricing'),
+                                  fetch('/api/settings/embroidery-pricing')
+                                ])
+                                if (dtfRes.ok) setDtfPricing(await dtfRes.json())
+                                if (embRes.ok) setEmbroideryPricing(await embRes.json())
+                              } else {
+                                alert('Failed to save qty tiers')
+                              }
+                            } catch {
+                              alert('Error saving qty tiers')
+                            }
+                            setSavingQtyTiers(false)
+                          }}
+                          disabled={savingQtyTiers}
+                          style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingQtyTiers ? 0.6 : 1 }}
+                        >{savingQtyTiers ? 'Saving...' : 'Save All'}</button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px', color: '#94a3b8', fontSize: '13px', fontWeight: 600 }}>Tier {index + 1}</td>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>{tier.min}</td>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>{tier.max === 99999 ? '∞' : tier.max}</td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => setEditingTierIdx(index)}
+                          style={{ padding: '6px 12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >Edit</button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Remove tier ${index + 1} (${tier.min}-${tier.max === 99999 ? '∞' : tier.max})?`)) return
+                            const updated = qtyTiers.filter((_, i) => i !== index)
+                            setSavingQtyTiers(true)
+                            try {
+                              const res = await fetch('/api/settings/qty-tiers', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ tiers: updated })
+                              })
+                              if (res.ok) {
+                                setQtyTiers(updated)
+                                const [dtfRes, embRes] = await Promise.all([
+                                  fetch('/api/settings/dtf-pricing'),
+                                  fetch('/api/settings/embroidery-pricing')
+                                ])
+                                if (dtfRes.ok) setDtfPricing(await dtfRes.json())
+                                if (embRes.ok) setEmbroideryPricing(await embRes.json())
+                              } else {
+                                alert('Failed to remove tier')
+                              }
+                            } catch {
+                              alert('Error removing tier')
+                            }
+                            setSavingQtyTiers(false)
+                          }}
+                          style={{ padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >Remove</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              ))}
+              {/* Add Tier Row */}
+              {addingTier ? (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <td style={{ padding: '12px 20px', color: '#94a3b8', fontSize: '13px', fontWeight: 600 }}>New</td>
+                  <td style={{ padding: '12px 20px' }}>
+                    <input
+                      type="number"
+                      value={newTier.min || ''}
+                      placeholder="Min"
+                      onChange={e => setNewTier({ ...newTier, min: parseInt(e.target.value) || 0 })}
+                      style={{ width: '90px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                    />
+                  </td>
+                  <td style={{ padding: '12px 20px' }}>
+                    <input
+                      type="number"
+                      value={newTier.max || ''}
+                      placeholder="Max"
+                      onChange={e => setNewTier({ ...newTier, max: parseInt(e.target.value) || 0 })}
+                      style={{ width: '90px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                    />
+                  </td>
+                  <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => { setAddingTier(false); setNewTier({ min: 0, max: 0 }) }}
+                        style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                      >Cancel</button>
+                      <button
+                        onClick={async () => {
+                          if (newTier.min <= 0 || newTier.max <= 0 || newTier.max < newTier.min) {
+                            alert('Please enter valid min and max values (max must be >= min)')
+                            return
+                          }
+                          const updated = [...qtyTiers, newTier].sort((a, b) => a.min - b.min)
+                          setSavingQtyTiers(true)
+                          try {
+                            const res = await fetch('/api/settings/qty-tiers', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ tiers: updated })
+                            })
+                            if (res.ok) {
+                              setQtyTiers(updated)
+                              setAddingTier(false)
+                              setNewTier({ min: 0, max: 0 })
+                              const [dtfRes, embRes] = await Promise.all([
+                                fetch('/api/settings/dtf-pricing'),
+                                fetch('/api/settings/embroidery-pricing')
+                              ])
+                              if (dtfRes.ok) setDtfPricing(await dtfRes.json())
+                              if (embRes.ok) setEmbroideryPricing(await embRes.json())
+                            } else {
+                              alert('Failed to add tier')
+                            }
+                          } catch {
+                            alert('Error adding tier')
+                          }
+                          setSavingQtyTiers(false)
+                        }}
+                        disabled={savingQtyTiers}
+                        style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingQtyTiers ? 0.6 : 1 }}
+                      >{savingQtyTiers ? 'Saving...' : 'Add & Save'}</button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <td colSpan={4} style={{ padding: '12px 20px' }}>
+                    <button
+                      onClick={() => {
+                        // Auto-suggest next tier range
+                        const lastTier = qtyTiers[qtyTiers.length - 1]
+                        const suggestedMin = lastTier ? lastTier.max + 1 : 1
+                        setNewTier({ min: suggestedMin, max: suggestedMin + 99 })
+                        setAddingTier(true)
+                      }}
+                      style={{ padding: '8px 16px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}
+                    >+ Add Tier</button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
+            <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
+              These quantity ranges are shared across all decoration types (DTF, Embroidery). Editing ranges here updates all pricing matrices. To adjust markup % or decoration fees per tier, use the DTF Pricing or Embroidery Pricing tabs.
+            </p>
+          </div>
         </div>
       )}
 
