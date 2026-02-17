@@ -1,0 +1,1592 @@
+SanMar
+
+Purchase Order Integration Guide
+
+FTP & Web Services Order Submission
+
+Copyright © 2025 SanMar Corporation. All Rights Reserved No part of this publication may be reproduced or transcribed
+in any form without permission of the publisher.
+
+2
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Table of Contents
+Onboarding Process...................................................................................................................... 3
+Establishing Purchase Order Integration ....................................................................................... 5
+Authentication........................................................................................................................................................................ 5
+Payment Methods.................................................................................................................................................................. 6
+Third Party Service Providers.................................................................................................................................................. 6
+Brand Restrictions......................................................................................................................... 7
+Shipping Information .................................................................................................................... 8
+Shipping Cutoff Times............................................................................................................................................................. 8
+Shipping Free Freight Policy ................................................................................................................................................... 8
+PSST (Pack Separately. Ship Together.)................................................................................................................................... 9
+SanMar Standard Ship Methods............................................................................................................................................. 9
+SanMar PromoStandards Ship Methods................................................................................................................................. 9
+SanMar Warehouse Will Call Ship Methods......................................................................................................................... 10
+Integrated Ordering Shipping Options.................................................................................................................................. 11
+Order Processing Information............................................................................................................................................... 12
+IntegratedOrder Testing ............................................................................................................. 13
+Test Verification.................................................................................................................................................................... 13
+Production Setup.................................................................................................................................................................. 14
+FTP and Web Service Order Integration: File Processing Overview................................................ 15
+Integration Order Folder Details........................................................................................................................................... 15
+SanMar Standard Text File Order Integration............................................................................... 16
+Text File Date / Batch Name Formatting .............................................................................................................................. 16
+Text Order Files Submission Timing Recommendations....................................................................................................... 16
+Details.txt File Formatting .................................................................................................................................................... 17
+CustInfo.txt File Formatting .................................................................................................................................................. 18
+Release.txt File Formatting................................................................................................................................................... 19
+Holding.txt File (Order Acknowledgement) .......................................................................................................................... 20
+SanMar Standard Web Services OrderIntegration ....................................................................... 21
+SanMar getPreSubmitInfo Service ........................................................................................................................................ 22
+SanMar Standard submitPOService ..................................................................................................................................... 26
+SanMar PromoStandards Web ServicesOrderIntegration............................................................ 29
+PromoStandards GetSupportedOrderTypes Service............................................................................................................. 30
+PromoStandards SendPO Service ......................................................................................................................................... 31
+Change Log ................................................................................................................................. 37
+
+3
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Onboarding Process
+FTP / Web Services Integration Onboarding steps
+1. Initiate the onboarding process by emailing your request and SanMar Customer Number to
+sanmarintegrations@sanmar.com.
+2. SanMar will send you an integration agreement for e-signature along with the integration
+documentation. Currently SanMar does not charge for integration access; however, we do require the
+company Owner or other Authorized Signatory to sign our Integration Agreement.
+3. Once SanMar receives the signed agreement, onboarding for FTP and/or Web Services access should
+be completed within 1-2 business days. Upon completion, SanMar will send an email with access
+instructions, best practices, and a secure link to your FTP credentials.
+Please note:
+- Your FTP credentials are different from the Web Services credentials. After onboarding is complete,
+your SanMar.com username and password will work to authenticate production PromoStandards and
+SanMar Web Service APIs.
+Purchase Order Integration Onboarding steps
+1. Once your account has been onboarded for FTP and/or Web Services access and you have verified your
+access to SanMar product data, you may request Purchase Order integration.
+2. Upon receiving a PO integration request, SanMar will set up an account for you in our Test
+environment within 2-3 business days. SanMar will provide a secure one-time access link to retrieve
+your Web Services user credentials for the Test environment.
+3. SanMar requires testing on the Test environment to be completed using an address you intend to use
+in production and for you to submit an order with multiple lines. Additional testing may be required if
+you plan to ship using the PSST ship-via or based on your account. Refer to our PO Integration guide for
+details.
+4. Once you have submitted a test PO, please send an email with your PO number to the SanMar
+Integration Support team (sanmarintegrations@sanmar.com). SanMar will review the order files and
+provide further guidance as needed.
+5. Once testing has completed on Test, SanMar will request the username, shipping information, and
+payment method for the integrated PO configuration in production. Once those have been supplied,
+SanMar will configure your production account for integrated PO processing within 1-2 business days.
+The above timelines may extend depending on the complexity of your situation and testing needs.
+
+4
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Integration Onboarding Flowchart
+
+5
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Establishing Purchase Order Integration
+Authentication
+SanMar’s standard production web service calls require authentication with a SanMar customer number,
+SanMar.com username, and SanMar.com password. SanMar’s PromoStandards web service calls require
+authentication with a SanMar.com username and SanMar.com password. You can create production SanMar.com
+credentials at the following location: https://www.sanmar.com/signup/webuser.
+To obtain credentials for executing Web Services API calls in a Test environment, please contact
+sanmarintegrations@sanmar.com with your account number and a reason for your request. A member of our
+support staff will respond with further instructions.
+Please Note: Because this environment is used for testing and process improvement, it may be unavailable during
+internal updates from time to time.
+Authentication for the SanMar Standard Web Service calls
+Field Required Type Description
+sanMarCustomerNumber Yes INT SanMar Customer Number
+sanMarUserName Yes STRING SanMar.com Username
+sanMarUserPassword Yes STRING SanMar.com Password
+senderId No Not currently used by SanMar
+senderPassword No Not currently used by SanMar
+Authentication for PromoStandards Web Service calls
+Field Required Type Description
+id Yes STRING SanMar.com Username
+password Yes STRING SanMar.com Password
+Authentication Responses
+Field Type Notes
+errorOccurred BOOLEAN true or false - Indicates if an error has occurred
+message STRING
+
+If the errorOccurred = false, no message is returned
+If the errorOccurred = true, the message returned is “ERROR: User authenticating
+failed “
+
+6
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Payment Methods
+For quick and efficient processing of your order we require either NET terms or a credit card saved to
+your account on sanmar.com. If you have questions about NET terms, please call the SanMar Credit
+Dept (800) 346-3369 or visit our website to apply for terms:
+https://www.sanmar.com/resources/newcustomer/creditapp
+Third Party Service Providers
+If you are a service or software platform provider looking to develop integration for SanMar customers, please
+contact SanMar Integration Support team at sanmarintegrations@sanmar.com to initiate the Third Party Service
+Providers onboarding process required to obtain a SanMar account and data access.
+
+7
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Brand Restrictions
+The following brands are prohibited from being sold on Amazon, eBay, Etsy Craigslist or any other third party or direct
+to consumer websites.
+Brooks Brothers New Era Outdoor Research The North Face
+Carhartt Nike Stanley/Stella Tommy Bahama
+Cotopaxi OGIO tentree Travis Mathew
+Eddie Bauer
+Map Pricing
+All customers must adhere to our Minimum Advertised Pricing (MAP) policy. Per our sales policy, customers
+may not advertise or promote products at discounts greater than 10% off MSRP or SanMar promotional
+pricing for retail items or 20% for our private label brands. Customers may not advertise any discount on
+bags by OGIO.
+MAP = 10% OFF MSRP MAP = 20% OFF MSRP MAP = 25% OFF MSRP No MAP
+Alternative Apparel Red House AllMade Richardson Caps A4
+Brooks Brothers Red Kap CornerStone (Excluding Caps Below) Anvil
+Bulwark Richardson Apparel District MAP = $9.75 Bella+Canvas
+Champion Russell Outdoors Mercer+Mettle 115 Comfort Colors
+Cotopaxi Spacecraft Port & Co 112 / 112FP Fruit of the Loom
+Eddie Bauer Stanley/Stella Port Authority 112PFC / 112PFR Gildan
+New Era tentree Sport-Tek MAP = MSRP Jerzees
+Nike The North Face Volunteer Knitwear Carhartt Next Level
+OGIO Travis Mathew Nike Bags Rabbit Skins
+Outdoor Research Wink Tommy Bahama
+
+Global Trade Item Numbers(GTIN)
+GTIN’sforthe following brands are available in the SanMar_SDL_N.csv and SanMar_EPDD.csv files on our FTP server:
+
+Hemmed Pants:
+SanMar does not provide integrated data or support integrated PO submittal for hemmed pants due to additional sourcing
+and processing fees. Hemmed pants can be ordered via our other ordering channels (SanMar.com / Phone / Email).
+Unhemmed pants are part of integrated data-feeds and are supported for integrated PO submittal.
+A4 Champion Jerzees Precious Cargo tentree
+Allmade Comfort Colors Mercer+Mettle Rabbit Skins The North Face
+Alternative Cornerstone Next Level Red House Tommy Bahama
+Anvil Cotopaxi Nike Red Kap TravisMathew
+Bella+Canvas District Ogio Russel Outdoors Volunteer Knitwear
+Brooks Brothers Eddie Bauer Outdoor Research Spacecraft Wink
+Bulwark Fruit of the Loom Port & Co Sport-tek
+Carhartt Gildan Port Authority Stanley/Stella
+
+8
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Shipping Information
+SanMar does not have special shipping rates. However, you can use our UPS shipping account at the
+standard rate, or your own shipping account which could delay processing due to the manual addition of
+the shipping information to each order.
+Please visit our website for all our warehouse locations and addresses:
+https://www.sanmar.com/resources/locationsshipping/warehouses
+Shipping Cutoff Times
+This applies to orders that have been approved by our credit department and have been queued for
+processing in the warehouse. SanMar will make reasonable efforts to ship orders received before the
+cutoff time on the same day. Orders received after the warehouse cutoff time will be shipped out the
+next business day.
+Please visit our website forshipping cutoff times:
+https://www.sanmar.com/resources/shipping-cutoff-times
+Shipping Free Freight Policy
+SanMar offers free freight on orders over $200.00 shipped via ground with SanMar’s preferred carrier
+within the continental United States, excluding bags and oversized travel bags. Below are UPS resources
+for estimated shipping costs based on UPS zones/rates:
+UPS Shipping Rates:
+https://www.ups.com/us/en/support/shipping-support/shipping-costs-rates.page
+
+9
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+PSST (Pack Separately. Ship Together.)
+SanMar’s PSST program is a collaboration between contract decorators and SanMar to offer high levels
+of service to Promotional Product Distributors. PSST Order Cutoff time is 1pm from your primary
+warehouse.
+Please Note: To ensure efficient processing of PSST orders, the ship-to address on the order should be
+an exact match with the address in our system. We recommend that customers work with their SanMar
+account team to confirm the PSST decorator address. This also allows us to confirm whether the
+decorator is a PSST approved decorator. For more information please visit:
+https://www.sanmar.com/resources/decorator-solutions
+SanMar Standard Ship Methods
+Ship Method Description
+UPS UPS Standard Ground
+UPS 2
+ND DAY 2
+
+nd business day delivery end of day
+
+UPS 2
+ND DAY AM 2
+
+nd business day delivery 10:30 am
+
+UPS 3
+RD DAY 3
+
+rd business day delivery end of day
+UPS NEXT DAY Next day delivery 10:30 am
+UPS NEXT DAY EA Next business day delivery 8:00 am
+UPS NEXT DAY SV UPS next day delivery 3:00 pm
+UPS SATURDAY Extends business day calculation to include Saturdays
+USPS PP United States Postal Service Ground Advantage
+USPS APP USPS Priority Mail
+PSST Pack Separately. Ship Together program
+TRUCK Truck carrierservice. All Orders over 200 pounds should use the Truck ship method. Truck
+
+carrier services are based on the destination zip code
+
+SanMar PromoStandards Ship Methods
+Ship Method Ship Method Service Description
+UPS Ground UPS Standard Ground
+UPS 2
+
+ND DAY 2
+
+nd business day delivery end of day
+
+UPS 2
+
+ND DAY AM 2
+
+nd business day delivery 10:30 am
+
+UPS 3
+
+RD DAY 3
+
+rd business day delivery end of day
+UPS NEXT DAY Next day delivery 10:30 am
+UPS NEXT DAY EA Next business day delivery 8:00 am
+UPS NEXT DAY SV UPS next day delivery 3:00 pm
+UPS SATURDAY Extends business day calculation to include Saturdays
+USPS APP USPS Priority Mail
+USPS PP United States Postal Service Ground Advantage
+PSST PSST Pack Separately. Ship Together program
+
+10
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar Warehouse Will Call Ship Methods
+If you would like to pick up your orders, please use one of the following warehouse codes in the ship
+method field to indicate the location of where you will be picking up the order. Please allow at least
+two-three hours for your order to be processed.
+NOTE for Will Call orders to process successfully, your account must be configured for Warehouse
+Selection.
+Warehouse Code Warehouse Number Location
+PRE 1 Seattle, WA
+CIN 2 Cincinnati, OH
+COP 3 Dallas, TX
+REN 4 Reno, NV
+NJE 5 Robbinsville, NJ
+JAC 6 Jacksonville, FL
+MSP 7 Minneapolis, MN
+PHX 12 Phoenix, AZ
+VA1 31 Richmond, VA
+Web Services PO Will Call Example
+<shipMethod>REN</shipMethod>
+
+Flat File PO Will Call Example (Custinfo.txt file)
+1234,Sanmar,123 Test St.,Visalia,CA,93292,REN,,N,,,,W,
+
+11
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Integrated Ordering Shipping Options
+Contact the SanMar integrations team and let us know which integration method (FTP or Web Service)
+and ordering option you would like to use.
+Option 1: Warehouse Consolidation (Default Integration Account Configuration)
+All orders are intended to ship completely out of the closest warehouse. If one item is out of stock, then
+the entire order will be moved to the next closest warehouse until the order can be shipped from one
+warehouse. If the order cannot be shipped complete, then it will auto-split into multiple orders from the
+closest warehouses where stock is available.
+This option may delay the ship time for the entire order depending on the distance of the closest
+warehouse that has availability for all items but saves on shipping costs which can occur from shipping
+from multiple warehouses.
+Option 2: Auto-split shipments (Integration Account Modification Required)
+This option automatically ships each line item from the closest available warehouse. You can use this
+option to help ensure that orders are shipped as fast as possible, however, additional shipping charges
+can be incurred per warehouse. If you are using web services to place your orders, then we recommend
+using the GetPreSubmitPO service to check inventory before the use of the submitPO or
+PromoStandards sendPO methods.
+This option may cause some orders to require manual intervention if there is not enough product to
+fulfill the quantity ordered on one-line items at one warehouse. In this case, the entire order will be put
+on hold in our system, and your account team will be notified to manually key-in the missing line
+item(s).
+Option 3: Warehouse Selection (Integration Account Modification Required)
+Required for Will Call order processing
+The customer submits the warehouse number that they would like to ship the order from on each line
+item. We recommend that you keep track of our inventory to prevent delaysin your order processing.
+This option may require manual intervention if an item is not available in the chosen warehouse. In this
+case the entire order will be put on hold and your account team will need to manually key-in the order.
+If you are considering this option, please contact the SanMar Integration Team to discuss if this is the
+right option for you.
+
+12
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Order Processing Information
+To set up your order processing, we will need the below information. Please be advised thisinformation
+is hard coded in our system and cannot be changed on an order-by-order basis:
+SanMar Account Number:
+Shipping Notification Email Address:
+Shipping Label Company Name:
+SanMar.com Username:
+Shipping Option:
+Payment Method (Net Terms or Last 4 of Credit Card on File):
+
+Please Note: If you are currently set up to use Pay Invoices on sanmar.com and you need these invoices
+accessible as well, then please use the associated sanmar.com username.
+
+13
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Integrated Order Testing
+Test Verification
+Once you have submitted your test order to our Test environment, please email us your test PO number
+and we will review yoursubmitted information and email you your Holding File. The Holding file shows
+you the warehouse number and product availability for each line item. In production, once the order
+reaches our main system you will receive an email notification and shipping confirmation just like when
+you place an order with the account teams or on our website.
+Please be advised that our testing environment may not match the inventory and pricing in our
+production environment. Because this environment is used for testing and process improvement,
+it may be unavailable during internal updates from time to time.
+We recommend using the following style/color/sizes for your test order.
+Unique_Key | partId Style | productid Color Size
+118862 PC61 Charcoal S
+251712 PC61 Brown S
+708992 PC55 Aquatic Blue S
+441863 S508 Maui Blue M
+659761 DT5001 Kelly Green XS
+1057752 T200 White/Lime Shk S
+
+14
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Production Setup
+Upon successful testing in our Test environment, we will request a date/time you would like to go live in
+our production environment. We will also request the below order processing information:
+Shipping Notification Email Address:
+SanMar.com Username:
+(If you are currently set up to use Pay Invoices on sanmar.com and you need these invoices accessible as
+well, then please use the associated sanmar.com username.)
+Integrated Ordering Shipping Option:
+(Warehouse Consolidation, Auto-split, or Warehouse Selection)
+Production setup can take 24-48 hours. Once you are notified that your account has been setup in our
+production environment, you can prepare and submit a small order to our production ‘In’ and ‘Release’
+folders via flat file, or by using the production standard SubmitPO WSDL, or the PromoStandardssendPO
+WSDL.
+In production, once your order is processed and shipped you will receive an email notification and
+shipping confirmation just like when you place an order with the account teams or on our website. You
+can review your order’s holding file in the ‘Done’ folder of our FTP server. The holding file shows you the
+style, color, size, warehouse number, and product availability for each line item with a Y or N flag.
+Once your first small live order is submitted, we will validate the order has processed without issue. If
+successful, you can start submitting your orders at your convenience.
+Duplicate Order Line Consolidation:
+Oursystem confirmsInventory availability on a per line basis. Submitting multiple linesfor the same product can
+result in inventory being sourced from a warehouse with insufficient stock to cover the full quantity of your order.
+Please ensure you are consolidating duplicate linesinto one line with a total quantity rather than submitting
+duplicate lines to ensure timely processing and delivery.
+Example Details.txt File DuplicateLinesData:
+FX34689,1003,10,3
+FX34689,1003,10,3
+
+Example Details.txt File ConsolidatedLinesData:
+FX34689,1003,20,3
+
+15
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+FTP and Web Service Order Integration: File Processing Overview
+FTP order integration consists of creating and uploading 3 text files (CustInfo, Details, Release) to our
+FTP server. Web service order integration consists ofsubmitting the SubmitPO XML schema through our
+WSDL which is then converted into 3 text files and automatically uploaded to our FTP server. All order
+files are submitted to the respective ‘In’ and ‘Release’ folders on our FTP server. When this occurs, a
+holding file (order acknowledgement) will be created in the ‘Holding’ folder. All files will transition to the
+‘Done’ folder once the order has been processed.
+Integration Order Folder Details
+In & Release Folder: The CustInfo.txt and Details.txt files are uploaded to the ‘In’ folder, while the
+Release.txt is uploaded to the ‘Release’ folder for processing.
+Done Folder: Order files in a successful order will be moved to the ‘Done’ folder. The order will then be
+entered into our main system where it will be sent to the warehouse.
+Holding and Waiting Release Folder: Upon submission of your integration order the Holding.txt file will
+be created in the ‘Holding’ folder. This file will show which products are available and the warehouse
+number.
+If you do not upload the release file, then the order will not be processed. The Holding file will still be
+created, however the CustInfo.txt and Details.txt files will be moved to the ‘WaitingRelease’ folder.
+ErrorFiles Folder: If there is an issue with the format or data of your order files then they will be moved
+to the ‘ErrorFiles’ folder.
+ResubmittedFiles Folder: If the file name for a submitted integration order has previously been
+processed, oursystem will move all files to the ‘ResubmittedFiles’ folder. The files in this folder will not
+be processed.
+FTP Folder Set Example
+
+16
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar Standard Text File Order Integration
+The following information outlines the required fields in each file. We provide sample ordering files
+within the Integration Information folder on our FTP server.
+Text file order integration through our FTP server requires the creation of three comma-delimited ASCII
+text files: Custinfo.txt, Details.txt, and Release.txt. The order file names must be capitalized. Before
+you start creating the integration order files, you must understand how to appropriately format the file
+names, as purchase orders are associated by file name.
+File names are determined by the followingmain components:
+1. The order name. This entry can contain alphanumeric characters and dashes. Each set of PO order names
+must be unique. SanMar Recommends using the following date / batch number format for the order
+name:
+• The current date (SanMar recommends the date format should always be in the following format:
+MM-DD-YYYY)
+• The batch number (an incremental number marking the number of purchase orders sent over
+each day)
+
+2. The file name (Example: CustInfo.txt, Details.txt, Release.txt). The order file names must be
+capitalized
+Examples:
+06-07-2022-1CustInfo.txt
+06-07-2022-1Details.txt
+06-07-2022-1Release.txt
+Date Batch Number File Name
+06-07-2022 -1 CustInfo.txt
+06-07-2022 -1 Details.txt
+06-07-2022 -1 Release.txt
+Text File Date / Batch Name Formatting
+Multiple orders will need to be batched in the file naming for all 3 files. For example, the first
+CustInfo.txt file sent on June 7, 2022, will be named “06-07-2022-1CustInfo.txt”. The “-1” part of the
+filename representsthe first order. The second order will be named “06-07-2022-2CustInfo.txt”, and so
+on. The batch number is an incremental number marking the number of purchase order batches sent
+over each day. The batch number for the following day will start over at “1,” so the first file for June 8,
+2022, would be “06-08-2022-1CustInfo.txt.”
+
+Text Order Files Submission Timing Recommendations
+To avoid timing errors resulting in failed processing, please ensure you submit a complete set of CustInfo and
+Details files before submitting the corresponding Release file. We recommend adding a timing delay of several
+seconds at least before submitting the Release file.
+
+17
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Details.txt File Formatting
+The Details.txt file contains the product information for a given purchase order. Two of the fields
+(INVENTORY_KEY and SIZE_INDEX) are directly sourced from the SanMar Extended Product Descriptor
+Database (Sanmar_EPDD.csv file).
+As the CustInfo.txt and the Details.txt together constitute your electronic purchase order (CustInfo.txt
+containing the shipping information and Details.txt containing the product information), the two files
+should always match in terms of date and batch number. So, along with the first CustInfo.txt file on June
+7, 2022, there will also be a Details.txt file, correspondingly named “06-07-2022-1Details.txt”. The next
+CustInfo.txt file sent on that same date will also have a correspondent Details.txt file, named “06-07-
+2022-2Details.txt,” and so on.
+Please Note: The INVENTORY_KEY required in the Details.txt file, is not the same number as ourstyle
+number used in our catalog or online offering.
+Details.txt File Field Descriptions
+Field Name Field Description Char Max Data Type Required
+PONUM Purchase Order Number for your order 28 VARCHAR Y
+INVENTORY_KEY SanMar Product Identifier 6 INT Y
+QTY Item Quantity 5 INT Y
+SIZE_INDEX Product Size Identifier 11 INT Y
+WHSE_NO *Warehouse Number (Leave Blank) 2 INT N
+* Due to the need to verify stock in the submitted warehouse before placing your order, please contact
+SanMar Integration Team to discuss if this is the right option for you.
+PONUM INVENTORY_KEY QTY SIZE_INDEX WHSE NO
+FX34689 1003 10 3 Leave Blank
+Example Details.txt File Data:
+FX34689,1003,10,3
+
+18
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+CustInfo.txt File Formatting
+Please Note: Do Not Use Additional Commas in any Field Due to the Comma being our Delimiter in order files.
+The CustInfo.txt file contains the shipping information for a purchase order.
+CustInfo.txt File Field Descriptions
+Field Name Field Description Char Limit Type Required
+PONUM Purchase Order Number for your
+
+order
+
+28 VARCHAR Y
+
+Ship-to Address
+Field 1
+
+Ship to Address. Please use these
+street abbreviations: ST, AVE, RD,
+DR,
+BLVD
+
+35 VARCHAR Y
+
+Ship-to Address
+Field 2
+
+Used for the Suite or APT # 35 VARCHAR N
+
+Ship-to City
+Name
+
+Ship to City 28 VARCHAR Y
+
+Ship-to State
+Name
+
+Ship to State 2 VARCHAR Y
+
+Ship-to Zip Code Ship to Zip Code. 5 digits or 5 digits-4
+
+digits.
+Valid Formats:
+XXXXX-XXXX (example: 98007-1156)
+XXXXX (example: 00885)
+XXXXXXXXX (example: 980071156)
+5-10
+Min 5 Chars. Add
+Preceding Zerosif
+needed.
+
+VARCHAR
+(Numbers Only)
+Y
+
+Shipping
+Method
+
+Shipping Method. Examples: UPS or
+USPS
+
+15 VARCHAR Y
+
+Ship-to Email E-mail addressfor order confirmation
+
+and shipping notification
+
+105 VARCHAR Y
+
+Residence Designatesifthe location is a
+residence. Example: Y or N
+
+1 VARCHAR Y
+
+Department
+/Office Code
+
+Leave Blank 6 VARCHAR N
+Notes Leave Blank 54 VARCHAR N
+Ship-to
+Company Name
+
+Ship to Company Name 28 VARCHAR N
+
+Integration
+Method
+
+Leave Blank 1 VARCHAR N
+
+Ship-to
+Attention
+
+Userforthe receiver’s name or PO
+number
+
+35 VARCHAR N
+
+PONUM ADDRESS_1 ADDRESS_2 CITY STATE ZIP_CODE SHIP_METHOD SHIP_TO_EMAIL RESIDENCE DEPT NOTES CO NAME INT_METHOD ATTENTION
+FX3469 123GRIFFITH
+ST STE 202 CHARLOTTE NC 28217 UPS sales@abco.com N
+
+My
+Decorator DANA
+
+Example CustInfo.txt file Data
+FX34689,123 GRIFFITH ST,STE 202,CHARLOTTE,NC,28217,UPS,sales@abco.com,N,,,My Decorator,,DANA
+
+19
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Release.txt File Formatting
+The Release.txt is the authorization file that releases the CustInfo.txt and Details.txt files for processing
+and fulfillment.
+A purchase order will not be processed until a release file with the corresponding purchase order
+number is sent for release. A purchase order can be released for processing up to two weeks after a
+particular pair of CustInfo.txt and Details.txt files have been submitted. Product availability will be
+determined when the purchase order is released and processed.
+Name formatting for the Release.txt file is the same as the Details and CustInfo files with the addition of
+the release number which is added to the end of the file description. This is added to distinguish the
+number of releases authorized each day. Because any given pair of CustInfo.txt and Details.txt files can
+reference more than one purchase order, the release file allows the flexibility to authorize for
+processing any one or combination of multiple purchase orders in the CustInfo.txt and Details.txt pair
+batch.
+Example: If a pair of CustInfo.txt and Details.txt files references three purchase orders for three
+different products, the first release file sent on June 7, 2022 (named “06-07-22-1Release1.txt”) may
+authorize only two of the purchase orders for processing and shipment. The third purchase order could
+be released later in the day or up two weeks later, and would be named “06-07-22-1Release2.txt,” since
+it would be the second release authorization for the pair of CustInfo.txt and Details.txt files placed on
+June 7, 2022.
+Release.txt File Field Descriptions
+Field Name Field Description Char Limit Type Required
+PO Number Purchase Order Number for your order 28 VARCHAR Y
+PONUM
+FX34689
+Example Release.txt File Data
+FX34689
+
+20
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Holding.txt File (Order Acknowledgement)
+The Holding.txt file serves as your order acknowledgement for your integration purchase order. It is
+produced within 15 minutes after you submit your order. The processor converts the details data
+(Inventory Key and Size Index) into the holding file as style, color, and size. The holding file also displays
+the ship-from warehouse and product availability flag (Y or N) which tells you if there is stock for the
+submitted line item.
+SanMar will check inventory prior to placing an order and will source each order from the closest
+warehouse to the destination zip code. If the inventory is unavailable, a SanMar customer service
+representative will notify the customer via phone for permission to ship short orfind an alternate item
+to replace the out-of-stock inventory.
+Holding.txt File Field Descriptions
+Field Name Field Description Char Limit Type
+PO Number Purchase Order Number
+for your order
+
+28 VARCHAR
+Style Style number 10 VARCHAR
+Color Style Color 14 VARCHAR
+Quantity Item Quantity Implied INT
+Warehouse Number Ship-From Warehouse
+
+number
+
+Implied INT
+Availability Stock Availability. Y or N 1 VARCHAR
+PONUM Style Color Size QTY WHSE_NO Availability
+FX34689 363B White S 10 2 Y
+Example Holding.txt data
+FX34689,363B,White,S,10,2,Y
+Warehouse Numeric Values
+All warehouses are assigned a number which is displayed in the order integration holding file.
+Warehouse Code Warehouse Number Location
+PRE 1 Seattle, WA
+CIN 2 Cincinnati, OH
+COP 3 Dallas, TX
+REN 4 Reno, NV
+NJE 5 Robbinsville, NJ
+JAC 6 Jacksonville, FL
+MSP 7 Minneapolis, MN
+PHX 12 Phoenix, AZ
+VA1 31 Richmond, VA
+
+21
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar Standard Web Services Order Integration
+Order processing setup in both in both our Test and production environments can take 24-48 hours.
+TEST: https://test-ws.sanmar.com:8080/SanMarWebService/SanMarPOServicePort?wsdl
+PRODUCTION: https://ws.sanmar.com:8080/SanMarWebService/SanMarPOServicePort?wsdl
+There are two functions available for this web service:
+getPreSubmitInfo
+SubmitPO
+
+22
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar getPreSubmitInfo Service
+Please Note: Do Not Use Additional Commas in any Field Due to the Comma being our Delimiter in
+order files.
+This service returns a message confirming the availability of inventory from the closest warehouse
+location based on the drop ship location (State) and does not submit the order. If stock is confirmed
+from the closest warehouse, the message and the whseNo is returned in webServicePODetail-List of the
+response as follows: “Requested Quantity is confirmed and available in warehouse [whseNo] to ship to
+your destination.” If stock is not available from any warehouse, a message is returned in the
+webServicePODetailList of the response as follows: “Requested Quantity is not in stock from any
+warehouse or from requested warehouse”.
+SanMar getPreSubmitInfo Service Request Parameters
+Please Note: Each PO submission can contain multiple line items. Each line item must include both
+inventoryKey and sizeIndex, or style, color, and size.
+Field Name Field Description Char Limit Type Required
+attention Receiver’s Name or PO number 35 VARCHAR N
+internalMessage Leave Blank VARCHAR N
+notes Leave Blank 54 VARCHAR N
+poNum PO Number 28 VARCHAR Y
+poSenderId Leave Blank 12 VARCHAR N
+residence Y or N (Yes or No) 1 VARCHAR Y
+department Leave Blank 6 VARCHAR N
+shipAddress1 Ship-to Company Address. Use the following street
+
+abbreviations: ST, AVE, RD, DR, BLVD 35 VARCHAR Y
+shipAddress2 Suite or Apt# 35 VARCHAR N
+shipCity Ship-to City Name 28 VARCHAR Y
+shipEmail E-mail addressfor order confirmation and shipping
+
+notification
+
+105 VARCHAR N
+shipMethod Ex: UPS 15 VARCHAR Y
+shipState Ship-to State Name 2 VARCHAR Y
+shipTo Ship-to Company Name 28 VARCHAR N
+shipZip Ship-to ZIP Code. 5 digits or 5 digits-4 digits.
+Add Preceding Zeros, if needed. Ex: 008054 or
+98007-1156 or 980071156
+
+5 - 10
+Numbers.
+Min 5 Chars
+
+VARCHAR Y
+
+color Product Color. Ex: Black. (Must use the
+SANMAR_MAINFRAME_COLOR data. This can be
+retrieved from the Sanmar_SDL_N.CSV file on our
+FTP server, or through the SanMar Data Library file
+on SanMar.com)
+
+50 VARCHAR Y
+
+errorOccured Leave Blank N
+inventoryKey 20828 10 INT Y
+message Leave Blank VARCHAR N
+poId Leave Blank 11 VARCHAR N
+quantity Number of Products ordered EX:12 6 INT Y
+size Product SIZE - Ex: XL 50 VARCHAR Y
+sizeIndex 5 11 INT Y
+style Ex: K500 60 VARCHAR Y
+
+23
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+whseNo * Warehouse Number (Leave Blank) 10 INT N
+
+* Warehouse selection requires a modification to your integration order processing, and you will need
+to utilize the inventory web service before placing orders. Please contact the SanMar Integration Team
+to discuss using this option.
+SanMar getPreSubmitInfo Service XML Request:
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+xmlns:web="http://webservice.integration.sanmar.com/">
+<soapenv:Header />
+<soapenv:Body>
+<web:getPreSubmitInfo>
+<arg0>
+<attention>SanMar Integrations</attention>
+<internalMessage>?</internalMessage>
+<notes>?</notes>
+<poNum>WEBSERVICES TEST</poNum>
+<poSenderId>?</poSenderId>
+<residence>N</residence>
+<department>?</department>
+<shipAddress1>22833 SE Black Nugget Rd</shipAddress1>
+<shipAddress2>STE 130</shipAddress2>
+<shipCity>Issaquah</shipCity>
+<shipEmail>sanmarintegrations@sanmar.com</shipEmail>
+<shipMethod>UPS</shipMethod>
+<shipState>WA</shipState>
+<shipTo>SanMar Corporation</shipTo>
+<shipZip>98029</shipZip>
+<webServicePoDetailList><!--Zero or more repetitions:-->
+<color>white</color>
+<errorOccured>?</errorOccured>
+<inventoryKey />
+<message>?</message>
+<poId>?</poId>
+<quantity>5</quantity>
+<size>m</size>
+<sizeIndex />
+<style>K500</style>
+<whseNo>?</whseNo>
+</webServicePoDetailList>
+</arg0>
+<arg1>
+<sanMarCustomerNumber>SanMarCustomerNumber</sanMarCustomerNumber>
+<sanMarUserName>YourSanmar.comUserName</sanMarUserName>
+<sanMarUserPassword>YourSanMar.comPassword</sanMarUserPassword>
+</arg1>
+</web:getPreSubmitInfo>
+</soapenv:Body>
+</soapenv:Envelope>
+
+24
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar getPreSubmitInfo Service XML Response Scenario 1 - Inventory is available.
+<S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/">
+<S:Body>
+<ns2:getPreSubmitInfoResponse
+xmlns:ns2="http://webservice.integration.sanmar.com/">
+<return>
+<errorOccurred>false</errorOccurred>
+<message>Information returned successfully</message>
+<response xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:type="ns2:webServicePO">
+<attention>SanMar Integrations</attention>
+<department>?</department>
+<internalMessage>SUCCESS: Inventory Found</internalMessage>
+<notes>?</notes>
+<poNum>WEBSERVICES TEST</poNum>
+<residence>N</residence>
+<shipAddress1>22833 SE Black Nugget Rd</shipAddress1>
+<shipAddress2>STE 130</shipAddress2>
+<shipCity>Issaquah</shipCity>
+<shipEmail>sanmarintegrations@sanmar.com</shipEmail>
+<shipMethod>UPS</shipMethod>
+<shipState>WA</shipState>
+<shipTo>SanMar Corporation</shipTo>
+<shipZip>98029</shipZip>
+<webServicePoDetailList>
+<color>white</color>
+<errorOccured>false</errorOccured>
+<inventoryKey>20860</inventoryKey>
+<message>Requested Quantity is confirmed and available in
+warehouse '1' to ship to your destination.</message>
+<quantity>5</quantity>
+<size>m</size>
+<sizeIndex>3</sizeIndex>
+<style>K500</style>
+<whseNo>1</whseNo>
+</webServicePoDetailList>
+</response>
+</return>
+</ns2:getPreSubmitInfoResponse>
+</S:Body>
+</S:Envelope>
+
+25
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar getPreSubmitInfo Service Response Scenario 2 - Inventory is not available.
+<S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/">
+<S:Body>
+<ns2:getPreSubmitInfoResponse
+xmlns:ns2="http://webservice.integration.sanmar.com/">
+<return>
+<errorOccurred>true</errorOccurred>
+<message>Requested Quantity is not in stock from any warehouse or from
+the requested warehouse for the following styles: [(K420,900)]</message>
+<response xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:type="ns2:webServicePO">
+<internalMessage>Requested Quantity is not in stock from any
+warehouse or from the requested warehouse for the
+following styles: [(K420,900)]</internalMessage>
+<notes>?</notes>
+<poNum>WEBSERVICES-TEST</poNum>
+<poSenderId>0</poSenderId>
+<residence>N</residence>
+<shipAddress1>22833 SE Black Nugget Rd</shipAddress1>
+<shipAddress2>Ste 130</shipAddress2>
+<shipCity>Issaquah</shipCity>
+<shipEmail>noemail@sanmar.com</shipEmail>
+<shipMethod>UPS</shipMethod>
+<shipState>WA</shipState>
+<shipTo>SanMar Corporation Inc.</shipTo>
+<shipZip>98029</shipZip>
+<webServicePoDetailList>
+<color>Black</color>
+<errorOccured>true</errorOccured>
+<inventoryKey>9203</inventoryKey>
+<quantity>900</quantity>
+<size>S</size>
+<message>Requested Quantity is not in stock from any warehouse or
+from requested warehouse</message>
+<sizeIndex>2</sizeIndex>
+<style>K420</style>
+</webServicePoDetailList>
+</response>
+</return>
+</ns2:getPreSubmitInfoResponse>
+</S:Body>
+</S:Envelope>
+
+26
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar Standard submitPOService
+Please Note: Do Not Use Additional Commas in any Field Due to the Comma being our Delimiter in order files.
+This service submits a purchase order to SanMar for processing. Each PO submission can contain
+multiple line items. Each line item must include an inventoryKey and sizeIndex, or style, color
+(SANMAR_MAINFRAME_COLOR), and size. We recommend using the inventoryKey and sizeIndex to
+reduce processing errors.
+SanMar Standard submitPO Service Request Parameters
+Field Name Field Description Char Limit Type Required
+attention Receiver’s Name or PO number 35 VARCHAR N
+internalMessage Leave Blank VARCHAR N
+notes Leave Blank 54 VARCHAR N
+poNum PO Number 28 VARCHAR Y
+poSenderId Leave Blank 12 VARCHAR N
+residence Y or N (Yes or No) 1 VARCHAR Y
+department Department /Office Code. Leave Blank 6 VARCHAR N
+shipAddress1 Ship-to Company Address. Use the following
+
+street abbreviations: ST, AVE, RD, DR, BLVD 35 VARCHAR Y
+shipAddress2 Suite or Apt# 35 VARCHAR N
+shipCity Ship-to City Name 28 VARCHAR Y
+shipEmail E-mail addressfor order confirmation and shipping
+
+notification
+
+105 VARCHAR N
+shipMethod Ex: UPS 15 VARCHAR Y
+shipState Ship-to State Name 2 VARCHAR Y
+shipTo Ship-to Company Name 28 VARCHAR N
+shipZip Ship-to ZIP Code. 5 digits or 5 digits-4 digits.
+Add Preceding Zeros, if needed. Ex: 08054 or
+98007-1156 or 980071156
+
+5 - 10
+Numbers Only.
+Min 5 Chars VARCHAR Y
+
+color Product Color. Ex: Black. (Must use the
+SANMAR_MAINFRAME_COLOR data. This can be
+retrieved from the Sanmar_SDL_N.CSV file on our
+FTP server, orthrough the SanMar Data Library
+file on SanMar.com)
+
+50 VARCHAR Y
+
+errorOccured Leave Blank N
+inventoryKey SanMar Proprietary Inventory Key. Ex: 20828 10 INT Y
+message Leave Blank VARCHAR N
+poId Leave Blank 11 VARCHAR N
+quantity Number of Products ordered. Ex:12 6 INT Y
+size Product Size. Ex: XL 50 VARCHAR Y
+sizeIndex Product Size Identifier 1-5 represents
+XS-XL as well as 2Xl-6XL. Ex: 5
+
+11 INT Y
+
+style Product style #; same as style number used in
+
+catalogs Ex: K500
+
+60 VARCHAR Y
+whseNo * Warehouse Number (Leave Blank) 10 INT N
+* Warehouse selection requires a modification to your integration order processing, and you will need to
+utilize the inventory web service before placing orders. Please contact the SanMar Integration Team to
+discuss using this option.
+
+27
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar Standard submitPO Service XML Request
+The following demonstrates an API call to submit a PO for style K420, color black, size small (S), and a
+quantity of 10. Thisservice submits the PO request and returns a message response of “PO Submission
+successful” or “Error: [error description]”.
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+xmlns:web="http://webservice.integration.sanmar.com/">
+<soapenv:Header />
+<soapenv:Body>
+<web:submitPO>
+<arg0>
+<attention>Please Delete</attention>
+<notes />
+<poNum>Integration Test Order</poNum>
+<shipTo>SanMar Corporation Inc.</shipTo>
+<shipAddress1>22833 SE Black Nugget Rd</shipAddress1>
+<shipAddress2>Ste 130</shipAddress2>
+<shipCity>Issaquah</shipCity>
+<shipState>WA</shipState>
+<shipZip>98029</shipZip>
+<shipMethod>UPS</shipMethod>
+<shipEmail>noemail@sanmar.com</shipEmail>
+<residence>N</residence>
+<department />
+<webServicePoDetailList>
+<inventoryKey />
+<sizeIndex />
+<style>K420</style>
+<color>Black</color>
+<size>S</size>
+<quantity>10</quantity>
+<whseNo />
+</webServicePoDetailList>
+</arg0>
+<arg1>
+<sanMarCustomerNumber>SanMarCustomerNumber</sanMarCustomerNumber>
+<sanMarUserName>YourSanMar.comUserName</sanMarUserName>
+<sanMarUserPassword>YourSanmar.comPassword</sanMarUserPassword>
+</arg1>
+</web:submitPO>
+</soapenv:Body>
+</soapenv:Envelope>
+
+SanMar Standard submitPO Service XML Response
+
+28
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+<S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/">
+<S:Body>
+<ns2:submitPOResponse
+xmlns:ns2="http://webservice.integration.sanmar.com/">
+<return>
+<errorOccurred>false</errorOccurred>
+<message>PO Submission successful</message>
+</return>
+</ns2:submitPOResponse>
+</S:Body>
+</S:Envelope>
+
+29
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+SanMar PromoStandards Web ServicesOrder Integration
+Order processing setup in both in both our Test and production environments can take 24-48 hours.
+TEST: https://test-ws.sanmar.com:8080/promostandards/POServiceBinding?WSDL
+PRODUCTION: https://ws.sanmar.com:8080/promostandards/POServiceBinding?WSDL
+There are two functions available for this web service:
+GetSupportedOrderTypes
+sendPO
+
+30
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+PromoStandards GetSupportedOrderTypes Service
+This service returns supported Order types. This allows the consumer of the service to obtain
+supported purchase order data for their needs. Please be aware that the response will always state
+BLANK, because SanMar only ships blank products.
+PromoStandards GetSupportedOrderTypes Service Request Parameters
+Field Description Example Char Limit Type Required
+wsVersion Promostandards Version 1.0.0 64 STRING Yes
+id SanMar.com Username YourSanmar.comUsername 64 STRING Yes
+password SanMar.com Password YourSanmar.comPassword 64 STRING Yes
+
+PromoStandards GetSupportedOrderTypes Service XML Request
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+xmlns:ns="http://www.promostandards.org/WSDL/PO/1.0.0/"
+xmlns:shar="http://www.promostandards.org/WSDL/PO/1.0.0/SharedObjects/">
+<soapenv:Header />
+<soapenv:Body>
+<ns:GetSupportedOrderTypesRequest>
+<shar:wsVersion>1.0.0</shar:wsVersion>
+<shar:id>YourSanmar.comUsername</shar:id>
+<shar:password>YourSanmar.comPassword</shar:password>
+</ns:GetSupportedOrderTypesRequest>
+</soapenv:Body>
+</soapenv:Envelope>
+Field Description Type
+supportedOrderTypes An array of supported order types for this supplier. Signifies which
+order types the supplier supports. Values are enumerated: “Blank”,
+“Sample”, “Simple” “Configured”
+
+ARRAY
+
+ServiceMessageArray An array of ServiceMessage objects. OBJECT
+
+PromoStandards GetSupportedOrderTypes Service XML Response
+<S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/">
+<S:Body>
+<ns2:GetSupportedOrderTypesResponse
+xmlns:ns2="http://www.promostandards.org/WSDL/PO/1.0.0/"
+xmlns="http://www.promostandards.org/WSDL/PO/1.0.0/SharedObjects/">
+<ns2:supportedOrderTypes>Blank</ns2:supportedOrderTypes>
+</ns2:GetSupportedOrderTypesResponse>
+</S:Body>
+</S:Envelope>
+
+31
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+PromoStandards SendPO Service
+Thisfunction willsend a configured purchase order to a vendor.
+Please Note: Do Not Use Additional Commas in any Field Due to the Comma being our Delimiter in order files.
+PromoStandards SendPO Service Request Parameters
+Field Name Field Description Char
+Limit
+Type Required
+wsVersion PromoStandards Version 64 STRING Yes
+id SanMar.com Username 64 STRING Yes
+password SanMar.com Password 64 STRING Yes
+orderType The type of data transferred in the request; values are
+enumerated: “Blank”—This is data is for blank goods.
+“Sample”—This data is for a random sample order;
+“Simple”—The data in the purchase order is sent over
+withoutsupplier configured data and will be processed
+manually; “Configured”—The data is sent over in
+conjunction with the supplier’s Product Pricing
+and Configuration web service and designed for
+electronic processing of the purchase order.
+
+64 VARCHAR Yes
+
+orderNumber Purchase Order Number 28 VARCHAR Yes
+orderDate Date and time ofthe purchase order. (2018-08-
+
+27T00:00:00)
+
+DATE Yes
+totalAmount ** The total dollar amount of the purchase order 12,4 DECIMAL Yes
+rush ** Used to indicate a rush on the purchase order BOOLEAN Yes
+currency The currency the purchase order istransacted in
+
+ISO4217 format. (USD)
+
+3 VARCHAR Yes
+
+termsAndConditions ** The terms and conditionsforthis purchase order.
+Information that is order specific or information
+dealing with the configuration orshipment ofthe order
+should not be entered here.
+
+255 VARCHAR Yes
+
+salesChannel SanMar System Department/Office Code. Leave blank 6 VARCHAR No
+shipReferences
+
+Array of two strings max of identifiers used as the
+reference fields used during the shipping process. A
+shipReference can be a purchase order number,
+customer number, company name, Bill of Lading
+number, or a phrase that identifiesthatshipment.
+
+64 VARCHAR Yes
+
+comments
+
+Comments regarding the shipment for further
+clarification. Note: Use comments only when absolutely
+necessary, asitmay cause delaysin order
+processing.
+
+255 VARCHAR No
+
+allowConsolidation ** Allow consolidation ofshipments BOOLEAN Yes
+blindShip ** Require blind shipping BOOLEAN Yes
+packingListRequired ** Packing list required BOOLEAN Yes
+carrier The carrier name of the shipping vendor being
+requested. Use either UPS or USPS.
+
+64 VARCHAR Yes
+
+32
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+service The service code of the shipping carrier.
+
+USPS: PP: APP
+USPS ShipMethod: GROUND
+UPS:
+ShipMethod: GROUND, 2ND DAY ,2ND DAY AM,
+NEXTDAY, NEXT DAY SV, NEXT DAY EA, SATURDAY, 3RD
+DAY
+PSST: PSST
+
+64 VARCHAR Yes
+
+customerPickup The shipment will be a pickup and will not be shipped. BOOLEAN Yes
+attentionTo Receiver’sfirst and last name 35 VARCHAR No
+companyName ShipTo Company Name 28 VARCHAR No
+address1 ShipTo Addressline 1 35 VARCHAR Yes
+address2 ShipTo Addressline 2 35 VARCHAR No
+city ShipTo City (Seattle) 30 VARCHAR Yes
+region The two-character US state abbreviation. 3 VARCHAR Yes
+postalCode US postal code (98065) 10 VARCHAR Yes
+country The country in ISO 3166-2 format (US) 2 VARCHAR Yes
+email E-mail addressfor order confirmation and shipping
+notification. The email value can be provided in the
+following arrays:
+1. SendPO Request > PO > ShipmentArray > Shipment >
+ShipTo > ContactDetails > email
+2. SendPO Request > PO > OrderContactArray > Contact
+(contactType = 'Order') > ContactDetails > email
+If supplied in both arrays, the email value from
+ShipmentArray will be used.
+If not supplied in either array, the system will use the
+default email address configured on the SanMar
+account; if no email address is available, then no order
+confirmation or shipment notification emails will be
+sent.
+
+105 VARCHAR No
+
+comments
+
+Comments regarding the contact for further
+clarification. Note: Use comments only when
+absolutely necessary, asit may cause delaysin order
+processing.
+
+255 VARCHAR No
+
+shipmentId The shipment Id INT Yes
+lineNumber The line number of the line item 64 VARCHAR Yes
+description Description of the line item. Forsimple order type
+(not using a configuration), use thisfield to explain the
+details.
+
+255 VARCHAR Yes
+
+lineType ** The type of order; values are enumerated:
+“New” –A new purchase order with no prior order
+reference
+“Repeat” —An exactrepeat of a previous purchase order
+with the vendor
+“Reference” –An order that has the same
+artwork as a previous order.
+
+64 VARCHAR Yes
+
+tolerance ** An enumerator specifying the quantity tolerance
+allowed: AllowOverRun, AllowUnderrun,
+AllowOverrunOrUnderrun, ExactOnly.
+
+64 VARCHAR Yes
+
+33
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+allowPartialShipments ** Allow partialshipments of this line item BOOLEAN Yes
+lineItemTotal ** The total for the line item 12,4 DECIMAL Yes
+partId The part Id from the supplier’s PromoStandards Product
+Pricing and Configuration service, the Unique_Key
+
+64 VARCHAR Yes
+
+customerSupplied ** The part will be supplied by the customer or another
+
+entity other than the supplier
+
+BOOLEAN Yes
+
+uom ** The unit of measure; values are enumerated.
+Values are: {BX, CA, DZ, EA, KT, PR, PK, RL, ST, SL, TH}
+BX – Box; CA – Case; DZ – Dozen; EA – Each; KT – Kit; PR
+– Pair; PK – Package; RL – Roll; ST – Set; SL – Sleeve; TH -
+Thousand
+
+2 VARCHAR Yes
+
+value The quantity value 2 VARCHAR Yes
+FobID * FOB point (Warehouse Selection) – Leave Blank 2 VARCHAR No
+
+* Warehouse selection requires a modification to your integration order processing, and you will need to utilize the
+inventory web service before placing orders. Please contact the SanMar Integration Team to discuss using this option.
+** Although required by PromoStandards Schema, SanMar does not use this field.
+Any parameters omitted from the table above are not implemented by SanMar and not required by PromoStandards;
+they should be removed from your SendPO request.
+
+34
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+PromoStandards sendPO Service Request
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+xmlns:ns="http://www.promostandards.org/WSDL/PO/1.0.0/"
+xmlns:shar="http://www.promostandards.org/WSDL/PO/1.0.0/SharedObjects/">
+<soapenv:Header />
+<soapenv:Body>
+<ns:SendPORequest>
+<shar:wsVersion>1.0.0</shar:wsVersion>
+<shar:id>YourSanmar.comUsername</shar:id>
+<shar:password>YourSanmar.comPassword</shar:password>
+<ns:PO>
+<ns:orderType>Blank</ns:orderType>
+<ns:orderNumber>TEST01</ns:orderNumber>
+<ns:orderDate>2022-02-08T00:00:00</ns:orderDate>
+<ns:totalAmount>10.00</ns:totalAmount>
+<ns:rush>true</ns:rush>
+<shar:currency>USD</shar:currency>
+<ns:OrderContactArray><!--1 or more repetitions:-->
+<shar:Contact>
+<shar:contactType>Order</shar:contactType>
+<shar:ContactDetails>
+<shar:companyName>SanMar</shar:companyName>
+<shar:address1>123 Test St.</shar:address1>
+<shar:address2>Ste 2</shar:address2>
+<shar:city>Issaquah</shar:city>
+<shar:region>WA</shar:region>
+<shar:postalCode>12345</shar:postalCode>
+<shar:country>US</shar:country>
+<shar:email>noemail@sanmar.com</shar:email>
+</shar:ContactDetails>
+</shar:Contact>
+</ns:OrderContactArray>
+<ns:ShipmentArray> <!--1 or more repetitions:-->
+<shar:Shipment> <!--0 to 2 repetitions:-->
+<shar:shipReferences>1</shar:shipReferences>
+<shar:allowConsolidation>false</shar:allowConsolidation>
+<shar:blindShip>false</shar:blindShip>
+<shar:packingListRequired>false</shar:packingListRequired>
+<shar:FreightDetails>
+<shar:carrier>UPS</shar:carrier>
+<shar:service>Ground</shar:service>
+</shar:FreightDetails>
+<shar:ShipTo>
+<shar:customerPickup>false</shar:customerPickup>
+<shar:ContactDetails>
+<shar:attentionTo>Test</shar:attentionTo>
+<shar:companyName>SanMar</shar:companyName>
+<shar:address1>123 Test St.</shar:address1>
+<shar:address2>Ste 2</shar:address2>
+<shar:city>Issaquah</shar:city>
+<shar:region>WA</shar:region>
+<shar:postalCode>12345</shar:postalCode>
+<shar:country>US</shar:country>
+<shar:email>noemail@sanmar.com</shar:email>
+</shar:ContactDetails>
+<shar:shipmentId>1</shar:shipmentId>
+
+35
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+</shar:ShipTo>
+</shar:Shipment>
+</ns:ShipmentArray>
+<ns:LineItemArray>
+<ns:LineItem>
+<ns:lineNumber>1</ns:lineNumber>
+<shar:description>?</shar:description>
+<ns:lineType>New</ns:lineType>
+<shar:fobId>1</shar:fobId>
+<shar:ToleranceDetails>
+<shar:tolerance>AllowOverrun</shar:tolerance>
+</shar:ToleranceDetails>
+<ns:allowPartialShipments>false</ns:allowPartialShipments>
+<ns:lineItemTotal>100</ns:lineItemTotal>
+<ns:PartArray>
+<shar:Part> <!--1 or more repetitions:-->
+<shar:partId>92032</shar:partId>
+<shar:customerSupplied>false</shar:customerSupplied>
+<shar:Quantity>
+<shar:uom>PK</shar:uom>
+<shar:value>25</shar:value>
+
+</shar:Quantity>
+<shar:locationLinkId>01</shar:locationLinkId> <!--Zero or more
+repetitions:-->
+</shar:Part>
+<shar:Part>
+<shar:partId>92033</shar:partId>
+<shar:customerSupplied>false</shar:customerSupplied>
+<shar:Quantity>
+<shar:uom>PK</shar:uom>
+<shar:value>25</shar:value>
+
+</shar:Quantity>
+<shar:locationLinkId>1</shar:locationLinkId>
+</shar:Part>
+</ns:PartArray>
+</ns:LineItem>
+</ns:LineItemArray>
+<ns:termsAndConditions>?</ns:termsAndConditions>
+<ns:salesChannel>?</ns:salesChannel>
+</ns:PO>
+</ns:SendPORequest>
+</soapenv:Body>
+</soapenv:Envelope>
+
+36
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+PromoStandards sendPO Service Response
+Upon a successfulsubmission, the sendPO response will display a transaction identifier which includes
+the PO number. If no transaction identifier is returned, a populated ErrorMessage is returned.
+<S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/">
+<S:Body>
+<ns2:SendPOResponse xmlns:ns2="http://www.promostandards.org/WSDL/PO/1.0.0/"
+xmlns="http://www.promostandards.org/WSDL/PO/1.0.0/SharedObjects/">
+<ns2:transactionId>TEST01-p-5877-1679510682389</ns2:transactionId>
+</ns2:SendPOResponse>
+</S:Body>
+</S:Envelope>
+
+37
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+Change Log
+September 2025
+• Updated Brand Restrictions
+• Updated PromoStandards Ship-To Company Name Character Limit (28)
+September 2025
+• Updated Brand Restrictions
+July 2025
+• Updated PromoStandards SendPO Service Request Parameters
+April 2025
+• Updated Establishing Order Integration guidance.
+• Updated PromoStandards sendPO Service Request Parameters and XML example.
+• Updated USPS Ship Methods Descriptions
+March 2025
+• Edev environment has been replaced with Test.
+February 2025
+• Updated Brand Restrictions.
+August 2024
+• Updated Onboarding Guidance.
+• Updated Brand Restrictions
+• Updated formatting guidance.
+• Updated PromoStandards sendPO Service Parameters.
+July 2024
+• Added Support for VA warehouse (31).
+• Updated Brand Restrictions.
+April 2024
+• Updated supported Edev Test Product IDs.
+• Updated Brand Restrictions.
+March 2024
+• Updated Ship via guidance for PromoStandards ‘Next Day’.
+October 2023
+• Changes to FileName Guidance.
+• Updated Date Character Guidance.
+• Updated Brand Restrictions.
+June 2023
+• Formatting Updates to Example Calls.
+
+38
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+• Updated PO # Character Limit for PromoStandards Guidance
+• Updated Brand Restrictions.
+December 2022
+• Updated PromoStandards GetSupportedOrderTypes Language
+• Updated PromoStandards Submit PO Parameters for Office Code and Warehouse Submittal
+• Updated Brand Restrictions
+• Updated Po Submittals to refrain from using Commas
+• Updated Supported Zip Code Formats
+• Updated Integration Folder Information
+August 2022
+• Updated Guidance around Consolidating duplicate Line Items.
+• Updated Brand Restrictions
+• Updated Flat File Order Submission
+February 2022
+• Updated and revised allsections ofthe Purchase OrderIntegration Guide
+• Updated EUAT WSDL’S to EDEV WSDL’s
+October 2020
+• Updated PO character length from 12 to 28 max characters
+• Added credit payment option for integration orders
+• Added new brands; Allmade, Champion, Cotopaxi
+May 2020
+• Updated Truck ship methods
+• Update Email Character Limit to 105
+• Updated eUAT testing environment to the eUAT environment
+August 2019
+• Updated PromoStandards ship methods
+May 2019
+• Added PromoStandards ship method PSST
+• Split PromoStandards carrier and service parameters
+• Updated PromoStandards Ship Methods Information
+September 2018
+• Updated PromoStandards Purchase Order Information
+• Added FEDEX ShipMethods
+August 2018
+• Added PromoStandards Purchase Order integration
+• Added PSST ShipMethod and Information
+
+39
+
+SanMar Purchase Order Integration Guide v24.3
+4.1
+
+0
+December 2017
+• Updated all linksstage environment WSDLs from stage to eUAT for improved access
+October 2017
+• Updated linksto sanmar.com
+• Updated Brand Restriction information
+• Added The North Face to Brand Restrictions
+• Added Rabbit Skinsto Brand Restrictions

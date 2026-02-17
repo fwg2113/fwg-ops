@@ -1,0 +1,904 @@
+SanMar
+
+FTP Integration Guide
+
+Product Information – Inventory – Pricing – Daily Shipment Status – Invoicing
+
+SanMar FTP Integration Guide v23.
+
+2
+
+Table of Contents
+Onboarding Process...................................................................................................................................................... 3
+Product Information Overview ..................................................................................................................................... 5
+How to open .txt files in Excel .................................................................................................................................... 5
+Brand Restrictions......................................................................................................................................................... 6
+Map Pricing................................................................................................................................................................ 6
+Global Trade Item Numbers (GTIN)........................................................................................................................... 6
+Hemmed Pants .......................................................................................................................................................... 6
+The SanMar Data Library - Product Information and Images......................................................................................... 7
+Data Library Images Folders ...................................................................................................................................... 7
+SanMar Data Library File Names ............................................................................................................................... 7
+SanMar FTP Server Data ................................................................................................................................................ 8
+FTP (File Transfer Protocol) Client Information ............................................................................................................ 8
+FTP Daily Product Information Files.............................................................................................................................. 9
+SanMar SDL Files (SanMar Data Library) ................................................................................................................... 9
+SanMar EPDD Files (Electronic Product Data Download)........................................................................................ 11
+SanMar PDD & Catalog Files.................................................................................................................................... 13
+Daily Inventory & Sales Pricing Files........................................................................................................................ 15
+Shopify Website Formatted File .............................................................................................................................. 17
+Daily files created by request....................................................................................................................................... 19
+Special Pricing Files.................................................................................................................................................. 19
+Daily Shipment Status File (Advance ShipNotification) ............................................................................................ 21
+Daily Invoice Text File .............................................................................................................................................. 22
+Daily Invoice Excel File.............................................................................................................................................. 23
+EDI-810 StandardDaily Invoice File .......................................................................................................................... 24
+Change Log .................................................................................................................................................................. 26
+
+SanMar FTP Integration Guide v23.
+
+3
+
+Onboarding Process
+FTP / Web Services Integration Onboarding steps
+1. Initiate the onboarding process by emailing your request and SanMar Customer Number to
+sanmarintegrations@sanmar.com.
+2. SanMar will send you an integration agreement for e-signature along with the integration
+documentation. Currently SanMar does not charge for integration access; however, we do require the
+company Owner or other Authorized Signatory to sign our Integration Agreement.
+3. Once SanMar receives the signed agreement, onboarding for FTP and/or Web Services access should be
+completed within 1-2 business days. Upon completion, SanMar will send an email with access
+instructions, best practices, and a secure link to your FTP credentials.
+Please note:
+- Your FTP credentials are different from the Web Services credentials. After onboarding is complete,
+your SanMar.com username and password will work to authenticate production PromoStandards and
+SanMar Web Service APIs.
+
+Purchase Order Integration Onboarding steps
+1. Once your account has been onboarded for FTP and/or Web Services access and you have verified your
+access to SanMar product data, you may request Purchase Order integration.
+2. Upon receiving a PO integration request, SanMar will set up an account for you in our Test environment
+within 2-3 business days. SanMar will provide a secure one-time access link to retrieve your Web
+Services user credentials for the Test environment.
+3. SanMar requires testing on the Test environment to be completed using an address you intend to use
+in production and for you to submit an order with multiple lines. Additional testing may be required if
+you plan to ship using the PSST ship-via or based on your account. Refer to our PO Integration guide for
+details.
+4. Once you have submitted a test PO, please send an email with your PO number to the SanMar
+Integration Support team (sanmarintegrations@sanmar.com). SanMar will review the order files and
+provide further guidance as needed.
+5. Once testing has completed on Test environment, SanMar will request the username, shipping
+information, and payment method for the integrated PO configuration in production. Once those have
+been supplied, SanMar will configure your production account for integrated PO processing within 1-2
+business days.
+The above timelines may extend depending on the complexity of your situation and testing needs.
+
+SanMar FTP Integration Guide v23.
+
+4
+
+Integration Onboarding Flowchart
+
+SanMar FTP Integration Guide v23.
+
+5
+
+Product Information Overview
+
+While using our product information we require that your database is updated regularly to reflect any changes
+that affect our available stock and pricing throughout the year as well as product evolution such as: Coming
+Soon, New, Regular, Active and Discontinued product statuses.
+You can either use the SanMar Data Library or request access to our FTP server for additional data with
+inventory such as the SanMar_EPDD.csv file (bulk inventory) or the sanmar_dip.txt file (inventory by
+warehouse). If you are using our inventory and/orsale pricing information, we recommend daily or weekly
+updates otherwise, monthly to quarterly updating is recommended. Please note that our entire catalog is
+updated annually at the end of every July and there are additional product releases in January, March and May,
+which also include discontinued product changes.
+In order to create the functionality you desire, you may need to use a combination of our data files or web
+services data.
+All our files contain our inventory_key and size index or unique_key (which is created by the inventory_key and
+size index appended to the end). This is our unique identifying number for each style, color and size combination
+for every product that SanMar sells and matches to the unique_key field in our product information files. This
+unique identifying number may require mapping data from different files with the unique_key or inventory_key
+and size index to create the relationship to the additional product information. We also recommend
+downloading our product images and linking to them on your local server.
+How to open .txt files in Excel
+You will need have excel already open, then browse and select the.txt file you would like to open.
+Once it opens, it will give delimiter options, select Delimited then click Next. In the next window, select ‘other’
+and enter a pipe “|” (Shift + \ Key), then click Finish. Once the file is opened you can save it as an XLS or CSV file.
+
+SanMar FTP Integration Guide v23.
+
+6
+
+Brand Restrictions
+The following brands are prohibited from being sold on Amazon, eBay, Etsy Craigslist or any other third party or
+direct to consumer websites.
+Brooks Brothers New Era Outdoor Research The North Face
+Carhartt Nike Stanley/Stella Tommy Bahama
+Cotopaxi OGIO tentree Travis Mathew
+Eddie Bauer
+Map Pricing
+All customers must adhere to our Minimum Advertised Pricing (MAP) policy. Per our sales policy, customers may not
+advertise or promote products at discounts greater than 10% off MSRP or SanMar promotional pricing for retail items
+or 20% for our private label brands. Customers may not advertise any discount on bags by OGIO.
+MAP = 10% OFF MSRP MAP = 20% OFF MSRP MAP = 25% OFF MSRP No MAP
+Alternative Apparel Red House AllMade Richardson Caps A4
+Brooks Brothers Red Kap CornerStone (Excluding Caps Below) Anvil
+Bulwark Richardson Apparel District MAP = $9.75 Bella+Canvas
+Champion Russell Outdoors Mercer+Mettle 115 Comfort Colors
+Cotopaxi Spacecraft Port & Co 112 / 112FP Fruit of the Loom
+Eddie Bauer Stanley/Stella Port Authority 112PFC / 112PFR Gildan
+New Era tentree Sport-Tek MAP = MSRP Jerzees
+Nike The North Face Volunteer Knitwear Carhartt Next Level
+OGIO Travis Mathew Nike Bags Rabbit Skins
+Outdoor Research Wink Tommy Bahama
+Global Trade Item Numbers (GTIN)
+GTIN’sforthe following brands are available in the SanMar_SDL_N.csv and SanMar_EPDD.csv files on our FTP server:
+
+Hemmed Pants
+SanMar does not provide integrated data or support integrated PO submittal for hemmed pants due to additional
+sourcing and processing fees. Hemmed pants can be ordered via our other ordering channels (SanMar.com / Phone /
+Email). Unhemmed pants are part of integrated data-feeds and are supported for integrated PO submittal.
+A4 Champion Jerzees Precious Cargo tentree
+Allmade Comfort Colors Mercer+Mettle Rabbit Skins The North Face
+Alternative Cornerstone Next Level Red House Tommy Bahama
+Anvil Cotopaxi Nike Red Kap TravisMathew
+Bella+Canvas District Ogio Russel Outdoors Volunteer Knitwear
+Brooks Brothers Eddie Bauer Outdoor Research Spacecraft Wink
+Bulwark Fruit of the Loom Port & Co Sport-tek
+Carhartt Gildan Port Authority Stanley/Stella
+
+SanMar FTP Integration Guide v23.
+
+7
+
+The SanMar Data Library - Product Information and Images
+The data library on sanmar.com contains our product data and is customizable to meet your individual product needs. If you
+are interested in inventory data, please contact us. Here is the link to the data Library:
+https://www.sanmar.com/resources/electronicintegration/sanmardatalibrary
+The SanMar Data Library includesthe following:
+ Style numbers & Colors Names
+ Product Descriptions, Categories & Product Weight in lbs.
+ Piece, Dozens, Case, MSRP& MAP Pricing
+ Product SKUsfor each style, color& size combination
+Data Library Images Folders
+ Color Product Image
+(Front model) medium-resolution (1200 X 1800, 300 DPI) images and image URLs
+ Thumbnails, Color Squares& Brand Logos
+ Spec Sheets & Product Measurements
+SanMar Data Library File Names
+Based on preferencesselected when downloading the data
+ SanMar_SDL_DS.zip – do not check any option
+ SanMar_SDL_DSI.zip - do not check any option but Include Images
+ SanMar_SDL_S.zip - Do not include Duplicates.
+ SanMar_SDL_SI.zip - Include Images & Do not include Duplicates
+ SanMar_SDL_DI.zip - Include images & do not include trademark or registered symbols
+ SanMar_SDL_N.zip - Do Not Include Duplicates & Do not include trademark or registered symbols
+ SanMar_SDL_I.zip - Include Images, do not Include Duplicates & Do not include trademark or registered symbols
+
+SanMar FTP Integration Guide v23.
+
+8
+
+SanMar FTP Server Data
+
+FTP Daily Product Data FTP Images Folders
+ Product SKUs, Style numbers, Colors,
+Descriptions, Categories & Weights in lbs.
+
+ Product Images:
+Front & Back Model, Front & Back Flat Images
+ Bulk Inventory & Inventory by warehouse  Thumbnails, Color Squares& Brand Logos
+ Piece, Dozens, Case, MSRP & MAP Pricing  PDF Spec Sheets & Product Measurements
+ Shopify Web Store File
+
+Optional Daily Files
+These are filesthat can be configured upon request.
+ Daily Pricing CSV File  Daily Order Status Text File  EDI Standard 810 Invoice File
+ Daily Invoice Txt File  Daily Invoice Excel File Version: ANSI X1200401
+
+FTP (File Transfer Protocol) Client Information
+An FTP client is software which uses the File Transfer Protocol (FTP) to upload or download files on our server. Here is the link
+to download an FTP Client of your choice. https://tinyurl.com/FTP-clients
+FileZilla Download & Settings
+FileZilla is a popular FTP client that is used by many of our customers and needs some of the default settings changed to
+connect to our FTP server.
+Download FileZilla https://filezilla-project.org
+
+Go to File -> Site Manager then Click on ‘New Site’
+Host: ftp.sanmar.com PORT: 2200
+Protocol: SFTP – SSH File Transfer Protocol
+The FTP server is not compatible with TLS protocol
+Transport Layer Security
+Logon Type: Normal
+User: (Your Customer Number)
+Password: (FTP Password)
+Yoursanmar.com username and password will NOT
+work on our FTP server.
+
+SanMar FTP Integration Guide v23.
+
+9
+
+FTP Daily Product Information Files
+The following data files are in the SanMarPDD FTP folder and are updated nightly and are completed by 6am PST. Our main
+product information files are the SanMar_SDL_N.csv and the SanMar_EPDD.csv files. Both files have all the basic product
+data including product descriptions, pricing, and item weight in lbs. The SanMar_EPDD file has bulk inventory, separate
+main category and subcategory data as well as front model, back model, front flat and back flat image names that match
+the images names in the EPDD.zip images folders. There are duplicated unique keys in the SanMar_EPDD file due to
+multiple main category and subcategories.
+Please Note: Product data with a “Coming Soon” Product Status may be incomplete until the Product Statusis updated to
+“New” and available for purchase.
+SanMar SDL Files (SanMar Data Library)
+The SDL_N file has the main category and subcategory data together in the main category column separated by semi-colons,
+however there are no duplicated unique keys in this file. This file has image URL’s and product image names that match with
+the image names downloaded from the data library.
+ Sanmar_SDL_N.csv: Basic product data including product descriptions, pricing and item weight in lbs. (No Inventory)
+ Sanmar_SDL_N.zip: Zipped SDL file (Contains no other files or folders).
+ SanMar_SDL_DI.csv: Basic product data including product descriptions, pricing and item weight in lbs.
+ Sanmar_SDL_DI.zip: Zipped SDL file (Contains medium resolution product Images 1200x1800, 300 DPI).
+SanMar_SDL_N.csv & SanMar_SDL_DI.csv - Comma delimited quote encapsulated files
+FIELD ELEMENT DESCRIPTION
+UNIQUE_KEY Unique Identifier created as combination of INVENTORY_KEY & SIZE_INDEX
+PRODUCT_TITLE Includes Manufacturer’s name
+PRODUCT_DESCRIPTION Description of product features
+STYLE# Mill style # same as style number used in catalogs
+AVAILABLE_SIZES Sizes available
+BRAND_LOGO_IMAGE File name of Brand image such as Port Authority
+THUMBNAIL_IMAGE File name of Small image for Lifestyle-Model picture
+COLOR_SWATCH_IMAGE Individual color Image available in a style.
+PRODUCT_IMAGE File name of Lifestyle-Model picture jpg for web sites
+SPEC_SHEET PDF or Word document listing specifications.
+PRICE_TEXT How price applies such as Price applies to.....
+SUGGESTED_PRICE Recommended retail
+
+SanMar FTP Integration Guide v23.
+
+10
+
+CATEGORY_NAME Major categories such as Tee Shirts, Knit Shirts, Woven
+SUBCATEGORY_NAME Such as 100% Cotton Tee or Crewneck Sweatshirts or Camp Shirts
+COLOR_NAME Full Name of color
+COLOR_SQUARE_IMAGE File name of Image which creates the square in a color swatch.
+COLOR_PRODUCT_IMAGE File name of Regular (usually folded) image
+COLOR_PRODUCT_IMAGE_THUMBNAIL File name of Small picture of (usually folded) items
+SIZE Size of item
+PIECE_WEIGHT Approximate Weight Per Piece – lbs. /piece – Final weight determined at shipping.
+PIECE_PRICE Price Per Piece based upon a purchase of 5 pieces or less of a single style & Color
+DOZENS_PRICE No longer Available - Displays Price Per Piece
+CASE_PRICE Price per piece based upon Case Purchase by Size / Color / Style
+PRICE_GROUP No longer Available - Displays NA
+CASE_SIZE Total # of pieces of a single style /color/ size per case
+INVENTORY_KEY SanMar Proprietary Inventory Key | Used for text file order submission
+SIZE_INDEX Size category number for each size grouping | Used for text file order submission
+SANMAR_MAINFRAME_COLOR Abbreviated color name | Used for web services order submission
+MILL Brand Name of Manufacturer
+PRODUCT_STATUS Displays Coming Soon, New, Regular and Discontinued Style statuses
+COMPANION_STYLES Related Youth and Ladies Styles when available
+MSRP Manufactures Suggested Retail Price
+MAP_PRICING Minimum Advertised Pricing (MAP)
+FRONT_MODEL_IMAGE_URL Front Model Image - 1200x1800px jpg with model
+BACK_MODEL _IMAGE_URL Back model image URL- 1200x1800px jpg with model
+FRONT_FLAT _IMAGE_URL Front flat Image URL - 1200x1800px jpg without model
+BACK_FLAT _IMAGE_URL Back flat image URL - 1200x1800px jpg without model
+PRODUCT_MEASUREMENT PDF document listing flat product measurements.
+PMS_COLOR Pantone or PMS (Pantone Matching System) color
+GTIN Product GTIN # (Not all SanMar Products are assigned GTINS)
+DECORATION_SPEC_SHEET Decoration Spec Sheet URL
+
+SanMar FTP Integration Guide v23.
+
+11
+
+SanMar EPDD Files (Electronic Product Data Download)
+ SanMar_EPDD.csv: Basic product data including product descriptions, pricing, item weight in lbs., and Inventory.
+ SanMar_EPDD.zip: Contains the EPDD file and back model, front flat, back flat images (1200x1800, 300 DPI).
+Sanmar_EPDD.csv - Comma delimited quote encapsulated files
+FIELD ELEMENT DESCRIPTION
+UNIQUE_KEY Unique Identifier created as combination of INVENTORY_KEY & SIZE_INDEX
+PRODUCT_TITLE Includes Manufacturer’s name
+PRODUCT_DESCRIPTION Description of product features
+STYLE# Mill style # same as style number used in catalogs
+AVAILABLE_SIZES Sizes available
+BRAND_LOGO_IMAGE File name of Brand image such as Port Authority
+THUMBNAIL_IMAGE File name of Small image for Lifestyle-Model picture
+COLOR_SWATCH_IMAGE Individual color Image available in a style.
+PRODUCT_IMAGE File name of Lifestyle-Model picture jpg for web sites
+SPEC_SHEET PDF or Word document listing specifications.
+PRICE_TEXT How price applies such as Price applies to.....
+SUGGESTED_PRICE Recommended retail
+CATEGORY_NAME Major categories such as Tee Shirts, Knit Shirts, Woven
+SUBCATEGORY_NAME Such as 100% Cotton Tee or Crewneck Sweatshirts or Camp Shirts
+COLOR_NAME Full Name of color
+COLOR_SQUARE_IMAGE File name of Image which creates the square in a color swatch.
+COLOR_PRODUCT_IMAGE File name of Regular (usually folded) image
+COLOR_PRODUCT_IMAGE_THUMBNAIL File name of Small picture of (usually folded) items
+SIZE Size of item
+QTY Quantity available as of this download – all warehouses combined – 4500 Max displayed
+PIECE_WEIGHT Approximate Weight Per Piece – lbs. /piece – Final weight determined at shipping.
+PIECE_PRICE Price Per Piece based upon a purchase of 05 pieces or less of a single style & Color
+DOZENS_PRICE No longer Available - Displays Price Per Piece
+CASE_PRICE Price per piece based upon Case Purchase by Size / Color / Style
+PRICE_GROUP No longer Available - Displays NA
+CASE_SIZE Total # of pieces of a single style /color/ size per case
+INVENTORY_KEY SanMar Proprietary Inventory Key Used for text file order submission
+SIZE_INDEX Size category number for each size grouping Used for text file order submission
+
+SanMar FTP Integration Guide v23.
+
+12
+
+SANMAR_MAINFRAME_COLOR Abbreviated color name Used for text file order submission
+MILL Brand Name of Manufacturer
+PRODUCT_STATUS Displays Coming Soon, New, Regular and Discontinued Style Statuses
+COMPANION_STYLES Related Youth and Ladies Styles when Available
+MSRP Manufactures Suggested Retail Price
+MAP_PRICING Minimum Advertised Pricing (MAP)
+FRONT_MODEL_IMAGE_URL Front Model Image - 1200x1800px jpg with model
+BACK_MODEL _IMAGE_URL Back model image URL- 1200x1800px jpg with model
+FRONT_FLAT _IMAGE_URL Front flat Image URL - 1200x1800px jpg without model
+BACK_FLAT _IMAGE_URL Back flat image URL - 1200x1800px jpg without model
+PRODUCT_MEASUREMENT PDF document listing flat product measurements.
+PMS_COLOR Pantone or PMS (Pantone Matching System) color
+GTIN Product GTIN # (Not all SanMar Products are assigned GTINS)
+DECORATION_SPEC_SHEET Decoration Spec Sheet URL
+
+SanMar FTP Integration Guide v23.
+
+13
+
+SanMar PDD & Catalog Files
+ sanmar_pdd.txt: Basic product data including GTIN, product descriptions and extended product descriptions.
+ Catalog.txt: Product data with extended product descriptions.
+ sanmar_activeproductsexport.txt: Product data with extended product descriptions.
+sanmar_pdd.txt - Pipe delimited file - Contains GTINS
+1 A inventory_key SanMar Product Identifier
+2 B catalog_no SanMar Catalog Style Number
+3 C mill Mill Brand Name
+4 D mill_style_no Factory Style Number
+5 E colorcat No longer Available - Displays NA
+6 F catalog_color Product Color
+7 G size Product Size
+8 H description Product Description
+9 I extended_description Extended Product Description
+10 J ea_price Price Per Piece
+11 K dz_price No longer Available - Displays Price Per Piece
+12 L dz_qty No longer Available - Displays Per Piece
+13 M case_price Price Per Case
+14 N case_qty Unitsin Full Case
+15 O catalog_page No longer Available - Displays 0
+16 P weight Weight Per Piece in lbs.
+17 Q size_type Internal Item Size Code
+18 R size_index Product Size Identifier Code
+19 S steves_group No longer Available - Displays Unknown
+20 T gtin Global Trade Item Number
+Catalog.txt- TAB Delimited file - Contains GTINS
+1 A INVENTORY.KEY SanMar Product Identifier
+2 B CATALOG.NO SanMar Catalog Style Number
+3 C MILL Mill Brand Name
+4 D MILL STYLE# Factory Style Number
+5 E COLORCAT No longer Available - Displays NA
+6 F CATALOG.COLOR Product Color
+7 G SIZE Product Size
+8 H DESCRIPTION Product Description
+9 I EXTENDED DESCRIPTION Extended Product Description
+10 J EA PRICE Price Per Piece
+11 K DZ PRICE No longer Available - Displays Piece Price
+12 L DZ QTY Unit Quantity for Dozens Pricing
+13 M CASE PRICE Price Per Case
+14 N CASE QTY Unitsin Full Case
+15 O CATALOG PAGE No longer Available - Displays 0
+16 P WEIGHT Weight Per Piece in lbs.
+17 Q SIZE TYPE Internal Item Size Code
+18 R INDEX Product Size Identifier Code
+19 S STEVES.GROUP No longer Available - Displays Unknown
+20 T GTIN Global Trade Item Number
+
+SanMar FTP Integration Guide v23.
+
+14
+
+sanmar_activeproductsexport.txt - Pipe delimited file
+1 A inventory_key SanMar Product Identifier
+2 B size_index Product Size Identifier Code
+3 C catalog_no SanMar Catalog Style Number
+4 D catalog_color Mill Brand Name
+5 E size Product Size
+6 F Whse_No
+
+Warehouse Number: 1=Seattle WA, 2=CincinnatiOH, 3=Dallas TX, 4=Reno NV,
+5=Robbinsville NJ, 6=Jacksonville FL, 7=Minneapolis MN, 12=Phoenix AZ, 31=Richmond VA
+
+7 G Quantity Quantity (500 max per warehouse shown)
+8 H Piece_Weight weight per piece in lbs.
+9 I Piece_Price Piece Price (1-5 Pieces)
+10 J Dozens_Price No longer Available - Displays Piece Price
+11 K Case_Price Case Price
+12 L Case_Size Pieces in a Case
+13 M Inventory_Key SanMar Product Identifier (combined with size index makes up for a unique product)
+
+SanMar FTP Integration Guide v23.
+
+15
+
+Daily Inventory & Sales Pricing Files
+ Sanmar_dip.txt: Current inventory data including sale dates/pricing, and inventory by warehouse, updated hourly.
+ Sanmar_SaleItems.txt: Current sale item product data
+Sanmar_dip.txt- Pipe delimited file. The Sanmar_dip.txt file is updated hourly.
+# Column Field Element Description
+1 A Inventory_Key
+
+SanMar Product Identifier (combined with size index makes up for
+a unique product)
+
+2 B Size_Index Product Size Identifier (combined with inventory key makes up for
+
+a unique product)
+
+3 C Catalog_No SanMar Catalog Number e.g. K420
+4 D Catalog_Color Color
+5 E Size Size
+6 F Whse_ No
+
+Warehouse Number: 1-Seattle WA, 2-Cincinnati OH, 3-Dallas TX, 4-
+Reno NV, 5-Robbinsville NJ, 6-Jacksonville FL, 7-Minneapolis MN,
+12-Phoenix AZ, 31-Richmond VA
+7 G Quantity Quantity (3000 max per warehouse shown)
+8 H Piece_Weight Weight per piece in lbs.
+9 I Piece_Price Piece Price (1-5 Pieces)
+10 J Dozens_Price No longer Available - Displays Piece Price
+11 K Case_Price Case Price
+12 L Case_Size Pieces in a Case
+13 M Each_sale_Price Sale Price Per Piece (if on sale)
+14 N Dozens_sale_price No longer Available - Displays Piece Price (if on sale)
+15 O Case_sale_price Sale Price Per Case (if on sale)
+16 P Sale_start_datetime Sale Start Date (if on sale)
+17 Q Sale_end_datetime Sale End Date (if on sale)
+18 R Unique_key Unique Product Identifier (INVENTORY_KEY+SIZE_INDEX combined)
+19 S Discontinued_code Discontinued Code S=SanMar or M=Mill - if product discontinued
+21 U SALE_START_DATE Sale Start Date
+22 V SALE_END_DATE Sale End Date
+
+SanMar FTP Integration Guide v23.
+
+16
+
+Sanmar_SaleItems.txt- Pipe delimited file
+# Column Field Element Description Field Length
+1 A INVENTORY_KEY SanMar Product Identifier Implied
+2 B CATALOG_NO SanMar Catalog Style Number 10
+3 C MILL Mill Brand Name 20
+4 D MILL_STYLE_NO Factory Style Number 10
+5 E COLORCAT
+
+No longer Available - Displays
+NA
+
+6 F COLOR Product Color 14
+7 G SIZE Product Size 10
+8 H DESCRIPTION Product Description 1024
+9 I EXTENDED DESCRIPTION Extended Product Description 1024
+10 J EA_SALE_PRICE Sale Price Per Piece Implied
+11 K DZ_SALE_PRICE
+
+No longer Available - Displays
+Piece Price (if on sale) Implied
+
+12 L DZ_QTY
+
+Unit Quantity for Dozens
+Pricing
+
+Implied
+13 M CASE_SALE_PRICE Sale Price Per Case Implied
+14 N CASE_QTY Units in Full Case Implied
+15 O CATALOG_PAGE No longer Available - Displays 0 Implied
+16 P PIECE_WEIGHT Weight Per Piece in lbs. 8.4
+17 Q SIZE_TYPE Internal Item Size Code Implied
+18 R SIZE_INDEX Product Size Identifier Implied
+19 S STEVES_GROUP
+
+No longer Available - Displays
+Unknown 50
+20 T GTIN Global Trade Item Number 20
+21 U SALE_START_DATE Sale Start Date Implied
+22 V SALE_END_DATE Sale End Date Implied
+
+SanMar FTP Integration Guide v23.
+
+17
+
+Shopify Website Formatted File
+sanmar_shopify.csv: Daily product data file including pricing and inventory for Shopify web stores.
+SanMar Shopify Data File
+The Shopify file is produced daily with product information, suggested retail pricing, and inventory information.
+PLEASE NOTE:
+• SanMar does NOT upload Shopify data files to customer’s web stores. Please refer to Shopify for more information about
+uploading product CSV files. https://help.shopify.com/en/manual/products/import-export/using-csv
+• SanMar is unable to customize or alter this file to meet individual web stores needs and takes NO responsibility for how
+the data and images are presented within your web store theme. To achieve your desired presentation or functionality,
+you may need to consult the theme creator, a theme developer or use Apps, currently available for Shopify web stores
+at https://apps.shopify.com. SanMar takes NO responsibility of ANY data or software problems that may be experienced
+within Shopify’s web stores, themes, or Apps that are used in conjunction with our data.
+Known Issues:
+• The Shopify system only allows 15MB uploads and our product data file is over 30MB in size. This makes it necessary for
+you to remove any unwanted products from the catalog and/or split the catalog into 2-3 separate data files.
+• The Shopify Web Store system has a 100-variant maximum. Styles with many colors produce errors in the upload
+process and causes the entire style to fail and does not upload any data for that style.
+Error: Line# - Line#:Validation failed: Exceeded maximum number of variants allowed
+Due to this system limitation, this file is intended to be used with a plugin to increase the number of variants allowed
+per handle, such as the product customizer (https://apps.shopify.com/product-customizer) , or any plugin that will
+allow more than 100 variants per handle. Please consult Shopify for more information or suggestions at
+https://docs.shopify.com/support.
+• Some image links may not resolve to an image, which also produces errors and causes the entire style to fail. If this
+occurs, the style will not be uploaded.
+Error: Line# - LINE#: Validation failed: An error occurred while trying to download the image. We are
+working to correct this issue, but do not have a timeline for a resolution at this time
+
+SanMar FTP Integration Guide v23.
+
+18
+
+sanmar_shopify.csv: SanMar Shopify File Field Names & Descriptions
+# COL FIELD NAME DESCRIPTION
+1 A Handle Style Number
+2 B Title Product Title
+3 C Body (HTML) Product Description
+4 D Vendor Brand
+5 E Type Category
+6 F Tags No Data is included
+7 G Published Published on Web Store. Default Value ‘True’
+8 H Option1 Name Default Value ‘Color’
+9 I Option1 Value Product Color Name
+10 J Option2 Name Default Value ‘Size
+11 K Option2 Value Product Size
+12 L Option3 Name No Data is included
+13 M Option3 Value No Data is included
+14 N Variant SKU No Data is included
+15 O Variant Grams The Product’s Dozens Weight in Grams
+16 P Variant Inventory Tracker Default Value ‘shopify’
+17 Q Variant Inventory Qty Inventory is updated daily; Max Stock 1500
+
+pieces
+
+18 R Variant Inventory Policy Default Value ‘deny’
+19 S Variant Fulfillment Service Default Value ‘manual’
+20 T Variant Price Suggested Retail Pricing
+21 U Variant Compare At Price No Data is included
+22 V Variant Requires Shipping Default Value ‘True’
+23 W Variant Taxable Default Value ‘True’
+24 X Variant Barcode No Data is included
+25 Y Image Src Front Model Image for the main product color
+26 Z Image Alt Text No Data is included
+27 AA Gift Card No Data is included
+28 AB Google Shopping / MPN No Data is included
+29 AC Google Shopping / Age Group No Data is included
+30 AD Google Shopping / Gender No Data is included
+31 AE Google Shopping / Google Product Category No Data is included
+32 AF SEO Title No Data is included
+33 AG SEO Description No Data is included
+34 AH Google Shopping / AdWords Grouping No Data is included
+35 AI Google Shopping / AdWords Labels No Data is included
+36 AJ Google Shopping / Condition No Data is included
+37 AK Google Shopping / Custom Product No Data is included
+38 AL Google Shopping / Custom Label 0 No Data is included
+39 AM Google Shopping / Custom Label 1 No Data is included
+40 AN Google Shopping / Custom Label 2 No Data is included
+41 AO Google Shopping / Custom Label 3 No Data is included
+42 AP Google Shopping / Custom Label 4 No Data is included
+43 AQ Variant Image Front Model Image for all Colors
+44 AR Variant Weight Unit Default Value ‘lb’
+
+SanMar FTP Integration Guide v23.
+
+19
+
+Daily files created by request.
+These are optional filesthat are provided by request and are exported daily after 2 AM PST to your FTP folder.
+Special Pricing Files
+The daily pricing files is produced by request and exported nightly after 2 AM PST to your SanMar FTP Outbound
+folder.
+
+Daily Incentive Pricing File sanmar_dpIncentive.csv
+Daily CSV file with special program pricing
+This Special Pricing file contains our entire catalog, but only displays your special pricing in the my_price field or 0, if you do
+not have special pricing for that style.
+Daily Pricing file Sanmar_dp.csv
+Daily complete CSV file with your lowest price available
+Our Daily Pricing file contains pricing for our entire catalog and displays your lowest available price in the my_price field.
+Both of the Daily and Daily Delta pricing files produce the lowest available pricing in the my_price field. The Daily Delta file
+only has only the unique_key and my_price fields and is incrementally updated daily.
+Daily Delta Pricing file sanmar_dpc.csv
+Daily Partial CSV file with your lowest price available (Incremental daily changes)
+Our Daily Delta Pricing file is a smaller partial file and displays your lowest available price in the my_price field for only the
+product pricing that have changed since the day before. The first day that this pricing file is created it will produce my price
+for the entire product catalog, after which will only produce data for prices that have changed since the last day the file was
+exported.
+
+SanMar FTP Integration Guide v23.
+
+20
+
+Comma delimited Data
+# COL FIELD ELEMENT DESCRIPTION
+1 A Inventory_Key SanMar Product Identifier (combined with size index makes up for a
+
+unique product)
+
+2 B Size_Index Product Size Identifier (combined with inventory makes up for a unique
+
+product)
+
+3 C Catalog_No SanMar Catalog Number e.g. K420
+4 D Catalog_Color Color of product
+5 E Size Size of product
+6 F Piece_Weight weight per piece in lbs.
+7 G Piece_Price Piece Price (1-5 Pieces)
+8 H Dozens_Price No longer Available - Displays Piece Price
+9 I Case_Price Case Price
+10 J Case_Size Pieces in a Case
+11 K Each_sale_Price Sale Price Per Piece (if on sale)
+12 L Dozens_sale_price No longer Available - Displays Piece Price (if on sale)
+13 M Case_sale_price Sale Price Per Case (if on sale)
+14 N Sale_start_datetime Sale Start Date (if on sale)
+15 O Sale_end_datetime Sale End Date (if on sale)
+16 P Unique_key Unique Product Identifier (INVENTORY_KEY+SIZE_INDEX combined)
+17 Q Discontinued_code Discontinued Code S=SanMar or M=Mill - if product discontinued
+18 R My_price Displays case pricing orsale price, if no TVBP pricing for an item
+
+SanMar FTP Integration Guide v23.
+
+21
+
+Daily Shipment Status File (Advance Ship Notification)
+The daily order status file is provided by request and provides daily order status and corresponding shipping information and
+is created nightly for all orders shipped that day. The file is then dropped into your FTP folder. The file contains line-item
+costs, associated charges, and the shipper tracking number.
+1-15-16Status.txt- Tab Delimited Data
+
+# COLUMN FIELD ELEMENT EXAMPLE
+1 A CUSTOMER PO 123456
+2 B SALESORDER# 18367163
+3 C SHIP FROM WEST CHESTER, OH
+4 D SHIP DATE 11/20/2015
+5 E SHIP TO NAME ABC CO
+6 F ATTENTION JOHN DOE
+7 G SHIP TO ADDRESS1 123 MAIN ST
+8 H SHIP TO ADDRESS2 Suite 102
+9 I SHIP TO CITY LONG ISLAND CITY
+10 J SHIP TO STATE NY
+11 K SHIP TO ZIP 11101
+12 L SHIP TO COUNTRY USA
+13 M SUB TOTAL 8.7
+14 N FREIGHT 8.4
+15 O HANDLING FEE 3.95
+16 P INVOICE TOTAL 56.84
+17 Q TRACK NUM 1ZE435930310783934
+18 R TOTAL CASES 1
+19 S SHIP VIA Not Used
+20 T BOX NUMBER 1
+21 U STYLE 2400B
+22 V DESCRIPTION GILDAN 100% YOUTH L/S WHITE
+23 W COLOR White
+24 X SIZE L
+25 Y QTY 3
+26 Z INVENTORY KEY 25852
+27 AA SIZE ID 4
+28 AB LPN (License Plate Number) LP0002488302
+
+SanMar FTP Integration Guide v23.
+
+22
+
+Daily Invoice Text File
+The Daily Invoice file is created upon request and the files are created nightly for all ordersinvoiced that day and
+are exported nightly to your FTP outbound folder after 12 PM PST.
+123456_Invoice_Details-06-18-15.txt – Fixed Width Data
+CHARACTERS CHARACTERS COUNT FIELD NAME EXAMPLE
+1-10 10 Account Number 0000123456
+11-38 28 Account Name Company Name
+39-47 9 Invoice number 0583167000
+48-57 10 Invoice Date 2019-06-18
+58-72 15 Customer PO Number PO NUMBER
+73-82 10 Order Date 2019-06-18
+83-92 10 Due Date 2019-07-18
+93-132 40 Ship To Name ABC CO
+133-135 3 Ship To State FL
+136-145 10 Ship Date 2019-06-18
+146-157 12 Freight Method Not Used
+158-169 12 Terms NET 30
+170-179 10 Unique Key Unique Key
+180-189 10 Style No K500
+190-203 14 Color Light Blue
+204-253 50 Description PA SILK TOUCH POLO LIGHT BLUE
+254-257 4 Size M
+258-263 6 Pieces 000002
+264-273 10 Price 00000007.49
+274-283 10 Amount 000000014.98
+284-293 10 Sales Tax 00000000.00
+294-303 10 Shipping Handling 00000003.50
+304-313 10 Total 000000018.48
+314-323 10 Invoice Total 000000018.48
+324-332 9 Sales Order # 0123456789
+
+SanMar FTP Integration Guide v23.
+
+23
+
+Daily Invoice Excel File
+The Daily Invoice Excel file is created upon request and the invoice .XLSX file is emailed daily to your email address and
+contains all the invoices for the previous day’s orders. Columns M-T may display multiple line items for each invoice.
+
+IT - Integration - Customer Invoice Details_123456.xlsx
+COLUMN FIELD NAME EXAMPLE
+A Account Number 123456
+B Account Name Company Name
+C Invoice number 58316700
+D Invoice Date 6/18/2019
+E Customer PO Number PO NUMBER
+F Order Date 6/18/2019
+G Due Date 7/18/2019
+H Ship To Name ABC CO
+I Ship To State FL
+J Ship Date 6/18/2019
+K Freight Method Not Used
+L Terms NET 30
+M Unique Key Unique Key
+N Style No K500
+O Color Light Blue
+P Description PA SILK TOUCH POLO LIGHT BLUE
+Q Size M
+R Pieces 2
+S Price 7.49
+T Amount 14.98
+U Sales Tax 0
+V Shipping Handling 3.5
+W Total 18.48
+X Invoice Total 18.48
+
+SanMar FTP Integration Guide v23.
+
+24
+
+EDI-810 Standard Daily Invoice File
+Please call or email SanMar integrationsto request our 810 Outbound Implementation Guide. We will need the following
+information to set up the delivery of your EDI-810 file.
+Customer Name:
+Customer Number:
+EDI Number:
+Current EDI qualifier:
+Current element separator:
+Interchange ID Qualifier:
+VAN:
+Server Connection: Direct to SanMar? OR Third-party Connection?
+338469-201602090116-020834019-810.x12 Invoice sample
+ISA*00* *00* *ZZ*84863 *12*020834019
+*130628*1514*U*00401*000139642*0*T*>~GS*IN*84863*020834019*20130628*151433*139661*X*004010~
+ST*810*1141379~BIG*20130628*44209995*20130628****CN*00~CUR*BY*USD~
+N1*BY*Company Name~
+N3*2211 Customer AVE*SUITE 601~ N4*SEATTLE*WA*98121*USA~
+N1*SU*SanMar Corporation~
+N3*22833 SE Black Nugget Road, Suite 130~ N4*Issaquah*WA*98029*USA~ N1*ST*Company Name~
+N3*2211 Customer AVE*SUITE 601~ N4*SEATTLE*WA*98121*USA~FOB*PC*ZZ~
+IT1*1*-3*EA*9.99*PE*VN*167592*ZZ*K420 - Athletic Gold - S~PID*F****PA Pique Knit Polos Athletic Gold S~ IT1*2*-
+10*EA*9.99*PE*VN*216181*ZZ*K420 - Blueberry - XS~PID*F****PA Pique Knit Polos Blueberry XS~ TDS*-
+10632~TXI*ZZ*13.31~SAC*C*D240***1024**********Shipping Charges~CTT*2~SE*22*1141379~
+ST*810*1141380~BIG*20130628*44210000*20130628****DR*00~CUR*BY*USD~
+N1*BY*Company Name~
+N3*2211 Customer AVE*SUITE 601~ N4*SEATTLE*WA*98121*USA~
+N1*SU*SanMar Corporation~
+N3*22833 SE Black Nugget Road, Suite 130~ N4*Issaquah*WA*98029* N1*ST*Company Name~ N3*%CompanName*7100
+Customer DRIVE# D~ N4*LOUISVILLE*KY*40258*USA~FOB*PC*ZZ~
+N9*L1*Freight Savings~MSG*FREIGHT SAVINGS OF $0.00~ IT1*3*10*EA*9.99*PE*VN*92031*ZZ*K420 - Black -
+XS~PID*F****PA Pique Knit Polos Black XS~
+IT1*4*20*EA*9.99*PE*VN*92032*ZZ*K420 - Black - S~PID*F****PA Pique Knit Polos Black S~
+IT1*5*1*EA*9.99*PE*VN*92033*ZZ*K420 - Black - M~PID*F****PA Pique Knit Polos Black M~
+IT1*6*1*EA*9.99*PE*VN*92034*ZZ*K420 - Black - L~PID*F****PA Pique Knit Polos Black L~
+IT1*7*1*EA*9.99*PE*VN*92035*ZZ*K420 - Black - XL~PID*F****PA Pique Knit Polos Black XL~
+IT1*8*3*EA*9.99*PE*VN*167592*ZZ*K420 - Athletic Gold - S~PID*F****PA Pique Knit Polos Athletic Gold S~
+IT1*9*10*EA*9.99*PE*VN*216181*ZZ*K420 - Blueberry - XS~PID*F****PA Pique Knit Polos Blueberry XS~
+IT1*10*88*EA*9.99*PE*VN*216182*ZZ*K420 - Blueberry - S~PID*F****PA Pique Knit Polos Blueberry S~
+
+SanMar FTP Integration Guide v23.
+
+25
+
+TDS*141898~TXI*ZZ*80.32~CTT*8~SE*35*1141380~
+ST*810*1141381~BIG*20130628*44210001*20130628****DR*00~CUR*BY*USD~
+N1*BY*Company Name~
+N3*2211 Customer AVE*SUITE 601~ N4*SEATTLE*WA*98121*USA~
+N1*SU*SanMar Corporation~
+N3*22833 SE Black Nugget Road, Suite 130~ N4*Issaquah*WA*98029*USA~
+N1*ST*Company Name~ N3*6415 NE Customer PLACE~
+N4*KIRKLAND*WA*98034*USA~FOB*PC*ZZ~
+N9*L1*Freight Savings~MSG*FREIGHT SAVINGSOF $0.00~
+IT1*11*2*EA*9.99*PE*VN*195991*ZZ*K420 - Classic Navy - XS~PID*F****PA Pique Knit Polos Classic Navy XS~
+IT1*12*1*EA*9.99*PE*VN*195992*ZZ*K420 - Classic Navy - S~PID*F****PA Pique Knit Polos Classic Navy S~
+IT1*13*10*EA*9.99*PE*VN*216181*ZZ*K420 - Blueberry - XS~PID*F****PA Pique Knit Polos Blueberry XS~
+IT1*14*20*EA*9.99*PE*VN*216183*ZZ*K420 - Blueberry - M~PID*F****PA Pique Knit Polos Blueberry M~
+TDS*36099~TXI*ZZ*31.32~CTT*4~SE*27*1141381~GE*3*139661~IEA*1*000139642~
+
+SanMar FTP Integration Guide v23.
+
+26
+
+Change Log
+September 2025
+• Updated Brand Restrictions Section.
+• Updated Quantity displayed in SanMar_EPDD and SanMar_DIP files.
+September 2025
+• Updated Brand Restrictions Section.
+August 2025
+• Updated FileZilla URL link
+July 2025
+• Updated the Sanmar_dip.txt description for Quantity from 500 to to 1500 max per warehouse shown
+• Updated Shopify Import link
+• Fixed DECORATION_SPEC_SHEET field name
+March 2025
+• Edev environment has been replaced with Test.
+February 2025
+• Updated Brand Restrictions Section.
+• Updated guide formatting, added a complete Table of Contents.
+November 2024
+• Updated Onboarding Guidance
+• Updated Shopify inventory pieces displayed
+• Updated Brand Restrictions Section.
+October 2024
+• Updated Guidance for Fixed-Width Invoice File to include character count.
+July 2024
+• Added Support for VA warehouse (31)
+• Updated Brand Restrictions Section.
+April 2024
+• Updated Brand Restrictions Section.
+• Formatting Updates
+October 2023
+• Updated Brand Restrictions Page Section
+June 2023
+• Updated Brand Restrictions Section.
+• Removed closeout Status references.
+December 2022
+• Updated Brand Restrictions Section.
+• Updated EPDD and SDL reference to show full file name.
+• Updated EPDD and SDL with columns for GTIN and Decoration_Spec_Sheet
+August 2022
+• Updated Invoice File to Include Sales Order #.
+• Updated Brand Restrictions Page.
+
+SanMar FTP Integration Guide v23.
+
+27
+
+June 2021
+• Updated Shopify weight to reflect dozen’s weight.
+May 2020
+• Updated EDI 810-standard details: Removed Freight Saving Amount will now show $0.00
+• Updated Daily Statusfile: Invoice# is no longer used and will be replaced with SALESORDER# for tracking purposes.
+• Updated Invoice Details File: Removed Freight Method data which now states NOT USED.
+• Dozens pricing is no longer offered and will be replaced with piece pricing in all files.
+• Added sanmar_dip.txt and sanmar_closeouts_dip.txt files are updated hourly.
+August 2019
+• Removed data from legacy product text data files.
+January 2019
+• Removed Brand: District Made
+• Added Brand: Carhartt
+• Added License Plate Number to the Status file
+• Added PMS Color Code to the EPDD and SDL CSV files
+June 2018
+• Update GTIN file name/location
+• Added Brand: Bella+Canvas
+• Added column information for the activeproductexport.txt file
+• Added column information for the closeout_activeproductexport.txt file
+April 2018
+• Added FRONT_FLAT, BACK_FLAT and MODEL_BACK image URLs.
+• Updated Brand Name NIKE GOLF to NIKE
+December 2017
+• Updated links to sanmar.com
+• Updated Brand Restriction information
+October 2017
+• Updated links to sanmar.com
+• Updated Brand Restriction information
+• Added The North Face to Brand Restrictions
+• Added Rabbit Skinsto Brand Restrictions
+April 2017
+• Added more detailed information on the special pricing files.
