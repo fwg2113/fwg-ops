@@ -10,7 +10,7 @@ const twilioClient = twilio(
 
 export async function POST(request: NextRequest) {
   try {
-    const { documentId, optionId, optionTitle, question, customerName, contactPreference } = await request.json()
+    const { documentId, optionId, optionTitle, question, customerName, contactPreference, sizeQuantities, action } = await request.json()
 
     if (!documentId || !optionId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -26,16 +26,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
-    const timestamp = new Date().toLocaleString('en-US', { 
+    const isApproval = action === 'approve'
+    const isChangeRequest = action === 'request_changes'
+
+    const timestamp = new Date().toLocaleString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric',
-      hour: 'numeric', minute: '2-digit', hour12: true 
+      hour: 'numeric', minute: '2-digit', hour12: true
     })
-    
-    let noteEntry = `** OPTION SELECTED (${timestamp}) **\n`
+
+    let noteEntry = isChangeRequest
+      ? `** CHANGE REQUEST (${timestamp}) **\n`
+      : `** OPTION APPROVED (${timestamp}) **\n`
     noteEntry += `Customer: ${customerName}\n`
-    noteEntry += `Selected: ${optionTitle}\n`
+    noteEntry += `${isChangeRequest ? 'Option' : 'Approved'}: ${optionTitle}\n`
     if (contactPreference) {
       noteEntry += `Contact Preference: ${contactPreference === 'sms' ? 'Text/SMS' : 'Email'}\n`
+    }
+    if (sizeQuantities && typeof sizeQuantities === 'object') {
+      const sizeEntries = Object.entries(sizeQuantities as Record<string, number>)
+        .filter(([, qty]) => qty > 0)
+      if (sizeEntries.length > 0) {
+        const totalPcs = sizeEntries.reduce((sum, [, qty]) => sum + qty, 0)
+        noteEntry += `Sizes: ${sizeEntries.map(([size, qty]) => `${size}(${qty})`).join(', ')} — ${totalPcs} pcs total\n`
+      }
     }
     if (question) {
       noteEntry += `Revision Request: ${question}\n`
@@ -44,10 +57,12 @@ export async function POST(request: NextRequest) {
     const existingNotes = doc.notes || ''
     const updatedNotes = existingNotes ? `${existingNotes}\n\n${noteEntry}` : noteEntry
 
+    const newStatus = isChangeRequest ? 'revision_requested' : 'option_selected'
+
     const { error: updateError } = await supabase
       .from('documents')
       .update({
-        status: 'option_selected',
+        status: newStatus,
         notes: updatedNotes
       })
       .eq('id', documentId)
@@ -58,12 +73,22 @@ export async function POST(request: NextRequest) {
     }
 
     const businessPhone = process.env.TWILIO_PHONE_TO || '+12406933715'
-    let smsBody = `Option Selected!\n${customerName} selected "${optionTitle}" on Quote #${doc.doc_number}`
+    let smsBody = isChangeRequest
+      ? `Change Requested!\n${customerName} wants changes to "${optionTitle}" on Quote #${doc.doc_number}`
+      : `Option Approved!\n${customerName} approved "${optionTitle}" on Quote #${doc.doc_number}`
     if (contactPreference) {
       smsBody += `\nPrefers: ${contactPreference === 'sms' ? 'Text/SMS' : 'Email'}`
     }
+    if (sizeQuantities && typeof sizeQuantities === 'object') {
+      const sizeEntries = Object.entries(sizeQuantities as Record<string, number>)
+        .filter(([, qty]) => qty > 0)
+      if (sizeEntries.length > 0) {
+        const totalPcs = sizeEntries.reduce((sum, [, qty]) => sum + qty, 0)
+        smsBody += `\nSizes: ${sizeEntries.map(([size, qty]) => `${size}(${qty})`).join(', ')} — ${totalPcs} pcs`
+      }
+    }
     if (question) {
-      smsBody += `\n\nRevision Request: ${question}`
+      smsBody += `\n\nChange Request: ${question}`
     }
 
     try {
@@ -77,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-complete customer actions triggered by this status change
-    await autoCompleteActions(documentId, 'option_selected').catch(() => {})
+    await autoCompleteActions(documentId, newStatus).catch(() => {})
 
     return NextResponse.json({ success: true })
   } catch (error) {
