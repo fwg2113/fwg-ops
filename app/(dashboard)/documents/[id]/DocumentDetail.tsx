@@ -4,7 +4,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import { isAutomationEnabled } from '../../../lib/automation-settings'
-import SSProductLookup from '@/app/components/operations/SSProductLookup'
+import ProductLookup from '@/app/components/operations/ProductLookup'
+import { SupplierKey, DEFAULT_SUPPLIER } from '@/app/lib/suppliers/types'
 import GarmentMockupBuilder from '@/app/components/operations/GarmentMockupBuilder'
 
 const buttonStyles = `
@@ -387,8 +388,11 @@ export default function DocumentDetail({
   const [mockupInitialLogos, setMockupInitialLogos] = useState<any[]>([])
   const [mockupInitialTextElements, setMockupInitialTextElements] = useState<any[]>([])
 
-  // SS Product cache for line items (stores fetched product data)
+  // Product cache for line items (stores fetched product data from any supplier)
   const [ssProductCache, setSsProductCache] = useState<Record<string, any>>({})
+
+  // Per-line-item supplier selection (defaults to SanMar)
+  const [lineItemSuppliers, setLineItemSuppliers] = useState<Record<string, SupplierKey>>({})
 
   // Send to Zayn (embroidery digitizing)
   const [showZaynModal, setShowZaynModal] = useState(false)
@@ -543,51 +547,62 @@ export default function DocumentDetail({
     }
   }, [total, depositType])
 
-  // Pre-load SS product cache for existing apparel line items
+  // Pre-load product cache for existing apparel line items (both SS and SanMar)
   useEffect(() => {
-    const loadSSProducts = async () => {
+    const loadProducts = async () => {
       const cache: Record<string, any> = {}
+      const suppliers: Record<string, SupplierKey> = {}
 
       for (const item of lineItems) {
         const af = getApparelFields(item)
 
         // Only fetch if item has item_number and not already in cache
         if (af.item_number && !ssProductCache[item.id]) {
+          const itemSupplier: SupplierKey = (af as any).supplier || DEFAULT_SUPPLIER
+
           try {
-            // Search for the product by style name
-            const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
-            if (!searchResponse.ok) continue
+            if (itemSupplier === 'sanmar') {
+              // SanMar: direct style lookup
+              const response = await fetch(`/api/suppliers/sanmar/product/${encodeURIComponent(af.item_number)}`)
+              if (!response.ok) continue
+              const data = await response.json()
+              if (data.success && data.data) {
+                cache[item.id] = data.data
+                suppliers[item.id] = 'sanmar'
+              }
+            } else {
+              // SS Activewear: search then fetch details
+              const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
+              if (!searchResponse.ok) continue
+              const searchData = await searchResponse.json()
 
-            const searchData = await searchResponse.json()
-
-            if (searchData.success && searchData.data && searchData.data.length > 0) {
-              // Find exact match by style name
-              const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
-              const product = exactMatch || searchData.data[0]
-
-              // Fetch full product details
-              const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
-              if (!detailResponse.ok) continue
-
-              const detailData = await detailResponse.json()
-
-              if (detailData.success && detailData.data) {
-                cache[item.id] = detailData.data
+              if (searchData.success && searchData.data && searchData.data.length > 0) {
+                const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
+                const product = exactMatch || searchData.data[0]
+                const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+                if (!detailResponse.ok) continue
+                const detailData = await detailResponse.json()
+                if (detailData.success && detailData.data) {
+                  cache[item.id] = detailData.data
+                  suppliers[item.id] = 'ss'
+                }
               }
             }
           } catch (error) {
-            console.error(`Error loading SS product for ${af.item_number}:`, error)
+            console.error(`Error loading product for ${af.item_number}:`, error)
           }
         }
       }
 
-      // Update cache if we fetched anything
       if (Object.keys(cache).length > 0) {
         setSsProductCache(prev => ({ ...prev, ...cache }))
       }
+      if (Object.keys(suppliers).length > 0) {
+        setLineItemSuppliers(prev => ({ ...prev, ...suppliers }))
+      }
     }
 
-    loadSSProducts()
+    loadProducts()
   }, []) // Run once on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
 
@@ -1700,69 +1715,97 @@ export default function DocumentDetail({
     return tmp.textContent || tmp.innerText || ''
   }
 
-  // Handle SS product selection
-  const handleSSProductSelect = async (itemId: string, product: any) => {
-    console.log('🔍 handleSSProductSelect called:', { itemId, product })
+  // Handle product selection from any supplier (SanMar or SS)
+  const handleProductSelect = async (itemId: string, product: any, supplier: SupplierKey) => {
+    console.log('🔍 handleProductSelect called:', { itemId, product, supplier })
     try {
-      // Fetch full product details including colors and sizes
-      const response = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
-      if (!response.ok) {
-        console.error('SS API error:', response.status, response.statusText)
+      let styleDetail: any = null
+
+      if (supplier === 'sanmar') {
+        // SanMar: product data is already in _fullProduct from the lookup
+        if (product._fullProduct) {
+          styleDetail = product._fullProduct
+        } else {
+          // Fallback: fetch from API
+          const response = await fetch(`/api/suppliers/sanmar/product/${encodeURIComponent(product.styleName)}`)
+          if (!response.ok) {
+            console.error('SanMar API error:', response.status)
+            return
+          }
+          const data = await response.json()
+          if (data.success && data.data) {
+            styleDetail = data.data
+          }
+        }
+      } else {
+        // SS Activewear: fetch full product details
+        const response = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+        if (!response.ok) {
+          console.error('SS API error:', response.status, response.statusText)
+          return
+        }
+        const data = await response.json()
+        if (data.success && data.data) {
+          styleDetail = data.data
+        }
+      }
+
+      if (!styleDetail) {
+        showToast('Failed to load product details', 'error')
         return
       }
 
-      const data = await response.json()
-      console.log('📦 SS Style Detail API Response:', data)
+      console.log('✅ Setting product cache:', styleDetail)
 
-      if (data.success && data.data) {
-        const styleDetail = data.data
-        console.log('✅ Setting SS product cache:', styleDetail)
+      // Cache the product data
+      setSsProductCache(prev => ({
+        ...prev,
+        [itemId]: styleDetail
+      }))
 
-        // Cache the product data
-        setSsProductCache(prev => ({
-          ...prev,
-          [itemId]: styleDetail
-        }))
+      // Track which supplier this line item uses
+      setLineItemSuppliers(prev => ({
+        ...prev,
+        [itemId]: supplier
+      }))
 
-        // Build product title
-        const productTitle = `${styleDetail.brandName} ${styleDetail.styleName} - ${styleDetail.baseCategory}`
+      // Build product title
+      const brandName = styleDetail.brandName
+      const styleName = styleDetail.styleName
+      const category = styleDetail.baseCategory || styleDetail.category || ''
+      const productTitle = `${brandName} ${styleName}${category ? ' - ' + category : ''}`
 
-        // Combined update to avoid race conditions between state updates
-        const newItems = lineItems.map(item => {
-          if (item.id !== itemId) return item
-          const cf: Record<string, any> = {
-            ...(item.custom_fields || {}),
-            apparel_mode: true,
-            item_number: product.styleName,
-            style_id: product.styleID.toString(),
-            color: '' // Clear color to force user selection
-          }
-          return {
-            ...item,
-            description: productTitle,
-            custom_fields: cf
-          }
-        })
-        setLineItems(newItems)
-
-        // Save to database
-        const updatedItem = newItems.find(i => i.id === itemId)
-        if (updatedItem) {
-          console.log('💾 Saving product selection to database...', {
-            description: updatedItem.description,
-            custom_fields: updatedItem.custom_fields
-          })
-          await supabase.from('line_items').update({
-            description: updatedItem.description,
-            custom_fields: updatedItem.custom_fields,
-          }).eq('id', itemId)
-          console.log('✅ Product selection saved')
+      // Combined update to avoid race conditions
+      const newItems = lineItems.map(item => {
+        if (item.id !== itemId) return item
+        const cf: Record<string, any> = {
+          ...(item.custom_fields || {}),
+          apparel_mode: true,
+          item_number: styleName,
+          style_id: (product.styleID || styleName).toString(),
+          supplier: supplier,
+          color: '' // Clear color to force user selection
         }
+        return {
+          ...item,
+          description: productTitle,
+          custom_fields: cf
+        }
+      })
+      setLineItems(newItems)
 
-        showToast(`Select a color for ${styleDetail.styleName}`, 'info')
+      // Save to database
+      const updatedItem = newItems.find(i => i.id === itemId)
+      if (updatedItem) {
+        await supabase.from('line_items').update({
+          description: updatedItem.description,
+          custom_fields: updatedItem.custom_fields,
+        }).eq('id', itemId)
       }
+
+      showToast(`Select a color for ${styleName}`, 'info')
     } catch (error) {
-      console.error('Error fetching SS product:', error)
+      console.error('Error fetching product:', error)
       showToast('Failed to load product details', 'error')
     }
   }
@@ -1774,36 +1817,35 @@ export default function DocumentDetail({
 
     const af = getApparelFields(item)
     let cachedProduct = ssProductCache[itemId]
+    const itemSupplier: SupplierKey = lineItemSuppliers[itemId] || (af as any).supplier || DEFAULT_SUPPLIER
 
-    // If no cached product but item has item_number, fetch it from API
+    // If no cached product but item has item_number, fetch it from the correct supplier API
     if (!cachedProduct && af.item_number) {
       try {
-        // Search for the product by style name
-        const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
-        if (!searchResponse.ok) {
-          console.error('SS API error:', searchResponse.status, searchResponse.statusText)
+        if (itemSupplier === 'sanmar') {
+          const response = await fetch(`/api/suppliers/sanmar/product/${encodeURIComponent(af.item_number)}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.success && data.data) {
+              setSsProductCache(prev => ({ ...prev, [itemId]: data.data }))
+              cachedProduct = data.data
+            }
+          }
         } else {
-          const searchData = await searchResponse.json()
-
-          if (searchData.success && searchData.data && searchData.data.length > 0) {
-            // Find exact match by style name
-            const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
-            const product = exactMatch || searchData.data[0]
-
-            // Fetch full product details
-            const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
-            if (!detailResponse.ok) {
-              console.error('SS API error:', detailResponse.status, detailResponse.statusText)
-            } else {
-              const detailData = await detailResponse.json()
-
-              if (detailData.success && detailData.data) {
-                // Cache the product data
-                setSsProductCache(prev => ({
-                  ...prev,
-                  [itemId]: detailData.data
-                }))
-                cachedProduct = detailData.data
+          // SS Activewear: search then fetch details
+          const searchResponse = await fetch(`/api/suppliers/ss/search?q=${encodeURIComponent(af.item_number)}`)
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json()
+            if (searchData.success && searchData.data && searchData.data.length > 0) {
+              const exactMatch = searchData.data.find((p: any) => p.styleName === af.item_number)
+              const product = exactMatch || searchData.data[0]
+              const detailResponse = await fetch(`/api/suppliers/ss/style/${product.styleID}`)
+              if (detailResponse.ok) {
+                const detailData = await detailResponse.json()
+                if (detailData.success && detailData.data) {
+                  setSsProductCache(prev => ({ ...prev, [itemId]: detailData.data }))
+                  cachedProduct = detailData.data
+                }
               }
             }
           }
@@ -1822,19 +1864,37 @@ export default function DocumentDetail({
     if (cachedProduct) {
       // Find the color that matches the selected color
       const selectedColor = cachedProduct.colors?.find((c: any) => c.colorName === colorName)
-      // colorImages is an array: [0]=Front, [1]=Side, [2]=Back
       const colorImages = selectedColor?.colorImages || []
 
-      // Get the primary image (front)
-      const relativePath = colorImages[0] || cachedProduct.productThumbnail || ''
-      garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
+      if (itemSupplier === 'sanmar') {
+        // SanMar: colorImages are full URLs (https://cdnm.sanmar.com/...)
+        garmentImageUrl = colorImages[0] || cachedProduct.productThumbnail || ''
 
-      // Build the image URLs object for all locations
-      if (colorImages.length >= 3) {
-        garmentUrls = {
-          Front: `https://www.ssactivewear.com/${colorImages[0]}`,
-          Sleeves: `https://www.ssactivewear.com/${colorImages[1]}`, // Side view for sleeves
-          Back: `https://www.ssactivewear.com/${colorImages[2]}`
+        if (colorImages.length >= 3) {
+          garmentUrls = {
+            Front: colorImages[0],   // colorProductImage / frontModel
+            Back: colorImages[1],     // backModel (index may vary based on normalizeProductData)
+            Sleeves: colorImages[2],  // sideModel
+          }
+        } else if (colorImages.length >= 1) {
+          // Even with just front image, set it
+          garmentUrls = {
+            Front: colorImages[0],
+            Back: colorImages[1] || colorImages[0],
+            Sleeves: colorImages[2] || colorImages[0],
+          }
+        }
+      } else {
+        // SS Activewear: colorImages are relative paths - prepend domain
+        const relativePath = colorImages[0] || cachedProduct.productThumbnail || ''
+        garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
+
+        if (colorImages.length >= 3) {
+          garmentUrls = {
+            Front: `https://www.ssactivewear.com/${colorImages[0]}`,
+            Sleeves: `https://www.ssactivewear.com/${colorImages[1]}`,
+            Back: `https://www.ssactivewear.com/${colorImages[2]}`
+          }
         }
       }
 
@@ -3463,11 +3523,17 @@ export default function DocumentDetail({
                           {/* Top row: Item #, Color, Description, Manage Sizes */}
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '12px' }}>
                             <div style={{ width: '180px' }}>
-                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Item # (Search SS)</div>
-                              <SSProductLookup
+                              <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Item #</div>
+                              <ProductLookup
                                 itemNumber={af.item_number || ''}
-                                onSelect={(product) => handleSSProductSelect(item.id, product)}
+                                supplier={lineItemSuppliers[item.id] || ((af as any).supplier as SupplierKey) || DEFAULT_SUPPLIER}
+                                onSelect={(product, supplier) => handleProductSelect(item.id, product, supplier)}
                                 onItemNumberChange={(value) => updateApparelField(item.id, 'item_number', value)}
+                                onSupplierChange={(newSupplier) => {
+                                  setLineItemSuppliers(prev => ({ ...prev, [item.id]: newSupplier }))
+                                  // Also persist supplier choice to custom_fields
+                                  updateApparelField(item.id, 'supplier', newSupplier)
+                                }}
                               />
                             </div>
                             <div style={{ width: '210px' }}>
