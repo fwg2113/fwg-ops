@@ -32,6 +32,9 @@ export interface SSColor {
   colorHex?: string
   colorSwatchUrl?: string
   colorImages?: string[]
+  frontImage?: string
+  backImage?: string
+  sideImage?: string
   sizes: SSSize[]
 }
 
@@ -335,6 +338,9 @@ export class SSActivewearClient {
             colorName: product.colorName,
             colorHex: product.color1,
             colorSwatchUrl: product.colorSwatchImage,
+            frontImage: product.colorFrontImage || undefined,
+            backImage: product.colorBackImage || undefined,
+            sideImage: product.colorSideImage || undefined,
             colorImages: [
               product.colorFrontImage,
               product.colorSideImage,
