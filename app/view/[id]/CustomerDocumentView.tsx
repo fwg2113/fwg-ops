@@ -140,8 +140,8 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     } catch { return [] }
   })()
 
-  // Parse options
-  const options: QuoteOption[] = (() => {
+  // Parse legacy options (flat options_json)
+  const legacyOptions: QuoteOption[] = (() => {
     try {
       if (Array.isArray(doc.options_json)) return doc.options_json
       if (typeof doc.options_json === 'string') return JSON.parse(doc.options_json)
@@ -149,7 +149,64 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     } catch { return [] }
   })()
 
-  const isOptionsMode = doc.options_mode && options.length > 0
+  // Build options from line item groups (new system: each group = one option)
+  const groupOptions: { groupId: string; category: string; items: LineItem[]; total: number; title: string; description: string; images: { url: string; name: string }[] }[] = (() => {
+    if (!doc.options_mode) return []
+    const groupOrder: string[] = []
+    const groupMap: Record<string, LineItem[]> = {}
+    lineItems.forEach(item => {
+      const gid = item.group_id || '_ungrouped'
+      if (!groupMap[gid]) {
+        groupMap[gid] = []
+        groupOrder.push(gid)
+      }
+      groupMap[gid].push(item)
+    })
+    return groupOrder.map((gid, idx) => {
+      const items = groupMap[gid]
+      const total = items.reduce((sum, i) => sum + (i.line_total || 0), 0)
+      const category = items[0]?.category || ''
+      const catLabel = category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+      // Collect images from all line item attachments in this group
+      const images = items.flatMap(item =>
+        (item.attachments || []).filter(att => {
+          const url = att.url || att.file_url || ''
+          const name = att.name || att.filename || att.file_name || ''
+          return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
+        }).map(att => ({
+          url: att.url || att.file_url || '',
+          name: att.name || att.filename || att.file_name || 'Design'
+        }))
+      )
+      return {
+        groupId: gid,
+        category,
+        items,
+        total,
+        title: `Option ${idx + 1} — ${catLabel}`,
+        description: items.map(i => i.description).filter(Boolean).join(', '),
+        images
+      }
+    })
+  })()
+
+  // Use group-based options if available, fall back to legacy options_json
+  const hasGroupOptions = groupOptions.length > 0
+  const isOptionsMode = doc.options_mode === true && (hasGroupOptions || legacyOptions.length > 0)
+
+  // Unified options array for handlers and lightbox (common shape)
+  const options: (QuoteOption & { _images?: { url: string; name: string }[]; _items?: LineItem[] })[] = hasGroupOptions
+    ? groupOptions.map(grp => ({
+        id: grp.groupId,
+        title: grp.title,
+        description: grp.description,
+        price_min: grp.total,
+        attachments: [],
+        sort_order: 0,
+        _images: grp.images,
+        _items: grp.items
+      }))
+    : legacyOptions
 
   // Parse send options to determine what attachments to show
   const sendOptions = (() => {
@@ -258,7 +315,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
   const handleOptLightboxNav = useCallback((dir: 'prev' | 'next') => {
     if (!optLightbox) return
-    const images = getOptionImages(options.find(o => o.id === optLightbox.optionId)!)
+    const opt = options.find(o => o.id === optLightbox.optionId)
+    if (!opt) return
+    const images = opt._images || getOptionImages(opt)
     if (!images.length) return
     const newIndex = dir === 'next'
       ? (optLightbox.index + 1) % images.length
@@ -818,7 +877,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         {/* ================================================================ */}
         {/* OPTIONS MODE VIEW */}
         {/* ================================================================ */}
-        {isOptionsMode && status !== 'option_selected' && (
+        {isOptionsMode && status !== 'option_selected' && status !== 'revision_requested' && (
           <div style={{
             background: '#ffffff',
             borderRadius: '16px',
@@ -834,17 +893,38 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {options.map((opt) => {
-                const images = getOptionImages(opt)
+              {/* Render group-based options (new system) or legacy flat options */}
+              {(hasGroupOptions ? groupOptions.map(grp => ({
+                id: grp.groupId,
+                title: grp.title,
+                description: grp.description,
+                price_min: grp.total,
+                price_max: undefined as number | undefined,
+                attachments: [] as Attachment[],
+                sort_order: 0,
+                _images: grp.images,
+                _items: grp.items
+              })) : legacyOptions).map((opt: any) => {
+                const images: { url: string; name: string }[] = opt._images || getOptionImages(opt)
                 const heroIdx = optionHeroIndexes[opt.id] || 0
                 const actionMode = optionActionMode[opt.id] || null
                 const sizeQtys = optionSizeQtys[opt.id] || {}
                 const revisionText = optionRevisionTexts[opt.id] || ''
                 const contactPref = optionContactPrefs[opt.id] || 'sms'
+                const groupItems: LineItem[] = opt._items || []
+                const isGroupOption = groupItems.length > 0
 
+                // For group-based options, derive sizes from line items
+                const groupApparelItems = groupItems.filter((i: LineItem) => i.custom_fields?.apparel_mode === true)
+                const hasApparelSizes = groupApparelItems.some((i: LineItem) => {
+                  const cf = i.custom_fields || {}
+                  return (cf.enabled_sizes || []).length > 0
+                })
+
+                // For legacy options, show generic size entry
                 const availableSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
                 const hasEnteredQtys = Object.values(sizeQtys).some(q => q > 0)
-                const totalQty = Object.values(sizeQtys).reduce((sum, q) => sum + (q || 0), 0)
+                const totalQty = Object.values(sizeQtys).reduce((sum: number, q: any) => sum + (q || 0), 0)
 
                 return (
                   <div
@@ -922,10 +1002,10 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
                     {/* Option Details + Actions */}
                     <div style={{ padding: '20px 24px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: isGroupOption ? '12px' : '16px' }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: '18px', fontWeight: 600, color: '#1a1a1a', marginBottom: '6px' }}>{opt.title}</div>
-                          {opt.description && (
+                          {opt.description && !isGroupOption && (
                             <div style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.5' }}>{opt.description}</div>
                           )}
                         </div>
@@ -936,6 +1016,64 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                           }
                         </div>
                       </div>
+
+                      {/* Group-based option: show line item details */}
+                      {isGroupOption && (
+                        <div style={{ marginBottom: '16px' }}>
+                          {groupItems.map((item: LineItem) => {
+                            const cf = item.custom_fields || {} as any
+                            const isApparelItem = cf.apparel_mode === true
+                            const enabledSizes = (cf.enabled_sizes || []) as string[]
+                            const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+
+                            return (
+                              <div key={item.id} style={{ padding: '12px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                  <div style={{
+                                    width: '8px', height: '8px', borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
+                                    marginTop: '6px', flexShrink: 0
+                                  }} />
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>
+                                      {item.description || 'Line Item'}
+                                      {cf.color && <span style={{ color: '#6b7280', fontWeight: 400 }}> — {cf.color}</span>}
+                                    </div>
+                                    {cf.item_number && (
+                                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>Item #{cf.item_number}</div>
+                                    )}
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
+                                    {item.quantity > 0 && <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} pcs</div>}
+                                  </div>
+                                </div>
+
+                                {/* Apparel size breakdown */}
+                                {isApparelItem && enabledSizes.length > 0 && (
+                                  <div style={{ marginTop: '10px', marginLeft: '18px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {enabledSizes.map(size => {
+                                      const s = sizes[size] || { qty: 0, price: 0 }
+                                      if (s.qty <= 0) return null
+                                      return (
+                                        <div key={size} style={{
+                                          display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                          padding: '8px 15px', background: '#f8f9fa', borderRadius: '8px',
+                                          border: '1px solid #e5e7eb', minWidth: '75px'
+                                        }}>
+                                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
+                                          <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{s.qty}</div>
+                                          <div style={{ fontSize: '14px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
 
                       {/* Action Buttons (default state) */}
                       {!actionMode && (
@@ -980,7 +1118,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                         </div>
                       )}
 
-                      {/* APPROVE FLOW: Size & Quantity Entry */}
+                      {/* APPROVE FLOW */}
                       {actionMode === 'approve' && (
                         <div style={{
                           marginTop: '4px', padding: '20px',
@@ -991,53 +1129,95 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
                               <polyline points="20 6 9 17 4 12"/>
                             </svg>
-                            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a' }}>Sizes & Quantities</span>
-                          </div>
-                          <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 16px 0' }}>
-                            Enter the quantity for each size you need. Leave sizes you don't need at 0.
-                          </p>
-
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
-                            {availableSizes.map(size => (
-                              <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', minWidth: '72px' }}>
-                                <label style={{
-                                  fontSize: '13px', fontWeight: 700,
-                                  color: (sizeQtys[size] || 0) > 0 ? '#be1e2d' : '#6b7280',
-                                  textTransform: 'uppercase', transition: 'color 0.15s ease'
-                                }}>{size}</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={sizeQtys[size] || ''}
-                                  placeholder="0"
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value) || 0
-                                    setOptionSizeQtys(prev => ({
-                                      ...prev,
-                                      [opt.id]: { ...(prev[opt.id] || {}), [size]: val }
-                                    }))
-                                  }}
-                                  style={{
-                                    width: '72px', padding: '10px 8px',
-                                    border: (sizeQtys[size] || 0) > 0 ? '2px solid #be1e2d' : '1px solid #e5e7eb',
-                                    borderRadius: '8px', fontSize: '16px', fontWeight: 600, textAlign: 'center',
-                                    background: (sizeQtys[size] || 0) > 0 ? 'rgba(190,30,45,0.03)' : '#ffffff',
-                                    outline: 'none', transition: 'all 0.15s ease', fontFamily: 'inherit'
-                                  }}
-                                />
-                              </div>
-                            ))}
+                            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a' }}>
+                              {isGroupOption && hasApparelSizes ? 'Confirm Your Order' : 'Sizes & Quantities'}
+                            </span>
                           </div>
 
-                          {hasEnteredQtys && (
-                            <div style={{
-                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              padding: '12px 16px', background: '#ffffff', borderRadius: '8px',
-                              border: '1px solid #e5e7eb', marginBottom: '16px'
-                            }}>
-                              <span style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>Total Pieces</span>
-                              <span style={{ fontSize: '18px', fontWeight: 700, color: '#be1e2d' }}>{totalQty}</span>
+                          {/* Group option with apparel sizes already set: confirmation view */}
+                          {isGroupOption && hasApparelSizes ? (
+                            <div style={{ marginBottom: '16px' }}>
+                              <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 12px 0' }}>
+                                Please confirm the sizes and quantities below are correct.
+                              </p>
+                              {groupApparelItems.map((item: LineItem) => {
+                                const cf = item.custom_fields || {} as any
+                                const enabledSizes = (cf.enabled_sizes || []) as string[]
+                                const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+                                const itemTotalQty = enabledSizes.reduce((sum, s) => sum + ((sizes[s]?.qty) || 0), 0)
+                                return (
+                                  <div key={item.id} style={{ marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a', marginBottom: '8px' }}>
+                                      {item.description}{cf.color ? ` — ${cf.color}` : ''} ({itemTotalQty} pcs)
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                      {enabledSizes.map(size => {
+                                        const s = sizes[size] || { qty: 0, price: 0 }
+                                        if (s.qty <= 0) return null
+                                        return (
+                                          <div key={size} style={{
+                                            display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                            padding: '8px 15px', background: '#ffffff', borderRadius: '8px',
+                                            border: '1px solid #e5e7eb', minWidth: '68px'
+                                          }}>
+                                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
+                                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '2px' }}>{s.qty}</div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
+                          ) : (
+                            /* Legacy option or non-apparel: size entry grid */
+                            <>
+                              <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 16px 0' }}>
+                                Enter the quantity for each size you need. Leave sizes you don't need at 0.
+                              </p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+                                {availableSizes.map(size => (
+                                  <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', minWidth: '72px' }}>
+                                    <label style={{
+                                      fontSize: '13px', fontWeight: 700,
+                                      color: (sizeQtys[size] || 0) > 0 ? '#be1e2d' : '#6b7280',
+                                      textTransform: 'uppercase', transition: 'color 0.15s ease'
+                                    }}>{size}</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={sizeQtys[size] || ''}
+                                      placeholder="0"
+                                      onChange={(e) => {
+                                        const val = parseInt(e.target.value) || 0
+                                        setOptionSizeQtys(prev => ({
+                                          ...prev,
+                                          [opt.id]: { ...(prev[opt.id] || {}), [size]: val }
+                                        }))
+                                      }}
+                                      style={{
+                                        width: '72px', padding: '10px 8px',
+                                        border: (sizeQtys[size] || 0) > 0 ? '2px solid #be1e2d' : '1px solid #e5e7eb',
+                                        borderRadius: '8px', fontSize: '16px', fontWeight: 600, textAlign: 'center',
+                                        background: (sizeQtys[size] || 0) > 0 ? 'rgba(190,30,45,0.03)' : '#ffffff',
+                                        outline: 'none', transition: 'all 0.15s ease', fontFamily: 'inherit'
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              {hasEnteredQtys && (
+                                <div style={{
+                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                  padding: '12px 16px', background: '#ffffff', borderRadius: '8px',
+                                  border: '1px solid #e5e7eb', marginBottom: '16px'
+                                }}>
+                                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>Total Pieces</span>
+                                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#be1e2d' }}>{totalQty}</span>
+                                </div>
+                              )}
+                            </>
                           )}
 
                           <div style={{ marginBottom: '16px' }}>
@@ -2428,7 +2608,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
       {optLightbox && (() => {
         const opt = options.find(o => o.id === optLightbox.optionId)
         if (!opt) return null
-        const images = getOptionImages(opt)
+        const images = opt._images || getOptionImages(opt)
         if (!images.length) return null
         const currentUrl = images[optLightbox.index]?.url
 

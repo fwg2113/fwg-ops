@@ -3181,26 +3181,18 @@ export default function DocumentDetail({
         </div>
       )}
 
-      {/* Options Builder (when in options mode) */}
+      {/* Options Builder (when in options mode) - uses same section modal */}
       {isQuote && optionsMode && (
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Options</h3>
+            <div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 4px 0' }}>Options</h3>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+                Each section below is an option the customer can approve or request changes on.
+              </p>
+            </div>
             <button
-              onClick={async () => {
-                const newOption: QuoteOption = {
-                  id: 'opt_' + Date.now(),
-                  title: `Option ${options.length + 1}`,
-                  description: '',
-                  price_min: 0,
-                  price_max: undefined,
-                  attachments: [],
-                  sort_order: options.length
-                }
-                const updated = [...options, newOption]
-                setOptions(updated)
-                await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
-              }}
+              onClick={() => setShowSectionModal(true)}
               style={{
                 padding: '8px 16px',
                 background: '#d71cd1',
@@ -3219,252 +3211,25 @@ export default function DocumentDetail({
               Add Option
             </button>
           </div>
-
-          {options.length === 0 ? (
+          {lineItemGroups.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b', border: '2px dashed rgba(148,163,184,0.2)', borderRadius: '12px' }}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }}>
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
               </svg>
               <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>No options yet</p>
-              <p style={{ margin: 0, fontSize: '12px' }}>Add options for your customer to choose from</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {options.map((opt, idx) => (
-                <div key={opt.id} style={{ background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
-                  {/* Option Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#161616', borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '14px' }}>
-                      {idx + 1}
-                    </div>
-                    <input
-                      type="text"
-                      value={opt.title}
-                      onChange={async (e) => {
-                        const updated = options.map(o => o.id === opt.id ? { ...o, title: e.target.value } : o)
-                        setOptions(updated)
-                      }}
-                      onBlur={async () => {
-                        await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
-                      }}
-                      placeholder="Option title"
-                      style={{ flex: 1, padding: '8px 12px', background: '#282a30', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '15px', fontWeight: 600 }}
-                    />
-                    {/* Sort buttons */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <button
-                        onClick={async () => {
-                          if (idx === 0) return
-                          const updated = [...options]
-                          const temp = updated[idx - 1]
-                          updated[idx - 1] = updated[idx]
-                          updated[idx] = temp
-                          updated.forEach((o, i) => o.sort_order = i)
-                          setOptions(updated)
-                          await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
-                        }}
-                        disabled={idx === 0}
-                        style={{ background: 'none', border: 'none', color: idx === 0 ? '#334155' : '#64748b', cursor: idx === 0 ? 'default' : 'pointer', padding: '2px', lineHeight: 1 }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="18 15 12 9 6 15"/></svg>
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (idx === options.length - 1) return
-                          const updated = [...options]
-                          const temp = updated[idx + 1]
-                          updated[idx + 1] = updated[idx]
-                          updated[idx] = temp
-                          updated.forEach((o, i) => o.sort_order = i)
-                          setOptions(updated)
-                          await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
-                        }}
-                        disabled={idx === options.length - 1}
-                        style={{ background: 'none', border: 'none', color: idx === options.length - 1 ? '#334155' : '#64748b', cursor: idx === options.length - 1 ? 'default' : 'pointer', padding: '2px', lineHeight: 1 }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-                      </button>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (!confirm('Delete this option?')) return
-                        const updated = options.filter(o => o.id !== opt.id)
-                        setOptions(updated)
-                        await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
-                      }}
-                      style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '8px' }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
-                  </div>
-
-                  {/* Option Body */}
-                  <div style={{ padding: '16px' }}>
-                    {/* Description */}
-                    <div style={{ marginBottom: '16px' }}>
-                      <label style={labelStyle}>Description</label>
-                      <textarea
-                        value={opt.description}
-                        onChange={(e) => {
-                          const updated = options.map(o => o.id === opt.id ? { ...o, description: e.target.value } : o)
-                          setOptions(updated)
-                        }}
-                        onBlur={async () => {
-                          await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
-                        }}
-                        placeholder="Describe what's included in this option..."
-                        rows={2}
-                        style={{ ...inputStyle, resize: 'vertical' }}
-                      />
-                    </div>
-
-                    {/* Pricing */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                      <div>
-                        <label style={labelStyle}>Price {opt.price_max ? '(Min)' : ''}</label>
-                        <div style={{ position: 'relative' }}>
-                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>$</span>
-                          <input
-                            type="number"
-                            value={opt.price_min || ''}
-                            onChange={(e) => {
-                              const updated = options.map(o => o.id === opt.id ? { ...o, price_min: parseFloat(e.target.value) || 0 } : o)
-                              setOptions(updated)
-                            }}
-                            onBlur={async () => {
-                              await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
-                            }}
-                            placeholder="0"
-                            style={{ ...inputStyle, paddingLeft: '28px' }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Price Max (optional - shows range)</label>
-                        <div style={{ position: 'relative' }}>
-                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>$</span>
-                          <input
-                            type="number"
-                            value={opt.price_max || ''}
-                            onChange={(e) => {
-                              const val = e.target.value ? parseFloat(e.target.value) : undefined
-                              const updated = options.map(o => o.id === opt.id ? { ...o, price_max: val } : o)
-                              setOptions(updated)
-                            }}
-                            onBlur={async () => {
-                              await supabase.from('documents').update({ options_json: options }).eq('id', doc.id)
-                            }}
-                            placeholder="Leave empty for fixed price"
-                            style={{ ...inputStyle, paddingLeft: '28px' }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Price Preview */}
-                    <div style={{ padding: '12px 16px', background: '#282a30', borderRadius: '8px', marginBottom: '16px' }}>
-                      <span style={{ color: '#64748b', fontSize: '12px' }}>Customer sees: </span>
-                      <span style={{ color: '#22c55e', fontSize: '18px', fontWeight: 700 }}>
-                        {opt.price_max 
-                          ? `$${(opt.price_min || 0).toLocaleString()} - $${opt.price_max.toLocaleString()}`
-                          : `$${(opt.price_min || 0).toLocaleString()}`
-                        }
-                      </span>
-                    </div>
-
-                    {/* Attachments */}
-                    <div>
-                      <label style={labelStyle}>Images</label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {(opt.attachments || []).map((att, attIdx) => {
-                          const url = att.url || att.file_url || ''
-                          const name = att.name || att.filename || att.file_name || 'File'
-                          return (
-                            <div key={attIdx} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(148,163,184,0.2)' }}>
-                              <img 
-                                src={url} 
-                                alt={name} 
-                                style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} 
-                                onClick={() => {
-                                  setOptionLightboxOptionId(opt.id)
-                                  setOptionLightboxIndex(attIdx)
-                                  setOptionLightboxZoom(1)
-                                  setOptionLightboxPan({ x: 0, y: 0 })
-                                }}
-                              />
-                              <button
-                                onClick={async () => {
-                                  const updatedAtts = (opt.attachments || []).filter((_, i) => i !== attIdx)
-                                  const updated = options.map(o => o.id === opt.id ? { ...o, attachments: updatedAtts } : o)
-                                  setOptions(updated)
-                                  await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
-                                }}
-                                style={{ position: 'absolute', top: '4px', right: '4px', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(239,68,68,0.9)', border: 'none', color: 'white', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              >×</button>
-                            </div>
-                          )
-                        })}
-                        <label style={{ width: '80px', height: '80px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '11px' }}>
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const files = e.target.files
-                              if (!files || files.length === 0) return
-                              
-                              const newAttachments: Attachment[] = [...(opt.attachments || [])]
-                              
-                              for (const file of Array.from(files)) {
-                                const formData = new FormData()
-                                formData.append('file', file)
-                                formData.append('documentId', doc.id)
-                                formData.append('prefix', 'doc-option')
-                                
-                                try {
-                                  const response = await fetch('/api/upload', { method: 'POST', body: formData })
-                                  const data = await response.json()
-                                  if (data.success) {
-                                    newAttachments.push({
-                                      url: data.url,
-                                      key: data.key,
-                                      filename: data.filename || file.name,
-                                      contentType: data.contentType || file.type,
-                                      size: data.size || file.size,
-                                      uploadedAt: new Date().toISOString()
-                                    })
-                                  }
-                                } catch (err) {
-                                  console.error('Upload error:', err)
-                                }
-                              }
-                              
-                              const updated = options.map(o => o.id === opt.id ? { ...o, attachments: newAttachments } : o)
-                              setOptions(updated)
-                              await supabase.from('documents').update({ options_json: updated }).eq('id', doc.id)
-                              e.target.value = ''
-                            }}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              <p style={{ margin: 0, fontSize: '12px' }}>Click "Add Option" to create sections the customer can choose from</p>
             </div>
           )}
         </div>
       )}
 
       {/* Line Items */}
-      <div style={{ ...cardStyle, display: optionsMode ? 'none' : 'block' }}>
-        <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>Line Items</h3>
+      <div style={{ ...cardStyle, display: (optionsMode && lineItemGroups.length === 0) ? 'none' : 'block' }}>
+        <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>{optionsMode ? 'Options' : 'Line Items'}</h3>
         
         {/* Line Item Groups */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {lineItemGroups.map(group => {
+          {lineItemGroups.map((group, groupIdx) => {
             const category = getCategoryByKey(group.category_key)
             const groupItems = lineItems.filter(i => i.group_id === group.group_id)
             const groupTotal = groupItems.reduce((sum, i) => sum + (i.line_total || 0), 0)
@@ -3478,8 +3243,13 @@ export default function DocumentDetail({
               <div key={group.group_id} style={{ border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', overflow: 'visible' }}>
                 {/* Group Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#1d1d1d', borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
+                  {optionsMode && (
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>
+                      {groupIdx + 1}
+                    </div>
+                  )}
                   <div style={{ width: '4px', height: '24px', borderRadius: '2px', background: category?.calendar_color || '#94a3b8' }} />
-                  <div style={{ flex: 1, fontWeight: 600, fontSize: '14px', color: '#f1f5f9' }}>{category?.label || group.category_key}</div>
+                  <div style={{ flex: 1, fontWeight: 600, fontSize: '14px', color: '#f1f5f9' }}>{optionsMode ? `Option ${groupIdx + 1} — ` : ''}{category?.label || group.category_key}</div>
                   <div style={{ fontSize: '12px', color: '#64748b', background: '#282a30', padding: '2px 8px', borderRadius: '10px' }}>{groupItems.length} item{groupItems.length !== 1 ? 's' : ''}</div>
                   <div style={{ fontWeight: 600, fontSize: '14px', color: '#22c55e' }}>${groupTotal.toFixed(2)}</div>
                   <button onClick={() => deleteGroup(group.group_id)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }} title="Delete section">
@@ -4042,11 +3812,11 @@ export default function DocumentDetail({
           })}
         </div>
 
-        {/* Add Section Button */}
+        {/* Add Section / Add Option Button */}
         <div style={{ marginTop: '16px' }}>
           <button onClick={() => setShowSectionModal(true)} style={{ width: '100%', padding: '16px', background: 'transparent', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '8px', color: '#64748b', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Section
+            {optionsMode ? 'Add Option' : 'Add Section'}
           </button>
         </div>
       </div>
@@ -4553,7 +4323,7 @@ export default function DocumentDetail({
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowSectionModal(false)}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Add Section</h2>
+              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>{optionsMode ? 'Add Option' : 'Add Section'}</h2>
               <button onClick={() => setShowSectionModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>x</button>
             </div>
             
