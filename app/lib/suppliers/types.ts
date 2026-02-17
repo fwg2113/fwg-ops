@@ -53,6 +53,9 @@ export interface SupplierColor {
   colorHex?: string
   colorSwatchUrl?: string
   colorImages?: string[]
+  frontImage?: string       // Primary front-facing product image
+  backImage?: string        // Back-facing product image
+  sideImage?: string        // Side/sleeve product image
   sizes: SupplierSize[]
 }
 

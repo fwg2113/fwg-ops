@@ -1867,34 +1867,24 @@ export default function DocumentDetail({
       const colorImages = selectedColor?.colorImages || []
 
       if (itemSupplier === 'sanmar') {
-        // SanMar: colorImages are full URLs (https://cdnm.sanmar.com/...)
-        garmentImageUrl = colorImages[0] || cachedProduct.productThumbnail || ''
+        // SanMar: use named image fields for reliable location mapping
+        garmentImageUrl = selectedColor?.frontImage || colorImages[0] || cachedProduct.productThumbnail || ''
 
-        if (colorImages.length >= 3) {
-          garmentUrls = {
-            Front: colorImages[0],   // colorProductImage / frontModel
-            Back: colorImages[1],     // backModel (index may vary based on normalizeProductData)
-            Sleeves: colorImages[2],  // sideModel
-          }
-        } else if (colorImages.length >= 1) {
-          // Even with just front image, set it
-          garmentUrls = {
-            Front: colorImages[0],
-            Back: colorImages[1] || colorImages[0],
-            Sleeves: colorImages[2] || colorImages[0],
-          }
+        garmentUrls = {
+          Front: selectedColor?.frontImage || colorImages[0] || '',
+          Back: selectedColor?.backImage || '',
+          Sleeves: selectedColor?.sideImage || '',
         }
       } else {
-        // SS Activewear: colorImages are relative paths - prepend domain
-        const relativePath = colorImages[0] || cachedProduct.productThumbnail || ''
-        garmentImageUrl = relativePath ? `https://www.ssactivewear.com/${relativePath}` : ''
+        // SS Activewear: use named image fields, prepend domain for relative paths
+        const ssBase = 'https://www.ssactivewear.com/'
+        const frontPath = selectedColor?.frontImage || colorImages[0] || cachedProduct.productThumbnail || ''
+        garmentImageUrl = frontPath ? `${ssBase}${frontPath}` : ''
 
-        if (colorImages.length >= 3) {
-          garmentUrls = {
-            Front: `https://www.ssactivewear.com/${colorImages[0]}`,
-            Sleeves: `https://www.ssactivewear.com/${colorImages[1]}`,
-            Back: `https://www.ssactivewear.com/${colorImages[2]}`
-          }
+        garmentUrls = {
+          Front: frontPath ? `${ssBase}${frontPath}` : '',
+          Back: selectedColor?.backImage ? `${ssBase}${selectedColor.backImage}` : '',
+          Sleeves: selectedColor?.sideImage ? `${ssBase}${selectedColor.sideImage}` : '',
         }
       }
 

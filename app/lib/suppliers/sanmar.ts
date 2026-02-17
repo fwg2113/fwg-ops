@@ -424,6 +424,9 @@ export class SanMarClient {
         catalogColor: colorData.catalogColor,
         colorHex: undefined,
         colorSwatchUrl: colorData.images.colorSquareImage || undefined,
+        frontImage: colorData.images.colorProductImage || colorData.images.frontModel || colorData.images.frontFlat || undefined,
+        backImage: colorData.images.backModel || colorData.images.backFlat || undefined,
+        sideImage: colorData.images.sideModel || undefined,
         colorImages: [
           colorData.images.colorProductImage,
           colorData.images.frontModel,
