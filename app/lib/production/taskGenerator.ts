@@ -44,6 +44,7 @@ type ProjectTemplate = {
 type TemplateTask = {
   task_key: string
   label: string
+  instructions: string | null
   default_priority: string
   sort_order: number
 }
@@ -160,7 +161,7 @@ async function generateTasksForLineItem(
     // Step 3: Get template tasks
     const { data: templateTasks, error: tasksError } = await supabase
       .from('template_tasks')
-      .select('task_key, label, default_priority, sort_order')
+      .select('task_key, label, instructions, default_priority, sort_order')
       .eq('template_key', templateKey)
       .eq('active', true)
       .order('sort_order', { ascending: true })
@@ -200,7 +201,8 @@ async function generateTasksForLineItem(
       line_item_id: lineItem.id,
       auto_generated: true,
       sort_order: templateTask.sort_order,
-      template_task_key: templateTask.task_key
+      template_task_key: templateTask.task_key,
+      notes: templateTask.instructions || null
     }))
 
     const { error: insertError } = await supabase

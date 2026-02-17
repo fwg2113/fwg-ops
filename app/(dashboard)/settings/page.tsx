@@ -39,6 +39,7 @@ export default async function SettingsPage() {
         id,
         task_key,
         label,
+        instructions,
         default_priority,
         sort_order,
         active
@@ -93,6 +94,7 @@ export default async function SettingsPage() {
         step_key,
         label,
         description,
+        instructions,
         default_priority,
         sort_order,
         auto_complete_on_status,
