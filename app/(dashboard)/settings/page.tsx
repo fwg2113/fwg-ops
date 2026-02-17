@@ -110,6 +110,13 @@ export default async function SettingsPage() {
     .eq('decoration_type', 'dtf')
     .single()
 
+  // Embroidery Pricing Matrix
+  const { data: embroideryPricing } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'embroidery')
+    .single()
+
   const calendarConnected = !!calendarSettings?.value
   const gmailConnected = !!gmailSettings?.value
 
@@ -130,6 +137,7 @@ export default async function SettingsPage() {
       initialPricingMatrix={pricingMatrix || []}
       initialCustomerWorkflows={customerWorkflows || []}
       initialDtfPricing={dtfPricing}
+      initialEmbroideryPricing={embroideryPricing}
     />
   )
 }
