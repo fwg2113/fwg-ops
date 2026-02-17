@@ -30,6 +30,7 @@ export type TemplateTask = {
   template_key: string
   task_key: string
   label: string
+  instructions: string | null
   default_priority: string
   sort_order: number
   active: boolean
@@ -37,7 +38,7 @@ export type TemplateTask = {
   updated_at: string
 }
 
-export type TemplateTaskInsert = Omit<TemplateTask, 'id' | 'created_at' | 'updated_at'>
+export type TemplateTaskInsert = Omit<TemplateTask, 'id' | 'instructions' | 'created_at' | 'updated_at'> & { instructions?: string | null }
 
 // ============================================================================
 // TEMPLATE WITH NESTED TASKS

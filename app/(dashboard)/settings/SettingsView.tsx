@@ -47,6 +47,7 @@ type TemplateTask = {
   id: string
   task_key: string
   label: string
+  instructions: string | null
   default_priority: string
   sort_order: number
   active: boolean
@@ -126,6 +127,7 @@ type CustomerWorkflowStep = {
   step_key: string
   label: string
   description: string | null
+  instructions: string | null
   default_priority: string
   sort_order: number
   auto_complete_on_status: string | null
@@ -229,7 +231,7 @@ export default function SettingsView({
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<{ templateId: string; task: TemplateTask } | null>(null)
   const [addingTask, setAddingTask] = useState<string | null>(null)
-  const [newTask, setNewTask] = useState({ task_key: '', label: '', default_priority: 'MEDIUM' })
+  const [newTask, setNewTask] = useState({ task_key: '', label: '', instructions: '', default_priority: 'MEDIUM' })
   const [editingStatus, setEditingStatus] = useState<TaskStatus | null>(null)
   const [editingPriority, setEditingPriority] = useState<TaskPriority | null>(null)
   const [addingStatus, setAddingStatus] = useState(false)
@@ -253,7 +255,7 @@ export default function SettingsView({
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null)
   const [editingWorkflowStep, setEditingWorkflowStep] = useState<{ templateId: string; templateKey: string; step: CustomerWorkflowStep } | null>(null)
   const [addingWorkflowStep, setAddingWorkflowStep] = useState<{ templateId: string; templateKey: string } | null>(null)
-  const [newWorkflowStep, setNewWorkflowStep] = useState({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' })
+  const [newWorkflowStep, setNewWorkflowStep] = useState({ step_key: '', label: '', description: '', instructions: '', default_priority: 'MEDIUM', auto_complete_on_status: '' })
   const [propagating, setPropagating] = useState<string | null>(null)
   const [propagateResult, setPropagateResult] = useState<{ templateKey: string; message: string } | null>(null)
   const [linkingTemplate, setLinkingTemplate] = useState<{ type: 'production' | 'customer'; templateKey: string } | null>(null)
@@ -824,6 +826,7 @@ export default function SettingsView({
         template_key: templateKey,
         task_key: newTask.task_key.trim().toUpperCase().replace(/\s+/g, '_'),
         label: newTask.label.trim(),
+        instructions: newTask.instructions.trim() || null,
         default_priority: newTask.default_priority,
         sort_order: maxSortOrder + 1,
         active: true
@@ -841,7 +844,7 @@ export default function SettingsView({
         ? { ...t, template_tasks: [...t.template_tasks, data] }
         : t
     ))
-    setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' })
+    setNewTask({ task_key: '', label: '', instructions: '', default_priority: 'MEDIUM' })
     setAddingTask(null)
   }
 
@@ -863,6 +866,7 @@ export default function SettingsView({
         step_key: newWorkflowStep.step_key.trim().toUpperCase().replace(/\s+/g, '_'),
         label: newWorkflowStep.label.trim(),
         description: newWorkflowStep.description.trim() || null,
+        instructions: newWorkflowStep.instructions.trim() || null,
         default_priority: newWorkflowStep.default_priority,
         sort_order: maxSort + 1,
         auto_complete_on_status: newWorkflowStep.auto_complete_on_status.trim() || null,
@@ -881,7 +885,7 @@ export default function SettingsView({
         ? { ...w, customer_workflow_steps: [...w.customer_workflow_steps, data] }
         : w
     ))
-    setNewWorkflowStep({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' })
+    setNewWorkflowStep({ step_key: '', label: '', description: '', instructions: '', default_priority: 'MEDIUM', auto_complete_on_status: '' })
     setAddingWorkflowStep(null)
   }
 
@@ -1587,6 +1591,29 @@ export default function SettingsView({
                     />
                   </div>
                   <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Instructions</label>
+                    <textarea
+                      value={editingTask.task.instructions || ''}
+                      onChange={(e) => setEditingTask({
+                        ...editingTask,
+                        task: { ...editingTask.task, instructions: e.target.value || null }
+                      })}
+                      placeholder="Any specific instructions for this task..."
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px',
+                        resize: 'vertical',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
                     <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority</label>
                     <select
                       value={editingTask.task.default_priority}
@@ -1615,6 +1642,7 @@ export default function SettingsView({
                   <button
                     onClick={() => updateTemplateTask(editingTask.task.id, {
                       label: editingTask.task.label,
+                      instructions: editingTask.task.instructions,
                       default_priority: editingTask.task.default_priority
                     })}
                     style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
@@ -1648,7 +1676,7 @@ export default function SettingsView({
               }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add New Task</h3>
-                  <button onClick={() => { setAddingTask(null); setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
+                  <button onClick={() => { setAddingTask(null); setNewTask({ task_key: '', label: '', instructions: '', default_priority: 'MEDIUM' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>×</button>
                 </div>
                 <div style={{ padding: '20px' }}>
                   <div style={{ marginBottom: '16px' }}>
@@ -1692,6 +1720,26 @@ export default function SettingsView({
                     />
                   </div>
                   <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Instructions</label>
+                    <textarea
+                      value={newTask.instructions}
+                      onChange={(e) => setNewTask({ ...newTask, instructions: e.target.value })}
+                      placeholder="Any specific instructions for this task..."
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '14px',
+                        resize: 'vertical',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
                     <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority</label>
                     <select
                       value={newTask.default_priority}
@@ -1713,7 +1761,7 @@ export default function SettingsView({
                   </div>
                 </div>
                 <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                  <button onClick={() => { setAddingTask(null); setNewTask({ task_key: '', label: '', default_priority: 'MEDIUM' }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button onClick={() => { setAddingTask(null); setNewTask({ task_key: '', label: '', instructions: '', default_priority: 'MEDIUM' }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
                   <button
                     onClick={() => {
                       const template = templates.find(t => t.id === addingTask)
@@ -1997,6 +2045,15 @@ export default function SettingsView({
                     />
                   </div>
                   <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Instructions</label>
+                    <textarea value={editingWorkflowStep.step.instructions || ''}
+                      onChange={e => setEditingWorkflowStep({ ...editingWorkflowStep, step: { ...editingWorkflowStep.step, instructions: e.target.value || null } })}
+                      placeholder="Any specific instructions for this step..."
+                      rows={3}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
                     <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Priority</label>
                     <select value={editingWorkflowStep.step.default_priority}
                       onChange={e => setEditingWorkflowStep({ ...editingWorkflowStep, step: { ...editingWorkflowStep.step, default_priority: e.target.value } })}
@@ -2039,6 +2096,7 @@ export default function SettingsView({
                     onClick={() => updateWorkflowStep(editingWorkflowStep.step.id, editingWorkflowStep.templateId, {
                       label: editingWorkflowStep.step.label,
                       description: editingWorkflowStep.step.description,
+                      instructions: editingWorkflowStep.step.instructions,
                       default_priority: editingWorkflowStep.step.default_priority,
                       auto_complete_on_status: editingWorkflowStep.step.auto_complete_on_status,
                       sort_order: editingWorkflowStep.step.sort_order
@@ -2058,7 +2116,7 @@ export default function SettingsView({
               <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Workflow Step</h3>
-                  <button onClick={() => { setAddingWorkflowStep(null); setNewWorkflowStep({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+                  <button onClick={() => { setAddingWorkflowStep(null); setNewWorkflowStep({ step_key: '', label: '', description: '', instructions: '', default_priority: 'MEDIUM', auto_complete_on_status: '' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
                 </div>
                 <div style={{ padding: '20px' }}>
                   <div style={{ marginBottom: '16px' }}>
@@ -2084,6 +2142,15 @@ export default function SettingsView({
                       onChange={e => setNewWorkflowStep({ ...newWorkflowStep, description: e.target.value })}
                       placeholder="Optional description"
                       style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>Instructions</label>
+                    <textarea value={newWorkflowStep.instructions}
+                      onChange={e => setNewWorkflowStep({ ...newWorkflowStep, instructions: e.target.value })}
+                      placeholder="Any specific instructions for this step..."
+                      rows={3}
+                      style={{ width: '100%', padding: '10px 14px', background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit' }}
                     />
                   </div>
                   <div style={{ marginBottom: '16px' }}>
@@ -2114,7 +2181,7 @@ export default function SettingsView({
                   </div>
                 </div>
                 <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                  <button onClick={() => { setAddingWorkflowStep(null); setNewWorkflowStep({ step_key: '', label: '', description: '', default_priority: 'MEDIUM', auto_complete_on_status: '' }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                  <button onClick={() => { setAddingWorkflowStep(null); setNewWorkflowStep({ step_key: '', label: '', description: '', instructions: '', default_priority: 'MEDIUM', auto_complete_on_status: '' }) }} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
                   <button
                     onClick={() => addWorkflowStep(addingWorkflowStep.templateId, addingWorkflowStep.templateKey)}
                     style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
