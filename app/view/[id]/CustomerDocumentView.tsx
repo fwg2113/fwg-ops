@@ -79,7 +79,6 @@ function getOptionImages(opt: QuoteOption): { url: string; name: string }[] {
 // MAIN COMPONENT
 // ============================================================================
 export default function CustomerDocumentView({ document: doc, lineItems, payments = [] }: Props) {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [approving, setApproving] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [lightboxZoom, setLightboxZoom] = useState(1)
@@ -90,8 +89,15 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [status, setStatus] = useState(doc.status)
   const [submittingOption, setSubmittingOption] = useState(false)
-  const [optionRevisionText, setOptionRevisionText] = useState('')
-  const [optionContactPref, setOptionContactPref] = useState<'sms' | 'email'>('sms')
+
+  // Per-option action state: which option is in approve or request-changes mode
+  const [optionActionMode, setOptionActionMode] = useState<Record<string, 'approve' | 'request_changes' | null>>({})
+  // Per-option size/qty entries: { optionId: { S: 5, M: 10, ... } }
+  const [optionSizeQtys, setOptionSizeQtys] = useState<Record<string, Record<string, number>>>({})
+  // Per-option revision text
+  const [optionRevisionTexts, setOptionRevisionTexts] = useState<Record<string, string>>({})
+  // Per-option contact preference
+  const [optionContactPrefs, setOptionContactPrefs] = useState<Record<string, 'sms' | 'email'>>({})
 
   // Option hero image indexes (per option)
   const [optionHeroIndexes, setOptionHeroIndexes] = useState<Record<string, number>>({})
@@ -404,10 +410,46 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     setApproving(false)
   }
 
-  const handleSubmitOption = async () => {
-    if (!selectedOption) return
-    const opt = options.find(o => o.id === selectedOption)
+  const handleOptionApprove = async (optionId: string) => {
+    const opt = options.find(o => o.id === optionId)
     if (!opt) return
+
+    setSubmittingOption(true)
+    try {
+      const sizeQtys = optionSizeQtys[optionId] || {}
+      const hasQuantities = Object.values(sizeQtys).some(q => q > 0)
+
+      const res = await fetch('/api/documents/option-selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: doc.id,
+          optionId,
+          optionTitle: opt.title,
+          customerName: doc.customer_name,
+          contactPreference: optionContactPrefs[optionId] || 'sms',
+          sizeQuantities: hasQuantities ? sizeQtys : null,
+          action: 'approve'
+        })
+      })
+
+      if (res.ok) {
+        setStatus('option_selected')
+      } else {
+        alert('Failed to submit approval. Please try again.')
+      }
+    } catch (err) {
+      console.error('Option approval error:', err)
+      alert('Error submitting approval. Please try again.')
+    }
+    setSubmittingOption(false)
+  }
+
+  const handleOptionRequestChanges = async (optionId: string) => {
+    const opt = options.find(o => o.id === optionId)
+    if (!opt) return
+    const revisionText = optionRevisionTexts[optionId]?.trim()
+    if (!revisionText) return
 
     setSubmittingOption(true)
     try {
@@ -416,22 +458,23 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId: doc.id,
-          optionId: selectedOption,
+          optionId,
           optionTitle: opt.title,
-          question: optionRevisionText.trim() || null,
+          question: revisionText,
           customerName: doc.customer_name,
-          contactPreference: optionContactPref
+          contactPreference: optionContactPrefs[optionId] || 'sms',
+          action: 'request_changes'
         })
       })
 
       if (res.ok) {
         setStatus('option_selected')
       } else {
-        alert('Failed to submit selection. Please try again.')
+        alert('Failed to submit request. Please try again.')
       }
     } catch (err) {
-      console.error('Option selection error:', err)
-      alert('Error submitting selection. Please try again.')
+      console.error('Option revision error:', err)
+      alert('Error submitting request. Please try again.')
     }
     setSubmittingOption(false)
   }
@@ -776,294 +819,368 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         {/* OPTIONS MODE VIEW */}
         {/* ================================================================ */}
         {isOptionsMode && status !== 'option_selected' && (
-          <>
-            {/* Options Selection */}
-            <div style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              padding: '28px 32px',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-              marginBottom: '24px'
-            }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 6px 0' }}>
-                Choose Your Option
-              </h2>
-              <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 24px 0' }}>
-                Review the options below and select the one that works best for you.
-              </p>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            padding: '28px 32px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+            marginBottom: '24px'
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 6px 0' }}>
+              Your Options
+            </h2>
+            <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 24px 0' }}>
+              Review each option below. Approve the one that works best, or request changes.
+            </p>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {options.map((opt) => {
-                  const images = getOptionImages(opt)
-                  const heroIdx = optionHeroIndexes[opt.id] || 0
-                  const isSelected = selectedOption === opt.id
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {options.map((opt) => {
+                const images = getOptionImages(opt)
+                const heroIdx = optionHeroIndexes[opt.id] || 0
+                const actionMode = optionActionMode[opt.id] || null
+                const sizeQtys = optionSizeQtys[opt.id] || {}
+                const revisionText = optionRevisionTexts[opt.id] || ''
+                const contactPref = optionContactPrefs[opt.id] || 'sms'
 
-                  return (
-                    <div
-                      key={opt.id}
-                      onClick={() => setSelectedOption(opt.id)}
-                      style={{
-                        borderRadius: '14px',
-                        border: isSelected ? '3px solid #be1e2d' : '2px solid #e5e7eb',
-                        background: isSelected ? 'rgba(190,30,45,0.02)' : '#ffffff',
-                        overflow: 'hidden',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        boxShadow: isSelected ? '0 4px 20px rgba(190,30,45,0.12)' : '0 2px 8px rgba(0,0,0,0.04)'
-                      }}
-                    >
-                      {/* Image Gallery */}
-                      {images.length > 0 && (
-                        <div style={{ position: 'relative', background: '#f1f5f9' }}>
-                          {/* Hero Image */}
-                          <div 
-                            style={{ 
-                              width: '100%', 
-                              paddingBottom: '56.25%', 
-                              position: 'relative',
-                              cursor: 'pointer'
+                const availableSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+                const hasEnteredQtys = Object.values(sizeQtys).some(q => q > 0)
+                const totalQty = Object.values(sizeQtys).reduce((sum, q) => sum + (q || 0), 0)
+
+                return (
+                  <div
+                    key={opt.id}
+                    style={{
+                      borderRadius: '14px',
+                      border: actionMode === 'approve' ? '3px solid #22c55e' : actionMode === 'request_changes' ? '3px solid #f59e0b' : '2px solid #e5e7eb',
+                      background: '#ffffff',
+                      overflow: 'hidden',
+                      transition: 'all 0.2s ease',
+                      boxShadow: actionMode ? '0 4px 20px rgba(0,0,0,0.08)' : '0 2px 8px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    {/* Image Gallery */}
+                    {images.length > 0 && (
+                      <div style={{ position: 'relative', background: '#f1f5f9' }}>
+                        <div
+                          style={{
+                            width: '100%',
+                            paddingBottom: '56.25%',
+                            position: 'relative',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => setOptLightbox({ optionId: opt.id, index: heroIdx })}
+                        >
+                          <img
+                            src={images[heroIdx]?.url}
+                            alt={images[heroIdx]?.name || opt.title}
+                            style={{
+                              position: 'absolute', top: 0, left: 0,
+                              width: '100%', height: '100%', objectFit: 'cover'
                             }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setOptLightbox({ optionId: opt.id, index: heroIdx })
-                            }}
-                          >
-                            <img
-                              src={images[heroIdx]?.url}
-                              alt={images[heroIdx]?.name || opt.title}
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover'
-                              }}
-                            />
-                            {/* Click to enlarge hint */}
-                            <div style={{
-                              position: 'absolute',
-                              bottom: '12px',
-                              right: '12px',
-                              background: 'rgba(0,0,0,0.6)',
-                              color: 'white',
-                              padding: '6px 12px',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              pointerEvents: 'none'
-                            }}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                              </svg>
-                              Click to enlarge
-                            </div>
-                            {/* Image count badge */}
-                            {images.length > 1 && (
-                              <div style={{
-                                position: 'absolute',
-                                top: '12px',
-                                right: '12px',
-                                background: 'rgba(0,0,0,0.6)',
-                                color: 'white',
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                fontSize: '12px',
-                                fontWeight: 500
-                              }}>
-                                {heroIdx + 1} / {images.length}
-                              </div>
-                            )}
+                          />
+                          <div style={{
+                            position: 'absolute', bottom: '12px', right: '12px',
+                            background: 'rgba(0,0,0,0.6)', color: 'white',
+                            padding: '6px 12px', borderRadius: '6px', fontSize: '12px',
+                            display: 'flex', alignItems: 'center', gap: '6px', pointerEvents: 'none'
+                          }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                            </svg>
+                            Click to enlarge
                           </div>
-
-                          {/* Thumbnail Strip */}
                           {images.length > 1 && (
-                            <div style={{ 
-                              display: 'flex', 
-                              gap: '6px', 
-                              padding: '10px 16px',
-                              overflowX: 'auto',
-                              background: '#ffffff'
+                            <div style={{
+                              position: 'absolute', top: '12px', right: '12px',
+                              background: 'rgba(0,0,0,0.6)', color: 'white',
+                              padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 500
                             }}>
-                              {images.map((img, idx) => (
-                                <div
-                                  key={idx}
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setOptionHeroIndexes(prev => ({ ...prev, [opt.id]: idx }))
-                                  }}
-                                  style={{
-                                    width: '64px',
-                                    height: '48px',
-                                    borderRadius: '6px',
-                                    overflow: 'hidden',
-                                    flexShrink: 0,
-                                    cursor: 'pointer',
-                                    border: heroIdx === idx ? '2px solid #be1e2d' : '2px solid transparent',
-                                    opacity: heroIdx === idx ? 1 : 0.6,
-                                    transition: 'all 0.15s ease'
-                                  }}
-                                >
-                                  <img
-                                    src={img.url}
-                                    alt=""
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  />
-                                </div>
-                              ))}
+                              {heroIdx + 1} / {images.length}
                             </div>
                           )}
                         </div>
-                      )}
-
-                      {/* Option Details */}
-                      <div style={{ padding: '20px 24px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
-                              {/* Selection indicator */}
-                              <div style={{
-                                width: '22px',
-                                height: '22px',
-                                borderRadius: '50%',
-                                border: isSelected ? 'none' : '2px solid #d1d5db',
-                                background: isSelected ? 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)' : 'transparent',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                                transition: 'all 0.2s ease'
-                              }}>
-                                {isSelected && (
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                  </svg>
-                                )}
+                        {images.length > 1 && (
+                          <div style={{ display: 'flex', gap: '6px', padding: '10px 16px', overflowX: 'auto', background: '#ffffff' }}>
+                            {images.map((img, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => setOptionHeroIndexes(prev => ({ ...prev, [opt.id]: idx }))}
+                                style={{
+                                  width: '64px', height: '48px', borderRadius: '6px',
+                                  overflow: 'hidden', flexShrink: 0, cursor: 'pointer',
+                                  border: heroIdx === idx ? '2px solid #be1e2d' : '2px solid transparent',
+                                  opacity: heroIdx === idx ? 1 : 0.6, transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               </div>
-                              <div style={{ fontSize: '18px', fontWeight: 600, color: '#1a1a1a' }}>{opt.title}</div>
-                            </div>
-                            {opt.description && (
-                              <div style={{ fontSize: '14px', color: '#6b7280', marginLeft: '34px', lineHeight: '1.5' }}>{opt.description}</div>
-                            )}
+                            ))}
                           </div>
-                          <div style={{ 
-                            fontSize: '22px', 
-                            fontWeight: 700, 
-                            color: '#be1e2d',
-                            whiteSpace: 'nowrap',
-                            paddingTop: '2px'
-                          }}>
-                            {opt.price_max 
-                              ? `${formatCurrency(opt.price_min)} - ${formatCurrency(opt.price_max)}`
-                              : formatCurrency(opt.price_min)
-                            }
-                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Option Details + Actions */}
+                    <div style={{ padding: '20px 24px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '18px', fontWeight: 600, color: '#1a1a1a', marginBottom: '6px' }}>{opt.title}</div>
+                          {opt.description && (
+                            <div style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.5' }}>{opt.description}</div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '22px', fontWeight: 700, color: '#be1e2d', whiteSpace: 'nowrap', paddingTop: '2px' }}>
+                          {opt.price_max
+                            ? `${formatCurrency(opt.price_min)} - ${formatCurrency(opt.price_max)}`
+                            : formatCurrency(opt.price_min)
+                          }
                         </div>
                       </div>
+
+                      {/* Action Buttons (default state) */}
+                      {!actionMode && (
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <button
+                            onClick={() => setOptionActionMode(prev => ({ ...prev, [opt.id]: 'approve' }))}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(34,197,94,0.25)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                            style={{
+                              flex: 1, padding: '14px 20px',
+                              background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                              border: 'none', borderRadius: '10px', color: 'white',
+                              fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                            }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => setOptionActionMode(prev => ({ ...prev, [opt.id]: 'request_changes' }))}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.color = '#d97706'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                            style={{
+                              flex: 1, padding: '14px 20px',
+                              background: '#ffffff', border: '2px solid #e5e7eb',
+                              borderRadius: '10px', color: '#6b7280',
+                              fontSize: '15px', fontWeight: 600, cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                            }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                            Request Changes
+                          </button>
+                        </div>
+                      )}
+
+                      {/* APPROVE FLOW: Size & Quantity Entry */}
+                      {actionMode === 'approve' && (
+                        <div style={{
+                          marginTop: '4px', padding: '20px',
+                          background: 'rgba(34,197,94,0.04)', borderRadius: '12px',
+                          border: '1px solid rgba(34,197,94,0.15)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a' }}>Sizes & Quantities</span>
+                          </div>
+                          <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 16px 0' }}>
+                            Enter the quantity for each size you need. Leave sizes you don't need at 0.
+                          </p>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+                            {availableSizes.map(size => (
+                              <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', minWidth: '72px' }}>
+                                <label style={{
+                                  fontSize: '13px', fontWeight: 700,
+                                  color: (sizeQtys[size] || 0) > 0 ? '#be1e2d' : '#6b7280',
+                                  textTransform: 'uppercase', transition: 'color 0.15s ease'
+                                }}>{size}</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={sizeQtys[size] || ''}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0
+                                    setOptionSizeQtys(prev => ({
+                                      ...prev,
+                                      [opt.id]: { ...(prev[opt.id] || {}), [size]: val }
+                                    }))
+                                  }}
+                                  style={{
+                                    width: '72px', padding: '10px 8px',
+                                    border: (sizeQtys[size] || 0) > 0 ? '2px solid #be1e2d' : '1px solid #e5e7eb',
+                                    borderRadius: '8px', fontSize: '16px', fontWeight: 600, textAlign: 'center',
+                                    background: (sizeQtys[size] || 0) > 0 ? 'rgba(190,30,45,0.03)' : '#ffffff',
+                                    outline: 'none', transition: 'all 0.15s ease', fontFamily: 'inherit'
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+
+                          {hasEnteredQtys && (
+                            <div style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '12px 16px', background: '#ffffff', borderRadius: '8px',
+                              border: '1px solid #e5e7eb', marginBottom: '16px'
+                            }}>
+                              <span style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>Total Pieces</span>
+                              <span style={{ fontSize: '18px', fontWeight: 700, color: '#be1e2d' }}>{totalQty}</span>
+                            </div>
+                          )}
+
+                          <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#1a1a1a', marginBottom: '8px' }}>Preferred contact method</label>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              {(['sms', 'email'] as const).map(pref => (
+                                <label key={pref} style={{
+                                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  gap: '6px', padding: '10px', borderRadius: '8px',
+                                  border: contactPref === pref ? '2px solid #be1e2d' : '1px solid #e5e7eb',
+                                  background: contactPref === pref ? 'rgba(190,30,45,0.05)' : '#ffffff',
+                                  cursor: 'pointer', transition: 'all 0.15s ease'
+                                }}>
+                                  <input type="radio" name={`contactPref_${opt.id}`} value={pref}
+                                    checked={contactPref === pref}
+                                    onChange={() => setOptionContactPrefs(prev => ({ ...prev, [opt.id]: pref }))}
+                                    style={{ display: 'none' }}
+                                  />
+                                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>
+                                    {pref === 'sms' ? 'Text / SMS' : 'Email'}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                              onClick={() => setOptionActionMode(prev => ({ ...prev, [opt.id]: null }))}
+                              style={{
+                                padding: '12px 20px', background: '#ffffff', border: '1px solid #e5e7eb',
+                                borderRadius: '8px', color: '#6b7280', fontSize: '14px', fontWeight: 500,
+                                cursor: 'pointer', transition: 'all 0.15s ease'
+                              }}
+                            >Back</button>
+                            <button
+                              onClick={() => handleOptionApprove(opt.id)}
+                              disabled={submittingOption}
+                              onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(34,197,94,0.3)'; }}}
+                              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                              style={{
+                                flex: 1, padding: '12px 20px',
+                                background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                                border: 'none', borderRadius: '8px', color: 'white',
+                                fontSize: '15px', fontWeight: 600,
+                                cursor: submittingOption ? 'not-allowed' : 'pointer',
+                                opacity: submittingOption ? 0.6 : 1, transition: 'all 0.2s ease',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                              }}
+                            >
+                              {submittingOption ? 'Submitting...' : hasEnteredQtys ? `Confirm & Approve (${totalQty} pcs)` : 'Approve Option'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* REQUEST CHANGES FLOW */}
+                      {actionMode === 'request_changes' && (
+                        <div style={{
+                          marginTop: '4px', padding: '20px',
+                          background: 'rgba(245,158,11,0.04)', borderRadius: '12px',
+                          border: '1px solid rgba(245,158,11,0.15)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a' }}>What changes would you like?</span>
+                          </div>
+
+                          <textarea
+                            value={revisionText}
+                            onChange={(e) => setOptionRevisionTexts(prev => ({ ...prev, [opt.id]: e.target.value }))}
+                            placeholder="e.g. Could we change the color from blue to black? Or adjust the logo placement..."
+                            rows={3}
+                            style={{
+                              width: '100%', padding: '12px 14px', border: '1px solid #e5e7eb',
+                              borderRadius: '8px', fontSize: '14px', resize: 'vertical',
+                              boxSizing: 'border-box', marginBottom: '16px', fontFamily: 'inherit', outline: 'none'
+                            }}
+                          />
+
+                          <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#1a1a1a', marginBottom: '8px' }}>Preferred contact method</label>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              {(['sms', 'email'] as const).map(pref => (
+                                <label key={pref} style={{
+                                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  gap: '6px', padding: '10px', borderRadius: '8px',
+                                  border: contactPref === pref ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                                  background: contactPref === pref ? 'rgba(245,158,11,0.05)' : '#ffffff',
+                                  cursor: 'pointer', transition: 'all 0.15s ease'
+                                }}>
+                                  <input type="radio" name={`changeContactPref_${opt.id}`} value={pref}
+                                    checked={contactPref === pref}
+                                    onChange={() => setOptionContactPrefs(prev => ({ ...prev, [opt.id]: pref }))}
+                                    style={{ display: 'none' }}
+                                  />
+                                  <span style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>
+                                    {pref === 'sms' ? 'Text / SMS' : 'Email'}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                              onClick={() => setOptionActionMode(prev => ({ ...prev, [opt.id]: null }))}
+                              style={{
+                                padding: '12px 20px', background: '#ffffff', border: '1px solid #e5e7eb',
+                                borderRadius: '8px', color: '#6b7280', fontSize: '14px', fontWeight: 500,
+                                cursor: 'pointer', transition: 'all 0.15s ease'
+                              }}
+                            >Back</button>
+                            <button
+                              onClick={() => handleOptionRequestChanges(opt.id)}
+                              disabled={submittingOption || !revisionText.trim()}
+                              onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(245,158,11,0.25)'; }}}
+                              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                              style={{
+                                flex: 1, padding: '12px 20px',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                border: 'none', borderRadius: '8px', color: 'white',
+                                fontSize: '15px', fontWeight: 600,
+                                cursor: (submittingOption || !revisionText.trim()) ? 'not-allowed' : 'pointer',
+                                opacity: (submittingOption || !revisionText.trim()) ? 0.6 : 1,
+                                transition: 'all 0.2s ease',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                              }}
+                            >
+                              {submittingOption ? 'Submitting...' : 'Submit Change Request'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Selection Submit Section */}
-            {selectedOption && (
-              <div style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                padding: '28px 32px',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-                marginBottom: '24px'
-              }}>
-                <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 6px 0' }}>
-                  Anything You'd Like to Change?
-                </h2>
-                <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 20px 0' }}>
-                  Optional - describe any revisions you'd like made to your selected option.
-                </p>
-
-                <textarea
-                  value={optionRevisionText}
-                  onChange={(e) => setOptionRevisionText(e.target.value)}
-                  placeholder="e.g. Could we change the color from blue to black? Or adjust the logo placement..."
-                  rows={3}
-                  style={{
-                    width: '100%',
-                    padding: '14px 16px',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '10px',
-                    fontSize: '14px',
-                    resize: 'vertical',
-                    boxSizing: 'border-box',
-                    marginBottom: '20px',
-                    fontFamily: 'inherit'
-                  }}
-                />
-
-                <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#1a1a1a', marginBottom: '10px' }}>
-                    Preferred way to discuss any further revisions
-                  </label>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    {(['sms', 'email'] as const).map(pref => (
-                      <label
-                        key={pref}
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '8px',
-                          padding: '12px',
-                          borderRadius: '10px',
-                          border: optionContactPref === pref ? '2px solid #be1e2d' : '1px solid #e5e7eb',
-                          background: optionContactPref === pref ? 'rgba(190,30,45,0.05)' : '#ffffff',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="optionContactPref"
-                          value={pref}
-                          checked={optionContactPref === pref}
-                          onChange={() => setOptionContactPref(pref)}
-                          style={{ display: 'none' }}
-                        />
-                        <span style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>
-                          {pref === 'sms' ? 'Text / SMS' : 'Email'}
-                        </span>
-                      </label>
-                    ))}
                   </div>
-                </div>
-
-                <button
-                  onClick={handleSubmitOption}
-                  disabled={submittingOption}
-                  onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(190,30,45,0.3)'; }}}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-                  style={{
-                    width: '100%',
-                    padding: '16px 24px',
-                    background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
-                    border: 'none',
-                    borderRadius: '12px',
-                    color: 'white',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    cursor: submittingOption ? 'not-allowed' : 'pointer',
-                    opacity: submittingOption ? 0.6 : 1,
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {submittingOption ? 'Submitting...' : `Submit Selection - ${options.find(o => o.id === selectedOption)?.title}`}
-                </button>
-              </div>
-            )}
-          </>
+                )
+              })}
+            </div>
+          </div>
         )}
 
         {/* ================================================================ */}
