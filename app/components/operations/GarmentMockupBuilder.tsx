@@ -206,7 +206,6 @@ export default function GarmentMockupBuilder({
       document.body.removeChild(container)
     }
 
-    console.log('SVG Colors detected:', Array.from(colors))
     return Array.from(colors)
   }
 
@@ -454,10 +453,7 @@ export default function GarmentMockupBuilder({
 
         if (isSvgFile) {
           // Parse SVG and extract colors
-          console.log('Processing SVG file, content length:', content.length)
-          console.log('SVG content preview:', content.substring(0, 500))
           const colors = extractSvgColors(content)
-          console.log('Extracted colors:', colors)
           const initialColorMap: { [key: string]: string } = {}
           colors.forEach(color => {
             initialColorMap[color] = color // Initially map to same color
@@ -971,10 +967,6 @@ export default function GarmentMockupBuilder({
 
   // Generate mockup images for all locations with designs and save
   const handleSaveMockup = async () => {
-    console.log('🎨 handleSaveMockup called')
-    console.log('📊 Current logos:', logos.length, logos)
-    console.log('📝 Current textElements:', textElements.length, textElements)
-
     const mockups: MockupImage[] = []
 
     // Generate a mockup for each location that has designs
@@ -982,29 +974,21 @@ export default function GarmentMockupBuilder({
       const locationLogos = logos.filter(l => l.location === location)
       const locationTexts = textElements.filter(t => t.location === location)
 
-      console.log(`📍 ${location}: ${locationLogos.length} logos, ${locationTexts.length} texts`)
-
       // Only generate mockup if this location has designs
       if (locationLogos.length > 0 || locationTexts.length > 0) {
         try {
-          console.log(`🖼️ Generating mockup for ${location}...`)
           const dataUrl = await generateMockupForLocation(location)
-          console.log(`✅ Mockup generated for ${location}, dataUrl length:`, dataUrl.length)
           mockups.push({ location, dataUrl })
         } catch (error) {
-          console.error(`❌ Error generating mockup for ${location}:`, error)
+          console.error(`Error generating mockup for ${location}:`, error)
         }
       }
     }
 
-    console.log('📦 Total mockups generated:', mockups.length)
-
     if (mockups.length === 0) {
-      console.warn('⚠️ No mockups generated - no designs found')
       return
     }
 
-    console.log('💾 Calling onSave with mockups...')
     onSave(mockups, logos, textElements)
   }
 
