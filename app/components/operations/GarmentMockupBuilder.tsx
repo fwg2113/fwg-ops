@@ -738,21 +738,29 @@ export default function GarmentMockupBuilder({
     return garmentImageUrl
   }
 
+  // Load an image as a blob URL via proxy to avoid CORS canvas tainting
+  const loadImageForCanvas = async (url: string): Promise<HTMLImageElement> => {
+    const img = new Image()
+    // Check if URL is external (supplier CDN) - proxy it to avoid CORS
+    const isExternal = url.startsWith('http') && !url.startsWith(window.location.origin)
+    const src = isExternal ? `/api/proxy-image?url=${encodeURIComponent(url)}` : url
+
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = reject
+      img.src = src
+    })
+    return img
+  }
+
   // Generate mockup image for a specific location
   const generateMockupForLocation = async (location: Location): Promise<string> => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Canvas context not available')
 
-    // Load garment image for this location
-    const garmentImg = new Image()
-    garmentImg.crossOrigin = 'anonymous'
-
-    await new Promise((resolve, reject) => {
-      garmentImg.onload = resolve
-      garmentImg.onerror = reject
-      garmentImg.src = getGarmentImageForLocation(location)
-    })
+    // Load garment image for this location via proxy for CORS-safe canvas export
+    const garmentImg = await loadImageForCanvas(getGarmentImageForLocation(location))
 
     // Set canvas size to match garment image
     canvas.width = garmentImg.naturalWidth
@@ -778,12 +786,13 @@ export default function GarmentMockupBuilder({
           logoImg.src = svgDataUrl
         })
       } else {
-        // For regular images, set crossOrigin before src
-        logoImg.crossOrigin = 'anonymous'
+        // For regular images, use proxy for external URLs to avoid CORS
+        const isExternal = logo.url.startsWith('http') && !logo.url.startsWith(window.location.origin)
+        const logoSrc = isExternal ? `/api/proxy-image?url=${encodeURIComponent(logo.url)}` : logo.url
         await new Promise((resolve, reject) => {
           logoImg.onload = resolve
           logoImg.onerror = reject
-          logoImg.src = logo.url
+          logoImg.src = logoSrc
         })
       }
 
