@@ -1755,7 +1755,7 @@ export default function DocumentDetail({
         return
       }
 
-      console.log('✅ Setting product cache:', styleDetail)
+      // Cache the product detail for reuse
 
       // Cache the product data
       setSsProductCache(prev => ({
@@ -1911,26 +1911,16 @@ export default function DocumentDetail({
 
   // Save mockup as line item attachments
   const handleSaveMockup = async (mockups: Array<{ location: string, dataUrl: string }>, logos: any[], textElements: any[]) => {
-    console.log('💾 DocumentDetail handleSaveMockup called with:', { mockupsCount: mockups.length, logosCount: logos.length, textElementsCount: textElements.length })
-
-    if (!mockupLineItemId) {
-      console.error('❌ No mockupLineItemId')
-      return
-    }
+    if (!mockupLineItemId) return
 
     try {
       const item = lineItems.find(i => i.id === mockupLineItemId)
-      if (!item) {
-        console.error('❌ Line item not found:', mockupLineItemId)
-        return
-      }
+      if (!item) return
 
-      console.log('📤 Starting mockup uploads...')
       const newAttachments = []
 
       // Upload each mockup (one per location with designs)
       for (const mockup of mockups) {
-        console.log(`📤 Uploading mockup for ${mockup.location}...`)
         // Convert data URL to blob
         const response = await fetch(mockup.dataUrl)
         const blob = await response.blob()
@@ -1949,14 +1939,9 @@ export default function DocumentDetail({
         const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData })
         const uploadData = await uploadResponse.json()
 
-        console.log(`📤 Upload response for ${mockup.location}:`, uploadData)
-
         if (!uploadData.success) {
-          console.error(`❌ Upload failed for ${mockup.location}:`, uploadData.error)
           throw new Error(uploadData.error || 'Upload failed')
         }
-
-        console.log(`✅ Upload successful for ${mockup.location}`)
 
         newAttachments.push({
           url: uploadData.url,
@@ -1968,15 +1953,11 @@ export default function DocumentDetail({
         })
       }
 
-      console.log('✅ All mockups uploaded successfully. New attachments:', newAttachments.length)
-
       // Remove existing mockups (they have "mockup_" in filename) and add new ones
       const existingAttachments = (item.attachments || []).filter(att =>
         !att.filename?.startsWith('mockup_')
       )
-      console.log('🗑️ Removing existing mockups. Existing non-mockup attachments:', existingAttachments.length)
       const updatedAttachments = [...existingAttachments, ...newAttachments]
-      console.log('📎 Total attachments after update:', updatedAttachments.length)
 
       // Save mockup configuration to custom_fields
       const updatedCustomFields = {
@@ -1988,7 +1969,6 @@ export default function DocumentDetail({
       }
 
       // Update line item in database with attachments AND mockup config
-      console.log('💾 Updating line item in database...')
       const { error: updateError } = await supabase
         .from('line_items')
         .update({
@@ -1998,11 +1978,8 @@ export default function DocumentDetail({
         .eq('id', mockupLineItemId)
 
       if (updateError) {
-        console.error('❌ Database update error:', updateError)
         throw updateError
       }
-
-      console.log('✅ Database updated successfully')
 
       // Update local state using functional update to avoid stale closure
       setLineItems(prev => {
@@ -2015,7 +1992,6 @@ export default function DocumentDetail({
         // Auto-recalculate line total to include new decoration locations
         const updatedItem = updated.find(i => i.id === mockupLineItemId)
         if (updatedItem && isDTFApparel(updatedItem)) {
-          console.log('🧮 Triggering auto-recalculation of line total...')
           const af = getApparelFields(updatedItem)
           const sizes = af.sizes || {}
           const { totalQty, totalAmount } = recalcApparelTotals(sizes, updatedItem)
@@ -2036,10 +2012,7 @@ export default function DocumentDetail({
         return updated
       })
 
-      console.log('✅ Local state updated')
-
       const mockupCount = mockups.length
-      console.log('✅ Mockup save complete! Showing success toast and closing modal.')
       showToast(`${mockupCount} mockup${mockupCount > 1 ? 's' : ''} saved successfully`, 'success')
       setMockupBuilderOpen(false)
       setMockupLineItemId(null)
@@ -2123,7 +2096,6 @@ export default function DocumentDetail({
   const deleteGroup = async (groupId: string) => {
     if (!confirm('Delete this section and all its items?')) return
 
-    console.log('🗑️ deleteGroup called:', groupId)
 
     // Delete all line items in this group from database
     const { error: itemsError } = await supabase
@@ -2137,7 +2109,7 @@ export default function DocumentDetail({
       return
     }
 
-    console.log('✅ All line items in group deleted from database')
+
 
     // Update state (groups are derived from line items, so just remove the group from state)
     setLineItemGroups(lineItemGroups.filter(g => g.group_id !== groupId))
@@ -2235,8 +2207,6 @@ export default function DocumentDetail({
   }
 
   const deleteLineItem = async (itemId: string) => {
-    alert(`🗑️ DELETE CLICKED - Item ID: ${itemId}`)
-    console.log('🗑️ deleteLineItem called:', itemId)
     const { error } = await supabase.from('line_items').delete().eq('id', itemId)
     if (error) {
       console.error('❌ Delete failed:', error)
@@ -3708,18 +3678,6 @@ export default function DocumentDetail({
                               const totalDecorationFee = designLocationsCount * totalFeePerLocation
                               perUnitDecorationFee = totalDecorationFee
 
-                              // Debug logging
-                              if (totalQty > 0) {
-                                console.log('🧮 Per-unit decoration fee calc:', {
-                                  designLocationsCount,
-                                  designFee,
-                                  pressFee,
-                                  totalFeePerLocation,
-                                  totalDecorationFee,
-                                  totalQty,
-                                  perUnitDecorationFee
-                                })
-                              }
                             }
 
                             const manualOverride = af.manual_price_override || false
