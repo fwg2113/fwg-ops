@@ -2004,23 +2004,39 @@ export default function DocumentDetail({
 
       console.log('✅ Database updated successfully')
 
-      // Update local state
-      const updatedItems = lineItems.map(i =>
-        i.id === mockupLineItemId
-          ? { ...i, attachments: updatedAttachments, custom_fields: updatedCustomFields }
-          : i
-      )
-      setLineItems(updatedItems)
+      // Update local state using functional update to avoid stale closure
+      setLineItems(prev => {
+        const updated = prev.map(i =>
+          i.id === mockupLineItemId
+            ? { ...i, attachments: updatedAttachments, custom_fields: updatedCustomFields }
+            : i
+        )
+
+        // Auto-recalculate line total to include new decoration locations
+        const updatedItem = updated.find(i => i.id === mockupLineItemId)
+        if (updatedItem && isDTFApparel(updatedItem)) {
+          console.log('🧮 Triggering auto-recalculation of line total...')
+          const af = getApparelFields(updatedItem)
+          const sizes = af.sizes || {}
+          const { totalQty, totalAmount } = recalcApparelTotals(sizes, updatedItem)
+          return updated.map(i =>
+            i.id === mockupLineItemId
+              ? {
+                  ...i,
+                  quantity: totalQty,
+                  sqft: totalQty,
+                  line_total: totalAmount,
+                  unit_price: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+                  rate: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+                }
+              : i
+          )
+        }
+
+        return updated
+      })
 
       console.log('✅ Local state updated')
-
-      // Auto-recalculate line total to include new decoration locations
-      const updatedItem = updatedItems.find(i => i.id === mockupLineItemId)
-      if (updatedItem && isDTFApparel(updatedItem)) {
-        console.log('🧮 Triggering auto-recalculation of line total...')
-        // Trigger recalculation after state update
-        setTimeout(() => recalculateApparelLineTotal(mockupLineItemId), 100)
-      }
 
       const mockupCount = mockups.length
       console.log('✅ Mockup save complete! Showing success toast and closing modal.')
