@@ -63,11 +63,14 @@ type Submission = {
   vehicle_year?: string
   vehicle_make?: string
   vehicle_model?: string
+  vehicle_count?: number
   project_type: string
   price_range_min: number
   price_range_max: number
   created_at: string
   converted_to_quote_id?: string
+  vehicles?: { type_label: string; year?: string; make?: string; model?: string }[]
+  coverage_type?: string
 }
 
 type CustomerAction = {
@@ -862,7 +865,11 @@ function SubmissionCard({ submission, actions, todoActions, expanded, onToggle, 
 }) {
   const [hovered, setHovered] = useState(false)
   const liveTask = todoActions.sort((a, b) => a.sort_order - b.sort_order)[0]
-  const vehicle = [submission.vehicle_year, submission.vehicle_make, submission.vehicle_model].filter(Boolean).join(' ')
+  const vehicle = submission.vehicles && submission.vehicles.length > 0
+    ? submission.vehicles.length === 1
+      ? [submission.vehicles[0].year, submission.vehicles[0].make, submission.vehicles[0].model].filter(Boolean).join(' ') || submission.vehicles[0].type_label
+      : `${submission.vehicles.length} vehicles`
+    : [submission.vehicle_year, submission.vehicle_make, submission.vehicle_model].filter(Boolean).join(' ')
 
   return (
     <div
@@ -886,7 +893,7 @@ function SubmissionCard({ submission, actions, todoActions, expanded, onToggle, 
             </span>
           </div>
           <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {vehicle}{submission.project_type ? ` \u2022 ${formatCategoryLabel(submission.project_type)}` : ''}
+            {vehicle}{(submission.coverage_type || submission.project_type) ? ` \u2022 ${formatCategoryLabel(submission.coverage_type || submission.project_type)}` : ''}
           </div>
         </div>
         {submission.price_range_max > 0 && (
