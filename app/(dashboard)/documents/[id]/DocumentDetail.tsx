@@ -5631,6 +5631,37 @@ export default function DocumentDetail({
           initialTextElements={mockupInitialTextElements}
           onSave={handleSaveMockup}
           onSaveConfig={handleSaveConfigOnly}
+          onFileUpload={async (file) => {
+            if (!mockupLineItemId) return
+            const item = lineItems.find(i => i.id === mockupLineItemId)
+            if (!item) return
+
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('documentId', doc.id)
+            formData.append('prefix', 'doc-line-item')
+            formData.append('lineItemId', mockupLineItemId)
+
+            try {
+              const response = await fetch('/api/upload', { method: 'POST', body: formData })
+              const data = await response.json()
+              if (data.success) {
+                const newAttachments = [...(item.attachments || []), {
+                  url: data.url,
+                  key: data.key,
+                  filename: data.filename || file.name,
+                  contentType: data.contentType || file.type,
+                  size: data.size || file.size,
+                  uploadedAt: new Date().toISOString()
+                }]
+                const updatedItems = lineItems.map(i => i.id === mockupLineItemId ? { ...i, attachments: newAttachments } : i)
+                setLineItems(updatedItems)
+                await supabase.from('line_items').update({ attachments: newAttachments }).eq('id', mockupLineItemId)
+              }
+            } catch (err) {
+              console.error('Design file upload error:', err)
+            }
+          }}
           onClose={() => {
             setMockupBuilderOpen(false)
             setMockupLineItemId(null)

@@ -52,6 +52,7 @@ interface GarmentMockupBuilderProps {
   onSave: (mockups: MockupImage[], logos: Logo[], textElements: TextElement[]) => void
   onSaveConfig: (logos: Logo[], textElements: TextElement[]) => void
   onClose: () => void
+  onFileUpload?: (file: File) => void
 }
 
 export default function GarmentMockupBuilder({
@@ -63,7 +64,8 @@ export default function GarmentMockupBuilder({
   initialTextElements,
   onSave,
   onSaveConfig,
-  onClose
+  onClose,
+  onFileUpload
 }: GarmentMockupBuilderProps) {
   const [activeLocation, setActiveLocation] = useState<Location>('Front')
   const [logos, setLogos] = useState<Logo[]>(initialLogos || [])
@@ -440,12 +442,103 @@ export default function GarmentMockupBuilder({
   }, [initialLogos])
 
   // Upload logo
+  // Generate a placeholder image for non-renderable design files (EMB, DST, PDF)
+  const createDesignFilePlaceholder = (fileName: string): string => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 400
+    canvas.height = 400
+    const ctx = canvas.getContext('2d')!
+
+    // Background
+    ctx.fillStyle = '#1a1a2e'
+    ctx.beginPath()
+    ctx.roundRect(0, 0, 400, 400, 20)
+    ctx.fill()
+
+    // Border
+    ctx.strokeStyle = '#a78bfa'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.roundRect(4, 4, 392, 392, 18)
+    ctx.stroke()
+
+    // File icon
+    ctx.fillStyle = '#a78bfa'
+    ctx.beginPath()
+    ctx.moveTo(150, 80)
+    ctx.lineTo(230, 80)
+    ctx.lineTo(260, 110)
+    ctx.lineTo(260, 260)
+    ctx.lineTo(140, 260)
+    ctx.lineTo(140, 80)
+    ctx.closePath()
+    ctx.fill()
+
+    // File fold
+    ctx.fillStyle = '#7c3aed'
+    ctx.beginPath()
+    ctx.moveTo(230, 80)
+    ctx.lineTo(260, 110)
+    ctx.lineTo(230, 110)
+    ctx.closePath()
+    ctx.fill()
+
+    // Extension text
+    const ext = fileName.split('.').pop()?.toUpperCase() || '?'
+    ctx.fillStyle = '#1a1a2e'
+    ctx.font = 'bold 36px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(ext, 200, 200)
+
+    // Filename at bottom
+    ctx.fillStyle = '#e2e8f0'
+    ctx.font = '18px sans-serif'
+    ctx.textAlign = 'center'
+    const displayName = fileName.length > 30 ? fileName.slice(0, 27) + '...' : fileName
+    ctx.fillText(displayName, 200, 320)
+
+    // "Design File" label
+    ctx.fillStyle = '#94a3b8'
+    ctx.font = '14px sans-serif'
+    ctx.fillText('Design File', 200, 350)
+
+    return canvas.toDataURL('image/png')
+  }
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
     Array.from(files).forEach(file => {
       const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
+      const isDesignFile = /\.(emb|dst|pdf)$/i.test(file.name)
+
+      // Handle non-renderable design files with a placeholder
+      if (isDesignFile) {
+        const placeholderUrl = createDesignFilePlaceholder(file.name)
+        const newLogo: Logo = {
+          id: `logo_${Date.now()}_${Math.random()}`,
+          url: placeholderUrl,
+          originalUrl: placeholderUrl,
+          backgroundRemoved: false,
+          location: activeLocation,
+          x: 0.35,
+          y: 0.3,
+          width: 0.3,
+          height: 0.3,
+          rotation: 0,
+          isSvg: false,
+          aspectRatio: 1
+        }
+        setLogos(prev => [...prev, newLogo])
+        setSelectedLogoId(newLogo.id)
+
+        // Upload the actual file as a line item attachment
+        if (onFileUpload) {
+          onFileUpload(file)
+        }
+        return
+      }
 
       const reader = new FileReader()
       reader.onload = async (event) => {
