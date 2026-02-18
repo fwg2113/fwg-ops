@@ -1,0 +1,96 @@
+# FWG Form → Supabase Integration Setup
+
+## What's In This Package
+
+| File | Purpose |
+|------|---------|
+| `01_form_submissions_table.sql` | Database table + storage bucket + security policies |
+| `02_submit_handler.js` | Drop-in replacement for the form's submit handler |
+| `03_email_edge_function.ts` | Sends formatted email to info@frederickwraps.com on each submission |
+
+
+## What You Need Before Starting
+
+1. **Supabase project URL** — looks like `https://xxxx.supabase.co`
+2. **Supabase anon key** — found in Project Settings → API
+3. **Shopify thank you page URL** — create a simple page at `/pages/thank-you`
+4. **Resend API key** (for email notifications) — free at resend.com, 100 emails/day
+
+
+## Step-by-Step Setup
+
+### Step 1: Run the SQL migration
+- Open Supabase Dashboard → SQL Editor
+- Paste the contents of `01_form_submissions_table.sql`
+- Click Run
+- This creates the `form_submissions` table and `form-uploads` storage bucket
+
+### Step 2: Wire the submit handler into form-v8.html
+- Replace the existing submit event listener with the code from `02_submit_handler.js`
+- Fill in the three config values at the top:
+  - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
+  - `THANK_YOU_URL`
+- Add the Supabase JS client OR use the REST API (handler uses REST — no extra library needed)
+
+### Step 3: Deploy the email edge function
+- In Supabase Dashboard → Edge Functions → New Function
+- Name it `notify-new-submission`
+- Paste `03_email_edge_function.ts`
+- Deploy
+- Then create a Database Webhook:
+  - Table: `form_submissions`
+  - Event: `INSERT`
+  - Type: Edge Function
+  - Function: `notify-new-submission`
+- Set the secret `RESEND_API_KEY` in Edge Function settings
+
+### Step 4: Embed form in Shopify
+- In Shopify Admin → Online Store → Pages → create "Thank You" page
+- On the target page, add a Custom Liquid section
+- Paste the form HTML (with the `<html>`, `<head>`, `<body>` wrappers stripped)
+- Ensure Poppins font is loaded in your theme's `<head>`
+
+### Step 5: Test
+- Submit a test form
+- Check Supabase table for new row
+- Check info@frederickwraps.com for notification email
+- Verify file uploads appear in Storage → form-uploads bucket
+- Verify redirect to thank you page
+
+
+## Data Flow
+
+```
+Customer fills form → Clicks Submit
+       ↓
+Files upload to Supabase Storage (form-uploads bucket)
+       ↓
+Form data + file URLs INSERT into form_submissions table
+       ↓
+Database webhook fires → Edge Function runs
+       ↓
+Formatted email sent to info@frederickwraps.com
+       ↓
+Customer redirected to /pages/thank-you
+```
+
+
+## Ops Integration (Future)
+
+The `form_submissions` table is designed to mesh directly with the ops system:
+
+- **`status` field** — starts as `new`, ops dashboard can update to `reviewed`, `quoted`, `converted`, `archived`
+- **`vehicles` JSONB** — structured data ready to populate a quote builder
+- **`logo_urls` / `photo_urls`** — direct links to uploaded files, accessible from ops
+- **UUID primary key** — can be referenced from quotes, invoices, and other ops tables
+
+When the ops dashboard is ready to handle intake, it just queries this same table. No migration needed.
+
+
+## Security Notes
+
+- The anon key only allows INSERT (write) to the submissions table — no reading
+- Only authenticated users (ops dashboard logins) can read or update submissions
+- Storage bucket is public-read so ops can view uploaded files
+- Consider adding rate limiting or CAPTCHA before heavy traffic

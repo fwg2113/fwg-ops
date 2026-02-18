@@ -1,0 +1,199 @@
+// =============================================
+//  SUPABASE EDGE FUNCTION: notify-new-submission
+//  Triggered by database webhook on form_submissions INSERT
+//  Sends formatted email to info@frederickwraps.com
+// =============================================
+//
+//  SETUP:
+//  1. Deploy this as a Supabase Edge Function
+//  2. Create a Database Webhook in Supabase Dashboard:
+//     - Table: form_submissions
+//     - Event: INSERT
+//     - Type: Edge Function
+//     - Function: notify-new-submission
+//  3. Set environment secret: RESEND_API_KEY (sign up at resend.com, free 100 emails/day)
+//
+//  Alternative: If your dad already has an email service set up in the ops
+//  system (SendGrid, Postmark, etc.), swap out the Resend call below.
+// =============================================
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+
+const NOTIFY_EMAIL = 'info@frederickwraps.com';
+const FROM_EMAIL = 'forms@frederickwraps.com';  // Must be verified in your email service
+
+serve(async (req) => {
+  try {
+    const payload = await req.json();
+    const record = payload.record;
+
+    if (!record) {
+      return new Response('No record', { status: 400 });
+    }
+
+    // ── Build email HTML ──
+    const vehicles = record.vehicles || [];
+    let vehicleHTML = '';
+    vehicles.forEach((v, i) => {
+      vehicleHTML += `
+        <tr><td colspan="2" style="padding:12px 16px 6px;font-weight:700;color:#1D1D1D;font-size:14px;border-bottom:1px solid #EDEEEE;">
+          Vehicle ${i + 1}: ${v.type_label || v.type}
+        </td></tr>`;
+
+      if (v.is_other) {
+        vehicleHTML += row('Description', v.other_desc);
+      } else {
+        if (v.year) vehicleHTML += row('Year', v.year);
+        if (v.make) vehicleHTML += row('Make', v.make);
+        if (v.model) vehicleHTML += row('Model', v.model);
+        if (v.color) vehicleHTML += row('Color', v.color === 'other' ? v.color_other : v.color);
+        if (v.browsing) vehicleHTML += row('Note', 'Just exploring — doesn\'t have vehicle yet');
+        if (v.conditionals) {
+          Object.entries(v.conditionals).forEach(([key, val]) => {
+            if (val) vehicleHTML += row(formatLabel(key), val);
+          });
+        }
+      }
+      if (v.photo_urls && v.photo_urls.length > 0) {
+        vehicleHTML += row('Photos', v.photo_urls.map(u => `<a href="${u}" style="color:#2B5EA7;">View</a>`).join(' &nbsp; '));
+      }
+    });
+
+    const logoHTML = record.logo_urls && record.logo_urls.length > 0
+      ? row('Logo Files', record.logo_urls.map(u => `<a href="${u}" style="color:#2B5EA7;">Download</a>`).join(' &nbsp; '))
+      : '';
+
+    const coverageLabels = {
+      full_wrap: 'Full Coverage Wrap', partial_wrap: 'Partial Wrap',
+      graphics_lettering: 'Graphics & Lettering', not_sure: 'Not Sure Yet'
+    };
+    const artworkLabels = {
+      fleet_match: 'Fleet Match', print_ready: 'Print-Ready Artwork',
+      logo_vision: 'Logo + Vision', logo_only: 'Logo Only',
+      from_scratch: 'Start from Scratch', ai_mockup: 'AI-Generated Mockup'
+    };
+    const timelineLabels = {
+      asap: 'ASAP', '30_days': 'Within 30 days', '30_60_days': '30–60 days',
+      '60_90_days': '60–90+ days', planning: 'Just planning'
+    };
+    const budgetLabels = {
+      under_1000: 'Under $1,000', '1000_2500': '$1K–$2.5K', '2500_5000': '$2.5K–$5K',
+      '5000_10000': '$5K–$10K', '10000_plus': '$10K+', not_sure: 'Not sure yet'
+    };
+
+    const emailHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="margin:0;padding:0;font-family:'Helvetica Neue',Arial,sans-serif;background:#F4F4F4;">
+      <div style="max-width:600px;margin:20px auto;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+        <!-- Header -->
+        <div style="background:#1D1D1D;padding:24px 28px;">
+          <h1 style="margin:0;color:#FFFFFF;font-size:18px;font-weight:700;">New Quote Request</h1>
+          <p style="margin:6px 0 0;color:#AAAAAA;font-size:13px;">${new Date(record.created_at).toLocaleString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'numeric', minute:'2-digit' })}</p>
+        </div>
+
+        <!-- Contact -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+          ${sectionHeader('Contact Information')}
+          ${row('Business', record.business_name)}
+          ${row('Contact', record.contact_name)}
+          ${row('Email', `<a href="mailto:${record.email}" style="color:#2B5EA7;">${record.email}</a>`)}
+          ${row('Phone', `<a href="tel:${record.phone}" style="color:#2B5EA7;">${record.phone}</a>`)}
+          ${row('Preferred', record.contact_method)}
+        </table>
+
+        <!-- Vehicles -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+          ${sectionHeader('Vehicle Details')}
+          ${vehicleHTML}
+        </table>
+
+        <!-- Coverage -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+          ${sectionHeader('Coverage Type')}
+          ${row('Type', coverageLabels[record.coverage_type] || record.coverage_type)}
+        </table>
+
+        <!-- Artwork -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+          ${sectionHeader('Artwork & Design')}
+          ${row('Status', artworkLabels[record.artwork_status] || record.artwork_status)}
+          ${record.ai_acknowledged ? row('AI Policy', '✓ Acknowledged') : ''}
+          ${logoHTML}
+        </table>
+
+        <!-- Timeline -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+          ${sectionHeader('Timeline & Budget')}
+          ${row('Timeline', timelineLabels[record.timeline] || record.timeline)}
+          ${record.budget ? row('Budget', budgetLabels[record.budget] || record.budget) : ''}
+        </table>
+
+        ${record.additional_info ? `
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+          ${sectionHeader('Additional Notes')}
+          <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${record.additional_info}</td></tr>
+        </table>
+        ` : ''}
+
+        <!-- Footer -->
+        <div style="padding:16px 28px;background:#F7F7F7;text-align:center;">
+          <p style="margin:0;color:#7D7D7D;font-size:12px;">Submitted from ${record.source_page || 'website'}</p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+
+    // ── Send email via Resend ──
+    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: [NOTIFY_EMAIL],
+        subject: `New Quote Request — ${record.business_name} (${coverageLabels[record.coverage_type] || record.coverage_type})`,
+        html: emailHTML
+      })
+    });
+
+    if (!emailResponse.ok) {
+      console.error('Email send failed:', await emailResponse.text());
+    }
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (err) {
+    console.error('Edge function error:', err);
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+});
+
+
+// ── Email template helpers ──
+function sectionHeader(title) {
+  return `<tr><td colspan="2" style="padding:18px 16px 8px;font-size:15px;font-weight:700;color:#CE0000;border-bottom:2px solid #CE0000;">${title}</td></tr>`;
+}
+
+function row(label, value) {
+  return `<tr>
+    <td style="padding:8px 16px;color:#7D7D7D;font-weight:500;width:120px;vertical-align:top;">${label}</td>
+    <td style="padding:8px 16px;color:#1D1D1D;font-weight:500;">${value || '—'}</td>
+  </tr>`;
+}
+
+function formatLabel(key) {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}

@@ -22,6 +22,10 @@ type Submission = {
   price_range_max: number
   vision_description: string
   created_at: string
+  vehicles?: { type_label: string; year?: string; make?: string; model?: string }[]
+  coverage_type?: string
+  artwork_status?: string
+  additional_info?: string
 }
 
 export default function SubmissionList({ initialSubmissions, totalCount }: { initialSubmissions: Submission[], totalCount: number }) {
@@ -191,10 +195,14 @@ export default function SubmissionList({ initialSubmissions, totalCount }: { ini
                       <p style={{ color: '#64748b', fontSize: '12px' }}>{sub.customer_email || sub.customer_phone || '-'}</p>
                     </td>
                     <td style={{ padding: '16px', color: '#94a3b8', fontSize: '14px' }}>
-                      {[sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || '-'}
+                      {sub.vehicles && sub.vehicles.length > 0
+                        ? sub.vehicles.length === 1
+                          ? [sub.vehicles[0].year, sub.vehicles[0].make, sub.vehicles[0].model].filter(Boolean).join(' ') || sub.vehicles[0].type_label
+                          : `${sub.vehicles.length} vehicles`
+                        : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || '-'}
                     </td>
                     <td style={{ padding: '16px', color: '#94a3b8', fontSize: '14px' }}>
-                      {sub.project_type?.replace(/_/g, ' ') || '-'}
+                      {(sub.coverage_type || sub.project_type)?.replace(/_/g, ' ') || '-'}
                     </td>
                     <td style={{ padding: '16px', color: '#d71cd1', fontSize: '14px', textAlign: 'right', fontWeight: '600' }}>
                       {sub.price_range_min && sub.price_range_max ? 
@@ -263,14 +271,20 @@ export default function SubmissionList({ initialSubmissions, totalCount }: { ini
             <div style={{ marginBottom: '20px' }}>
               <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Vehicle</p>
               <p style={{ color: '#f1f5f9', fontSize: '14px' }}>
-                {[selectedSubmission.vehicle_year, selectedSubmission.vehicle_make, selectedSubmission.vehicle_model].filter(Boolean).join(' ') || '-'}
+                {selectedSubmission.vehicles && selectedSubmission.vehicles.length > 0
+                  ? selectedSubmission.vehicles.map((v, i) =>
+                      (v.year || v.make || v.model)
+                        ? [v.year, v.make, v.model].filter(Boolean).join(' ')
+                        : v.type_label
+                    ).join(', ')
+                  : [selectedSubmission.vehicle_year, selectedSubmission.vehicle_make, selectedSubmission.vehicle_model].filter(Boolean).join(' ') || '-'}
               </p>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div>
                 <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Project Type</p>
-                <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{selectedSubmission.project_type?.replace(/_/g, ' ') || '-'}</p>
+                <p style={{ color: '#f1f5f9', fontSize: '14px' }}>{(selectedSubmission.coverage_type || selectedSubmission.project_type)?.replace(/_/g, ' ') || '-'}</p>
               </div>
               <div>
                 <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Design</p>

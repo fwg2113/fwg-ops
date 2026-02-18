@@ -3,6 +3,21 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+type VehicleEntry = {
+  type: string
+  type_label: string
+  year?: string
+  make?: string
+  model?: string
+  color?: string
+  color_other?: string
+  browsing?: boolean
+  conditionals?: Record<string, string>
+  is_other?: boolean
+  other_desc?: string
+  photo_urls?: string[]
+}
+
 type Submission = {
   id: string
   submission_number?: number
@@ -34,6 +49,15 @@ type Submission = {
   last_contact_at: string
   next_followup_at: string
   converted_to_quote_id: number | null
+  // New form fields
+  vehicles?: VehicleEntry[]
+  coverage_type?: string
+  artwork_status?: string
+  ai_acknowledged?: boolean
+  logo_urls?: string[]
+  additional_info?: string
+  budget?: string
+  source_page?: string
 }
 
 // Icons as components
@@ -135,6 +159,40 @@ const DESIGN_LABELS: Record<string, string> = {
   'LOGO_VISION': 'Logo + Vision',
   'LOGO_ONLY': 'Logo Only',
   'FROM_SCRATCH': 'Start from Scratch'
+}
+
+// New form field labels
+const COVERAGE_LABELS: Record<string, string> = {
+  'full_wrap': 'Full Coverage Wrap',
+  'partial_wrap': 'Partial Wrap',
+  'graphics_lettering': 'Graphics & Lettering',
+  'not_sure': 'Not Sure Yet'
+}
+
+const ARTWORK_LABELS: Record<string, string> = {
+  'fleet_match': 'Fleet Match',
+  'print_ready': 'Print-Ready Artwork',
+  'logo_vision': 'Logo + Vision',
+  'logo_only': 'Logo Only',
+  'from_scratch': 'Start from Scratch',
+  'ai_mockup': 'AI-Generated Mockup'
+}
+
+const TIMELINE_LABELS: Record<string, string> = {
+  'asap': 'ASAP',
+  '30_days': 'Within 30 days',
+  '30_60_days': '30\u201360 days',
+  '60_90_days': '60\u201390+ days',
+  'planning': 'Just planning'
+}
+
+const BUDGET_LABELS: Record<string, string> = {
+  'under_1000': 'Under $1,000',
+  '1000_2500': '$1,000 \u2013 $2,500',
+  '2500_5000': '$2,500 \u2013 $5,000',
+  '5000_10000': '$5,000 \u2013 $10,000',
+  '10000_plus': '$10,000+',
+  'not_sure': 'Not sure yet'
 }
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
@@ -512,25 +570,104 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
             <TruckIcon /> Vehicle & Project
           </div>
-          <div style={rowStyle}>
-            <span style={labelStyle}>Vehicle Type</span>
-            <span style={valueStyle}>{VEHICLE_LABELS[submission.vehicle_category] || submission.vehicle_category || '-'}</span>
-          </div>
-          <div style={rowStyle}>
-            <span style={labelStyle}>Vehicle</span>
-            <span style={valueStyle}>{vehicleStr}</span>
-          </div>
-          <div style={rowStyle}>
-            <span style={labelStyle}>Vehicle Count</span>
-            <span style={valueStyle}>{submission.vehicle_count || 1}</span>
-          </div>
-          <div style={rowStyle}>
-            <span style={labelStyle}>Project Type</span>
-            <span style={valueStyle}>{PROJECT_LABELS[submission.project_type] || submission.project_type || '-'}</span>
-          </div>
-          <div style={lastRowStyle}>
-            <span style={labelStyle}>Design Scenario</span>
-            <span style={valueStyle}>{DESIGN_LABELS[submission.design_scenario] || submission.design_scenario || '-'}</span>
+
+          {/* New multi-vehicle display */}
+          {submission.vehicles && submission.vehicles.length > 0 ? (
+            <>
+              <div style={rowStyle}>
+                <span style={labelStyle}>Vehicles</span>
+                <span style={valueStyle}>{submission.vehicles.length} vehicle{submission.vehicles.length > 1 ? 's' : ''}</span>
+              </div>
+              {submission.vehicles.map((v: VehicleEntry, idx: number) => (
+                <div key={idx} style={{
+                  background: '#1d1d1d',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  marginTop: '8px',
+                  fontSize: '13px'
+                }}>
+                  <div style={{ fontWeight: 600, color: '#f1f5f9', marginBottom: '4px' }}>
+                    {v.type_label || v.type}
+                    {v.browsing && <span style={{ color: '#3b82f6', fontWeight: 400, marginLeft: '8px', fontSize: '11px' }}>Exploring options</span>}
+                  </div>
+                  {v.is_other ? (
+                    <div style={{ color: '#94a3b8' }}>{v.other_desc || 'No description'}</div>
+                  ) : (
+                    <div style={{ color: '#94a3b8' }}>
+                      {[v.year, v.make, v.model].filter(Boolean).join(' ') || 'Details not provided'}
+                      {v.color && <span style={{ marginLeft: '8px' }}>({v.color_other || v.color})</span>}
+                    </div>
+                  )}
+                  {v.conditionals && Object.keys(v.conditionals).length > 0 && (
+                    <div style={{ color: '#64748b', fontSize: '12px', marginTop: '2px' }}>
+                      {Object.entries(v.conditionals).map(([k, val]) => val ? `${k.replace(/_/g, ' ')}: ${val}` : null).filter(Boolean).join(' \u00B7 ')}
+                    </div>
+                  )}
+                  {v.photo_urls && v.photo_urls.length > 0 && (
+                    <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                      {v.photo_urls.map((url: string, pi: number) => (
+                        <a key={pi} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginRight: '8px', fontSize: '12px' }}>
+                          Photo {pi + 1}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          ) : (
+            /* Legacy single-vehicle display */
+            <>
+              <div style={rowStyle}>
+                <span style={labelStyle}>Vehicle Type</span>
+                <span style={valueStyle}>{VEHICLE_LABELS[submission.vehicle_category] || submission.vehicle_category || '-'}</span>
+              </div>
+              <div style={rowStyle}>
+                <span style={labelStyle}>Vehicle</span>
+                <span style={valueStyle}>{vehicleStr}</span>
+              </div>
+              <div style={rowStyle}>
+                <span style={labelStyle}>Vehicle Count</span>
+                <span style={valueStyle}>{submission.vehicle_count || 1}</span>
+              </div>
+            </>
+          )}
+
+          <div style={{ borderTop: '1px solid rgba(148, 163, 184, 0.08)', marginTop: '8px', paddingTop: '8px' }}>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Coverage Type</span>
+              <span style={valueStyle}>
+                {COVERAGE_LABELS[submission.coverage_type || ''] || PROJECT_LABELS[submission.project_type] || submission.coverage_type || submission.project_type || '-'}
+              </span>
+            </div>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Artwork Status</span>
+              <span style={{ ...valueStyle, display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                {ARTWORK_LABELS[submission.artwork_status || ''] || DESIGN_LABELS[submission.design_scenario] || submission.artwork_status || submission.design_scenario || '-'}
+                {submission.ai_acknowledged && (
+                  <span style={{
+                    background: 'rgba(234, 179, 8, 0.15)',
+                    color: '#eab308',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    padding: '2px 6px',
+                    borderRadius: '4px'
+                  }}>AI</span>
+                )}
+              </span>
+            </div>
+            {submission.logo_urls && submission.logo_urls.length > 0 && (
+              <div style={lastRowStyle}>
+                <span style={labelStyle}>Logo Files</span>
+                <span style={valueStyle}>
+                  {submission.logo_urls.map((url: string, i: number) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                      Logo {i + 1}
+                    </a>
+                  ))}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -549,11 +686,15 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>Customer Budget</span>
-            <span style={valueStyle}>{submission.budget_range || '-'}</span>
+            <span style={valueStyle}>
+              {BUDGET_LABELS[submission.budget || ''] || submission.budget_range || '-'}
+            </span>
           </div>
           <div style={lastRowStyle}>
             <span style={labelStyle}>Timeline</span>
-            <span style={valueStyle}>{submission.timeline || '-'}</span>
+            <span style={valueStyle}>
+              {TIMELINE_LABELS[submission.timeline || ''] || submission.timeline || '-'}
+            </span>
           </div>
         </div>
 
@@ -608,9 +749,11 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
             <FileTextIcon /> Vision & Notes
           </div>
-          {submission.vision_description && (
+          {(submission.vision_description || submission.additional_info) && (
             <div style={{ marginBottom: '16px' }}>
-              <div style={{ ...labelStyle, marginBottom: '6px' }}>Customer&apos;s Vision</div>
+              <div style={{ ...labelStyle, marginBottom: '6px' }}>
+                {submission.additional_info ? 'Customer Notes' : 'Customer\u2019s Vision'}
+              </div>
               <div style={{
                 background: '#1d1d1d',
                 padding: '12px',
@@ -619,7 +762,7 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 color: '#f1f5f9',
                 lineHeight: '1.5'
               }}>
-                {submission.vision_description}
+                {submission.additional_info || submission.vision_description}
               </div>
             </div>
           )}

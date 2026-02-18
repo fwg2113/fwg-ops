@@ -21,22 +21,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
     }
 
-    // Build vehicle description
-    const vehicleParts = [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean)
-    let vehicleDescription = vehicleParts.join(' ')
-    if (sub.vehicle_count && sub.vehicle_count > 1) {
-      vehicleDescription += ` (x${sub.vehicle_count})`
+    // Build vehicle description — prefer new vehicles array
+    let vehicleDescription = ''
+    if (sub.vehicles && Array.isArray(sub.vehicles) && sub.vehicles.length > 0) {
+      vehicleDescription = sub.vehicles.map((v: { type_label?: string; year?: string; make?: string; model?: string; is_other?: boolean; other_desc?: string }) => {
+        if (v.is_other) return v.other_desc || v.type_label || 'Other'
+        const parts = [v.year, v.make, v.model].filter(Boolean).join(' ')
+        return parts || v.type_label || 'Vehicle'
+      }).join('; ')
+      if (sub.vehicles.length > 1) {
+        vehicleDescription = `${sub.vehicles.length} vehicles: ${vehicleDescription}`
+      }
+    } else {
+      const vehicleParts = [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean)
+      vehicleDescription = vehicleParts.join(' ')
+      if (sub.vehicle_count && sub.vehicle_count > 1) {
+        vehicleDescription += ` (x${sub.vehicle_count})`
+      }
     }
 
-    // Build project description
+    // Build project description — prefer new form fields
+    const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
     const projectParts = []
-    if (sub.project_type) {
-      projectParts.push(sub.project_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()))
+    if (sub.coverage_type) {
+      projectParts.push(titleCase(sub.coverage_type))
+    } else if (sub.project_type) {
+      projectParts.push(titleCase(sub.project_type))
     }
-    if (sub.design_scenario) {
-      projectParts.push(sub.design_scenario.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()))
+    if (sub.artwork_status) {
+      projectParts.push(titleCase(sub.artwork_status))
+    } else if (sub.design_scenario) {
+      projectParts.push(titleCase(sub.design_scenario))
     }
     const projectDescription = projectParts.join(' - ')
+
+    // Build notes from available info
+    const notesParts = []
+    if (sub.additional_info) notesParts.push(sub.additional_info)
+    if (sub.vision_description) notesParts.push(sub.vision_description)
+    const notesText = notesParts.join('\n\n')
 
     // Find or create customer
     let customerId = null
@@ -67,6 +90,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Create customer if no existing match
+    if (!customerId && (sub.customer_email || sub.customer_phone)) {
+      const nameParts = (sub.customer_name || '').trim().split(/\s+/)
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
+      const phone = sub.customer_phone ? sub.customer_phone.replace(/\D/g, '').slice(-10) : null
+
+      const { data: newCustomer } = await supabase
+        .from('customers')
+        .insert({
+          first_name: firstName,
+          last_name: lastName,
+          display_name: sub.customer_name || '',
+          email: sub.customer_email || null,
+          phone: phone,
+          company: sub.company_name || null,
+          source: 'website_form',
+        })
+        .select('id')
+        .single()
+
+      if (newCustomer) {
+        customerId = newCustomer.id
+      }
+    }
+
     // Get next doc_number
     const { data: maxDoc } = await supabase
       .from('documents')
@@ -92,7 +141,7 @@ export async function POST(request: NextRequest) {
         customer_id: customerId,
         vehicle_description: vehicleDescription,
         project_description: projectDescription,
-        notes: sub.vision_description || '',
+        notes: notesText || '',
         submission_id: sub.id,
       })
       .select('id, doc_number')
@@ -115,7 +164,7 @@ export async function POST(request: NextRequest) {
     // Generate customer workflow actions for the new document
     // Uses the submission's project_type as the category, with 'draft' as current status
     // so REVIEW_AND_CATEGORIZE auto-completes (since review is done by converting)
-    const category = sub.project_type || 'OTHER'
+    const category = sub.coverage_type || sub.project_type || 'OTHER'
     await linkSubmissionToDocument(submission_id, doc.id, category).catch(err => {
       console.error('Failed to generate customer actions:', err)
       // Non-blocking - don't fail the conversion if action generation fails

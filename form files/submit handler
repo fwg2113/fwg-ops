@@ -1,0 +1,241 @@
+// =============================================
+//  FWG FORM — SUPABASE SUBMIT HANDLER
+//  Drop-in replacement for the current submit handler
+//  Requires: SUPABASE_URL and SUPABASE_ANON_KEY
+// =============================================
+
+// ── Config (fill in when ready) ──
+const SUPABASE_URL = '__YOUR_SUPABASE_URL__';       // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = '__YOUR_SUPABASE_ANON_KEY__';
+const THANK_YOU_URL = '__YOUR_THANK_YOU_PAGE_URL__'; // e.g. https://frederickwraps.com/pages/thank-you
+const STORAGE_BUCKET = 'form-uploads';
+
+// ── Supabase helpers ──
+function supabaseHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+    'Prefer': 'return=representation'
+  };
+}
+
+// Upload a single file to Supabase Storage
+// Returns the public URL
+async function uploadFile(file, folder) {
+  const timestamp = Date.now();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = folder + '/' + timestamp + '_' + safeName;
+
+  const response = await fetch(
+    SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': file.type,
+        'x-upsert': 'true'
+      },
+      body: file
+    }
+  );
+
+  if (!response.ok) {
+    console.error('Upload failed:', file.name, await response.text());
+    return null;
+  }
+
+  // Return public URL
+  return SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
+}
+
+// Upload multiple files, returns array of URLs
+async function uploadFiles(fileInput, folder) {
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) return [];
+  const urls = [];
+  for (const file of fileInput.files) {
+    const url = await uploadFile(file, folder);
+    if (url) urls.push(url);
+  }
+  return urls;
+}
+
+
+// ── Collect all form data into a clean object ──
+function collectFormData() {
+  // Step 1: Contact
+  const contact = {
+    business_name: document.getElementById('businessName').value.trim(),
+    contact_name: document.getElementById('contactName').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    contact_method: document.getElementById('contactMethodHidden').value
+  };
+
+  // Step 2: Vehicles
+  const vehicleBlocks = document.querySelectorAll('#vehicleBlocksContainer .vehicle-block');
+  const vehicles = [];
+  vehicleBlocks.forEach(function(block) {
+    const bid = block.dataset.id;
+    const data = getVehicleData(bid);
+    if (!data || !data.vtype) return;
+
+    const vtObj = vehicleTypes.find(function(v) { return v.value === data.vtype; });
+
+    if (data.isOther) {
+      vehicles.push({
+        type: data.vtype,
+        type_label: vtObj ? vtObj.label : 'Other',
+        other_desc: data.otherDesc || '',
+        is_other: true,
+        _block_id: bid  // used for file upload mapping, stripped before insert
+      });
+    } else {
+      const vehicle = {
+        type: data.vtype,
+        type_label: vtObj ? vtObj.label : '',
+        year: data.year || '',
+        make: data.make || '',
+        model: data.model || '',
+        color: data.color || '',
+        color_other: data.colorOther || '',
+        browsing: data.browsing || false,
+        conditionals: data.conditionals || {},
+        is_other: false,
+        _block_id: bid
+      };
+      vehicles.push(vehicle);
+    }
+  });
+
+  // Step 3: Coverage
+  const coverage_type = document.getElementById('projectTypeHidden').value;
+
+  // Step 4: Artwork
+  const artwork_status = document.getElementById('artworkStatusHidden').value;
+  const ai_acknowledged = document.getElementById('aiAcknowledged').value === 'yes';
+
+  // Step 5: Timeline & Budget
+  const timeline = document.getElementById('timeline').value;
+  const budgetEl = document.getElementById('budget');
+  const budget = budgetEl ? budgetEl.value : '';
+
+  // Step 6: Additional
+  const additionalEl = document.getElementById('additionalInfo');
+  const additional_info = additionalEl ? additionalEl.value.trim() : '';
+
+  return {
+    ...contact,
+    vehicles,
+    coverage_type,
+    artwork_status,
+    ai_acknowledged,
+    timeline,
+    budget: budget || null,
+    additional_info: additional_info || null,
+    source_page: window.location.pathname,
+    user_agent: navigator.userAgent
+  };
+}
+
+
+// ── Main submit handler ──
+document.getElementById('fwgInquiryForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  // Validate all steps (existing logic)
+  for (var i = 1; i <= TOTAL_STEPS; i++) {
+    var errors = getStepErrors(i);
+    if (errors.length > 0) {
+      switchCard(i);
+      (function(step, errs) {
+        setTimeout(function() { highlightErrors(step, errs); }, 50);
+      })(i, errors);
+      if (errors.includes('aiAcknowledge')) {
+        showToast('AI artwork requires acknowledgment');
+        openAiPolicyModal();
+      } else {
+        showToast('Please fill in all required fields');
+      }
+      return;
+    }
+  }
+
+  // ── Collect data ──
+  const formData = collectFormData();
+
+  // ── Disable submit button, show loading ──
+  const submitBtn = document.querySelector('.btn-submit, [type="submit"]');
+  const originalText = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31 31" stroke-linecap="round"/></svg> Submitting...</span>';
+  }
+
+  try {
+    // ── Upload files ──
+    // Generate a unique submission folder
+    const submissionId = Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    const folder = 'submissions/' + submissionId;
+
+    // Upload vehicle photos
+    for (let v of formData.vehicles) {
+      const photoInput = document.querySelector('[name="v' + v._block_id + '_photos"]');
+      const photoUrls = await uploadFiles(photoInput, folder + '/vehicle_' + v._block_id);
+      v.photo_urls = photoUrls;
+      delete v._block_id;  // clean up internal field
+    }
+
+    // Upload logo files
+    const logoInput = document.querySelector('input[name="logo_file"]');
+    const logoUrls = await uploadFiles(logoInput, folder + '/logos');
+
+    // ── Insert into Supabase ──
+    const payload = {
+      business_name: formData.business_name,
+      contact_name: formData.contact_name,
+      email: formData.email,
+      phone: formData.phone,
+      contact_method: formData.contact_method,
+      vehicles: formData.vehicles,
+      coverage_type: formData.coverage_type,
+      artwork_status: formData.artwork_status,
+      ai_acknowledged: formData.ai_acknowledged,
+      logo_urls: logoUrls,
+      timeline: formData.timeline,
+      budget: formData.budget,
+      additional_info: formData.additional_info,
+      source_page: formData.source_page,
+      user_agent: formData.user_agent
+    };
+
+    const response = await fetch(SUPABASE_URL + '/rest/v1/form_submissions', {
+      method: 'POST',
+      headers: supabaseHeaders(),
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error('Submission failed: ' + errText);
+    }
+
+    // ── Success — redirect to thank you page ──
+    showToast('Quote request submitted!');
+    setTimeout(function() {
+      window.location.href = THANK_YOU_URL;
+    }, 800);
+
+  } catch (err) {
+    console.error('Form submission error:', err);
+    showToast('Something went wrong. Please try again or call us directly.');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+    }
+  }
+});
+
+// Spinner animation (add to CSS or inline)
+// @keyframes spin { to { transform: rotate(360deg); } }

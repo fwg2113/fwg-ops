@@ -1,0 +1,1676 @@
+{% comment %}
+  ═══════════════════════════════════════════════════════════════
+  FWG Commercial Vehicle Wraps & Graphics — Inquiry Form
+  ═══════════════════════════════════════════════════════════════
+  Shopify Custom Liquid Section
+  Paste into: Online Store > Themes > Customize > Add section > Custom Liquid
+
+  Required: Update the FWG_CONFIG object in the <script> block below
+  with your Supabase and API credentials.
+{% endcomment %}
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+    :root {
+      --fwg-white: #FFFFFF;
+      --fwg-light-gray: #EDEEEE;
+      --fwg-mid-gray: #7D7D7D;
+      --fwg-dark-gray-2: #212121;
+      --fwg-dark-gray: #1D1D1D;
+      --fwg-black: #000000;
+      --fwg-red: #CE0000;
+      --fwg-red-hover: #A80000;
+      --fwg-red-light: rgba(206, 0, 0, 0.08);
+      --fwg-red-border: rgba(206, 0, 0, 0.25);
+      --fwg-green: #1B8C3D;
+      --fwg-green-light: rgba(27, 140, 61, 0.08);
+      --fwg-green-border: rgba(27, 140, 61, 0.25);
+      --fwg-orange: #E67E22;
+      --fwg-orange-light: rgba(230, 126, 34, 0.10);
+      --fwg-orange-border: rgba(230, 126, 34, 0.30);
+      --fwg-amber-bg: #FFF8F0;
+      --fwg-amber-border: #F5D5A8;
+      --fwg-amber-text: #9A6B2F;
+      --fwg-blue: #2B5EA7;
+      --fwg-blue-light: rgba(43, 94, 167, 0.08);
+      --fwg-blue-border: rgba(43, 94, 167, 0.25);
+      --font-headline: 'Poppins', sans-serif;
+      --font-body: 'Poppins', sans-serif;
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --transition: 0.2s ease;
+    }
+    .form-page *, .form-page *::before, .form-page *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .form-page { font-family: var(--font-body); font-weight: 400; background: var(--fwg-white); color: var(--fwg-dark-gray); line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 20px 80px; }
+
+    /* ── Header ── */
+    .form-header { width: 100%; max-width: 760px; margin-bottom: 28px; text-align: center; }
+    .form-header__tag { display: inline-block; font-family: var(--font-headline); font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--fwg-red); background: var(--fwg-red-light); border: 1px solid var(--fwg-red-border); padding: 6px 18px; border-radius: var(--radius-sm); margin-bottom: 20px; }
+    .form-header__title { font-family: var(--font-headline); font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: -0.5px; color: var(--fwg-dark-gray); line-height: 1.15; margin-bottom: 12px; }
+    .form-header__subtitle { font-size: 13.5px; font-weight: 300; color: var(--fwg-mid-gray); max-width: 480px; margin: 0 auto; }
+
+    /* ── Stepper ── */
+    .stepper { width: 100%; max-width: 760px; display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; padding: 0 10px; position: relative; }
+    .stepper::before { content: ''; position: absolute; top: 18px; left: 40px; right: 40px; height: 2px; background: #D4D4D4; z-index: 0; }
+    .step-indicator {
+      display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+      position: relative; z-index: 1; min-width: 60px; transition: opacity var(--transition);
+    }
+    .step-indicator__circle {
+      width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-headline); font-size: 13px; font-weight: 700; border: 2.5px solid #D4D4D4;
+      background: var(--fwg-white); color: var(--fwg-mid-gray); transition: all 0.3s ease; position: relative;
+    }
+    .step-indicator__label {
+      font-size: 11px; font-weight: 500; color: var(--fwg-mid-gray); text-align: center; line-height: 1.3;
+      max-width: 80px; transition: color var(--transition);
+    }
+    /* Active */
+    .step-indicator.active .step-indicator__circle {
+      border-color: var(--fwg-red); background: var(--fwg-red); color: var(--fwg-white);
+      box-shadow: 0 0 0 4px var(--fwg-red-light);
+    }
+    .step-indicator.active .step-indicator__label { color: var(--fwg-red); font-weight: 600; }
+    /* Completed */
+    .step-indicator.completed .step-indicator__circle {
+      border-color: var(--fwg-green); background: var(--fwg-green); color: var(--fwg-white);
+    }
+    .step-indicator.completed .step-indicator__label { color: var(--fwg-green); }
+    /* Hover for non-active */
+    .step-indicator:not(.active):hover .step-indicator__circle { transform: scale(1.08); }
+    .step-indicator:not(.active):hover .step-indicator__label { color: var(--fwg-dark-gray); }
+    /* ── Step Cards ── */
+    .step-card {
+      width: 100%; max-width: 760px; background: var(--fwg-light-gray); border-radius: var(--radius-lg);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 30px rgba(0,0,0,0.04);
+      padding: 36px 40px; display: none; animation: cardIn 0.3s ease;
+      min-height: var(--card-min-height, auto);
+    }
+    .step-card.active { display: flex; flex-direction: column; }
+    .step-card__footer { margin-top: auto; padding-top: 24px; border-top: 1px solid #D4D4D4; }
+    @keyframes cardIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    .step-card__header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .step-card__number {
+      flex-shrink: 0; width: 32px; height: 32px; background: var(--fwg-dark-gray); color: var(--fwg-white);
+      font-family: var(--font-headline); font-size: 14px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm);
+    }
+    .step-card__title { font-family: var(--font-headline); font-size: 18px; font-weight: 700; letter-spacing: 0.01em; color: var(--fwg-dark-gray); }
+
+
+    /* Card footer with nav buttons */
+    .step-card__footer {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .step-card__footer--end { justify-content: flex-end; }
+    .btn-nav {
+      display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-headline);
+      font-size: 14px; font-weight: 600; border: none; border-radius: var(--radius-md);
+      padding: 13px 28px; cursor: pointer; transition: all var(--transition); letter-spacing: 0.02em;
+    }
+    .btn-nav svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .btn-nav--back {
+      color: var(--fwg-mid-gray); background: var(--fwg-white); border: 1.5px solid #D4D4D4;
+    }
+    .btn-nav--back:hover { color: var(--fwg-dark-gray); border-color: #B0B0B0; background: #F5F5F5; }
+    .btn-nav--continue {
+      color: var(--fwg-white); background: var(--fwg-red);
+    }
+    .btn-nav--continue:hover { background: var(--fwg-red-hover); transform: translateY(-1px); }
+    .btn-nav--continue:active { transform: translateY(0); }
+
+    /* ── AI Policy Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000;
+      align-items: center; justify-content: center; padding: 20px;
+      animation: fadeIn 0.2s ease;
+    }
+    .modal-overlay.visible { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal {
+      background: var(--fwg-white); border-radius: var(--radius-lg); max-width: 580px; width: 100%;
+      max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: modalIn 0.25s ease;
+    }
+    @keyframes modalIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .modal__header { padding: 28px 32px 0; }
+    .modal__tag {
+      display: inline-block; font-family: var(--font-headline); font-size: 11px; font-weight: 600;
+      letter-spacing: 1.2px; text-transform: uppercase; color: var(--fwg-red);
+      background: var(--fwg-red-light); border: 1px solid var(--fwg-red-border);
+      padding: 4px 12px; border-radius: var(--radius-sm); margin-bottom: 14px;
+    }
+    .modal__title { font-family: var(--font-headline); font-size: 20px; font-weight: 700; color: var(--fwg-dark-gray); line-height: 1.25; }
+    .modal__body { padding: 20px 32px; }
+    .modal__intro { font-size: 13.5px; font-weight: 400; color: var(--fwg-mid-gray); line-height: 1.6; margin-bottom: 20px; }
+    .modal__points { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+    .modal__point { display: flex; gap: 12px; }
+    .modal__point-num {
+      flex-shrink: 0; width: 26px; height: 26px; background: var(--fwg-dark-gray); color: var(--fwg-white);
+      font-family: var(--font-headline); font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; border-radius: 6px; margin-top: 1px;
+    }
+    .modal__point-text { font-size: 13px; font-weight: 400; color: var(--fwg-dark-gray); line-height: 1.55; }
+    .modal__fine-print {
+      font-size: 12px; font-weight: 400; color: var(--fwg-mid-gray); line-height: 1.5;
+      padding: 14px 16px; background: #F7F7F7; border-radius: var(--radius-sm); border-left: 3px solid var(--fwg-red);
+    }
+    .modal__footer {
+      padding: 20px 32px 28px; display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+      border-top: 1px solid #E8E8E8;
+    }
+    .btn-modal-secondary {
+      font-family: var(--font-headline); font-size: 13px; font-weight: 600; color: var(--fwg-mid-gray);
+      background: none; border: 1.5px solid #D4D4D4; border-radius: var(--radius-md);
+      padding: 11px 20px; cursor: pointer; transition: all var(--transition);
+    }
+    .btn-modal-secondary:hover { color: var(--fwg-dark-gray); border-color: #B0B0B0; background: #F5F5F5; }
+    .btn-modal-primary {
+      font-family: var(--font-headline); font-size: 13px; font-weight: 700; color: var(--fwg-white);
+      background: var(--fwg-red); border: none; border-radius: var(--radius-md);
+      padding: 12px 24px; cursor: pointer; transition: all var(--transition);
+    }
+    .btn-modal-primary:hover { background: var(--fwg-red-hover); }
+    @media (max-width: 640px) {
+      .modal__header, .modal__body, .modal__footer { padding-left: 20px; padding-right: 20px; }
+      .modal__footer { flex-direction: column; }
+      .btn-modal-secondary, .btn-modal-primary { width: 100%; text-align: center; }
+    }
+
+    /* ── Field Errors ── */
+    .field-error input, .field-error select, .field-error textarea { border-color: var(--fwg-red) !important; box-shadow: 0 0 0 3px var(--fwg-red-light) !important; }
+    .field-error .contact-method-group, .field-error .coverage-type-group, .field-error .artwork-rows, .field-error .vtype-grid { outline: 2px solid var(--fwg-red); outline-offset: 4px; border-radius: var(--radius-md); }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+    .shake { animation: shake 0.4s ease; }
+
+    /* ── Fields ── */
+    .field-group { margin-bottom: 22px; }
+    .field-group:last-child { margin-bottom: 0; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    label.field-label { display: block; font-size: 13.5px; font-weight: 600; color: var(--fwg-dark-gray-2); margin-bottom: 6px; letter-spacing: 0.01em; }
+    label.field-label .required { color: var(--fwg-red); margin-left: 2px; }
+    label.field-label .optional { color: var(--fwg-mid-gray); font-weight: 400; font-size: 12px; margin-left: 4px; }
+    .field-helper { display: block; font-size: 12px; font-weight: 300; color: var(--fwg-mid-gray); margin-bottom: 6px; line-height: 1.5; }
+    input[type="text"], input[type="email"], input[type="tel"], input[type="number"], select, textarea {
+      width: 100%; font-family: var(--font-body); font-size: 14px; font-weight: 400; color: var(--fwg-dark-gray);
+      background: var(--fwg-white); border: 1.5px solid #D4D4D4; border-radius: var(--radius-md);
+      padding: 11px 14px; transition: border-color var(--transition), box-shadow var(--transition); outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--fwg-red); box-shadow: 0 0 0 3px var(--fwg-red-light); }
+    input::placeholder, textarea::placeholder { color: #B0B0B0; }
+    select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237D7D7D' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 38px; cursor: pointer; }
+    textarea { resize: vertical; min-height: 110px; }
+
+    /* ── Contact Method Buttons ── */
+    .contact-method-group { display: flex; gap: 10px; margin-top: 4px; }
+    .contact-method-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 16px; border: 1.5px solid #D4D4D4; border-radius: var(--radius-md);
+      background: var(--fwg-white); cursor: pointer; transition: all var(--transition);
+      font-family: var(--font-body); font-size: 14px; font-weight: 500; color: var(--fwg-dark-gray-2);
+    }
+    .contact-method-btn:hover { border-color: #B0B0B0; background: #F5F5F5; }
+    .contact-method-btn.selected { border-color: var(--fwg-red); background: var(--fwg-red-light); color: var(--fwg-red); box-shadow: 0 0 0 3px rgba(206,0,0,0.06); }
+    .contact-method-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    /* ── Coverage Type Buttons ── */
+    .coverage-type-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+    .coverage-type-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      padding: 18px 12px 14px; border: 2px solid #E0E0E0; border-radius: var(--radius-md);
+      background: var(--fwg-white); cursor: pointer; transition: all var(--transition);
+      font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--fwg-dark-gray-2);
+      text-align: center; position: relative;
+    }
+    .coverage-type-btn:hover { border-color: #C0C0C0; background: #F5F5F5; }
+    .coverage-type-btn.selected { border-color: var(--fwg-red); background: var(--fwg-red-light); color: var(--fwg-red); box-shadow: 0 0 0 3px rgba(206,0,0,0.06); }
+
+    .coverage-type-btn__label { line-height: 1.3; }
+    .coverage-type-btn__desc { font-size: 11px; font-weight: 300; color: var(--fwg-mid-gray); line-height: 1.3; margin-top: 2px; }
+    .coverage-type-btn.selected .coverage-type-btn__desc { color: var(--fwg-red); opacity: 0.7; }
+
+    /* ── Specs Toggle ── */
+    .specs-toggle-btn {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+      font-family: var(--font-body); font-size: 12.5px; font-weight: 600; color: var(--fwg-mid-gray);
+      background: none; border: 1.5px solid #D4D4D4; border-radius: 20px; padding: 6px 16px;
+      cursor: pointer; transition: all var(--transition);
+    }
+    .specs-toggle-btn:hover { border-color: var(--fwg-red); color: var(--fwg-red); }
+    .specs-toggle-btn.open { border-color: var(--fwg-red); color: var(--fwg-red); background: var(--fwg-red-light); }
+    .specs-toggle-btn svg { width: 14px; height: 14px; transition: transform 0.2s ease; }
+    .specs-toggle-btn.open svg { transform: rotate(180deg); }
+
+    /* ── Specs Panel ── */
+    .specs-panel { display: none; margin-top: 16px; background: var(--fwg-white); border-radius: var(--radius-md); padding: 20px 24px; border: 1.5px solid #E0E0E0; animation: slideIn 0.25s ease; }
+    .specs-panel.visible { display: block; }
+    .specs-panel__row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(128,128,128,0.12); }
+    .specs-panel__row:last-child { border-bottom: 0; }
+    .specs-panel__label { font-size: 13px; font-weight: 500; color: var(--fwg-dark-gray-2); }
+    .specs-panel__dots { display: flex; gap: 4px; }
+    .specs-panel__dot { width: 10px; height: 10px; border-radius: 50%; }
+    .specs-panel__value { font-size: 12px; font-weight: 600; color: var(--fwg-mid-gray); min-width: 28px; text-align: right; }
+
+    /* ── Checkbox ── */
+    .checkbox-option { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 13.5px; font-weight: 400; color: var(--fwg-dark-gray-2); line-height: 1.5; }
+    .checkbox-option input[type="checkbox"] {
+      appearance: none; width: 18px; height: 18px; border: 1.5px solid #D4D4D4; border-radius: 4px;
+      cursor: pointer; position: relative; transition: border-color var(--transition), background var(--transition); flex-shrink: 0; margin-top: 2px;
+    }
+    .checkbox-option input[type="checkbox"]:checked { border-color: var(--fwg-red); background: var(--fwg-red); }
+    .checkbox-option input[type="checkbox"]:checked::after { content: ''; position: absolute; top: 2px; left: 5px; width: 5px; height: 9px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+    /* ── File upload ── */
+    .file-upload { position: relative; border: 2px dashed #D4D4D4; border-radius: var(--radius-md); padding: 24px; text-align: center; cursor: pointer; transition: border-color var(--transition), background var(--transition); }
+    .file-upload:hover { border-color: var(--fwg-red-border); background: var(--fwg-red-light); }
+    .file-upload input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .file-upload__icon { width: 36px; height: 36px; margin: 0 auto 8px; opacity: 0.35; }
+    .file-upload__text { font-size: 13px; color: var(--fwg-mid-gray); }
+    .file-upload__text strong { color: var(--fwg-red); font-weight: 600; }
+    .file-names { margin-top: 8px; font-size: 12px; color: var(--fwg-dark-gray-2); }
+    .file-upload--compact { padding: 16px; }
+    .file-upload--compact .file-upload__icon { width: 28px; height: 28px; margin-bottom: 4px; }
+    .file-upload--required { border-color: var(--fwg-red-border); }
+
+    /* ── Vehicle Section ── */
+    .vehicle-section__toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .vehicle-count-badge { font-size: 12.5px; font-weight: 500; color: var(--fwg-mid-gray); background: var(--fwg-white); border: 1px solid #D4D4D4; padding: 6px 14px; border-radius: 20px; }
+    .vehicle-count-badge span { color: var(--fwg-dark-gray); font-size: 14px; }
+
+    /* ── Vehicle Block ── */
+    .vehicle-block { background: var(--fwg-white); border-radius: var(--radius-lg); padding: 28px 28px 24px; margin-bottom: 16px; position: relative; animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .vehicle-block__top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 8px; }
+    .vehicle-block__title { font-family: var(--font-headline); font-size: 15px; font-weight: 700; letter-spacing: 0.01em; color: var(--fwg-dark-gray); padding-bottom: 4px; border-bottom: 2px solid var(--fwg-red); }
+    .vehicle-block__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-vehicle-action { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-body); font-size: 11.5px; font-weight: 600; border: none; border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; transition: all var(--transition); line-height: 1; }
+    .btn-vehicle-action svg { width: 14px; height: 14px; flex-shrink: 0; }
+    .btn-copy { color: var(--fwg-green); background: var(--fwg-green-light); border: 1px solid var(--fwg-green-border); }
+    .btn-copy:hover { background: rgba(27, 140, 61, 0.15); }
+    .btn-duplicate { color: var(--fwg-dark-gray-2); background: var(--fwg-white); border: 1px solid #D4D4D4; }
+    .btn-duplicate:hover { background: #f5f5f5; }
+    .btn-remove { color: var(--fwg-red); background: var(--fwg-red-light); border: 1px solid var(--fwg-red-border); }
+    .btn-remove:hover { background: rgba(206, 0, 0, 0.12); }
+    .vehicle-block .field-group { margin-bottom: 16px; }
+
+    /* ── Older Vehicle Notice ── */
+    .older-vehicle-notice { display: none; background: var(--fwg-amber-bg); border: 1px solid var(--fwg-amber-border); border-radius: var(--radius-md); padding: 12px 14px; margin-top: 10px; font-size: 12.5px; color: var(--fwg-amber-text); line-height: 1.55; }
+    .older-vehicle-notice.visible { display: block; }
+    .older-vehicle-notice input { margin-top: 10px; border-radius: var(--radius-sm); }
+
+    /* ── Photo required notice ── */
+    .photo-required-notice { background: var(--fwg-red-light); border: 1px solid var(--fwg-red-border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 8px; font-size: 12px; font-weight: 500; color: var(--fwg-red); line-height: 1.5; }
+
+    /* ── Browsing notice ── */
+    .browsing-notice { background: var(--fwg-blue-light); border: 1px solid var(--fwg-blue-border); border-radius: var(--radius-md); padding: 12px 14px; margin-top: 4px; font-size: 12.5px; font-weight: 400; color: var(--fwg-blue); line-height: 1.5; display: none; }
+    .browsing-notice.visible { display: block; }
+
+    /* ── Vehicle Type Selector ── */
+    .vtype-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .vtype-card { border: 2px solid #E0E0E0; border-radius: var(--radius-md); padding: 14px 10px 12px; text-align: center; cursor: pointer; transition: all var(--transition); background: var(--fwg-white); }
+    .vtype-card:hover { border-color: #C0C0C0; background: #F5F5F5; }
+    .vtype-card.selected { border-color: var(--fwg-red); background: var(--fwg-red-light); box-shadow: 0 0 0 3px rgba(206,0,0,0.08); }
+    .vtype-card__label { font-size: 12px; font-weight: 600; color: var(--fwg-dark-gray-2); line-height: 1.3; }
+    .vtype-card__examples { font-size: 10.5px; font-weight: 400; color: var(--fwg-mid-gray); line-height: 1.3; margin-top: 3px; }
+    .vtype-card.selected .vtype-card__examples { color: var(--fwg-red); opacity: 0.7; }
+
+    /* ── Conditional fields ── */
+    .conditional-fields { display: none; }
+    .conditional-fields.visible { display: block; }
+
+    /* ── Vehicle type prompt ── */
+    .vtype-prompt { text-align: center; padding: 32px 20px; border: 2px dashed #D4D4D4; border-radius: var(--radius-md); background: var(--fwg-white); margin-top: 4px; }
+    .vtype-prompt__icon { width: 40px; height: 40px; margin: 0 auto 12px; color: var(--fwg-mid-gray); opacity: 0.5; }
+    .vtype-prompt__text { font-size: 14px; font-weight: 500; color: var(--fwg-mid-gray); }
+
+    /* ── Color Picker ── */
+    .color-picker { position: relative; width: 100%; }
+    .color-picker__trigger { display: flex; align-items: center; gap: 10px; width: 100%; font-family: var(--font-body); font-size: 14px; color: var(--fwg-dark-gray); background: var(--fwg-white); border: 1.5px solid #D4D4D4; border-radius: var(--radius-md); padding: 9px 14px; cursor: pointer; transition: border-color var(--transition), box-shadow var(--transition); outline: none; text-align: left; min-height: 44px; }
+    .color-picker__trigger:focus, .color-picker__trigger.open { border-color: var(--fwg-red); box-shadow: 0 0 0 3px var(--fwg-red-light); }
+    .color-picker__trigger-swatch { width: 22px; height: 22px; border-radius: 4px; border: 1.5px solid rgba(0,0,0,0.12); flex-shrink: 0; }
+    .color-picker__trigger-label { flex: 1; }
+    .color-picker__trigger-label.placeholder { color: #B0B0B0; }
+    .color-picker__chevron { width: 12px; height: 12px; flex-shrink: 0; transition: transform 0.2s ease; }
+    .color-picker__trigger.open .color-picker__chevron { transform: rotate(180deg); }
+    .color-picker__dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--fwg-white); border: 1.5px solid #D4D4D4; border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.06); z-index: 50; max-height: 280px; overflow-y: auto; display: none; padding: 4px 0; }
+    .color-picker__dropdown.open { display: block; }
+    .color-picker__option { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; font-size: 13.5px; color: var(--fwg-dark-gray-2); transition: background var(--transition); }
+    .color-picker__option:hover { background: var(--fwg-light-gray); }
+    .color-picker__option.selected { background: var(--fwg-red-light); font-weight: 600; }
+    .color-picker__swatch { width: 22px; height: 22px; border-radius: 4px; border: 1.5px solid rgba(0,0,0,0.12); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .color-picker__swatch--other { background: linear-gradient(135deg, #E8E8E8 25%, #D0D0D0 25%, #D0D0D0 50%, #E8E8E8 50%, #E8E8E8 75%, #D0D0D0 75%); background-size: 8px 8px; font-size: 13px; font-weight: 700; color: var(--fwg-mid-gray); }
+    .color-picker__option-label { flex: 1; }
+    .color-picker__other-input { width: 100%; font-family: var(--font-body); font-size: 13px; color: var(--fwg-dark-gray); background: var(--fwg-white); border: 1.5px solid #D4D4D4; border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 8px; outline: none; transition: border-color var(--transition), box-shadow var(--transition); display: none; }
+    .color-picker__other-input:focus { border-color: var(--fwg-red); box-shadow: 0 0 0 3px var(--fwg-red-light); }
+    .color-picker__other-input.visible { display: block; }
+    .color-picker__hidden { display: none; }
+
+    /* ── Artwork Row Selector ── */
+    .artwork-rows { display: flex; flex-direction: column; gap: 10px; }
+    .artwork-row {
+      display: flex; align-items: center; gap: 16px; border: 2px solid #E0E0E0; border-radius: var(--radius-md);
+      padding: 16px 20px; cursor: pointer; transition: all var(--transition); background: var(--fwg-white);
+    }
+    .artwork-row:hover { border-color: #C0C0C0; background: #F5F5F5; }
+    .artwork-row.selected { border-color: var(--fwg-red); background: var(--fwg-red-light); box-shadow: 0 0 0 3px rgba(206,0,0,0.08); }
+    .artwork-row__icon { width: 36px; height: 36px; flex-shrink: 0; color: var(--fwg-mid-gray); }
+    .artwork-row.selected .artwork-row__icon { color: var(--fwg-red); }
+    .artwork-row__content { flex: 1; min-width: 0; }
+    .artwork-row__title { font-weight: 700; font-size: 14px; color: var(--fwg-dark-gray); letter-spacing: 0.01em; }
+    .artwork-row__desc { font-size: 12px; font-weight: 300; color: var(--fwg-mid-gray); line-height: 1.4; margin-top: 2px; }
+    .artwork-row__fee { flex-shrink: 0; font-size: 11px; font-weight: 600; color: var(--fwg-orange); background: var(--fwg-orange-light); border: 1px solid var(--fwg-orange-border); padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+
+    /* ── Add Vehicle Button ── */
+    .btn-add-vehicle { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; font-family: var(--font-headline); font-size: 14px; font-weight: 600; letter-spacing: 0.02em; color: var(--fwg-dark-gray-2); background: var(--fwg-white); border: 2px dashed #C8C8C8; border-radius: var(--radius-md); padding: 18px; cursor: pointer; transition: all var(--transition); }
+    .btn-add-vehicle:hover { border-color: var(--fwg-red); color: var(--fwg-red); background: var(--fwg-red-light); }
+    .btn-add-vehicle svg { width: 20px; height: 20px; }
+
+    /* ── Review Summary ── */
+    .summary { margin-bottom: 28px; }
+    .summary__section { background: var(--fwg-white); border-radius: var(--radius-md); padding: 18px 20px; margin-bottom: 12px; }
+    .summary__section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .summary__section-title { font-family: var(--font-headline); font-size: 13.5px; font-weight: 700; color: var(--fwg-dark-gray); display: flex; align-items: center; gap: 8px; }
+    .summary__section-num { width: 22px; height: 22px; background: var(--fwg-dark-gray); color: var(--fwg-white); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; }
+    .btn-edit { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--fwg-red); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); transition: all var(--transition); }
+    .btn-edit:hover { background: var(--fwg-red-light); }
+    .btn-edit svg { width: 13px; height: 13px; }
+    .summary__row { display: flex; padding: 6px 0; font-size: 13px; line-height: 1.5; border-bottom: 1px solid #F0F0F0; }
+    .summary__row:last-child { border-bottom: none; }
+    .summary__label { flex-shrink: 0; width: 140px; font-weight: 500; color: var(--fwg-mid-gray); }
+    .summary__value { flex: 1; font-weight: 500; color: var(--fwg-dark-gray); }
+    .summary__vehicle-card { background: var(--fwg-light-gray); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px; }
+    .summary__vehicle-card:last-child { margin-bottom: 0; }
+    .summary__vehicle-label { font-size: 12px; font-weight: 700; color: var(--fwg-dark-gray); margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1.5px solid var(--fwg-red); display: inline-block; }
+    .summary__divider { height: 1px; background: #E0E0E0; margin: 24px 0; }
+    @media (max-width: 640px) {
+      .summary__row { flex-direction: column; gap: 2px; }
+      .summary__label { width: auto; }
+    }
+
+    /* ── Submit ── */
+    .btn-submit {
+      font-family: var(--font-headline); font-size: 16px; font-weight: 700; letter-spacing: 0.03em;
+      color: var(--fwg-white); background: var(--fwg-red); border: none; border-radius: var(--radius-md);
+      padding: 16px 56px; cursor: pointer; transition: background var(--transition), transform 0.15s ease;
+    }
+    .btn-submit:hover { background: var(--fwg-red-hover); transform: translateY(-1px); }
+    .btn-submit:active { transform: translateY(0); }
+    .submit-note { margin-top: 14px; font-size: 12.5px; font-weight: 300; color: var(--fwg-mid-gray); }
+
+    /* ── Toast ── */
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px); font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--fwg-white); background: var(--fwg-dark-gray); padding: 12px 24px; border-radius: var(--radius-md); box-shadow: 0 4px 20px rgba(0,0,0,0.2); opacity: 0; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease; z-index: 999; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .form-page { padding: 24px 16px 80px; }
+      .step-card { padding: 28px 22px; }
+      .field-row { grid-template-columns: 1fr; }
+      .contact-method-group { flex-direction: column; }
+      .vehicle-block { padding: 20px 18px; }
+      .vehicle-block__top-bar { flex-direction: column; align-items: flex-start; }
+      .btn-submit { width: 100%; padding: 16px 24px; }
+      .vtype-grid { grid-template-columns: repeat(2, 1fr); }
+      .artwork-row { flex-wrap: wrap; gap: 10px; padding: 14px 16px; }
+      .artwork-row__fee { margin-left: auto; }
+      .coverage-type-group { grid-template-columns: 1fr; }
+      .stepper { padding: 0; gap: 0; }
+      .stepper::before { left: 24px; right: 24px; }
+      .step-indicator { min-width: 0; flex: 1; }
+      .step-indicator__label { font-size: 9px; max-width: 56px; }
+      .step-indicator__circle { width: 32px; height: 32px; font-size: 12px; }
+    }
+    /* Spinner for submit button */
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+
+  <div class="form-page">
+
+    <!-- Header -->
+    <div class="form-header">
+      <span class="form-header__tag">Request a Quote</span>
+      <h1 class="form-header__title">Commercial Vehicle Wraps<br />&amp; Graphics Inquiry</h1>
+      <p class="form-header__subtitle">This form is for business and fleet vehicles only. Personal styling projects are handled separately.</p>
+    </div>
+
+    <!-- Stepper -->
+    <div class="stepper" id="stepper">
+      <div class="step-indicator active" data-step="1" onclick="goToStep(1)">
+        <div class="step-indicator__circle">1</div>
+        <span class="step-indicator__label">Contact</span>
+      </div>
+      <div class="step-indicator" data-step="2" onclick="goToStep(2)">
+        <div class="step-indicator__circle">2</div>
+        <span class="step-indicator__label">Vehicles</span>
+      </div>
+      <div class="step-indicator" data-step="3" onclick="goToStep(3)">
+        <div class="step-indicator__circle">3</div>
+        <span class="step-indicator__label">Coverage</span>
+      </div>
+      <div class="step-indicator" data-step="4" onclick="goToStep(4)">
+        <div class="step-indicator__circle">4</div>
+        <span class="step-indicator__label">Artwork</span>
+      </div>
+      <div class="step-indicator" data-step="5" onclick="goToStep(5)">
+        <div class="step-indicator__circle">5</div>
+        <span class="step-indicator__label">Timeline</span>
+      </div>
+      <div class="step-indicator" data-step="6" onclick="goToStep(6)">
+        <div class="step-indicator__circle">6</div>
+        <span class="step-indicator__label">Review</span>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <form id="fwgInquiryForm" novalidate>
+
+      <!-- Step 1: Business Contact -->
+      <div class="step-card active" data-step="1">
+        <div class="step-card__header">
+          <span class="step-card__number">01</span>
+          <h2 class="step-card__title">Business Contact Info</h2>
+        </div>
+        <div class="field-row" style="margin-bottom:22px;">
+          <div class="field-group"><label class="field-label" for="businessName">Business Name <span class="required">*</span></label><input type="text" id="businessName" name="business_name" placeholder="Your company name" required /></div>
+          <div class="field-group"><label class="field-label" for="contactName">Contact Name <span class="required">*</span></label><input type="text" id="contactName" name="contact_name" placeholder="Full name" required /></div>
+        </div>
+        <div class="field-row" style="margin-bottom:22px;">
+          <div class="field-group"><label class="field-label" for="email">Email Address <span class="required">*</span></label><input type="email" id="email" name="email" placeholder="you@company.com" required /></div>
+          <div class="field-group"><label class="field-label" for="phone">Phone Number <span class="required">*</span></label><input type="tel" id="phone" name="phone" placeholder="(000) 000-0000" required /></div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Preferred Contact Method <span class="required">*</span></label>
+          <input type="hidden" name="contact_method" id="contactMethodHidden" value="" />
+          <div class="contact-method-group">
+            <button type="button" class="contact-method-btn" data-value="email" onclick="selectContactMethod(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4l-10 8L2 4"/></svg>
+              Email
+            </button>
+            <button type="button" class="contact-method-btn" data-value="text" onclick="selectContactMethod(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/></svg>
+              Text
+            </button>
+            <button type="button" class="contact-method-btn" data-value="call" onclick="selectContactMethod(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.362 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+              Call
+            </button>
+          </div>
+        </div>
+        <div class="step-card__footer step-card__footer--end">
+          <button type="button" class="btn-nav btn-nav--continue" onclick="goToStep(2)">Continue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Step 2: Vehicle Details -->
+      <div class="step-card" data-step="2" id="vehicleSection">
+        <div class="step-card__header">
+          <span class="step-card__number">02</span>
+          <h2 class="step-card__title">Vehicle Details</h2>
+        </div>
+        <div class="vehicle-section__toolbar">
+          <div class="vehicle-count-badge"><span id="vehicleCountDisplay">1</span> vehicle(s) added</div>
+        </div>
+        <div id="vehicleBlocksContainer"></div>
+        <button type="button" class="btn-add-vehicle" id="btnAddVehicle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Another Vehicle
+        </button>
+        <div class="step-card__footer">
+          <button type="button" class="btn-nav btn-nav--back" onclick="goToStep(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Back</button>
+          <button type="button" class="btn-nav btn-nav--continue" onclick="goToStep(3)">Continue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Step 3: Coverage Type -->
+      <div class="step-card" data-step="3">
+        <div class="step-card__header">
+          <span class="step-card__number">03</span>
+          <h2 class="step-card__title">Coverage Type</h2>
+        </div>
+        <div class="field-group">
+          <label class="field-label">What type of coverage are you looking for? <span class="required">*</span></label>
+          <input type="hidden" name="project_type" id="projectTypeHidden" value="" />
+          <div class="coverage-type-group">
+            <button type="button" class="coverage-type-btn" data-value="full_wrap" onclick="selectCoverageType(this)">
+              <span class="coverage-type-btn__label">Full Wrap</span>
+              <span class="coverage-type-btn__desc">Complete vehicle coverage</span>
+            </button>
+            <button type="button" class="coverage-type-btn" data-value="partial_wrap" onclick="selectCoverageType(this)">
+              <span class="coverage-type-btn__label">Partial Wrap</span>
+              <span class="coverage-type-btn__desc">Targeted panel coverage</span>
+            </button>
+            <button type="button" class="coverage-type-btn" data-value="graphics_lettering" onclick="selectCoverageType(this)">
+              <span class="coverage-type-btn__label">Graphics &amp; Lettering</span>
+              <span class="coverage-type-btn__desc">Logos, text &amp; cut graphics</span>
+            </button>
+            <button type="button" class="coverage-type-btn" data-value="not_sure" onclick="selectCoverageType(this)">
+              <span class="coverage-type-btn__label">Not Sure Yet</span>
+              <span class="coverage-type-btn__desc">We'll help you decide</span>
+            </button>
+          </div>
+          <div style="text-align:center;">
+            <button type="button" class="specs-toggle-btn" id="specsToggleBtn" onclick="toggleSpecsPanel()" style="display:none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              <span id="specsToggleLabel">Show Specs</span>
+            </button>
+          </div>
+          <div class="specs-panel" id="specsPanel"></div>
+        </div>
+        <div class="step-card__footer">
+          <button type="button" class="btn-nav btn-nav--back" onclick="goToStep(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Back</button>
+          <button type="button" class="btn-nav btn-nav--continue" onclick="goToStep(4)">Continue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Step 4: Artwork & Design -->
+      <div class="step-card" data-step="4">
+        <div class="step-card__header">
+          <span class="step-card__number">04</span>
+          <h2 class="step-card__title">Artwork &amp; Design Status</h2>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Tell us about your artwork <span class="required">*</span></label>
+          <input type="hidden" id="artworkStatusHidden" name="artwork_status" value="" />
+          <div class="artwork-rows" id="artworkRows">
+            <div class="artwork-row" data-value="fleet_match" onclick="selectArtwork(this)">
+              <svg class="artwork-row__icon" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M26.5 6.5A7.5 7.5 0 0134 14"/><path d="M26.5 2A12 12 0 0138 14"/><path d="M13.5 33.5A7.5 7.5 0 016 26"/><path d="M13.5 38A12 12 0 012 26"/><path d="M26 14H14v12h12V14z"/></svg>
+              <div class="artwork-row__content"><div class="artwork-row__title">Fleet Match</div><div class="artwork-row__desc">I have existing wrapped vehicles and design files to match</div></div>
+            </div>
+            <div class="artwork-row" data-value="print_ready" onclick="selectArtwork(this)">
+              <svg class="artwork-row__icon" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h16l8 8v20a2 2 0 01-2 2H10a2 2 0 01-2-2V6z"/><path d="M24 6v8h8"/><path d="M14 22h12M14 28h8"/></svg>
+              <div class="artwork-row__content"><div class="artwork-row__title">Print-Ready Artwork</div><div class="artwork-row__desc">I have complete print-ready design files (AI, PDF, EPS)</div></div>
+            </div>
+            <div class="artwork-row" data-value="logo_vision" onclick="selectArtwork(this)">
+              <svg class="artwork-row__icon" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 34h8"/><path d="M17 38h6"/><path d="M20 2a10 10 0 00-4 19.2V26h8v-4.8A10 10 0 0020 2z"/></svg>
+              <div class="artwork-row__content"><div class="artwork-row__title">Logo + Vision</div><div class="artwork-row__desc">I have my logo and brand guidelines &mdash; need design work</div></div>
+              <span class="artwork-row__fee">Design fee applies</span>
+            </div>
+            <div class="artwork-row" data-value="logo_only" onclick="selectArtwork(this)">
+              <svg class="artwork-row__icon" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M32 16l-4-4-14 14H10v4h4l14-14z"/><path d="M24 8l4 4"/><rect x="6" y="6" width="28" height="28" rx="3"/></svg>
+              <div class="artwork-row__content"><div class="artwork-row__title">Logo Only</div><div class="artwork-row__desc">I have my logo but no design direction yet</div></div>
+              <span class="artwork-row__fee">Design fee applies</span>
+            </div>
+            <div class="artwork-row" data-value="from_scratch" onclick="selectArtwork(this)">
+              <svg class="artwork-row__icon" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4l3 10h10l-8 6 3 10-8-6-8 6 3-10-8-6h10z"/></svg>
+              <div class="artwork-row__content"><div class="artwork-row__title">Start from Scratch</div><div class="artwork-row__desc">I need everything &mdash; may need logo design too</div></div>
+              <span class="artwork-row__fee">Design fee applies</span>
+            </div>
+            <div class="artwork-row" data-value="ai_mockup" onclick="selectArtwork(this)">
+              <svg class="artwork-row__icon" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4v6M20 30v6M4 20h6M30 20h6"/><path d="M8.93 8.93l4.24 4.24M26.83 26.83l4.24 4.24M8.93 31.07l4.24-4.24M26.83 13.17l4.24-4.24"/><circle cx="20" cy="20" r="7"/></svg>
+              <div class="artwork-row__content"><div class="artwork-row__title">AI-Generated Mockup</div><div class="artwork-row__desc">I have an AI-generated concept or mockup and understand it is inspiration only</div></div>
+              <span class="artwork-row__fee">Acknowledgment required</span>
+            </div>
+          </div>
+          <input type="hidden" id="aiAcknowledged" name="ai_acknowledged" value="" />
+        </div>
+        <div class="field-group" style="margin-top:28px;">
+          <label class="field-label">Upload Your Logo</label>
+          <span class="field-helper">Send us your logo file so we can get started. Accepted: .ai, .pdf, .eps, .svg, .png, .jpg</span>
+          <div class="file-upload file-upload--compact" id="logoUpload">
+            <svg class="file-upload__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p class="file-upload__text"><strong>Click to upload</strong> your logo file</p>
+            <input type="file" name="logo_file" multiple accept=".ai,.pdf,.eps,.svg,.png,.jpg,.jpeg" onchange="showFileNames(this,'logoUpload')" />
+            <div class="file-names"></div>
+          </div>
+        </div>
+        <div class="step-card__footer">
+          <button type="button" class="btn-nav btn-nav--back" onclick="goToStep(3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Back</button>
+          <button type="button" class="btn-nav btn-nav--continue" onclick="goToStep(5)">Continue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Step 5: Timeline -->
+      <div class="step-card" data-step="5">
+        <div class="step-card__header">
+          <span class="step-card__number">05</span>
+          <h2 class="step-card__title">Timeline &amp; Budget</h2>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="timeline">When are you looking to move forward? <span class="required">*</span></label>
+          <select id="timeline" name="timeline" required>
+            <option value="" disabled selected>Select timeline</option>
+            <option value="asap">ASAP / As soon as possible</option>
+            <option value="30_days">Within 30 days</option>
+            <option value="30_60_days">30&ndash;60 days</option>
+            <option value="60_90_days">60&ndash;90+ days</option>
+            <option value="planning">Just planning / gathering info</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="budget">What is your optimal budget for this project? <span class="optional">optional</span></label>
+          <select id="budget" name="budget">
+            <option value="" disabled selected>Select a budget range</option>
+            <option value="under_1000">Under $1,000</option>
+            <option value="1000_2500">$1,000 &ndash; $2,500</option>
+            <option value="2500_5000">$2,500 &ndash; $5,000</option>
+            <option value="5000_10000">$5,000 &ndash; $10,000</option>
+            <option value="10000_plus">$10,000+</option>
+            <option value="not_sure">Not sure yet</option>
+          </select>
+        </div>
+        <div class="step-card__footer">
+          <button type="button" class="btn-nav btn-nav--back" onclick="goToStep(4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Back</button>
+          <button type="button" class="btn-nav btn-nav--continue" onclick="goToStep(6)">Continue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Step 6: Review & Submit -->
+      <div class="step-card" data-step="6">
+        <div class="step-card__header">
+          <span class="step-card__number">06</span>
+          <h2 class="step-card__title">Review &amp; Submit</h2>
+        </div>
+        <div class="summary" id="summaryContainer"></div>
+        <div class="summary__divider"></div>
+        <div class="field-group">
+          <label class="field-label" for="additionalInfo">Anything else we should know?</label>
+          <span class="field-helper">Brand requirements, special requests, or other notes.</span>
+          <textarea id="additionalInfo" name="additional_info" placeholder="Share any details that might help us prepare your quote..."></textarea>
+        </div>
+        <div class="step-card__footer">
+          <button type="button" class="btn-nav btn-nav--back" onclick="goToStep(5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg> Back</button>
+          <div style="text-align:center;">
+            <button type="submit" class="btn-submit">Request Quote</button>
+            <p class="submit-note">A member of our team will review your request and follow up after details are reviewed.</p>
+          </div>
+        </div>
+      </div>
+
+    </form>
+  </div>
+
+  <div class="modal-overlay" id="aiPolicyModal" onclick="cancelAiSelection(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal__header">
+        <div class="modal__tag">AI artwork policy</div>
+        <h3 class="modal__title">AI-generated mockups are inspiration only</h3>
+      </div>
+      <div class="modal__body">
+        <p class="modal__intro">If your artwork was created with AI, please confirm you understand the following before continuing.</p>
+        <div class="modal__points">
+          <div class="modal__point">
+            <span class="modal__point-num">1</span>
+            <p class="modal__point-text">AI-generated artwork and mockups are treated as ideas and inspiration only. In most cases, we cannot match AI output exactly and final artwork will have differences.</p>
+          </div>
+          <div class="modal__point">
+            <span class="modal__point-num">2</span>
+            <p class="modal__point-text">AI images are not vector and are not production-ready. To use it professionally, we must rebuild it or vectorize it.</p>
+          </div>
+          <div class="modal__point">
+            <span class="modal__point-num">3</span>
+            <p class="modal__point-text">Our design service covers one direction, multiple options in the same theme and up to 3 rounds of revisions. Major direction changes after we start design are billed as additional design time.</p>
+          </div>
+          <div class="modal__point">
+            <span class="modal__point-num">4</span>
+            <p class="modal__point-text">To keep your brand consistent, we need your actual fonts, colors and logo files. If you do not have them, we will choose the closest professional matches.</p>
+          </div>
+        </div>
+        <div class="modal__fine-print">Selecting &ldquo;I understand&rdquo; confirms you want us to interpret your AI concept and rebuild it into production-ready artwork.</div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn-modal-secondary" onclick="cancelAiFromModal()">Choose a different option</button>
+        <button type="button" class="btn-modal-primary" onclick="acknowledgeAiPolicy()">I understand</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONFIGURATION — Update these values
+// ═══════════════════════════════════════════════
+var FWG_CONFIG = {
+  SUPABASE_URL:      '__YOUR_SUPABASE_URL__',      // e.g. https://xxxx.supabase.co
+  SUPABASE_ANON_KEY: '__YOUR_SUPABASE_ANON_KEY__',
+  API_URL:           '__YOUR_API_URL__',            // e.g. https://fwg-ops.vercel.app
+  THANK_YOU_URL:     '/pages/thank-you',            // Shopify page redirect after submit
+  STORAGE_BUCKET:    'form-uploads'
+};
+
+// -----------------------------------------------
+//  STEPPER NAVIGATION
+// -----------------------------------------------
+const TOTAL_STEPS = 6;
+let currentStep = 1;
+const completedSteps = new Set();
+
+function goToStep(target) {
+  if (target < 1 || target > TOTAL_STEPS || target === currentStep) return;
+
+  const isForward = target > currentStep;
+
+  // Hard validate on forward navigation
+  if (isForward) {
+    // Must pass every step between current and target
+    for (let s = currentStep; s < target; s++) {
+      const errors = getStepErrors(s);
+      if (errors.length > 0) {
+        highlightErrors(s, errors);
+        if (errors.includes('aiAcknowledge')) {
+          showToast('AI artwork requires acknowledgment');
+          openAiPolicyModal();
+        } else {
+          showToast('Please fill in all required fields');
+        }
+        return; // Block
+      }
+      completedSteps.add(s);
+    }
+  }
+
+  // Going back is always allowed — mark current as completed if valid
+  if (!isForward && getStepErrors(currentStep).length === 0) {
+    completedSteps.add(currentStep);
+  }
+
+  switchCard(target);
+}
+
+function switchCard(target) {
+  const currentCard = document.querySelector('.step-card[data-step="' + currentStep + '"]');
+  if (currentCard) currentCard.classList.remove('active');
+
+  // Build summary when landing on step 6
+  if (target === 6) buildSummary();
+
+  const targetCard = document.querySelector('.step-card[data-step="' + target + '"]');
+  if (targetCard) {
+    void targetCard.offsetWidth;
+    targetCard.classList.add('active');
+  }
+
+  currentStep = target;
+  updateStepper();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function getStepErrors(stepNum) {
+  var errors = [];
+  switch (stepNum) {
+    case 1:
+      if (!document.getElementById('businessName').value.trim()) errors.push('businessName');
+      if (!document.getElementById('contactName').value.trim()) errors.push('contactName');
+      if (!document.getElementById('email').value.trim()) errors.push('email');
+      if (!document.getElementById('phone').value.trim()) errors.push('phone');
+      if (!document.getElementById('contactMethodHidden').value) errors.push('contactMethod');
+      break;
+    case 2:
+      var blocks = document.querySelectorAll('#vehicleBlocksContainer .vehicle-block');
+      var anyType = false;
+      blocks.forEach(function(b) { if (b.querySelector('.vtype-hidden') && b.querySelector('.vtype-hidden').value) anyType = true; });
+      if (!anyType) errors.push('vehicleType');
+      break;
+    case 3:
+      if (!document.getElementById('projectTypeHidden').value) errors.push('coverageType');
+      break;
+    case 4:
+      if (!document.getElementById('artworkStatusHidden').value) errors.push('artworkStatus');
+      else if (document.getElementById('artworkStatusHidden').value === 'ai_mockup' && document.getElementById('aiAcknowledged').value !== 'yes') errors.push('aiAcknowledge');
+      break;
+    case 5:
+      if (!document.getElementById('timeline').value) errors.push('timeline');
+      break;
+    case 6:
+      break; // Optional
+  }
+  return errors;
+}
+
+function highlightErrors(stepNum, errors) {
+  // Clear previous errors
+  document.querySelectorAll('.field-error').forEach(function(el) { el.classList.remove('field-error'); });
+
+  var card = document.querySelector('.step-card[data-step="' + stepNum + '"]');
+  if (!card) return;
+
+  // Shake the card
+  card.classList.remove('shake');
+  void card.offsetWidth;
+  card.classList.add('shake');
+
+  errors.forEach(function(errKey) {
+    switch(errKey) {
+      case 'businessName': case 'contactName': case 'email': case 'phone':
+        var el = document.getElementById(errKey);
+        if (el) el.closest('.field-group').classList.add('field-error');
+        break;
+      case 'contactMethod':
+        var cm = document.querySelector('.contact-method-group');
+        if (cm) cm.closest('.field-group').classList.add('field-error');
+        break;
+      case 'vehicleType':
+        var vg = document.querySelector('.vtype-grid');
+        if (vg) vg.closest('.field-group').classList.add('field-error');
+        break;
+      case 'coverageType':
+        var cg = document.querySelector('.coverage-type-group');
+        if (cg) cg.closest('.field-group').classList.add('field-error');
+        break;
+      case 'artworkStatus':
+        var ar = document.querySelector('.artwork-rows');
+        if (ar) ar.closest('.field-group').classList.add('field-error');
+        break;
+      case 'aiAcknowledge':
+        var ar2 = document.querySelector('.artwork-rows');
+        if (ar2) ar2.closest('.field-group').classList.add('field-error');
+        break;
+      case 'timeline':
+        var tl = document.getElementById('timeline');
+        if (tl) tl.closest('.field-group').classList.add('field-error');
+        break;
+    }
+  });
+}
+
+// Clear field errors on interaction
+document.addEventListener('input', function() {
+  document.querySelectorAll('.field-error').forEach(function(el) { el.classList.remove('field-error'); });
+});
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.contact-method-btn, .coverage-type-btn, .artwork-row, .vtype-card')) {
+    document.querySelectorAll('.field-error').forEach(function(el) { el.classList.remove('field-error'); });
+  }
+});
+
+function updateStepper() {
+  document.querySelectorAll('.step-indicator').forEach(function(ind) {
+    var step = parseInt(ind.dataset.step);
+    ind.classList.remove('active', 'completed');
+
+    if (step === currentStep) {
+      ind.classList.add('active');
+    } else if (completedSteps.has(step)) {
+      ind.classList.add('completed');
+    }
+  });
+}
+
+// -----------------------------------------------
+//  BUILD REVIEW SUMMARY
+// -----------------------------------------------
+const coverageLabels = { full_wrap:'Full Coverage Wrap', partial_wrap:'Partial Wrap', graphics_lettering:'Graphics & Lettering', not_sure:'Not Sure Yet' };
+const artworkLabels = { fleet_match:'Fleet Match', print_ready:'Print-Ready Artwork', logo_vision:'Logo + Vision', logo_only:'Logo Only', from_scratch:'Start from Scratch', ai_mockup:'AI-Generated Mockup' };
+const timelineLabels = { asap:'ASAP / As soon as possible', '30_days':'Within 30 days', '30_60_days':'30–60 days', '60_90_days':'60–90+ days', planning:'Just planning / gathering info' };
+const budgetLabels = { under_1000:'Under $1,000', '1000_2500':'$1,000 – $2,500', '2500_5000':'$2,500 – $5,000', '5000_10000':'$5,000 – $10,000', '10000_plus':'$10,000+', not_sure:'Not sure yet' };
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function summaryRow(label, value) {
+  return '<div class="summary__row"><span class="summary__label">' + label + '</span><span class="summary__value">' + (value || '<span style="color:#B0B0B0;">—</span>') + '</span></div>';
+}
+
+function editBtn(step) {
+  return '<button type="button" class="btn-edit" onclick="goToStep(' + step + ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Edit</button>';
+}
+
+function sectionHeader(num, title, step) {
+  return '<div class="summary__section-header"><div class="summary__section-title"><span class="summary__section-num">' + num + '</span> ' + title + '</div>' + editBtn(step) + '</div>';
+}
+
+function buildSummary() {
+  var html = '';
+
+  // 1. Contact Info
+  html += '<div class="summary__section">';
+  html += sectionHeader('01', 'Business Contact', 1);
+  html += summaryRow('Business', esc(document.getElementById('businessName').value));
+  html += summaryRow('Contact', esc(document.getElementById('contactName').value));
+  html += summaryRow('Email', esc(document.getElementById('email').value));
+  html += summaryRow('Phone', esc(document.getElementById('phone').value));
+  var cm = document.getElementById('contactMethodHidden').value;
+  var cmLabel = cm === 'email' ? 'Email' : cm === 'text' ? 'Text' : cm === 'call' ? 'Call' : '';
+  html += summaryRow('Preferred', cmLabel);
+  html += '</div>';
+
+  // 2. Vehicles
+  html += '<div class="summary__section">';
+  html += sectionHeader('02', 'Vehicle Details', 2);
+  var blocks = document.querySelectorAll('#vehicleBlocksContainer .vehicle-block');
+  blocks.forEach(function(block, idx) {
+    var bid = block.dataset.id;
+    var data = getVehicleData(bid);
+    if (!data) return;
+    var vtObj = vehicleTypes.find(function(v) { return v.value === data.vtype; });
+    var typeLabel = vtObj ? vtObj.label : '—';
+    html += '<div class="summary__vehicle-card">';
+    html += '<div class="summary__vehicle-label">Vehicle ' + (idx + 1) + '</div>';
+    html += summaryRow('Type', esc(typeLabel));
+    if (data.isOther) {
+      html += summaryRow('Description', esc(data.otherDesc || '—'));
+    } else {
+      html += summaryRow('Year', esc(data.year || '—'));
+      html += summaryRow('Make', esc(data.make || '—'));
+      html += summaryRow('Model', esc(data.model || '—'));
+      var colorVal = '—';
+      if (data.color) {
+        if (data.color === 'other' && data.colorOther) colorVal = data.colorOther;
+        else { var cm2 = vehicleColors.find(function(c) { return c.value === data.color; }); if (cm2) colorVal = cm2.label; }
+      }
+      html += summaryRow('Color', esc(colorVal));
+      if (vtObj && data.conditionals) {
+        vtObj.fields.forEach(function(fk) {
+          var fd = conditionalOptions[fk];
+          if (fd && data.conditionals[fk]) html += summaryRow(fd.label, esc(data.conditionals[fk]));
+        });
+      }
+      if (data.browsing) html += summaryRow('Note', 'Exploring options — don\'t have vehicle yet');
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // 3. Coverage Type
+  html += '<div class="summary__section">';
+  html += sectionHeader('03', 'Coverage Type', 3);
+  var ct = document.getElementById('projectTypeHidden').value;
+  html += summaryRow('Type', coverageLabels[ct] || '—');
+  html += '</div>';
+
+  // 4. Artwork
+  html += '<div class="summary__section">';
+  html += sectionHeader('04', 'Artwork & Design', 4);
+  var aw = document.getElementById('artworkStatusHidden').value;
+  html += summaryRow('Status', artworkLabels[aw] || '—');
+  if (aw === 'ai_mockup') html += summaryRow('AI Policy', '<span style="color:var(--fwg-green);font-weight:600;">✓ Acknowledged</span>');
+  var logoInput = document.querySelector('input[name="logo_file"]');
+  if (logoInput && logoInput.files && logoInput.files.length > 0) {
+    html += summaryRow('Logo File', esc(Array.from(logoInput.files).map(function(f) { return f.name; }).join(', ')));
+  }
+  html += '</div>';
+
+  // 5. Timeline
+  html += '<div class="summary__section">';
+  html += sectionHeader('05', 'Timeline & Budget', 5);
+  var tl = document.getElementById('timeline').value;
+  html += summaryRow('Timeline', timelineLabels[tl] || '—');
+  var bg = document.getElementById('budget').value;
+  if (bg) html += summaryRow('Budget', budgetLabels[bg] || '—');
+  html += '</div>';
+
+  document.getElementById('summaryContainer').innerHTML = html;
+
+  // Re-equalize since summary changes height
+  setTimeout(equalizeCardHeights, 50);
+}
+
+// Equalize card heights after DOM ready
+function equalizeCardHeights() {
+  var cards = document.querySelectorAll('.step-card');
+  var maxH = 0;
+  // Temporarily show all cards to measure
+  cards.forEach(function(c) { c.style.display = 'flex'; c.style.visibility = 'hidden'; c.style.position = 'absolute'; });
+  cards.forEach(function(c) { if (c.offsetHeight > maxH) maxH = c.offsetHeight; });
+  // Reset
+  cards.forEach(function(c) { c.style.display = ''; c.style.visibility = ''; c.style.position = ''; });
+  document.documentElement.style.setProperty('--card-min-height', maxH + 'px');
+}
+window.addEventListener('load', equalizeCardHeights);
+window.addEventListener('resize', equalizeCardHeights);
+
+// -----------------------------------------------
+//  DATA
+// -----------------------------------------------
+let vehicleCounter = 0;
+const container = document.getElementById('vehicleBlocksContainer');
+const countDisplay = document.getElementById('vehicleCountDisplay');
+
+const yearOptions = [];
+for (let y = 2026; y >= 2016; y--) yearOptions.push(String(y));
+
+const vehicleColors = [
+  {value:'white',label:'White',hex:'#FFFFFF'},{value:'black',label:'Black',hex:'#1A1A1A'},
+  {value:'gray',label:'Gray',hex:'#808080'},{value:'silver',label:'Silver',hex:'#C0C0C0'},
+  {value:'blue',label:'Blue',hex:'#2B5EA7'},{value:'red',label:'Red',hex:'#C0392B'},
+  {value:'brown',label:'Brown',hex:'#6B4226'},{value:'green',label:'Green',hex:'#2E7D32'},
+  {value:'beige',label:'Beige / Tan',hex:'#C8B88A'},{value:'yellow',label:'Yellow',hex:'#F1C40F'},
+  {value:'orange',label:'Orange',hex:'#E67E22'},{value:'other',label:'Other',hex:null},
+];
+
+const typeExamples = {
+  coupe_sedan:     { make:'Honda',   model:'Civic' },
+  minivan_suv:     { make:'Ford',    model:'Escape' },
+  pickup:          { make:'Toyota',  model:'Tacoma' },
+  compact_cargo_van:{ make:'Ford',   model:'Transit Connect' },
+  box_truck:       { make:'Isuzu',   model:'NPR' },
+  enclosed_trailer:{ make:'',        model:'6x12 Enclosed' },
+  heavy_duty:      { make:'Freightliner', model:'MV607' },
+  bus:             { make:'IC Bus',  model:'CE' },
+};
+
+const vehicleTypes = [
+  { value:'coupe_sedan', label:'Coupe / Sedan', examples:'Civic, Camry, Model 3', fields:[], photosRequired:false, isOther:false },
+  { value:'minivan_suv', label:'Minivans / SUV', examples:'Escape, CR-V, Sienna, Suburban', fields:[], photosRequired:false, isOther:false },
+  { value:'pickup', label:'Pickup Truck', examples:'Tacoma, Silverado 2500, F-250', fields:['cab_size','bed_size'], photosRequired:false, isOther:false },
+  { value:'compact_cargo_van', label:'Compact / Cargo Van', examples:'Transit Connect, ProMaster, Sprinter', fields:['roof_height','van_wheelbase'], photosRequired:false, isOther:false },
+  { value:'box_truck', label:'Box Truck', examples:'NPR, E-Series Cutaway, Express Cutaway', fields:['box_length','box_height'], photosRequired:true, isOther:false },
+  { value:'enclosed_trailer', label:'Enclosed Trailer', examples:'6x12 Enclosed, ST Cargo, 70SA', fields:['trailer_length','trailer_height','panel_fasteners'], photosRequired:true, isOther:false },
+  { value:'heavy_duty', label:'Commercial / Heavy Duty Trucks', examples:'MV607, F-650, W900', fields:[], photosRequired:false, isOther:false },
+  { value:'bus', label:'Buses', examples:'IC CE, MCI J4500, E-450 Cutaway', fields:[], photosRequired:false, isOther:false },
+  { value:'other', label:'Other', examples:'Custom or specialty equipment', fields:[], photosRequired:true, isOther:true },
+];
+
+const conditionalOptions = {
+  cab_size:  { label:'Cab Size', options:['Standard Cab','Extended Cab','Full Cab'] },
+  bed_size:  { label:'Bed Size', options:['Short Bed','Standard Bed','Long Bed'] },
+  van_wheelbase: { label:'Wheelbase', options:['Compact','Short','Standard','Extended'] },
+  roof_height: { label:'Roof Height', options:['Compact','Low','Medium','High'] },
+  box_length: { label:'Box Length', options:['10ft','12ft','14ft','16ft','20ft','24ft','26ft'] },
+  box_height: { label:'Box Height', options:['7ft','8ft (most common)','8.5ft','9ft'] },
+  trailer_length: { label:'Trailer Length', options:['6ft','7ft','8ft','9ft','10ft','11ft','12ft','13ft','14ft','15ft','16ft','17ft','18ft','19ft','20ft','21ft','22ft','23ft','24ft'] },
+  trailer_height: { label:'Trailer Height', options:['7ft','8ft (most common)','8.5ft','9ft'] },
+  panel_fasteners: { label:'Panel Fasteners', options:['Rivets','Screws'] },
+};
+
+const icons = {
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3H4a1 1 0 00-1 1v14"/><rect x="8" y="7" width="13" height="14" rx="1"/></svg>',
+  duplicate:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="17.5" y1="14" x2="17.5" y2="21"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>',
+  remove:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  upload:'<svg class="file-upload__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  chevron:'<svg class="color-picker__chevron" viewBox="0 0 12 8" fill="none" stroke="#7D7D7D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l5 5 5-5"/></svg>'
+};
+
+// -----------------------------------------------
+//  CONTACT METHOD
+// -----------------------------------------------
+function selectContactMethod(btn) {
+  document.querySelectorAll('.contact-method-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('contactMethodHidden').value = btn.dataset.value;
+}
+
+// -----------------------------------------------
+//  ARTWORK
+// -----------------------------------------------
+function selectArtwork(row) {
+  const value = row.dataset.value;
+
+  // If selecting AI mockup, open policy modal instead of immediately selecting
+  if (value === 'ai_mockup') {
+    // Visually highlight but don't commit yet
+    document.querySelectorAll('.artwork-row').forEach(r => r.classList.remove('selected'));
+    row.classList.add('selected');
+    openAiPolicyModal();
+    return;
+  }
+
+  // Any other option: clear AI acknowledgment and select normally
+  document.querySelectorAll('.artwork-row').forEach(r => r.classList.remove('selected'));
+  row.classList.add('selected');
+  document.getElementById('artworkStatusHidden').value = value;
+  document.getElementById('aiAcknowledged').value = '';
+}
+
+// ── AI Policy Modal ──
+function openAiPolicyModal() {
+  document.getElementById('aiPolicyModal').classList.add('visible');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAiPolicyModal() {
+  document.getElementById('aiPolicyModal').classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+function acknowledgeAiPolicy() {
+  document.getElementById('artworkStatusHidden').value = 'ai_mockup';
+  document.getElementById('aiAcknowledged').value = 'yes';
+  closeAiPolicyModal();
+  showToast('AI artwork policy acknowledged');
+}
+
+function cancelAiSelection(e) {
+  // Clicked overlay background
+  if (e.target === e.currentTarget) cancelAiFromModal();
+}
+
+function cancelAiFromModal() {
+  closeAiPolicyModal();
+  // Deselect AI option and clear hidden fields
+  document.querySelectorAll('.artwork-row').forEach(r => r.classList.remove('selected'));
+  document.getElementById('artworkStatusHidden').value = '';
+  document.getElementById('aiAcknowledged').value = '';
+}
+
+// Escape key closes modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('aiPolicyModal').classList.contains('visible')) {
+    cancelAiFromModal();
+  }
+});
+
+// -----------------------------------------------
+//  COVERAGE TYPE
+// -----------------------------------------------
+const coverageSpecs = {
+  full_wrap: {
+    title: 'Full Coverage Wrap',
+    specs: [
+      { label: 'Price Range',      filled: 6, total: 7 },
+      { label: 'Brand Impact',     filled: 7, total: 7 },
+      { label: 'Coverage',         filled: 7, total: 7 },
+      { label: 'Durability',       filled: 7, total: 7 },
+      { label: 'Paint Protection', filled: 4, total: 7 },
+      { label: 'Install Time',     filled: 6, total: 7 },
+    ]
+  },
+  partial_wrap: {
+    title: 'Partial Wrap',
+    specs: [
+      { label: 'Price Range',      filled: 4, total: 7 },
+      { label: 'Brand Impact',     filled: 5, total: 7 },
+      { label: 'Coverage',         filled: 4, total: 7 },
+      { label: 'Durability',       filled: 7, total: 7 },
+      { label: 'Paint Protection', filled: 3, total: 7 },
+      { label: 'Install Time',     filled: 3, total: 7 },
+    ]
+  },
+  graphics_lettering: {
+    title: 'Graphics & Lettering',
+    specs: [
+      { label: 'Price Range',      filled: 2, total: 7 },
+      { label: 'Brand Impact',     filled: 3, total: 7 },
+      { label: 'Coverage',         filled: 2, total: 7 },
+      { label: 'Durability',       filled: 7, total: 7 },
+      { label: 'Paint Protection', filled: 1, total: 7 },
+      { label: 'Install Time',     filled: 3, total: 7 },
+    ]
+  }
+};
+
+function selectCoverageType(btn) {
+  document.querySelectorAll('.coverage-type-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('projectTypeHidden').value = btn.dataset.value;
+
+  const toggleBtn = document.getElementById('specsToggleBtn');
+  const panel = document.getElementById('specsPanel');
+
+  if (coverageSpecs[btn.dataset.value]) {
+    toggleBtn.style.display = '';
+    renderSpecsPanel(btn.dataset.value);
+  } else {
+    toggleBtn.style.display = 'none';
+    panel.classList.remove('visible');
+    panel.innerHTML = '';
+    toggleBtn.classList.remove('open');
+    document.getElementById('specsToggleLabel').textContent = 'Show Specs';
+  }
+}
+
+function toggleSpecsPanel() {
+  const panel = document.getElementById('specsPanel');
+  const btn = document.getElementById('specsToggleBtn');
+  const label = document.getElementById('specsToggleLabel');
+  const isOpen = panel.classList.toggle('visible');
+  btn.classList.toggle('open', isOpen);
+  label.textContent = isOpen ? 'Hide Specs' : 'Show Specs';
+}
+
+function renderSpecsPanel(typeValue) {
+  const panel = document.getElementById('specsPanel');
+  const data = coverageSpecs[typeValue];
+  if (!data) { panel.innerHTML = ''; return; }
+
+  panel.innerHTML = data.specs.map(spec => {
+    let dots = '';
+    for (let i = 0; i < spec.total; i++) {
+      const filled = i < spec.filled;
+      const color = filled ? 'var(--fwg-red)' : '#D4D4D4';
+      dots += '<span class="specs-panel__dot" style="background:' + color + ';"></span>';
+    }
+    return '<div class="specs-panel__row"><span class="specs-panel__label">' + spec.label + '</span><div class="specs-panel__dots">' + dots + '</div><span class="specs-panel__value">' + spec.filled + '/' + spec.total + '</span></div>';
+  }).join('');
+}
+
+// -----------------------------------------------
+//  BUILDERS
+// -----------------------------------------------
+function buildYearHTML(sel) {
+  const isOlder = sel && !yearOptions.includes(sel);
+  const sv = isOlder ? 'older' : sel;
+  let h = '<option value="" disabled ' + (!sv ? 'selected' : '') + '>Select year</option>';
+  yearOptions.forEach(y => { h += '<option value="' + y + '" ' + (sv===y?'selected':'') + '>' + y + '</option>'; });
+  h += '<option value="older" ' + (sv==='older'?'selected':'') + '>My vehicle is older than 2016</option>';
+  return h;
+}
+
+function buildColorOptionsHTML(bid) {
+  return vehicleColors.map(c => {
+    const ss = c.hex ? 'style="background:' + c.hex + ';"' : '';
+    const sc = c.value==='other' ? 'color-picker__swatch color-picker__swatch--other' : 'color-picker__swatch';
+    return '<div class="color-picker__option" data-value="' + c.value + '" data-label="' + c.label + '" data-hex="' + (c.hex||'') + '" onclick="selectColor(' + bid + ',this)"><span class="' + sc + '" ' + ss + '>' + (c.value==='other'?'?':'') + '</span><span class="color-picker__option-label">' + c.label + '</span></div>';
+  }).join('');
+}
+
+function buildVehicleTypeSelector(bid, sel) {
+  return '<div class="field-group"><label class="field-label">Vehicle Type <span class="required">*</span></label><div class="vtype-grid">' +
+    vehicleTypes.map(vt => '<div class="vtype-card ' + (sel===vt.value?'selected':'') + '" data-vtype="' + vt.value + '" onclick="selectVehicleType(' + bid + ',\'' + vt.value + '\')"><div class="vtype-card__label">' + vt.label + '</div><div class="vtype-card__examples">' + vt.examples + '</div></div>').join('') +
+    '</div><input type="hidden" class="vtype-hidden" name="v' + bid + '_type" value="' + (sel||'') + '" /></div>';
+}
+
+function buildConditionalFields(bid, vtv, p) {
+  const vt = vehicleTypes.find(v => v.value === vtv);
+  if (!vt) return '';
+  let html = '';
+
+  // "Other" type - special layout
+  if (vt.isOther) {
+    html += '<div class="field-group" style="margin-bottom:16px;"><label class="field-label">What are you looking to have wrapped or lettered? <span class="required">*</span></label><span class="field-helper">Describe the object, equipment, or vehicle &mdash; include dimensions if you know them.</span><textarea class="other-description" name="v' + bid + '_other_desc" placeholder="e.g. Industrial generator housing, 4ft x 6ft x 3ft..." rows="3">' + (p.otherDesc||'') + '</textarea></div>';
+    html += '<div class="field-group"><label class="field-label">Upload Photos <span class="required">*</span></label><div class="photo-required-notice">&#128247; Photos are required so we can evaluate the surface and provide an accurate quote.</div><div class="file-upload file-upload--required" id="upload' + bid + '">' + icons.upload + '<p class="file-upload__text"><strong>Click to upload</strong> or drag and drop</p><input type="file" name="v' + bid + '_photos" multiple accept="image/*" onchange="showFileNames(this,\'upload' + bid + '\')" /><div class="file-names"></div></div></div>';
+    return html;
+  }
+
+  const isLarge = ['box_truck','enclosed_trailer'].includes(vtv);
+  const ex = typeExamples[vtv] || { make:'Ford', model:'Transit' };
+
+  const browsing = p.browsing || false;
+  html += '<div class="field-group"><label class="checkbox-option"><input type="checkbox" class="browsing-check" name="v' + bid + '_browsing" value="yes" ' + (browsing?'checked':'') + ' onchange="toggleBrowsing(' + bid + ')" /><span>I don\'t have this vehicle yet &mdash; just exploring options</span></label><div class="browsing-notice ' + (browsing?'visible':'') + '" id="browsingNotice_' + bid + '">No problem! We can still prepare a general estimate based on the vehicle type and project scope.</div></div>';
+
+  const reqLabel = isLarge ? '<span class="optional">&mdash; not required</span>' : '<span class="required">*</span>';
+  html += '<div class="field-row" style="margin-bottom:16px;"><div class="field-group"><label class="field-label">Year ' + reqLabel + '</label><select class="year-select">' + buildYearHTML(p.year) + '</select><input type="hidden" class="year-hidden" name="v' + bid + '_year" value="' + (p.year||'') + '" /><div class="older-vehicle-notice ' + (p.year&&!yearOptions.includes(p.year)?'visible':'') + '"><span>&#9888;&#65039;</span> For vehicles older than 2016, we\'d like to see the vehicle in person to evaluate paint condition before quoting.<input type="number" class="older-year-input" placeholder="Enter vehicle year" min="1970" max="2015" value="' + (p.year&&!yearOptions.includes(p.year)?p.year:'') + '" /></div></div><div class="field-group"><label class="field-label">Make ' + reqLabel + '</label><input type="text" name="v' + bid + '_make" placeholder="e.g. ' + ex.make + '" value="' + (p.make||'') + '" /></div></div>';
+  html += '<div class="field-group" style="margin-bottom:16px;"><label class="field-label">Model ' + reqLabel + '</label><input type="text" name="v' + bid + '_model" placeholder="e.g. ' + ex.model + '" value="' + (p.model||'') + '" /></div>';
+
+  vt.fields.forEach(fk => {
+    const fd = conditionalOptions[fk];
+    const val = p.conditionals ? (p.conditionals[fk]||'') : '';
+    html += '<div class="field-group" style="margin-bottom:16px;"><label class="field-label">' + fd.label + ' <span class="required">*</span></label><select name="v' + bid + '_' + fk + '"><option value="" disabled ' + (!val?'selected':'') + '>Select ' + fd.label.toLowerCase() + '</option>' + fd.options.map(o => '<option value="' + o + '" ' + (val===o?'selected':'') + '>' + o + '</option>').join('') + '</select></div>';
+  });
+
+  // Color
+  let tss='',tsi='',tlt='Select vehicle color',tlc='color-picker__trigger-label placeholder',ov=false;
+  if(p.color){const m=vehicleColors.find(c=>c.value===p.color);if(m){tlt=m.label;tlc='color-picker__trigger-label';if(p.color==='other'){tss='background:linear-gradient(135deg,#E8E8E8 25%,#D0D0D0 25%,#D0D0D0 50%,#E8E8E8 50%,#E8E8E8 75%,#D0D0D0 75%);background-size:8px 8px;';tsi='<span style="font-size:12px;font-weight:700;color:#7D7D7D;">?</span>';ov=true;}else{tss='background:'+m.hex+';';}}}
+  const hcv=p.color==='other'&&p.colorOther?'other:'+p.colorOther:(p.color||'');
+
+  html += '<div class="field-group" style="margin-bottom:16px;"><label class="field-label">Vehicle Color</label><div class="color-picker" data-block="' + bid + '"><input type="hidden" class="color-picker__hidden" name="v' + bid + '_color" value="' + hcv + '" /><button type="button" class="color-picker__trigger" onclick="toggleColorDropdown(' + bid + ')"><span class="color-picker__trigger-swatch" style="' + tss + '">' + tsi + '</span><span class="' + tlc + '">' + tlt + '</span>' + icons.chevron + '</button><div class="color-picker__dropdown">' + buildColorOptionsHTML(bid) + '</div><input type="text" class="color-picker__other-input ' + (ov?'visible':'') + '" placeholder="Describe your vehicle color..." value="' + (p.colorOther||'') + '" /></div></div>';
+
+  // Photos
+  if (vt.photosRequired) {
+    html += '<div class="field-group"><label class="field-label">Upload Vehicle Photos <span class="required">*</span></label><div class="photo-required-notice">&#128247; Photos are required for this vehicle type before we can provide a quote &mdash; it makes the process much smoother and faster.</div><div class="file-upload file-upload--required" id="upload' + bid + '">' + icons.upload + '<p class="file-upload__text"><strong>Click to upload</strong> or drag and drop</p><input type="file" name="v' + bid + '_photos" multiple accept="image/*" onchange="showFileNames(this,\'upload' + bid + '\')" /><div class="file-names"></div></div></div>';
+  } else {
+    html += '<div class="field-group"><label class="field-label">Upload Vehicle Photos</label><span class="field-helper">Optional but highly recommended &mdash; seeing your exact vehicle helps us provide the most accurate quote.</span><div class="file-upload" id="upload' + bid + '">' + icons.upload + '<p class="file-upload__text"><strong>Click to upload</strong> or drag and drop</p><input type="file" name="v' + bid + '_photos" multiple accept="image/*" onchange="showFileNames(this,\'upload' + bid + '\')" /><div class="file-names"></div></div></div>';
+  }
+
+  return html;
+}
+
+// -----------------------------------------------
+//  VEHICLE BLOCK
+// -----------------------------------------------
+function createVehicleBlock(prefill) {
+  vehicleCounter++;
+  const num = vehicleCounter;
+  const totalBlocks = container.querySelectorAll('.vehicle-block').length + 1;
+  const p = prefill || {vtype:'',year:'',make:'',model:'',color:'',colorOther:'',conditionals:{},browsing:false,otherDesc:''};
+
+  const block = document.createElement('div');
+  block.className = 'vehicle-block';
+  block.dataset.id = num;
+
+  let actionsHTML = '';
+  if (totalBlocks > 1) actionsHTML += '<button type="button" class="btn-vehicle-action btn-copy" onclick="copyFromFirst(' + num + ')">' + icons.copy + ' Copy from Vehicle 1</button>';
+  actionsHTML += '<button type="button" class="btn-vehicle-action btn-duplicate" onclick="duplicateVehicle(' + num + ')">' + icons.duplicate + ' Duplicate</button>';
+  if (totalBlocks > 1) actionsHTML += '<button type="button" class="btn-vehicle-action btn-remove" onclick="removeVehicle(' + num + ')">' + icons.remove + ' Remove</button>';
+
+  block.innerHTML =
+    '<div class="vehicle-block__top-bar"><span class="vehicle-block__title">Vehicle <span class="vb-num">' + totalBlocks + '</span></span><div class="vehicle-block__actions">' + actionsHTML + '</div></div>' +
+    buildVehicleTypeSelector(num, p.vtype) +
+    '<div class="vtype-prompt" id="vtypePrompt_' + num + '" ' + (p.vtype?'style="display:none;"':'') + '><svg class="vtype-prompt__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg><div class="vtype-prompt__text">Select a vehicle type above to continue</div></div>' +
+    '<div class="conditional-fields ' + (p.vtype?'visible':'') + '" id="cond_' + num + '">' + (p.vtype?buildConditionalFields(num,p.vtype,p):'') + '</div>';
+
+  container.appendChild(block);
+  if(p.color){const opt=block.querySelector('.color-picker__option[data-value="'+p.color+'"]');if(opt)opt.classList.add('selected');}
+  updateVehicleNumbers();
+  return num;
+}
+
+function selectVehicleType(bid, vtv) {
+  const block = container.querySelector('.vehicle-block[data-id="' + bid + '"]');
+  if(!block) return;
+  block.querySelectorAll('.vtype-card').forEach(c=>c.classList.remove('selected'));
+  block.querySelector('.vtype-card[data-vtype="' + vtv + '"]').classList.add('selected');
+  block.querySelector('.vtype-hidden').value = vtv;
+  const prompt = block.querySelector('#vtypePrompt_' + bid);
+  if(prompt) prompt.style.display = 'none';
+  const cc = block.querySelector('.conditional-fields');
+  cc.innerHTML = buildConditionalFields(bid, vtv, {year:'',make:'',model:'',color:'',colorOther:'',conditionals:{},browsing:false,otherDesc:''});
+  cc.classList.add('visible');
+}
+
+function toggleBrowsing(bid) {
+  const block = container.querySelector('.vehicle-block[data-id="' + bid + '"]');
+  if(!block) return;
+  const cb = block.querySelector('.browsing-check');
+  const notice = block.querySelector('#browsingNotice_' + bid);
+  if(cb.checked) notice.classList.add('visible'); else notice.classList.remove('visible');
+}
+
+// -----------------------------------------------
+//  GET/SET DATA
+// -----------------------------------------------
+function getVehicleData(bid) {
+  const block = container.querySelector('.vehicle-block[data-id="' + bid + '"]');
+  if(!block) return null;
+  const vtype = (block.querySelector('.vtype-hidden')||{}).value||'';
+  const vt = vehicleTypes.find(v=>v.value===vtype);
+
+  // "Other" type
+  if (vt && vt.isOther) {
+    const descEl = block.querySelector('.other-description');
+    return { vtype, otherDesc: descEl?descEl.value:'', isOther:true };
+  }
+
+  const yearEl = block.querySelector('.year-hidden');
+  const makeEl = block.querySelector('[name$="_make"]');
+  const modelEl = block.querySelector('[name$="_model"]');
+  const colorEl = block.querySelector('.color-picker__hidden');
+  const browseEl = block.querySelector('.browsing-check');
+  let cv = colorEl?colorEl.value:'', co='';
+  if(cv.startsWith('other:')){co=cv.substring(6);cv='other';}
+  const conds = {};
+  if(vt) vt.fields.forEach(fk=>{const s=block.querySelector('[name$="_'+fk+'"]');if(s)conds[fk]=s.value;});
+  return {vtype, year:yearEl?yearEl.value:'', make:makeEl?makeEl.value:'', model:modelEl?modelEl.value:'', color:cv, colorOther:co, conditionals:conds, browsing:browseEl?browseEl.checked:false};
+}
+
+function getFirstVehicleData() { const f=container.querySelector('.vehicle-block'); return f?getVehicleData(f.dataset.id):null; }
+
+function copyFromFirst(tid) {
+  const data=getFirstVehicleData(); if(!data) return;
+  const block=container.querySelector('.vehicle-block[data-id="'+tid+'"]'); if(!block) return;
+  if(data.vtype){
+    block.querySelectorAll('.vtype-card').forEach(c=>c.classList.remove('selected'));
+    const card=block.querySelector('.vtype-card[data-vtype="'+data.vtype+'"]');if(card)card.classList.add('selected');
+    block.querySelector('.vtype-hidden').value=data.vtype;
+    const cc=block.querySelector('.conditional-fields');
+    cc.innerHTML=buildConditionalFields(tid,data.vtype,data);cc.classList.add('visible');
+    if(data.color){const opt=block.querySelector('.color-picker__option[data-value="'+data.color+'"]');if(opt)opt.classList.add('selected');}
+  }
+  showToast('Vehicle 1 info copied');
+}
+
+function duplicateVehicle(sid) {
+  const data=getVehicleData(sid);if(!data)return;
+  createVehicleBlock(data);
+  const sb=container.querySelector('.vehicle-block[data-id="'+sid+'"]');
+  showToast('Vehicle ' + (sb?sb.querySelector('.vb-num').textContent:'') + ' duplicated');
+  container.lastElementChild.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function removeVehicle(bid) {
+  const blocks=container.querySelectorAll('.vehicle-block');if(blocks.length<=1)return;
+  const block=container.querySelector('.vehicle-block[data-id="'+bid+'"]');if(!block)return;
+  block.style.cssText='animation:none;opacity:0;transform:translateY(-8px);transition:all 0.2s ease;';
+  setTimeout(function(){block.remove();updateVehicleNumbers();},200);
+}
+
+function updateVehicleNumbers() {
+  const blocks=container.querySelectorAll('.vehicle-block');
+  blocks.forEach(function(block,i){
+    const n=i+1; block.querySelector('.vb-num').textContent=n;
+    const ad=block.querySelector('.vehicle-block__actions'),bid=block.dataset.id;
+    let h='';
+    if(n>1)h+='<button type="button" class="btn-vehicle-action btn-copy" onclick="copyFromFirst('+bid+')">'+icons.copy+' Copy from Vehicle 1</button>';
+    h+='<button type="button" class="btn-vehicle-action btn-duplicate" onclick="duplicateVehicle('+bid+')">'+icons.duplicate+' Duplicate</button>';
+    if(n>1)h+='<button type="button" class="btn-vehicle-action btn-remove" onclick="removeVehicle('+bid+')">'+icons.remove+' Remove</button>';
+    ad.innerHTML=h;
+  });
+  countDisplay.textContent=blocks.length;
+}
+
+// -----------------------------------------------
+//  COLOR PICKER
+// -----------------------------------------------
+function selectColor(bid,el) {
+  const pk=el.closest('.color-picker'),tr=pk.querySelector('.color-picker__trigger'),dd=pk.querySelector('.color-picker__dropdown'),hd=pk.querySelector('.color-picker__hidden'),oi=pk.querySelector('.color-picker__other-input'),ts=tr.querySelector('.color-picker__trigger-swatch'),tl=tr.querySelector('.color-picker__trigger-label');
+  const v=el.dataset.value,l=el.dataset.label,hex=el.dataset.hex;
+  pk.querySelectorAll('.color-picker__option').forEach(function(o){o.classList.remove('selected');});el.classList.add('selected');
+  tl.textContent=l;tl.classList.remove('placeholder');
+  if(v==='other'){ts.style.background='linear-gradient(135deg,#E8E8E8 25%,#D0D0D0 25%,#D0D0D0 50%,#E8E8E8 50%,#E8E8E8 75%,#D0D0D0 75%)';ts.style.backgroundSize='8px 8px';ts.innerHTML='<span style="font-size:12px;font-weight:700;color:#7D7D7D;">?</span>';oi.classList.add('visible');hd.value='other';setTimeout(function(){oi.focus();},150);}
+  else{ts.style.background=hex;ts.style.backgroundSize='';ts.innerHTML='';oi.classList.remove('visible');oi.value='';hd.value=v;}
+  dd.classList.remove('open');tr.classList.remove('open');
+}
+
+function toggleColorDropdown(bid) {
+  const pk=document.querySelector('.color-picker[data-block="'+bid+'"]'),tr=pk.querySelector('.color-picker__trigger'),dd=pk.querySelector('.color-picker__dropdown');
+  document.querySelectorAll('.color-picker__dropdown.open').forEach(function(d){if(d!==dd){d.classList.remove('open');d.closest('.color-picker').querySelector('.color-picker__trigger').classList.remove('open');}});
+  const o=dd.classList.toggle('open');tr.classList.toggle('open',o);
+}
+
+document.addEventListener('click',function(e){if(!e.target.closest('.color-picker')){document.querySelectorAll('.color-picker__dropdown.open').forEach(function(d){d.classList.remove('open');d.closest('.color-picker').querySelector('.color-picker__trigger').classList.remove('open');});}});
+document.addEventListener('input',function(e){if(e.target.classList.contains('color-picker__other-input')){e.target.closest('.color-picker').querySelector('.color-picker__hidden').value='other:'+e.target.value;}});
+
+// Year handlers
+document.addEventListener('change',function(e){if(e.target.classList.contains('year-select')){const vb=e.target.closest('.vehicle-block'),n=vb.querySelector('.older-vehicle-notice'),yi=vb.querySelector('.older-year-input'),yh=vb.querySelector('.year-hidden');if(e.target.value==='older'){n.classList.add('visible');yh.value='';setTimeout(function(){yi.focus();},100);}else{n.classList.remove('visible');yi.value='';yh.value=e.target.value;}}});
+document.addEventListener('input',function(e){if(e.target.classList.contains('older-year-input')){e.target.closest('.vehicle-block').querySelector('.year-hidden').value=e.target.value;}});
+
+// -----------------------------------------------
+//  UTILS
+// -----------------------------------------------
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2200);}
+function showFileNames(i,uid){const el=document.querySelector('#'+uid+' .file-names');el.textContent=i.files.length?Array.from(i.files).map(function(f){return f.name;}).join(', '):'';}
+
+document.getElementById('btnAddVehicle').addEventListener('click',function(){createVehicleBlock();container.lastElementChild.scrollIntoView({behavior:'smooth',block:'center'});});
+
+// -----------------------------------------------
+//  SUPABASE UPLOAD HELPERS
+// -----------------------------------------------
+function uploadFile(file, folder) {
+  var timestamp = Date.now();
+  var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  var path = folder + '/' + timestamp + '_' + safeName;
+
+  return fetch(
+    FWG_CONFIG.SUPABASE_URL + '/storage/v1/object/' + FWG_CONFIG.STORAGE_BUCKET + '/' + path,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': FWG_CONFIG.SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + FWG_CONFIG.SUPABASE_ANON_KEY,
+        'Content-Type': file.type,
+        'x-upsert': 'true'
+      },
+      body: file
+    }
+  ).then(function(response) {
+    if (!response.ok) {
+      return response.text().then(function(t) { console.error('Upload failed:', file.name, t); return null; });
+    }
+    return FWG_CONFIG.SUPABASE_URL + '/storage/v1/object/public/' + FWG_CONFIG.STORAGE_BUCKET + '/' + path;
+  });
+}
+
+function uploadFiles(fileInput, folder) {
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) return Promise.resolve([]);
+  var promises = [];
+  for (var i = 0; i < fileInput.files.length; i++) {
+    promises.push(uploadFile(fileInput.files[i], folder));
+  }
+  return Promise.all(promises).then(function(urls) {
+    return urls.filter(function(u) { return u !== null; });
+  });
+}
+
+// -----------------------------------------------
+//  COLLECT FORM DATA
+// -----------------------------------------------
+function collectFormData() {
+  var contact = {
+    business_name: document.getElementById('businessName').value.trim(),
+    contact_name: document.getElementById('contactName').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    contact_method: document.getElementById('contactMethodHidden').value
+  };
+
+  var vehicleBlocks = document.querySelectorAll('#vehicleBlocksContainer .vehicle-block');
+  var vehicles = [];
+  vehicleBlocks.forEach(function(block) {
+    var bid = block.dataset.id;
+    var data = getVehicleData(bid);
+    if (!data || !data.vtype) return;
+    var vtObj = vehicleTypes.find(function(v) { return v.value === data.vtype; });
+
+    if (data.isOther) {
+      vehicles.push({
+        type: data.vtype,
+        type_label: vtObj ? vtObj.label : 'Other',
+        other_desc: data.otherDesc || '',
+        is_other: true,
+        _block_id: bid
+      });
+    } else {
+      vehicles.push({
+        type: data.vtype,
+        type_label: vtObj ? vtObj.label : '',
+        year: data.year || '',
+        make: data.make || '',
+        model: data.model || '',
+        color: data.color || '',
+        color_other: data.colorOther || '',
+        browsing: data.browsing || false,
+        conditionals: data.conditionals || {},
+        is_other: false,
+        _block_id: bid
+      });
+    }
+  });
+
+  var coverage_type = document.getElementById('projectTypeHidden').value;
+  var artwork_status = document.getElementById('artworkStatusHidden').value;
+  var ai_acknowledged = document.getElementById('aiAcknowledged').value === 'yes';
+  var timeline = document.getElementById('timeline').value;
+  var budgetEl = document.getElementById('budget');
+  var budget = budgetEl ? budgetEl.value : '';
+  var additionalEl = document.getElementById('additionalInfo');
+  var additional_info = additionalEl ? additionalEl.value.trim() : '';
+
+  return {
+    business_name: contact.business_name,
+    contact_name: contact.contact_name,
+    email: contact.email,
+    phone: contact.phone,
+    contact_method: contact.contact_method,
+    vehicles: vehicles,
+    coverage_type: coverage_type,
+    artwork_status: artwork_status,
+    ai_acknowledged: ai_acknowledged,
+    timeline: timeline,
+    budget: budget || null,
+    additional_info: additional_info || null,
+    source_page: window.location.pathname,
+    user_agent: navigator.userAgent
+  };
+}
+
+// -----------------------------------------------
+//  SUBMIT HANDLER
+// -----------------------------------------------
+document.getElementById('fwgInquiryForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  // Validate all steps
+  for (var i = 1; i <= TOTAL_STEPS; i++) {
+    var errors = getStepErrors(i);
+    if (errors.length > 0) {
+      switchCard(i);
+      (function(step, errs) {
+        setTimeout(function() { highlightErrors(step, errs); }, 50);
+      })(i, errors);
+      if (errors.includes('aiAcknowledge')) {
+        showToast('AI artwork requires acknowledgment');
+        openAiPolicyModal();
+      } else {
+        showToast('Please fill in all required fields');
+      }
+      return;
+    }
+  }
+
+  // Collect data
+  var formData = collectFormData();
+
+  // Disable submit button, show loading
+  var submitBtn = document.querySelector('.btn-submit, [type="submit"]');
+  var originalText = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31 31" stroke-linecap="round"/></svg> Submitting...</span>';
+  }
+
+  // Generate a unique submission folder for file uploads
+  var submissionId = Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+  var folder = 'submissions/' + submissionId;
+
+  // Upload vehicle photos (sequential per vehicle)
+  var uploadChain = Promise.resolve();
+  formData.vehicles.forEach(function(v) {
+    uploadChain = uploadChain.then(function() {
+      var photoInput = document.querySelector('[name="v' + v._block_id + '_photos"]');
+      return uploadFiles(photoInput, folder + '/vehicle_' + v._block_id).then(function(photoUrls) {
+        v.photo_urls = photoUrls;
+        delete v._block_id;
+      });
+    });
+  });
+
+  uploadChain
+    .then(function() {
+      // Upload logo files
+      var logoInput = document.querySelector('input[name="logo_file"]');
+      return uploadFiles(logoInput, folder + '/logos');
+    })
+    .then(function(logoUrls) {
+      // POST to API endpoint (NOT directly to Supabase)
+      var payload = {
+        business_name: formData.business_name,
+        contact_name: formData.contact_name,
+        email: formData.email,
+        phone: formData.phone,
+        contact_method: formData.contact_method,
+        vehicles: formData.vehicles,
+        coverage_type: formData.coverage_type,
+        artwork_status: formData.artwork_status,
+        ai_acknowledged: formData.ai_acknowledged,
+        logo_urls: logoUrls,
+        timeline: formData.timeline,
+        budget: formData.budget,
+        additional_info: formData.additional_info,
+        source_page: formData.source_page,
+        user_agent: formData.user_agent
+      };
+
+      return fetch(FWG_CONFIG.API_URL + '/api/public/submit-form', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    })
+    .then(function(response) {
+      if (!response.ok) {
+        return response.text().then(function(t) { throw new Error('Submission failed: ' + t); });
+      }
+      // Success — redirect to thank you page
+      showToast('Quote request submitted!');
+      setTimeout(function() {
+        window.location.href = FWG_CONFIG.THANK_YOU_URL;
+      }, 800);
+    })
+    .catch(function(err) {
+      console.error('Form submission error:', err);
+      showToast('Something went wrong. Please try again or call us directly.');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+    });
+});
+
+// Init first vehicle block
+createVehicleBlock();
+
+</script>
