@@ -2,6 +2,14 @@
 -- 1. embroidery_markup - qty breaks with markup percentages (applied to garment wholesale)
 -- 2. embroidery_fee - qty breaks with per-stitch decoration fees
 
+-- Update check constraint to allow new decoration types
+ALTER TABLE apparel_pricing_matrices
+  DROP CONSTRAINT apparel_pricing_matrices_decoration_type_check;
+
+ALTER TABLE apparel_pricing_matrices
+  ADD CONSTRAINT apparel_pricing_matrices_decoration_type_check
+  CHECK (decoration_type IN ('embroidery', 'dtf', 'screen_print', 'embroidery_markup', 'embroidery_fee'));
+
 -- Embroidery Markup Matrix
 INSERT INTO apparel_pricing_matrices (name, decoration_type, applies_to, quantity_breaks)
 VALUES (
