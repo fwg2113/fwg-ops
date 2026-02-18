@@ -110,25 +110,32 @@ function decodeStitchCommand(b0: number, b1: number, b2: number): StitchCommand 
   if (b2 & 0x20) y += 81
   if (b2 & 0x40) y -= 81
 
-  // End-of-file marker: 0x00 0x00 0xF3
+  // Command type detection per pyembroidery's cascading bit checks.
+  // Byte 2 layout: bit 7,4 = valid-command flags (usually set),
+  // bits 6,5,3,2 = movement, bits 1,0 = command flags.
+  // The upper bits (7,6) disambiguate when lower bits 0,1 are both set.
+  //
+  // End:          (b2 & 0xF3) == 0xF3  (all flag+cmd bits set)
+  // Color change: (b2 & 0xC3) == 0xC3  (bits 7,6,1,0 all set)
+  // Jump/move:    (b2 & 0x83) == 0x83  (bits 7,1,0 set, not bit 6)
+  // Normal stitch: bits 0,1 both clear
+
+  // End-of-file marker
   if (b0 === 0x00 && b1 === 0x00 && (b2 & 0xF3) === 0xF3) {
     return { x: 0, y: 0, type: 'end' }
   }
 
-  // Command type from bits 0-1 of byte 2 (per pyembroidery/libembroidery)
-  // Bit 0 = jump, Bit 1 = color change/trim
-  // Both bits set with upper bits = color change (0xC3 pattern)
-  const flags = b2 & 0x03
   let type: StitchCommand['type'] = 'stitch'
 
-  if (flags === 3) {
-    // Both jump + trim bits set: color change (0xC3 pattern common)
+  if ((b2 & 0xC3) === 0xC3) {
+    // Bits 7,6,1,0 all set → color change
     type = 'color_change'
-  } else if (flags === 2) {
-    // Trim/color change bit only
-    type = 'color_change'
-  } else if (flags === 1) {
-    // Jump bit only
+  } else if (b2 & 0x01) {
+    // Bit 0 set → jump (covers 0x83, 0x93, 0x91, etc.)
+    type = 'jump'
+  }
+  // Bit 1 alone (trim) also acts as a jump/move
+  else if (b2 & 0x02) {
     type = 'jump'
   }
 
@@ -306,5 +313,18 @@ export async function renderDSTFile(
 ): Promise<string> {
   const buffer = await file.arrayBuffer()
   const design = parseDST(buffer)
+
+  // Debug: log parse results
+  const typeCounts = { stitch: 0, jump: 0, color_change: 0, end: 0 }
+  for (const s of design.stitches) typeCounts[s.type]++
+  console.log('[DST]', file.name, {
+    header: design.header,
+    totalCommands: design.stitches.length,
+    types: typeCounts,
+    bounds: design.bounds,
+    segments: design.colorSegments.length,
+    firstBytes: Array.from(new Uint8Array(buffer.slice(0, 20))).map(b => b.toString(16).padStart(2, '0')).join(' ')
+  })
+
   return renderDSTToCanvas(design, size, threadColor)
 }
