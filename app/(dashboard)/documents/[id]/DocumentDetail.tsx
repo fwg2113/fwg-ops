@@ -196,7 +196,8 @@ type Props = {
   feeTypes: FeeType[]
   payments: Payment[]
   dtfPricingMatrix?: DtfPricingMatrix | null
-  embroideryPricingMatrix?: DtfPricingMatrix | null
+  embroideryMarkupMatrix?: DtfPricingMatrix | null
+  embroideryFeeMatrix?: DtfPricingMatrix | null
 }
 
 // ============================================================================
@@ -218,7 +219,8 @@ export default function DocumentDetail({
   feeTypes = [],
   payments: initialPayments = [],
   dtfPricingMatrix = null,
-  embroideryPricingMatrix = null
+  embroideryMarkupMatrix = null,
+  embroideryFeeMatrix = null
 }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1543,19 +1545,24 @@ export default function DocumentDetail({
     }
 
     // Fallback: count from saved mockup attachments (for backward compatibility)
-    if (!item.attachments) return 0
-    const mockupAttachments = item.attachments.filter(att =>
-      att.filename?.startsWith('mockup_')
-    )
-    const uniqueLocations = new Set<string>()
-    mockupAttachments.forEach(att => {
-      // Extract location from filename: mockup_Front_...
-      const parts = att.filename?.split('_')
-      if (parts && parts.length >= 2) {
-        uniqueLocations.add(parts[1]) // Front, Back, LeftSleeve, RightSleeve, etc.
-      }
-    })
-    return uniqueLocations.size
+    if (item.attachments) {
+      const mockupAttachments = item.attachments.filter(att =>
+        att.filename?.startsWith('mockup_')
+      )
+      const uniqueLocations = new Set<string>()
+      mockupAttachments.forEach(att => {
+        // Extract location from filename: mockup_Front_...
+        const parts = att.filename?.split('_')
+        if (parts && parts.length >= 2) {
+          uniqueLocations.add(parts[1]) // Front, Back, LeftSleeve, RightSleeve, etc.
+        }
+      })
+      if (uniqueLocations.size > 0) return uniqueLocations.size
+    }
+
+    // Default to 1 location for embroidery items (most have at least 1 decoration)
+    if (isEmbroideryApparel(item)) return 1
+    return 0
   }
 
   const getDTFMarkupPercent = (quantity: number): number => {
@@ -1592,8 +1599,8 @@ export default function DocumentDetail({
   }
 
   const getEmbroideryMarkupPercent = (quantity: number): number => {
-    if (embroideryPricingMatrix && embroideryPricingMatrix.quantity_breaks) {
-      const qtyBreak = embroideryPricingMatrix.quantity_breaks.find(
+    if (embroideryMarkupMatrix && embroideryMarkupMatrix.quantity_breaks) {
+      const qtyBreak = embroideryMarkupMatrix.quantity_breaks.find(
         (breakPoint) => quantity >= breakPoint.min && quantity <= breakPoint.max
       )
       if (qtyBreak) {
@@ -1611,11 +1618,12 @@ export default function DocumentDetail({
   }
 
   const getEmbroideryDefaultFee = (quantity: number): number => {
-    if (embroideryPricingMatrix && embroideryPricingMatrix.quantity_breaks) {
-      const qtyBreak = embroideryPricingMatrix.quantity_breaks.find(
+    if (embroideryFeeMatrix && embroideryFeeMatrix.quantity_breaks) {
+      const qtyBreak = embroideryFeeMatrix.quantity_breaks.find(
         (breakPoint) => quantity >= breakPoint.min && quantity <= breakPoint.max
       )
       if (qtyBreak && qtyBreak.decoration_prices) {
+        // Use up_to_10k as the single default stitch fee
         return qtyBreak.decoration_prices.up_to_10k ?? 0
       }
     }
@@ -3889,7 +3897,7 @@ export default function DocumentDetail({
                             <label style={{ width: '195px', height: '195px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '14px', flexDirection: 'column', gap: '8px' }}>
                               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                               <span>Add Attachment</span>
-                              <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
+                              <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps,.emb,.dst" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
                             </label>
                           </div>
                         </div>
@@ -3990,7 +3998,7 @@ export default function DocumentDetail({
                               <label style={{ width: '234px', height: '234px', border: '2px dashed rgba(148,163,184,0.3)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', fontSize: '14px', background: 'transparent', transition: 'all 0.15s', gap: '8px' }}>
                                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                 <span>Add Attachment</span>
-                                <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
+                                <input type="file" multiple accept=".jpg,.jpeg,.png,.svg,.pdf,.ai,.eps,.emb,.dst" onChange={(e) => handleLineItemAttachment(item.id, e)} style={{ display: 'none' }} />
                               </label>
                             </div>
                           </td>

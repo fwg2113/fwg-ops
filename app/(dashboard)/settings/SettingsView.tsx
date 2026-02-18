@@ -273,7 +273,7 @@ export default function SettingsView({
   const [editingEmbFeeBreak, setEditingEmbFeeBreak] = useState<number | null>(null)
   const [savingEmbFeePricing, setSavingEmbFeePricing] = useState(false)
   const [addingEmbFeeBreak, setAddingEmbFeeBreak] = useState(false)
-  const [newEmbFeeBreak, setNewEmbFeeBreak] = useState({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } })
+  const [newEmbFeeBreak, setNewEmbFeeBreak] = useState({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00 } })
   // Universal Qty Tiers state
   const [qtyTiers, setQtyTiers] = useState<{ min: number; max: number }[]>([])
   const [qtyTiersLoaded, setQtyTiersLoaded] = useState(false)
@@ -4338,15 +4338,14 @@ export default function SettingsView({
         <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Embroidery Fee Matrix</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage quantity breaks and per-stitch decoration fees for embroidery</p>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage quantity breaks and per-location stitch fees for embroidery</p>
           </div>
 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(148, 163, 184, 0.05)' }}>
                 <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Qty Range</th>
-                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Up to 10k</th>
-                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>10k - 20k</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Stitch Fee</th>
                 <th style={{ padding: '12px 20px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Actions</th>
               </tr>
             </thead>
@@ -4389,22 +4388,6 @@ export default function SettingsView({
                           onChange={e => {
                             const newBreaks = [...embFeePricing.quantity_breaks]
                             newBreaks[index] = { ...newBreaks[index], decoration_prices: { ...newBreaks[index].decoration_prices, up_to_10k: parseFloat(e.target.value) || 0 } }
-                            setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
-                          }}
-                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
-                        />
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 20px' }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span style={{ color: '#64748b' }}>$</span>
-                        <input
-                          type="number"
-                          step="0.50"
-                          value={qtyBreak.decoration_prices['10k_to_20k'] ?? 0}
-                          onChange={e => {
-                            const newBreaks = [...embFeePricing.quantity_breaks]
-                            newBreaks[index] = { ...newBreaks[index], decoration_prices: { ...newBreaks[index].decoration_prices, '10k_to_20k': parseFloat(e.target.value) || 0 } }
                             setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
                           }}
                           style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
@@ -4456,9 +4439,6 @@ export default function SettingsView({
                     </td>
                     <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
                       ${(qtyBreak.decoration_prices.up_to_10k ?? 0).toFixed(2)}
-                    </td>
-                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
-                      ${(qtyBreak.decoration_prices['10k_to_20k'] ?? 0).toFixed(2)}
                     </td>
                     <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -4533,22 +4513,10 @@ export default function SettingsView({
                       />
                     </div>
                   </td>
-                  <td style={{ padding: '12px 20px' }}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <span style={{ color: '#64748b' }}>$</span>
-                      <input
-                        type="number"
-                        step="0.50"
-                        value={newEmbFeeBreak.decoration_prices['10k_to_20k'] ?? 0}
-                        onChange={e => setNewEmbFeeBreak({ ...newEmbFeeBreak, decoration_prices: { ...newEmbFeeBreak.decoration_prices, '10k_to_20k': parseFloat(e.target.value) || 0 } })}
-                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
-                      />
-                    </div>
-                  </td>
                   <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                       <button
-                        onClick={() => { setAddingEmbFeeBreak(false); setNewEmbFeeBreak({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } }) }}
+                        onClick={() => { setAddingEmbFeeBreak(false); setNewEmbFeeBreak({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00 } }) }}
                         style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
                       >Cancel</button>
                       <button
@@ -4568,7 +4536,7 @@ export default function SettingsView({
                             if (res.ok) {
                               setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
                               setAddingEmbFeeBreak(false)
-                              setNewEmbFeeBreak({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } })
+                              setNewEmbFeeBreak({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00 } })
                             } else {
                               alert('Failed to add tier')
                             }
@@ -4585,12 +4553,12 @@ export default function SettingsView({
                 </tr>
               ) : (
                 <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                  <td colSpan={4} style={{ padding: '12px 20px' }}>
+                  <td colSpan={3} style={{ padding: '12px 20px' }}>
                     <button
                       onClick={() => {
                         const lastBreak = embFeePricing.quantity_breaks[embFeePricing.quantity_breaks.length - 1]
                         const suggestedMin = lastBreak ? lastBreak.max + 1 : 1
-                        setNewEmbFeeBreak({ min: suggestedMin, max: suggestedMin + 99, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } })
+                        setNewEmbFeeBreak({ min: suggestedMin, max: suggestedMin + 99, markup_pct: 0, decoration_prices: { up_to_10k: 8.00 } })
                         setAddingEmbFeeBreak(true)
                       }}
                       style={{ padding: '8px 16px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}

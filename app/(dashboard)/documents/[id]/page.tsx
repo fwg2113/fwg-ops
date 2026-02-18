@@ -70,8 +70,21 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     .eq('decoration_type', 'dtf')
     .single()
 
-  // Fetch Embroidery pricing matrix
-  const { data: embroideryPricingMatrix } = await supabase
+  // Fetch Embroidery pricing matrices (separate markup and fee)
+  const { data: embroideryMarkupMatrix } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'embroidery_markup')
+    .single()
+
+  const { data: embroideryFeeMatrix } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'embroidery_fee')
+    .single()
+
+  // Fallback to legacy combined matrix if new ones don't exist yet
+  const { data: embroideryLegacyMatrix } = await supabase
     .from('apparel_pricing_matrices')
     .select('*')
     .eq('decoration_type', 'embroidery')
@@ -92,7 +105,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       feeTypes={feeTypes || []}
       payments={payments || []}
       dtfPricingMatrix={dtfPricingMatrix || null}
-      embroideryPricingMatrix={embroideryPricingMatrix || null}
+      embroideryMarkupMatrix={embroideryMarkupMatrix || embroideryLegacyMatrix || null}
+      embroideryFeeMatrix={embroideryFeeMatrix || embroideryLegacyMatrix || null}
     />
   )
 }

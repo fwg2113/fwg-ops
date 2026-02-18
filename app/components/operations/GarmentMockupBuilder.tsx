@@ -1336,7 +1336,7 @@ export default function GarmentMockupBuilder({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.svg"
+                accept="image/*,.svg,.emb,.dst,.pdf"
                 multiple
                 onChange={handleLogoUpload}
                 style={{ display: 'none' }}
