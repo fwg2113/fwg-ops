@@ -118,9 +118,21 @@ function buildTierPricing(
 
   // Find applicable pricing matrix
   const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
-  const decType = isEmbroidery ? 'embroidery' : 'dtf'
-  const matrix = matrices.find(m => m.decoration_type === decType)
-  if (!matrix || !matrix.quantity_breaks || matrix.quantity_breaks.length === 0) return null
+  let markupMatrix: PricingMatrix | undefined
+  let feeMatrix: PricingMatrix | undefined
+
+  if (isEmbroidery) {
+    // Embroidery uses split matrices: embroidery_markup (for markup %) and embroidery_fee (for decoration prices)
+    markupMatrix = matrices.find(m => m.decoration_type === 'embroidery_markup')
+      || matrices.find(m => m.decoration_type === 'embroidery') // legacy fallback
+    feeMatrix = matrices.find(m => m.decoration_type === 'embroidery_fee')
+      || matrices.find(m => m.decoration_type === 'embroidery') // legacy fallback
+  } else {
+    markupMatrix = matrices.find(m => m.decoration_type === 'dtf')
+    feeMatrix = markupMatrix
+  }
+
+  if (!markupMatrix || !markupMatrix.quantity_breaks || markupMatrix.quantity_breaks.length === 0) return null
 
   // Calculate decoration fee per unit
   const designLocations = countItemDesignLocations(item)
@@ -128,19 +140,30 @@ function buildTierPricing(
   const pressFee = cf.press_fee_per_location ?? 2.25
   const manualOverride = cf.manual_price_override || false
 
-  const sortedBreaks = [...matrix.quantity_breaks].sort((a, b) => a.min - b.min)
+  const sortedMarkupBreaks = [...markupMatrix.quantity_breaks].sort((a, b) => a.min - b.min)
+  const sortedFeeBreaks = feeMatrix?.quantity_breaks ? [...feeMatrix.quantity_breaks].sort((a, b) => a.min - b.min) : []
 
-  return sortedBreaks.map(tier => {
+  return sortedMarkupBreaks.map((tier, idx) => {
     const markupMultiplier = tier.markup_pct / 100
     const garmentPrice = avgWholesale * markupMultiplier
 
     let decorationFee = 0
     if (!manualOverride) {
       if (isEmbroidery) {
-        // Embroidery: use stitch count pricing from tier
-        const stitchTier = item.stitch_count || cf.stitch_count || 'up_to_10k'
-        const stitchKey = stitchTier === '10k_to_20k' || stitchTier === '20k_plus' ? '10k_to_20k' : 'up_to_10k'
-        decorationFee = (tier.decoration_prices[stitchKey] || 0) * designLocations
+        // Embroidery: use fee from embroidery_fee matrix (or item override)
+        const embFeeOverride = cf.embroidery_fee_per_location as number | undefined
+        if (embFeeOverride !== undefined) {
+          decorationFee = embFeeOverride * designLocations
+        } else {
+          // Find matching fee tier
+          const feeTier = sortedFeeBreaks.find(ft => tier.min >= ft.min && tier.min <= ft.max)
+            || sortedFeeBreaks[idx]
+          if (feeTier?.decoration_prices) {
+            const stitchTier = item.stitch_count || cf.stitch_count || 'up_to_10k'
+            const stitchKey = stitchTier === '10k_to_20k' || stitchTier === '20k_plus' ? '10k_to_20k' : 'up_to_10k'
+            decorationFee = (feeTier.decoration_prices[stitchKey] || 0) * designLocations
+          }
+        }
       } else {
         // DTF: use per-location fees from item
         decorationFee = designLocations * (designFee + pressFee)
@@ -172,11 +195,12 @@ function getActiveTierPrice(
   if (!tiers || tiers.length === 0) return null
 
   const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
-  const decType = isEmbroidery ? 'embroidery' : 'dtf'
-  const matrix = matrices.find(m => m.decoration_type === decType)
-  if (!matrix) return null
+  const markupMatrix = isEmbroidery
+    ? (matrices.find(m => m.decoration_type === 'embroidery_markup') || matrices.find(m => m.decoration_type === 'embroidery'))
+    : matrices.find(m => m.decoration_type === 'dtf')
+  if (!markupMatrix) return null
 
-  const sortedBreaks = [...matrix.quantity_breaks].sort((a, b) => a.min - b.min)
+  const sortedBreaks = [...markupMatrix.quantity_breaks].sort((a, b) => a.min - b.min)
   for (let i = 0; i < sortedBreaks.length; i++) {
     const tier = sortedBreaks[i]
     if (aggregateQty >= tier.min && aggregateQty <= tier.max) {
