@@ -110,11 +110,25 @@ export default async function SettingsPage() {
     .eq('decoration_type', 'dtf')
     .single()
 
-  // Embroidery Pricing Matrix
+  // Embroidery Pricing Matrix (legacy combined)
   const { data: embroideryPricing } = await supabase
     .from('apparel_pricing_matrices')
     .select('*')
     .eq('decoration_type', 'embroidery')
+    .single()
+
+  // Embroidery Markup Matrix (separate qty breaks for markup %)
+  const { data: embroideryMarkupPricing } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'embroidery_markup')
+    .single()
+
+  // Embroidery Fee Matrix (separate qty breaks for stitch fees)
+  const { data: embroideryFeePricing } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'embroidery_fee')
     .single()
 
   const calendarConnected = !!calendarSettings?.value
@@ -138,6 +152,8 @@ export default async function SettingsPage() {
       initialCustomerWorkflows={customerWorkflows || []}
       initialDtfPricing={dtfPricing}
       initialEmbroideryPricing={embroideryPricing}
+      initialEmbroideryMarkupPricing={embroideryMarkupPricing}
+      initialEmbroideryFeePricing={embroideryFeePricing}
     />
   )
 }

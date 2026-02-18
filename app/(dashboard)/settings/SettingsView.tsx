@@ -168,7 +168,7 @@ type NotificationSettings = {
   email_alert_address: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-pricing' | 'qty-tiers'
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers'
 
 type DtfPricingMatrix = {
   id: string
@@ -201,7 +201,9 @@ export default function SettingsView({
   initialPricingMatrix,
   initialCustomerWorkflows,
   initialDtfPricing,
-  initialEmbroideryPricing
+  initialEmbroideryPricing,
+  initialEmbroideryMarkupPricing,
+  initialEmbroideryFeePricing
 }: {
   initialCategories: Category[]
   initialMaterials: Material[]
@@ -219,6 +221,8 @@ export default function SettingsView({
   initialCustomerWorkflows: CustomerWorkflowTemplate[]
   initialDtfPricing?: DtfPricingMatrix | null
   initialEmbroideryPricing?: DtfPricingMatrix | null
+  initialEmbroideryMarkupPricing?: DtfPricingMatrix | null
+  initialEmbroideryFeePricing?: DtfPricingMatrix | null
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories, setCategories] = useState<Category[]>(initialCategories)
@@ -254,10 +258,22 @@ export default function SettingsView({
   const [savingDtfPricing, setSavingDtfPricing] = useState(false)
   const [addingDtfBreak, setAddingDtfBreak] = useState(false)
   const [newDtfBreak, setNewDtfBreak] = useState({ min: 0, max: 0, markup_pct: 200, decoration_prices: { front: 5.00, back: 5.00, left_sleeve: 5.00, right_sleeve: 5.00, extra: 5.00 } })
-  // Embroidery Pricing state
+  // Embroidery Pricing state (legacy combined)
   const [embroideryPricing, setEmbroideryPricing] = useState<DtfPricingMatrix | null>(initialEmbroideryPricing || null)
   const [editingEmbroideryBreak, setEditingEmbroideryBreak] = useState<number | null>(null)
   const [savingEmbroideryPricing, setSavingEmbroideryPricing] = useState(false)
+  // Embroidery Markup state (separate qty breaks)
+  const [embMarkupPricing, setEmbMarkupPricing] = useState<DtfPricingMatrix | null>(initialEmbroideryMarkupPricing || null)
+  const [editingEmbMarkupBreak, setEditingEmbMarkupBreak] = useState<number | null>(null)
+  const [savingEmbMarkupPricing, setSavingEmbMarkupPricing] = useState(false)
+  const [addingEmbMarkupBreak, setAddingEmbMarkupBreak] = useState(false)
+  const [newEmbMarkupBreak, setNewEmbMarkupBreak] = useState({ min: 0, max: 0, markup_pct: 200, decoration_prices: {} as Record<string, number> })
+  // Embroidery Fee state (separate qty breaks)
+  const [embFeePricing, setEmbFeePricing] = useState<DtfPricingMatrix | null>(initialEmbroideryFeePricing || null)
+  const [editingEmbFeeBreak, setEditingEmbFeeBreak] = useState<number | null>(null)
+  const [savingEmbFeePricing, setSavingEmbFeePricing] = useState(false)
+  const [addingEmbFeeBreak, setAddingEmbFeeBreak] = useState(false)
+  const [newEmbFeeBreak, setNewEmbFeeBreak] = useState({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } })
   // Universal Qty Tiers state
   const [qtyTiers, setQtyTiers] = useState<{ min: number; max: number }[]>([])
   const [qtyTiersLoaded, setQtyTiersLoaded] = useState(false)
@@ -510,6 +526,8 @@ export default function SettingsView({
     { key: 'estimator', label: 'Estimator Config' },
     { key: 'qty-tiers', label: 'Qty Tiers' },
     { key: 'dtf-pricing', label: 'DTF Pricing' },
+    { key: 'embroidery-markup', label: 'Emb. Markup' },
+    { key: 'embroidery-fee', label: 'Emb. Fee' },
     { key: 'embroidery-pricing', label: 'Embroidery Pricing' },
     { key: 'automations', label: 'Automations' },
     { key: 'notifications', label: 'Notifications' },
@@ -4067,7 +4085,525 @@ export default function SettingsView({
 
           <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
             <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
-              These markup percentages are applied to garment wholesale prices. When you change quantity in a quote, garment prices will automatically recalculate based on these tiers.
+              These markup percentages are applied to garment wholesale prices. Changes apply to future quotes only — existing approved quotes are not affected.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Embroidery Markup Tab */}
+      {activeTab === 'embroidery-markup' && embMarkupPricing && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Embroidery Markup Matrix</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage quantity breaks and markup percentages for embroidery apparel</p>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'rgba(148, 163, 184, 0.05)' }}>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Qty Range</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Markup %</th>
+                <th style={{ padding: '12px 20px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {embMarkupPricing.quantity_breaks.map((qtyBreak, index) => (
+                editingEmbMarkupBreak === index ? (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          value={qtyBreak.min}
+                          onChange={e => {
+                            const newBreaks = [...embMarkupPricing.quantity_breaks]
+                            newBreaks[index] = { ...newBreaks[index], min: parseInt(e.target.value) || 0 }
+                            setEmbMarkupPricing({ ...embMarkupPricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                        <span style={{ color: '#64748b' }}>to</span>
+                        <input
+                          type="number"
+                          value={qtyBreak.max}
+                          onChange={e => {
+                            const newBreaks = [...embMarkupPricing.quantity_breaks]
+                            newBreaks[index] = { ...newBreaks[index], max: parseInt(e.target.value) || 0 }
+                            setEmbMarkupPricing({ ...embMarkupPricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          value={qtyBreak.markup_pct}
+                          onChange={e => {
+                            const newBreaks = [...embMarkupPricing.quantity_breaks]
+                            newBreaks[index] = { ...newBreaks[index], markup_pct: parseInt(e.target.value) || 0 }
+                            setEmbMarkupPricing({ ...embMarkupPricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                        <span style={{ color: '#64748b' }}>%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => {
+                            fetch('/api/settings/embroidery-markup-pricing').then(r => r.json()).then(d => { if (d?.quantity_breaks) setEmbMarkupPricing(d) })
+                            setEditingEmbMarkupBreak(null)
+                          }}
+                          style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSavingEmbMarkupPricing(true)
+                            try {
+                              const res = await fetch('/api/settings/embroidery-markup-pricing', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: embMarkupPricing.id, quantity_breaks: embMarkupPricing.quantity_breaks })
+                              })
+                              if (res.ok) {
+                                setEditingEmbMarkupBreak(null)
+                              } else {
+                                alert('Failed to save pricing')
+                              }
+                            } catch (err) {
+                              alert('Error saving pricing')
+                            }
+                            setSavingEmbMarkupPricing(false)
+                          }}
+                          disabled={savingEmbMarkupPricing}
+                          style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingEmbMarkupPricing ? 0.6 : 1 }}
+                        >
+                          {savingEmbMarkupPricing ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>
+                      {qtyBreak.min} - {qtyBreak.max === 99999 ? '∞' : qtyBreak.max}
+                    </td>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
+                      {qtyBreak.markup_pct}%
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => setEditingEmbMarkupBreak(index)}
+                          style={{ padding: '6px 12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Remove tier ${qtyBreak.min}-${qtyBreak.max === 99999 ? '∞' : qtyBreak.max}?`)) return
+                            setSavingEmbMarkupPricing(true)
+                            try {
+                              const newBreaks = embMarkupPricing.quantity_breaks.filter((_, i) => i !== index)
+                              const res = await fetch('/api/settings/embroidery-markup-pricing', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: embMarkupPricing.id, quantity_breaks: newBreaks })
+                              })
+                              if (res.ok) {
+                                setEmbMarkupPricing({ ...embMarkupPricing, quantity_breaks: newBreaks })
+                              } else {
+                                alert('Failed to remove tier')
+                              }
+                            } catch {
+                              alert('Error removing tier')
+                            }
+                            setSavingEmbMarkupPricing(false)
+                          }}
+                          style={{ padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              ))}
+
+              {/* Add new row */}
+              {addingEmbMarkupBreak ? (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.03)' }}>
+                  <td style={{ padding: '12px 20px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        value={newEmbMarkupBreak.min || ''}
+                        placeholder="Min"
+                        onChange={e => setNewEmbMarkupBreak({ ...newEmbMarkupBreak, min: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                      <span style={{ color: '#64748b' }}>to</span>
+                      <input
+                        type="number"
+                        value={newEmbMarkupBreak.max || ''}
+                        placeholder="Max"
+                        onChange={e => setNewEmbMarkupBreak({ ...newEmbMarkupBreak, max: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 20px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        value={newEmbMarkupBreak.markup_pct}
+                        onChange={e => setNewEmbMarkupBreak({ ...newEmbMarkupBreak, markup_pct: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                      <span style={{ color: '#64748b' }}>%</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => { setAddingEmbMarkupBreak(false); setNewEmbMarkupBreak({ min: 0, max: 0, markup_pct: 200, decoration_prices: {} }) }}
+                        style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                      >Cancel</button>
+                      <button
+                        onClick={async () => {
+                          if (newEmbMarkupBreak.min <= 0 || newEmbMarkupBreak.max <= 0 || newEmbMarkupBreak.max < newEmbMarkupBreak.min) {
+                            alert('Max must be >= Min, and both must be > 0')
+                            return
+                          }
+                          setSavingEmbMarkupPricing(true)
+                          try {
+                            const newBreaks = [...embMarkupPricing.quantity_breaks, newEmbMarkupBreak].sort((a, b) => a.min - b.min)
+                            const res = await fetch('/api/settings/embroidery-markup-pricing', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: embMarkupPricing.id, quantity_breaks: newBreaks })
+                            })
+                            if (res.ok) {
+                              setEmbMarkupPricing({ ...embMarkupPricing, quantity_breaks: newBreaks })
+                              setAddingEmbMarkupBreak(false)
+                              setNewEmbMarkupBreak({ min: 0, max: 0, markup_pct: 200, decoration_prices: {} })
+                            } else {
+                              alert('Failed to add tier')
+                            }
+                          } catch {
+                            alert('Error adding tier')
+                          }
+                          setSavingEmbMarkupPricing(false)
+                        }}
+                        disabled={savingEmbMarkupPricing}
+                        style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingEmbMarkupPricing ? 0.6 : 1 }}
+                      >{savingEmbMarkupPricing ? 'Saving...' : 'Add & Save'}</button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <td colSpan={3} style={{ padding: '12px 20px' }}>
+                    <button
+                      onClick={() => {
+                        const lastBreak = embMarkupPricing.quantity_breaks[embMarkupPricing.quantity_breaks.length - 1]
+                        const suggestedMin = lastBreak ? lastBreak.max + 1 : 1
+                        setNewEmbMarkupBreak({ min: suggestedMin, max: suggestedMin + 99, markup_pct: 200, decoration_prices: {} })
+                        setAddingEmbMarkupBreak(true)
+                      }}
+                      style={{ padding: '8px 16px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}
+                    >+ Add Row</button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
+            <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
+              These markup percentages are applied to embroidery garment wholesale prices. Changes apply to future quotes only — existing approved quotes are not affected.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Embroidery Fee Tab */}
+      {activeTab === 'embroidery-fee' && embFeePricing && (
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Embroidery Fee Matrix</h3>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage quantity breaks and per-stitch decoration fees for embroidery</p>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'rgba(148, 163, 184, 0.05)' }}>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Qty Range</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Up to 10k</th>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>10k - 20k</th>
+                <th style={{ padding: '12px 20px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {embFeePricing.quantity_breaks.map((qtyBreak, index) => (
+                editingEmbFeeBreak === index ? (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          value={qtyBreak.min}
+                          onChange={e => {
+                            const newBreaks = [...embFeePricing.quantity_breaks]
+                            newBreaks[index] = { ...newBreaks[index], min: parseInt(e.target.value) || 0 }
+                            setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                        <span style={{ color: '#64748b' }}>to</span>
+                        <input
+                          type="number"
+                          value={qtyBreak.max}
+                          onChange={e => {
+                            const newBreaks = [...embFeePricing.quantity_breaks]
+                            newBreaks[index] = { ...newBreaks[index], max: parseInt(e.target.value) || 0 }
+                            setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b' }}>$</span>
+                        <input
+                          type="number"
+                          step="0.50"
+                          value={qtyBreak.decoration_prices.up_to_10k ?? 0}
+                          onChange={e => {
+                            const newBreaks = [...embFeePricing.quantity_breaks]
+                            newBreaks[index] = { ...newBreaks[index], decoration_prices: { ...newBreaks[index].decoration_prices, up_to_10k: parseFloat(e.target.value) || 0 } }
+                            setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 20px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b' }}>$</span>
+                        <input
+                          type="number"
+                          step="0.50"
+                          value={qtyBreak.decoration_prices['10k_to_20k'] ?? 0}
+                          onChange={e => {
+                            const newBreaks = [...embFeePricing.quantity_breaks]
+                            newBreaks[index] = { ...newBreaks[index], decoration_prices: { ...newBreaks[index].decoration_prices, '10k_to_20k': parseFloat(e.target.value) || 0 } }
+                            setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
+                          }}
+                          style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                        />
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => {
+                            fetch('/api/settings/embroidery-fee-pricing').then(r => r.json()).then(d => { if (d?.quantity_breaks) setEmbFeePricing(d) })
+                            setEditingEmbFeeBreak(null)
+                          }}
+                          style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSavingEmbFeePricing(true)
+                            try {
+                              const res = await fetch('/api/settings/embroidery-fee-pricing', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: embFeePricing.id, quantity_breaks: embFeePricing.quantity_breaks })
+                              })
+                              if (res.ok) {
+                                setEditingEmbFeeBreak(null)
+                              } else {
+                                alert('Failed to save pricing')
+                              }
+                            } catch (err) {
+                              alert('Error saving pricing')
+                            }
+                            setSavingEmbFeePricing(false)
+                          }}
+                          disabled={savingEmbFeePricing}
+                          style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingEmbFeePricing ? 0.6 : 1 }}
+                        >
+                          {savingEmbFeePricing ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>
+                      {qtyBreak.min} - {qtyBreak.max === 99999 ? '∞' : qtyBreak.max}
+                    </td>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
+                      ${(qtyBreak.decoration_prices.up_to_10k ?? 0).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
+                      ${(qtyBreak.decoration_prices['10k_to_20k'] ?? 0).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => setEditingEmbFeeBreak(index)}
+                          style={{ padding: '6px 12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Remove tier ${qtyBreak.min}-${qtyBreak.max === 99999 ? '∞' : qtyBreak.max}?`)) return
+                            setSavingEmbFeePricing(true)
+                            try {
+                              const newBreaks = embFeePricing.quantity_breaks.filter((_, i) => i !== index)
+                              const res = await fetch('/api/settings/embroidery-fee-pricing', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: embFeePricing.id, quantity_breaks: newBreaks })
+                              })
+                              if (res.ok) {
+                                setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
+                              } else {
+                                alert('Failed to remove tier')
+                              }
+                            } catch {
+                              alert('Error removing tier')
+                            }
+                            setSavingEmbFeePricing(false)
+                          }}
+                          style={{ padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              ))}
+
+              {/* Add new row */}
+              {addingEmbFeeBreak ? (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.03)' }}>
+                  <td style={{ padding: '12px 20px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        value={newEmbFeeBreak.min || ''}
+                        placeholder="Min"
+                        onChange={e => setNewEmbFeeBreak({ ...newEmbFeeBreak, min: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                      <span style={{ color: '#64748b' }}>to</span>
+                      <input
+                        type="number"
+                        value={newEmbFeeBreak.max || ''}
+                        placeholder="Max"
+                        onChange={e => setNewEmbFeeBreak({ ...newEmbFeeBreak, max: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 20px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b' }}>$</span>
+                      <input
+                        type="number"
+                        step="0.50"
+                        value={newEmbFeeBreak.decoration_prices.up_to_10k ?? 0}
+                        onChange={e => setNewEmbFeeBreak({ ...newEmbFeeBreak, decoration_prices: { ...newEmbFeeBreak.decoration_prices, up_to_10k: parseFloat(e.target.value) || 0 } })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 20px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b' }}>$</span>
+                      <input
+                        type="number"
+                        step="0.50"
+                        value={newEmbFeeBreak.decoration_prices['10k_to_20k'] ?? 0}
+                        onChange={e => setNewEmbFeeBreak({ ...newEmbFeeBreak, decoration_prices: { ...newEmbFeeBreak.decoration_prices, '10k_to_20k': parseFloat(e.target.value) || 0 } })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => { setAddingEmbFeeBreak(false); setNewEmbFeeBreak({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } }) }}
+                        style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                      >Cancel</button>
+                      <button
+                        onClick={async () => {
+                          if (newEmbFeeBreak.min <= 0 || newEmbFeeBreak.max <= 0 || newEmbFeeBreak.max < newEmbFeeBreak.min) {
+                            alert('Max must be >= Min, and both must be > 0')
+                            return
+                          }
+                          setSavingEmbFeePricing(true)
+                          try {
+                            const newBreaks = [...embFeePricing.quantity_breaks, newEmbFeeBreak].sort((a, b) => a.min - b.min)
+                            const res = await fetch('/api/settings/embroidery-fee-pricing', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: embFeePricing.id, quantity_breaks: newBreaks })
+                            })
+                            if (res.ok) {
+                              setEmbFeePricing({ ...embFeePricing, quantity_breaks: newBreaks })
+                              setAddingEmbFeeBreak(false)
+                              setNewEmbFeeBreak({ min: 0, max: 0, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } })
+                            } else {
+                              alert('Failed to add tier')
+                            }
+                          } catch {
+                            alert('Error adding tier')
+                          }
+                          setSavingEmbFeePricing(false)
+                        }}
+                        disabled={savingEmbFeePricing}
+                        style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingEmbFeePricing ? 0.6 : 1 }}
+                      >{savingEmbFeePricing ? 'Saving...' : 'Add & Save'}</button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <td colSpan={4} style={{ padding: '12px 20px' }}>
+                    <button
+                      onClick={() => {
+                        const lastBreak = embFeePricing.quantity_breaks[embFeePricing.quantity_breaks.length - 1]
+                        const suggestedMin = lastBreak ? lastBreak.max + 1 : 1
+                        setNewEmbFeeBreak({ min: suggestedMin, max: suggestedMin + 99, markup_pct: 0, decoration_prices: { up_to_10k: 8.00, '10k_to_20k': 15.00 } })
+                        setAddingEmbFeeBreak(true)
+                      }}
+                      style={{ padding: '8px 16px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}
+                    >+ Add Row</button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
+            <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
+              Per-location decoration fees based on stitch count. Changes apply to future quotes only — existing approved quotes are not affected.
             </p>
           </div>
         </div>
@@ -4232,7 +4768,7 @@ export default function SettingsView({
 
           <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
             <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
-              Decoration prices are per-location based on stitch count. Markup percentages are applied to garment wholesale prices.
+              Decoration prices are per-location based on stitch count. Markup percentages are applied to garment wholesale prices. Changes apply to future quotes only — existing approved quotes are not affected.
             </p>
           </div>
         </div>
