@@ -217,10 +217,14 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   // Supplier product data cache (per line item)
   const [supplierProducts, setSupplierProducts] = useState<Record<string, any>>({})
   const [loadingProducts, setLoadingProducts] = useState<Record<string, boolean>>({})
-  // Canvas ref for mockup re-rendering
-  const mockupCanvasRef = useRef<HTMLCanvasElement>(null)
+  // Re-rendered mockup previews: { itemId: { Front: 'data:image/png;...', Back: '...' } }
+  const [mockupPreviews, setMockupPreviews] = useState<Record<string, Record<string, string>>>({})
+  const [renderingMockups, setRenderingMockups] = useState<Record<string, boolean>>({})
   // Track which items have customer-edited quantities
   const [editedItems, setEditedItems] = useState<Set<string>>(new Set())
+  // Additional color instances: { sourceItemId: [{ id, color, sizeQtys }] }
+  type ColorInstance = { id: string; color: string; sizeQtys: Record<string, number>; mockupPreviews?: Record<string, string> }
+  const [additionalInstances, setAdditionalInstances] = useState<Record<string, ColorInstance[]>>({})
 
   // Option lightbox state
   const [optLightbox, setOptLightbox] = useState<{ optionId: string; index: number } | null>(null)
@@ -382,6 +386,87 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
       return null
     }
   }, [])
+
+  // Re-render mockups when customer changes color
+  useEffect(() => {
+    Object.entries(customerColors).forEach(async ([itemId, selectedColor]) => {
+      const item = lineItems.find(i => i.id === itemId)
+      if (!item) return
+      const cf = item.custom_fields || {}
+      if (!cf.apparel_mode || !cf.mockup_config) return
+      if (selectedColor === cf.color) {
+        // Reset to original - clear any previews
+        setMockupPreviews(prev => { const n = { ...prev }; delete n[itemId]; return n })
+        return
+      }
+
+      const product = supplierProducts[itemId]
+      if (!product) return
+      const newColorData = product.colors?.find((c: any) => c.colorName === selectedColor)
+      if (!newColorData) return
+
+      // Map location names to garment images
+      const locationImages: Record<string, string> = {}
+      if (newColorData.frontImage) locationImages['Front'] = newColorData.frontImage
+      if (newColorData.backImage) locationImages['Back'] = newColorData.backImage
+      if (newColorData.sideImage) { locationImages['Sleeves'] = newColorData.sideImage; locationImages['Side'] = newColorData.sideImage }
+
+      if (Object.keys(locationImages).length === 0) return
+
+      setRenderingMockups(prev => ({ ...prev, [itemId]: true }))
+
+      const previews: Record<string, string> = {}
+      for (const [location, garmentUrl] of Object.entries(locationImages)) {
+        const result = await generateMockupPreview(garmentUrl, cf.mockup_config, location)
+        if (result) previews[location] = result
+      }
+
+      if (Object.keys(previews).length > 0) {
+        setMockupPreviews(prev => ({ ...prev, [itemId]: previews }))
+      }
+      setRenderingMockups(prev => ({ ...prev, [itemId]: false }))
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerColors, supplierProducts])
+
+  // Re-render mockups for additional color instances
+  useEffect(() => {
+    Object.entries(additionalInstances).forEach(([sourceItemId, instances]) => {
+      const item = lineItems.find(i => i.id === sourceItemId)
+      if (!item) return
+      const cf = item.custom_fields || {}
+      if (!cf.mockup_config) return
+      const product = supplierProducts[sourceItemId]
+      if (!product) return
+
+      instances.forEach(async (inst) => {
+        if (inst.mockupPreviews && Object.keys(inst.mockupPreviews).length > 0) return // Already rendered
+        const colorData = product.colors?.find((c: any) => c.colorName === inst.color)
+        if (!colorData) return
+
+        const locationImages: Record<string, string> = {}
+        if (colorData.frontImage) locationImages['Front'] = colorData.frontImage
+        if (colorData.backImage) locationImages['Back'] = colorData.backImage
+        if (colorData.sideImage) { locationImages['Sleeves'] = colorData.sideImage; locationImages['Side'] = colorData.sideImage }
+
+        const previews: Record<string, string> = {}
+        for (const [location, garmentUrl] of Object.entries(locationImages)) {
+          const result = await generateMockupPreview(garmentUrl, cf.mockup_config, location)
+          if (result) previews[location] = result
+        }
+
+        if (Object.keys(previews).length > 0) {
+          setAdditionalInstances(prev => ({
+            ...prev,
+            [sourceItemId]: (prev[sourceItemId] || []).map(i =>
+              i.id === inst.id ? { ...i, mockupPreviews: previews } : i
+            )
+          }))
+        }
+      })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [additionalInstances, supplierProducts])
 
   // Parse fees
   const fees: Fee[] = (() => {
@@ -718,13 +803,25 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         }
       }
 
+      // Build additional color instances payload
+      const addlColorInstances: { sourceItemId: string; color: string; sizeQtys: Record<string, number> }[] = []
+      for (const [sourceItemId, instances] of Object.entries(additionalInstances)) {
+        for (const inst of instances) {
+          const hasQty = Object.values(inst.sizeQtys).some(q => q > 0)
+          if (hasQty) {
+            addlColorInstances.push({ sourceItemId, color: inst.color, sizeQtys: inst.sizeQtys })
+          }
+        }
+      }
+
       const res = await fetch('/api/documents/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId: doc.id,
           convertToInvoice: true,
-          lineItemUpdates: Object.keys(lineItemUpdates).length > 0 ? lineItemUpdates : undefined
+          lineItemUpdates: Object.keys(lineItemUpdates).length > 0 ? lineItemUpdates : undefined,
+          additionalColorInstances: addlColorInstances.length > 0 ? addlColorInstances : undefined
         })
       })
       if (res.ok) {
@@ -767,6 +864,17 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         }
       }
 
+      // Build additional color instances for this option's items
+      const addlColorInstances: { sourceItemId: string; color: string; sizeQtys: Record<string, number> }[] = []
+      for (const item of groupItems) {
+        for (const inst of (additionalInstances[item.id] || [])) {
+          const hasQty = Object.values(inst.sizeQtys).some(q => q > 0)
+          if (hasQty) {
+            addlColorInstances.push({ sourceItemId: item.id, color: inst.color, sizeQtys: inst.sizeQtys })
+          }
+        }
+      }
+
       const res = await fetch('/api/documents/option-selection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -778,6 +886,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           contactPreference: optionContactPrefs[optionId] || 'sms',
           sizeQuantities: hasQuantities ? sizeQtys : null,
           lineItemUpdates: Object.keys(lineItemUpdates).length > 0 ? lineItemUpdates : undefined,
+          additionalColorInstances: addlColorInstances.length > 0 ? addlColorInstances : undefined,
           action: 'approve'
         })
       })
@@ -978,6 +1087,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     }}>
       {/* Print + Mobile Responsive Styles */}
       <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @media print {
           body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print { display: none !important; }
@@ -2258,6 +2368,154 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                       </div>
                                     )
                                   })()}
+
+                                  {/* Add Another Color button */}
+                                  {canApprove && availableColors.length > 1 && (
+                                    <div style={{ marginTop: '14px', marginLeft: '20px' }}>
+                                      <button
+                                        onClick={() => {
+                                          const id = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+                                          // Default to first available color that isn't already selected
+                                          const usedColors = new Set([currentColor, ...(additionalInstances[item.id] || []).map(i => i.color)])
+                                          const nextColor = availableColors.find((c: any) => !usedColors.has(c.colorName))?.colorName || availableColors[0]?.colorName || ''
+                                          // Initialize with zero quantities for all enabled sizes
+                                          const initQtys: Record<string, number> = {}
+                                          enabledSizes.forEach(s => { initQtys[s] = 0 })
+                                          setAdditionalInstances(prev => ({
+                                            ...prev,
+                                            [item.id]: [...(prev[item.id] || []), { id, color: nextColor, sizeQtys: initQtys }]
+                                          }))
+                                        }}
+                                        style={{
+                                          display: 'flex', alignItems: 'center', gap: '6px',
+                                          padding: '8px 16px', background: 'rgba(190,30,45,0.05)', border: '1px dashed #be1e2d',
+                                          borderRadius: '8px', color: '#be1e2d', fontSize: '13px', fontWeight: 600,
+                                          cursor: 'pointer', transition: 'all 0.15s ease'
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(190,30,45,0.1)' }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(190,30,45,0.05)' }}
+                                      >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                        Add Another Color
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Additional color instances */}
+                                  {(additionalInstances[item.id] || []).map((inst, instIdx) => {
+                                    const instTotalQty = Object.values(inst.sizeQtys).reduce((sum, q) => sum + q, 0)
+                                    return (
+                                      <div key={inst.id} style={{
+                                        marginTop: '16px', padding: '16px', background: '#fafafa',
+                                        borderRadius: '10px', border: '1px solid #e5e7eb', position: 'relative'
+                                      }}>
+                                        {/* Remove button */}
+                                        <button
+                                          onClick={() => {
+                                            setAdditionalInstances(prev => ({
+                                              ...prev,
+                                              [item.id]: (prev[item.id] || []).filter(i => i.id !== inst.id)
+                                            }))
+                                          }}
+                                          style={{
+                                            position: 'absolute', top: '8px', right: '8px',
+                                            background: 'none', border: 'none', color: '#94a3b8',
+                                            cursor: 'pointer', padding: '4px', borderRadius: '4px'
+                                          }}
+                                          title="Remove this color"
+                                        >
+                                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                        </button>
+
+                                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginBottom: '10px' }}>
+                                          Additional Color #{instIdx + 1} — {inst.color} {instTotalQty > 0 && <span style={{ color: '#6b7280', fontWeight: 400 }}>({instTotalQty} pcs)</span>}
+                                        </div>
+
+                                        {/* Color picker for this instance */}
+                                        <div style={{ marginBottom: '10px' }}>
+                                          <div style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Color</div>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                            {availableColors.map((c: any, ci: number) => {
+                                              const isActive = c.colorName === inst.color
+                                              return (
+                                                <div
+                                                  key={c.colorID || ci}
+                                                  onClick={() => {
+                                                    setAdditionalInstances(prev => ({
+                                                      ...prev,
+                                                      [item.id]: (prev[item.id] || []).map(i =>
+                                                        i.id === inst.id ? { ...i, color: c.colorName, mockupPreviews: undefined } : i
+                                                      )
+                                                    }))
+                                                  }}
+                                                  title={c.colorName}
+                                                  style={{
+                                                    width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer',
+                                                    border: isActive ? '3px solid #be1e2d' : '2px solid #e5e7eb',
+                                                    background: c.colorHex ? `#${c.colorHex.replace('#', '')}` : '#ccc',
+                                                    ...(c.colorSwatchUrl && !c.colorHex ? { backgroundImage: `url(${c.colorSwatchUrl})`, backgroundSize: 'cover' } : {}),
+                                                    transition: 'all 0.15s ease',
+                                                    boxShadow: isActive ? '0 0 0 2px rgba(190,30,45,0.3)' : 'none'
+                                                  }}
+                                                />
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        {/* Size quantities for this instance */}
+                                        <div>
+                                          <div style={{ fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Quantities</div>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                            {enabledSizes.map(size => {
+                                              const qty = inst.sizeQtys[size] || 0
+                                              return (
+                                                <div key={size} style={{
+                                                  display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                                  padding: '6px 8px', background: qty > 0 ? 'rgba(190,30,45,0.03)' : '#ffffff', borderRadius: '6px',
+                                                  border: qty > 0 ? '2px solid #be1e2d' : '1px solid #e5e7eb', minWidth: '65px'
+                                                }}>
+                                                  <div style={{ fontSize: '12px', fontWeight: 700, color: qty > 0 ? '#be1e2d' : '#6b7280', textTransform: 'uppercase' }}>{size}</div>
+                                                  <input
+                                                    type="number" min="0" value={qty || ''} placeholder="0"
+                                                    onChange={(e) => {
+                                                      const val = parseInt(e.target.value) || 0
+                                                      setAdditionalInstances(prev => ({
+                                                        ...prev,
+                                                        [item.id]: (prev[item.id] || []).map(i =>
+                                                          i.id === inst.id ? { ...i, sizeQtys: { ...i.sizeQtys, [size]: val } } : i
+                                                        )
+                                                      }))
+                                                    }}
+                                                    style={{
+                                                      width: '48px', padding: '5px 3px', marginTop: '3px',
+                                                      border: '1px solid #e5e7eb', borderRadius: '5px',
+                                                      fontSize: '14px', fontWeight: 600, textAlign: 'center',
+                                                      background: '#ffffff', outline: 'none', fontFamily: 'inherit'
+                                                    }}
+                                                  />
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        {/* Mockup previews for this instance */}
+                                        {inst.mockupPreviews && Object.keys(inst.mockupPreviews).length > 0 && (
+                                          <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: Object.keys(inst.mockupPreviews).length === 1 ? '1fr' : `repeat(${Math.min(Object.keys(inst.mockupPreviews).length, 3)}, 1fr)`, gap: '8px' }}>
+                                            {Object.entries(inst.mockupPreviews).map(([location, dataUrl]) => (
+                                              <div key={location}>
+                                                <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '3px', fontWeight: 500 }}>{location}</div>
+                                                <div style={{ position: 'relative', width: '100%', paddingBottom: '75%', borderRadius: '8px', overflow: 'hidden', background: '#f1f5f9' }}>
+                                                  <img src={dataUrl} alt={`${inst.color} ${location}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
                               )
                             }
@@ -2286,73 +2544,65 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                             )
                           })()}
 
-                          {/* Dynamic mockup preview when customer changes color */}
-                          {(() => {
-                            const cf = item.custom_fields || {}
-                            const selectedColor = customerColors[item.id]
-                            const hasColorChange = selectedColor && selectedColor !== cf.color && cf.apparel_mode && cf.mockup_config
-                            if (!hasColorChange) return null
-
-                            const product = supplierProducts[item.id]
-                            if (!product) return null
-                            const newColorData = product.colors?.find((c: any) => c.colorName === selectedColor)
-                            if (!newColorData) return null
-
-                            // Show the new color's garment images as a preview
-                            const previewImages: { url: string; location: string }[] = []
-                            if (newColorData.frontImage) previewImages.push({ url: newColorData.frontImage, location: 'Front' })
-                            if (newColorData.backImage) previewImages.push({ url: newColorData.backImage, location: 'Back' })
-                            if (newColorData.sideImage) previewImages.push({ url: newColorData.sideImage, location: 'Side' })
-
-                            if (previewImages.length === 0) return null
-
-                            return (
-                              <div style={{ marginTop: '16px', padding: '12px', background: '#fffbf0', border: '1px solid #f59e0b', borderRadius: '10px' }}>
-                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                                  Preview: {selectedColor}
-                                </div>
-                                <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: previewImages.length === 1 ? '1fr' : `repeat(${Math.min(previewImages.length, 3)}, 1fr)`,
-                                  gap: '8px'
-                                }}>
-                                  {previewImages.map((preview, pidx) => (
-                                    <div key={pidx}>
-                                      <div style={{ fontSize: '11px', color: '#92400e', marginBottom: '4px', fontWeight: 500 }}>{preview.location}</div>
-                                      <div style={{
-                                        position: 'relative', width: '100%', paddingBottom: '100%',
-                                        borderRadius: '8px', overflow: 'hidden', background: '#f1f5f9'
-                                      }}>
-                                        <img
-                                          src={preview.url}
-                                          alt={`${selectedColor} ${preview.location}`}
-                                          style={{
-                                            position: 'absolute', top: 0, left: 0,
-                                            width: '100%', height: '100%', objectFit: 'contain'
-                                          }}
-                                        />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          })()}
-
                           {/* Inline image gallery for this line item */}
                           {itemImages.length > 0 && (() => {
                             const cf = item.custom_fields || {}
                             const isEmbroideryOrApparel = item.category === 'EMBROIDERY' || cf.apparel_mode === true
+                            const selectedColor = customerColors[item.id]
+                            const hasColorChange = selectedColor && selectedColor !== cf.color && cf.apparel_mode
+                            const itemMockupPreviews = mockupPreviews[item.id]
+                            const isRendering = renderingMockups[item.id]
 
                             // For Embroidery & Apparel: show all images side-by-side in grid
                             if (isEmbroideryOrApparel) {
                               return (
-                                <div style={{
-                                  marginTop: '24px',
-                                  display: 'grid',
-                                  gridTemplateColumns: itemImages.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
-                                  gap: '12px'
-                                }}>
+                                <div style={{ marginTop: '24px' }}>
+                                  {/* Rendering indicator */}
+                                  {isRendering && (
+                                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <div style={{ width: '14px', height: '14px', border: '2px solid #be1e2d', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                      Updating mockup for {selectedColor}...
+                                    </div>
+                                  )}
+                                  {/* Re-rendered mockup previews for new color */}
+                                  {hasColorChange && itemMockupPreviews && Object.keys(itemMockupPreviews).length > 0 && (
+                                    <div style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: Object.keys(itemMockupPreviews).length === 1 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
+                                      gap: '12px', marginBottom: '16px'
+                                    }}>
+                                      {Object.entries(itemMockupPreviews).map(([location, dataUrl]) => (
+                                        <div key={location}>
+                                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginBottom: '8px', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            {location}
+                                            <span style={{ fontSize: '11px', fontWeight: 500, color: '#be1e2d', background: 'rgba(190,30,45,0.08)', padding: '2px 8px', borderRadius: '4px' }}>{selectedColor}</span>
+                                          </div>
+                                          <div style={{
+                                            position: 'relative', width: '100%', paddingBottom: '75%',
+                                            borderRadius: '10px', overflow: 'hidden', background: '#f1f5f9',
+                                            border: '2px solid #be1e2d'
+                                          }}>
+                                            <img src={dataUrl} alt={`${selectedColor} ${location} mockup`} style={{
+                                              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain'
+                                            }} />
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {/* Original mockup label when color changed */}
+                                  {hasColorChange && itemMockupPreviews && (
+                                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px', fontWeight: 500 }}>
+                                      Original mockup ({cf.color}):
+                                    </div>
+                                  )}
+                                  <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: itemImages.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
+                                    gap: '12px',
+                                    opacity: hasColorChange && itemMockupPreviews ? 0.5 : 1,
+                                    transition: 'opacity 0.3s ease'
+                                  }}>
                                   {itemImages.map((img, imgIdx) => {
                                     // Extract location from filename (format: mockup_Location_...)
                                     let location = ''
@@ -2424,6 +2674,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                       </div>
                                     )
                                   })}
+                                  </div>
                                 </div>
                               )
                             }

@@ -10,7 +10,7 @@ const twilioClient = twilio(
 
 export async function POST(request: NextRequest) {
   try {
-    const { documentId, optionId, optionTitle, question, customerName, contactPreference, sizeQuantities, lineItemUpdates, action } = await request.json()
+    const { documentId, optionId, optionTitle, question, customerName, contactPreference, sizeQuantities, lineItemUpdates, additionalColorInstances, action } = await request.json()
 
     if (!documentId || !optionId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -123,6 +123,76 @@ export async function POST(request: NextRequest) {
               })
               .eq('id', item.id)
           }
+        }
+      }
+    }
+
+    // Create new line items for additional color instances
+    if (isApproval && Array.isArray(additionalColorInstances) && additionalColorInstances.length > 0) {
+      const sourceIds = [...new Set(additionalColorInstances.map((inst: any) => inst.sourceItemId))]
+      const { data: sourceItems } = await supabase
+        .from('line_items')
+        .select('*')
+        .in('id', sourceIds)
+        .eq('document_id', documentId)
+
+      if (sourceItems) {
+        const { data: maxSortItem } = await supabase
+          .from('line_items')
+          .select('sort_order')
+          .eq('document_id', documentId)
+          .order('sort_order', { ascending: false })
+          .limit(1)
+          .single()
+        let nextSort = (maxSortItem?.sort_order || 0) + 1
+
+        for (const inst of additionalColorInstances) {
+          const source = sourceItems.find((s: any) => s.id === inst.sourceItemId)
+          if (!source) continue
+
+          const sourceCf = source.custom_fields || {}
+          const sourceSizes = (sourceCf.sizes || {}) as Record<string, { qty: number; price: number; wholesale?: number }>
+
+          const newSizes: Record<string, { qty: number; price: number; wholesale?: number }> = {}
+          let totalQty = 0
+          let lineTotal = 0
+          for (const [sizeName, qty] of Object.entries(inst.sizeQtys as Record<string, number>)) {
+            const sourceSize = sourceSizes[sizeName]
+            if (sourceSize) {
+              newSizes[sizeName] = { qty, price: sourceSize.price, wholesale: sourceSize.wholesale }
+              totalQty += qty
+              lineTotal += qty * sourceSize.price
+            }
+          }
+
+          const newCf = {
+            ...sourceCf,
+            color: inst.color,
+            sizes: newSizes,
+            customer_added: true,
+            customer_added_at: new Date().toISOString(),
+            source_item_id: inst.sourceItemId
+          }
+
+          await supabase.from('line_items').insert({
+            document_id: documentId,
+            group_id: source.group_id,
+            category: source.category,
+            line_type: source.line_type,
+            package_key: source.package_key,
+            description: source.description,
+            quantity: totalQty,
+            sqft: source.sqft,
+            unit_price: source.unit_price,
+            rate: source.rate,
+            line_total: lineTotal,
+            sort_order: nextSort++,
+            custom_fields: newCf,
+            taxable: source.taxable,
+            decoration_type: source.decoration_type,
+            decoration_locations: source.decoration_locations,
+            stitch_count: source.stitch_count
+          })
         }
       }
     }
