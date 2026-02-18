@@ -1700,16 +1700,43 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
                       {/* Quantity Tier Pricing Breakdown */}
                       {isGroupOption && pricingMatrices.length > 0 && (() => {
-                        // Build tier tables for apparel items in this group
-                        const apparelItemsWithTiers = groupItems
-                          .filter((item: LineItem) => item.custom_fields?.apparel_mode === true)
-                          .map((item: LineItem) => ({
-                            item,
-                            tiers: buildTierPricing(item, pricingMatrices)
-                          }))
-                          .filter(x => x.tiers && x.tiers.length > 0)
+                        // Build tier tables grouped by decoration type (apparel vs embroidery)
+                        // Aggregate quantities across all items of the same decoration type
+                        const apparelItems = groupItems.filter((item: LineItem) => item.custom_fields?.apparel_mode === true)
+                        if (apparelItems.length === 0) return null
 
-                        if (apparelItemsWithTiers.length === 0) return null
+                        // Group items by decoration type
+                        const byDecType: Record<string, LineItem[]> = {}
+                        for (const item of apparelItems) {
+                          const isEmb = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
+                          const key = isEmb ? 'embroidery' : 'dtf'
+                          if (!byDecType[key]) byDecType[key] = []
+                          byDecType[key].push(item)
+                        }
+
+                        const decTypeGroups = Object.entries(byDecType).map(([decType, items]) => {
+                          // Use first item's tiers as representative (same style = same pricing)
+                          const tiers = buildTierPricing(items[0], pricingMatrices)
+                          if (!tiers || tiers.length === 0) return null
+
+                          // Aggregate total qty: all items of this dec type + customer edits + additional instances
+                          let aggregateQty = 0
+                          for (const item of items) {
+                            const cf = item.custom_fields || {} as any
+                            const enabledSizes = (cf.enabled_sizes || []) as string[]
+                            const sizes = (cf.sizes || {}) as Record<string, { qty: number }>
+                            const custQtys = customerSizeQtys[item.id] || {}
+                            aggregateQty += enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? sizes[s]?.qty ?? 0), 0)
+                            // Add quantities from additional color instances
+                            for (const inst of (additionalInstances[item.id] || [])) {
+                              aggregateQty += Object.values(inst.sizeQtys).reduce((sum, q) => sum + q, 0)
+                            }
+                          }
+
+                          return { decType, items, tiers, aggregateQty }
+                        }).filter(Boolean) as { decType: string; items: LineItem[]; tiers: { label: string; pricePerPiece: number }[]; aggregateQty: number }[]
+
+                        if (decTypeGroups.length === 0) return null
 
                         return (
                           <div style={{
@@ -1724,15 +1751,22 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                               <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>
                                 Price Per Piece by Quantity
                               </span>
+                              {decTypeGroups.some(g => g.aggregateQty > 0) && (
+                                <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 400 }}>
+                                  (all colors combined)
+                                </span>
+                              )}
                             </div>
 
-                            {apparelItemsWithTiers.map(({ item, tiers }) => {
-                              const cf = item.custom_fields || {} as any
+                            {decTypeGroups.map(({ decType, tiers, aggregateQty }) => {
+                              const matrix = pricingMatrices.find(m => m.decoration_type === decType)
+                              const sortedBreaks = matrix ? [...matrix.quantity_breaks].sort((a, b) => a.min - b.min) : []
+
                               return (
-                                <div key={item.id} style={{ marginBottom: apparelItemsWithTiers.length > 1 ? '14px' : '0' }}>
-                                  {apparelItemsWithTiers.length > 1 && (
+                                <div key={decType} style={{ marginBottom: decTypeGroups.length > 1 ? '14px' : '0' }}>
+                                  {decTypeGroups.length > 1 && (
                                     <div style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280', marginBottom: '8px' }}>
-                                      {item.description}{cf.color ? ` — ${cf.color}` : ''}
+                                      {decType === 'embroidery' ? 'Embroidery Items' : 'Apparel Items'}
                                     </div>
                                   )}
                                   <div style={{ overflowX: 'auto' }}>
@@ -1756,13 +1790,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {tiers!.map((tier, tidx) => {
-                                          // Highlight the tier that matches the current quantity
-                                          const currentQty = item.quantity || 0
-                                          const tierBreak = pricingMatrices
-                                            .find(m => m.decoration_type === (item.category === 'EMBROIDERY' ? 'embroidery' : 'dtf'))
-                                            ?.quantity_breaks.sort((a, b) => a.min - b.min)[tidx]
-                                          const isActiveTier = tierBreak && currentQty >= tierBreak.min && currentQty <= tierBreak.max
+                                        {tiers.map((tier, tidx) => {
+                                          const tierBreak = sortedBreaks[tidx]
+                                          const isActiveTier = tierBreak && aggregateQty >= tierBreak.min && aggregateQty <= tierBreak.max
 
                                           return (
                                             <tr key={tidx} style={{
@@ -1782,7 +1812,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                                     background: '#be1e2d', color: 'white',
                                                     padding: '2px 6px', borderRadius: '4px',
                                                     textTransform: 'uppercase', letterSpacing: '0.3px'
-                                                  }}>Current</span>
+                                                  }}>Current ({aggregateQty} pcs)</span>
                                                 )}
                                               </td>
                                               <td style={{
@@ -1878,6 +1908,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                 const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
                                 const custQtys = customerSizeQtys[item.id] || {}
                                 const itemTotalQty = enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? sizes[s]?.qty ?? 0), 0)
+                                const itemInstances = additionalInstances[item.id] || []
                                 return (
                                   <div key={item.id} style={{ marginBottom: '12px' }}>
                                     <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a', marginBottom: '8px' }}>
@@ -1919,6 +1950,38 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                         )
                                       })}
                                     </div>
+
+                                    {/* Additional color instances in confirmation */}
+                                    {itemInstances.map((inst, instIdx) => {
+                                      const instTotal = Object.values(inst.sizeQtys).reduce((sum, q) => sum + q, 0)
+                                      if (instTotal === 0) return null
+                                      return (
+                                        <div key={inst.id} style={{
+                                          marginTop: '10px', padding: '12px', background: '#fafafa',
+                                          borderRadius: '8px', border: '1px solid #e5e7eb'
+                                        }}>
+                                          <div style={{ fontSize: '13px', fontWeight: 500, color: '#1a1a1a', marginBottom: '6px' }}>
+                                            + Additional Color: {inst.color} ({instTotal} pcs)
+                                          </div>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                            {enabledSizes.map(size => {
+                                              const qty = inst.sizeQtys[size] || 0
+                                              if (qty === 0) return null
+                                              return (
+                                                <div key={size} style={{
+                                                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                  padding: '4px 10px', background: '#ffffff', borderRadius: '6px',
+                                                  border: '1px solid #e5e7eb', fontSize: '12px'
+                                                }}>
+                                                  <span style={{ fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>{size}</span>
+                                                  <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{qty}</span>
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
                                   </div>
                                 )
                               })}
@@ -2498,20 +2561,36 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   {pricingMatrices.length > 0 && (() => {
                                     const tiers = buildTierPricing(item, pricingMatrices)
                                     if (!tiers || tiers.length === 0) return null
-                                    const currentQty = totalPcs || item.quantity || 0
                                     const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
-                                    const matrix = pricingMatrices.find(m => m.decoration_type === (isEmbroidery ? 'embroidery' : 'dtf'))
+                                    const decType = isEmbroidery ? 'embroidery' : 'dtf'
+                                    const matrix = pricingMatrices.find(m => m.decoration_type === decType)
                                     const sortedBreaks = matrix ? [...matrix.quantity_breaks].sort((a, b) => a.min - b.min) : []
+
+                                    // Aggregate quantity across ALL items of the same decoration type + additional instances
+                                    let aggregateQty = 0
+                                    for (const li of lineItems) {
+                                      if (!li.custom_fields?.apparel_mode) continue
+                                      const liIsEmb = li.category === 'EMBROIDERY' || li.decoration_type === 'embroidery'
+                                      if ((liIsEmb ? 'embroidery' : 'dtf') !== decType) continue
+                                      const liCf = li.custom_fields || {} as any
+                                      const liSizes = (liCf.enabled_sizes || []) as string[]
+                                      const liSizeData = (liCf.sizes || {}) as Record<string, { qty: number }>
+                                      const liCustQtys = customerSizeQtys[li.id] || {}
+                                      aggregateQty += liSizes.reduce((sum, s) => sum + (liCustQtys[s] ?? liSizeData[s]?.qty ?? 0), 0)
+                                      for (const inst of (additionalInstances[li.id] || [])) {
+                                        aggregateQty += Object.values(inst.sizeQtys).reduce((sum, q) => sum + q, 0)
+                                      }
+                                    }
 
                                     return (
                                       <div style={{ marginTop: '12px', marginLeft: '20px', padding: '12px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                                         <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                                          Price Per Piece by Qty
+                                          Price Per Piece by Qty <span style={{ fontWeight: 400, textTransform: 'none' }}>(all colors combined)</span>
                                         </div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                           {tiers.map((tier, tidx) => {
                                             const tierBreak = sortedBreaks[tidx]
-                                            const isActive = tierBreak && currentQty >= tierBreak.min && currentQty <= tierBreak.max
+                                            const isActive = tierBreak && aggregateQty >= tierBreak.min && aggregateQty <= tierBreak.max
                                             return (
                                               <div key={tidx} style={{
                                                 display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
@@ -2522,6 +2601,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                               }}>
                                                 <div style={{ fontSize: '11px', fontWeight: 600, color: isActive ? '#be1e2d' : '#6b7280' }}>{tier.label} pcs</div>
                                                 <div style={{ fontSize: '14px', fontWeight: 700, color: isActive ? '#be1e2d' : '#1a1a1a', marginTop: '2px' }}>{formatCurrency(tier.pricePerPiece)}</div>
+                                                {isActive && <div style={{ fontSize: '10px', fontWeight: 600, color: '#be1e2d', marginTop: '1px' }}>Current ({aggregateQty})</div>}
                                               </div>
                                             )
                                           })}
