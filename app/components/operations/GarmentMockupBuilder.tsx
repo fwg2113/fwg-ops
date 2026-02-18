@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { renderDSTFile } from '@/app/lib/dstParser'
+import { renderDSTFile, parseDST, renderDSTToCanvas } from '@/app/lib/dstParser'
 
 type Location = 'Front' | 'Back' | 'Sleeves'
 
@@ -20,6 +20,9 @@ interface Logo {
   svgContent?: string // Original SVG content
   colorMap?: { [originalColor: string]: string } // Map of original colors to new colors
   aspectRatio?: number // width / height of the actual image
+  isDst?: boolean // Whether this is a DST embroidery file
+  dstBuffer?: ArrayBuffer // Raw DST file data for re-rendering
+  threadColor?: string // Current thread color for DST files
 }
 
 interface TextElement {
@@ -525,8 +528,9 @@ export default function GarmentMockupBuilder({
         }
 
         if (isDst) {
-          // Render DST stitch preview
-          renderDSTFile(file, 800).then(stitchDataUrl => {
+          // Render DST stitch preview and store buffer for re-rendering with color changes
+          const defaultThreadColor = '#1a1a8b'
+          Promise.all([renderDSTFile(file, 800, defaultThreadColor), file.arrayBuffer()]).then(([stitchDataUrl, dstBuffer]) => {
             const img = new Image()
             img.onload = () => {
               const aspectRatio = img.naturalWidth / img.naturalHeight
@@ -543,6 +547,9 @@ export default function GarmentMockupBuilder({
                 height: height,
                 rotation: 0,
                 isSvg: false,
+                isDst: true,
+                dstBuffer: dstBuffer,
+                threadColor: defaultThreadColor,
                 aspectRatio
               }
               setLogos(prev => [...prev, newLogo])
@@ -840,6 +847,24 @@ export default function GarmentMockupBuilder({
     updateLogo(logoId, {
       url: newUrl,
       colorMap: updatedColorMap
+    })
+  }
+
+  // Update DST thread color
+  const updateDstColor = (logoId: string, newColor: string) => {
+    const logo = logos.find(l => l.id === logoId)
+    if (!logo || !logo.isDst || !logo.dstBuffer) return
+
+    const design = parseDST(logo.dstBuffer)
+    const newUrl = renderDSTToCanvas(design, 800, newColor)
+
+    if (logo.url !== logo.originalUrl) {
+      URL.revokeObjectURL(logo.url)
+    }
+
+    updateLogo(logoId, {
+      url: newUrl,
+      threadColor: newColor
     })
   }
 
@@ -1604,12 +1629,50 @@ export default function GarmentMockupBuilder({
                   />
                 </div>
 
-                {/* SVG Color Controls - Always visible */}
+                {/* Logo Color Controls */}
                 <div style={{ marginBottom: '16px' }}>
                   <h4 style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600, marginBottom: '12px' }}>
-                    Logo Colors (SVG)
+                    {selectedLogo.isDst ? 'Thread Color' : 'Logo Colors (SVG)'}
                   </h4>
-                  {selectedLogo.isSvg && selectedLogo.colorMap && Object.keys(selectedLogo.colorMap).length > 0 ? (
+                  {selectedLogo.isDst && selectedLogo.dstBuffer ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="color"
+                        value={selectedLogo.threadColor || '#1a1a8b'}
+                        onChange={(e) => updateDstColor(selectedLogo.id, e.target.value)}
+                        style={{
+                          width: '40px',
+                          height: '24px',
+                          border: '1px solid rgba(148,163,184,0.3)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }}
+                        title="Thread color"
+                      />
+                      <input
+                        type="text"
+                        value={selectedLogo.threadColor || '#1a1a8b'}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                            updateDstColor(selectedLogo.id, value)
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '4px 6px',
+                          background: '#1d1d1d',
+                          border: '1px solid rgba(148,163,184,0.2)',
+                          borderRadius: '4px',
+                          color: '#f1f5f9',
+                          fontSize: '11px',
+                          fontFamily: 'monospace'
+                        }}
+                        placeholder="#1a1a8b"
+                      />
+                    </div>
+                  ) : selectedLogo.isSvg && selectedLogo.colorMap && Object.keys(selectedLogo.colorMap).length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {Object.entries(selectedLogo.colorMap).map(([originalColor, currentColor]) => (
                         <div key={originalColor} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1685,15 +1748,15 @@ export default function GarmentMockupBuilder({
                         </div>
                       ))}
                     </div>
-                  ) : (
+                  ) : !selectedLogo.isDst ? (
                     <div style={{ padding: '12px', background: '#1d1d1d', borderRadius: '6px', border: '1px solid rgba(148,163,184,0.2)' }}>
                       <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
                         {selectedLogo.isSvg
                           ? 'No colors detected in this SVG. Try re-uploading the logo.'
-                          : 'This is not an SVG logo. Only SVG logos support color changing.'}
+                          : 'Upload an SVG or DST file to change colors.'}
                       </p>
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Background Removal - Only for non-SVG images */}

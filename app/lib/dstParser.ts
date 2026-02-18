@@ -240,9 +240,9 @@ export function renderDSTToCanvas(
   const offsetX = (size - designWidth * scale) / 2 - bounds.minX * scale
   const offsetY = (size - designHeight * scale) / 2 - bounds.minY * scale
 
-  const toCanvasX = (x: number) => x * scale + offsetX
-  // Y is flipped in DST (positive Y goes up in DST, down in canvas)
-  const toCanvasY = (y: number) => size - (y * scale + offsetY)
+  const toCanvasX = (x: number) => size - (x * scale + offsetX)
+  // pyembroidery's decode_dy negates Y, so Y+ is already screen-down
+  const toCanvasY = (y: number) => y * scale + offsetY
 
   // Thread width scales with design size
   const threadWidth = Math.max(1.2, Math.min(3.5, size / 300))
