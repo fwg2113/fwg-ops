@@ -161,6 +161,36 @@ function buildTierPricing(
 }
 
 // ============================================================================
+// HELPER: Get per-piece price for an item at a given aggregate quantity
+// ============================================================================
+function getActiveTierPrice(
+  item: LineItem,
+  matrices: PricingMatrix[],
+  aggregateQty: number
+): number | null {
+  const tiers = buildTierPricing(item, matrices)
+  if (!tiers || tiers.length === 0) return null
+
+  const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
+  const decType = isEmbroidery ? 'embroidery' : 'dtf'
+  const matrix = matrices.find(m => m.decoration_type === decType)
+  if (!matrix) return null
+
+  const sortedBreaks = [...matrix.quantity_breaks].sort((a, b) => a.min - b.min)
+  for (let i = 0; i < sortedBreaks.length; i++) {
+    const tier = sortedBreaks[i]
+    if (aggregateQty >= tier.min && aggregateQty <= tier.max) {
+      return tiers[i].pricePerPiece
+    }
+  }
+  // If qty exceeds all tiers, use the last (highest) tier
+  if (aggregateQty > 0 && sortedBreaks.length > 0) {
+    return tiers[tiers.length - 1].pricePerPiece
+  }
+  return null
+}
+
+// ============================================================================
 // HELPER: Get image attachments from an option
 // ============================================================================
 function getOptionImages(opt: QuoteOption): { url: string; name: string }[] {
@@ -225,6 +255,66 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   // Additional color instances: { sourceItemId: [{ id, color, sizeQtys }] }
   type ColorInstance = { id: string; color: string; sizeQtys: Record<string, number>; mockupPreviews?: Record<string, string> }
   const [additionalInstances, setAdditionalInstances] = useState<Record<string, ColorInstance[]>>({})
+
+  // Compute aggregate qty by decoration type for tier pricing
+  // All apparel items combined, all embroidery items combined (not mixed)
+  const getAggregateQty = useCallback((decType: 'embroidery' | 'dtf', scopeItems?: LineItem[]) => {
+    const items = scopeItems || lineItems
+    let total = 0
+    for (const li of items) {
+      if (!li.custom_fields?.apparel_mode) continue
+      const liIsEmb = li.category === 'EMBROIDERY' || li.decoration_type === 'embroidery'
+      if ((liIsEmb ? 'embroidery' : 'dtf') !== decType) continue
+      const cf = li.custom_fields || {} as any
+      const enabledSizes = (cf.enabled_sizes || []) as string[]
+      const sizeData = (cf.sizes || {}) as Record<string, { qty: number }>
+      const custQtys = customerSizeQtys[li.id] || {}
+      total += enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? sizeData[s]?.qty ?? 0), 0)
+      // Include additional color instances
+      for (const inst of (additionalInstances[li.id] || [])) {
+        total += Object.values(inst.sizeQtys).reduce((sum, q) => sum + q, 0)
+      }
+    }
+    return total
+  }, [lineItems, customerSizeQtys, additionalInstances])
+
+  // Get dynamic per-piece price for an item based on current aggregate qty
+  const getDynamicPrice = useCallback((item: LineItem) => {
+    const isEmb = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
+    const decType = isEmb ? 'embroidery' : 'dtf'
+    const aggQty = getAggregateQty(decType)
+    return getActiveTierPrice(item, pricingMatrices, aggQty)
+  }, [getAggregateQty, pricingMatrices])
+
+  // Compute dynamic line total for an item using tier pricing
+  const getDynamicLineTotal = useCallback((item: LineItem) => {
+    const cf = item.custom_fields || {} as any
+    if (!cf.apparel_mode) return item.line_total
+    const enabledSizes = (cf.enabled_sizes || []) as string[]
+    const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+    const custQtys = customerSizeQtys[item.id] || {}
+    const tierPrice = getDynamicPrice(item)
+    let total = 0
+    for (const s of enabledSizes) {
+      const qty = custQtys[s] ?? sizeData[s]?.qty ?? 0
+      const price = tierPrice ?? sizeData[s]?.price ?? 0
+      total += qty * price
+    }
+    return total
+  }, [customerSizeQtys, getDynamicPrice])
+
+  // Compute dynamic total for additional color instances of an item
+  const getDynamicInstanceTotal = useCallback((item: LineItem, inst: ColorInstance) => {
+    const tierPrice = getDynamicPrice(item)
+    const cf = item.custom_fields || {} as any
+    const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+    let total = 0
+    for (const [size, qty] of Object.entries(inst.sizeQtys)) {
+      const price = tierPrice ?? sizeData[size]?.price ?? 0
+      total += qty * price
+    }
+    return total
+  }, [getDynamicPrice])
 
   // Option lightbox state
   const [optLightbox, setOptLightbox] = useState<{ optionId: string; index: number } | null>(null)
@@ -596,11 +686,11 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   // Combine both sets of images
   const galleryImages = [...projectImages, ...lineItemImages]
 
-  // Calculate totals
-  const subtotal = lineItems.reduce((sum, item) => sum + (item.line_total || 0), 0)
+  // Calculate totals (dynamically using tier pricing when customer edits quantities)
+  const subtotal = lineItems.reduce((sum, item) => sum + getDynamicLineTotal(item), 0)
   const feesTotal = fees.reduce((sum, fee) => sum + (fee.amount || 0), 0)
   const discountAmount = doc.discount_percent ? (subtotal * doc.discount_percent / 100) : (parseFloat(String(doc.discount_amount)) || 0)
-  const taxableSubtotal = lineItems.filter(item => item.taxable).reduce((sum, item) => sum + (item.line_total || 0), 0)
+  const taxableSubtotal = lineItems.filter(item => item.taxable).reduce((sum, item) => sum + getDynamicLineTotal(item), 0)
   const taxAmount = taxableSubtotal * 0.06
   const total = subtotal + feesTotal - discountAmount + taxAmount
   // Calculate actual amount paid from payments table (doc.amount_paid may not be updated)
@@ -1426,10 +1516,22 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                           )}
                         </div>
                         <div style={{ fontSize: '22px', fontWeight: 700, color: '#be1e2d', whiteSpace: 'nowrap', paddingTop: '2px' }}>
-                          {opt.price_max
-                            ? `${formatCurrency(opt.price_min)} - ${formatCurrency(opt.price_max)}`
-                            : formatCurrency(opt.price_min)
-                          }
+                          {(() => {
+                            if (!isGroupOption) {
+                              return opt.price_max
+                                ? `${formatCurrency(opt.price_min)} - ${formatCurrency(opt.price_max)}`
+                                : formatCurrency(opt.price_min)
+                            }
+                            // Dynamic total: sum all group items + additional instances
+                            let dynamicOptionTotal = 0
+                            for (const gi of groupItems) {
+                              dynamicOptionTotal += getDynamicLineTotal(gi)
+                              for (const inst of (additionalInstances[gi.id] || [])) {
+                                dynamicOptionTotal += getDynamicInstanceTotal(gi, inst)
+                              }
+                            }
+                            return formatCurrency(dynamicOptionTotal)
+                          })()}
                         </div>
                       </div>
 
@@ -1463,8 +1565,19 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                     )}
                                   </div>
                                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
-                                    {item.quantity > 0 && <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} pcs</div>}
+                                    {(() => {
+                                      const dynamicTotal = getDynamicLineTotal(item)
+                                      const custQtys = customerSizeQtys[item.id] || {}
+                                      const dynamicPcs = isApparelItem && enabledSizes.length > 0
+                                        ? enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? (sizes[s]?.qty ?? 0)), 0)
+                                        : item.quantity
+                                      return (
+                                        <>
+                                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(dynamicTotal)}</div>
+                                          {dynamicPcs > 0 && <div style={{ fontSize: '12px', color: '#6b7280' }}>{dynamicPcs} pcs</div>}
+                                        </>
+                                      )
+                                    })()}
                                   </div>
                                 </div>
 
@@ -1540,7 +1653,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                                 background: '#ffffff', outline: 'none', fontFamily: 'inherit'
                                               }}
                                             />
-                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(s.price)} ea</div>
+                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicPrice(item) ?? s.price)} ea</div>
                                           </div>
                                         )
                                       })}
@@ -2467,7 +2580,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                       )}
                                     </div>
                                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
+                                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(getDynamicLineTotal(item))}</div>
                                       <div style={{ fontSize: '12px', color: '#6b7280' }}>{totalPcs} pcs total</div>
                                     </div>
                                   </div>
@@ -2550,7 +2663,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                             ) : (
                                               <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{custQty}</div>
                                             )}
-                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(s.price)} ea</div>
+                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicPrice(item) ?? s.price)} ea</div>
                                           </div>
                                         )
                                       })}
@@ -3059,7 +3172,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                       }}>
                         <span style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>Section Subtotal</span>
                         <span style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a' }}>
-                          {formatCurrency(items.reduce((sum, i) => sum + (i.line_total || 0), 0))}
+                          {formatCurrency(items.reduce((sum, i) => sum + getDynamicLineTotal(i), 0))}
                         </span>
                       </div>
                     )}
