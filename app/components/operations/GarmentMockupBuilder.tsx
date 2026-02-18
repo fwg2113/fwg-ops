@@ -522,11 +522,6 @@ export default function GarmentMockupBuilder({
         const isDst = /\.dst$/i.test(file.name)
         const isPdf = /\.pdf$/i.test(file.name)
 
-        // Upload the actual file as a line item attachment
-        if (onFileUpload) {
-          onFileUpload(file)
-        }
-
         if (isDst) {
           // Render DST stitch preview and store buffer for re-rendering with color changes
           const defaultThreadColor = '#1a1a8b'

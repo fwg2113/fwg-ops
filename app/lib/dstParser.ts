@@ -240,7 +240,7 @@ export function renderDSTToCanvas(
   const offsetX = (size - designWidth * scale) / 2 - bounds.minX * scale
   const offsetY = (size - designHeight * scale) / 2 - bounds.minY * scale
 
-  const toCanvasX = (x: number) => size - (x * scale + offsetX)
+  const toCanvasX = (x: number) => x * scale + offsetX
   // pyembroidery's decode_dy negates Y, so Y+ is already screen-down
   const toCanvasY = (y: number) => y * scale + offsetY
 
