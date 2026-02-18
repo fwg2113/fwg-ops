@@ -549,8 +549,8 @@ export default function GarmentMockupBuilder({
               setSelectedLogoId(newLogo.id)
             }
             img.src = stitchDataUrl
-          }).catch(() => {
-            // Fallback to placeholder if parsing fails
+          }).catch((err) => {
+            console.error('DST render failed, falling back to placeholder:', err)
             const placeholderUrl = createDesignFilePlaceholder(file.name)
             const newLogo: Logo = {
               id: `logo_${Date.now()}_${Math.random()}`,
@@ -1489,7 +1489,7 @@ export default function GarmentMockupBuilder({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.svg,.emb,.dst,.pdf"
+                accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.emb,.dst,.pdf"
                 multiple
                 onChange={handleLogoUpload}
                 style={{ display: 'none' }}

@@ -5,7 +5,7 @@
  * on a canvas. The DST format encodes stitch positions as 3-byte commands
  * with bit-encoded X/Y deltas.
  *
- * Reference: https://edutechwiki.unige.ch/en/Embroidery_format_DST
+ * Reference: pyembroidery (EmbroidePy), libembroidery (Embroidermodder)
  */
 
 interface DSTHeader {
@@ -58,10 +58,26 @@ function parseDSTHeader(data: Uint8Array): DSTHeader {
 /**
  * Decode a 3-byte DST stitch command into X/Y deltas and command type.
  *
- * Each byte contributes bits to the X and Y movement:
- * - Byte 1 bits: y+1, y-1, y+9, y-9, x-9, x+9, x-1, x+1
- * - Byte 2 bits: y+3, y-3, y+27, y-27, x-27, x+27, x-3, x+3
- * - Byte 3 bits: y+81, y-81, cmd1, cmd0, x-81, x+81, ?, ?
+ * DST bit layout (per pyembroidery / libembroidery):
+ *
+ * Byte 0 (b0):
+ *   bit 0 (0x01): x+1    bit 1 (0x02): x-1
+ *   bit 2 (0x04): x+9    bit 3 (0x08): x-9
+ *   bit 4 (0x10): y-9    bit 5 (0x20): y+9
+ *   bit 6 (0x40): y-1    bit 7 (0x80): y+1
+ *
+ * Byte 1 (b1):
+ *   bit 0 (0x01): x+3    bit 1 (0x02): x-3
+ *   bit 2 (0x04): x+27   bit 3 (0x08): x-27
+ *   bit 4 (0x10): y-27   bit 5 (0x20): y+27
+ *   bit 6 (0x40): y-3    bit 7 (0x80): y+3
+ *
+ * Byte 2 (b2):
+ *   bit 0 (0x01): jump flag
+ *   bit 1 (0x02): color change / trim flag
+ *   bit 2 (0x04): x+81   bit 3 (0x08): x-81
+ *   bit 5 (0x20): y+81   bit 6 (0x40): y-81
+ *   bits 4,7: set flags (usually 1 for valid commands)
  */
 function decodeStitchCommand(b0: number, b1: number, b2: number): StitchCommand {
   let x = 0
@@ -87,23 +103,33 @@ function decodeStitchCommand(b0: number, b1: number, b2: number): StitchCommand 
   if (b1 & 0x20) y += 27
   if (b1 & 0x10) y -= 27
 
-  // Byte 2
+  // Byte 2 - movement bits
   if (b2 & 0x04) x += 81
   if (b2 & 0x08) x -= 81
   if (b2 & 0x20) y += 81
   if (b2 & 0x40) y -= 81
 
-  // Command type from top 2 bits of byte 2
-  const cmd = (b2 >> 6) & 0x03
-  // Also check for end-of-file marker
+  // End-of-file marker: 0x00 0x00 0xF3
   if (b0 === 0x00 && b1 === 0x00 && (b2 & 0xF3) === 0xF3) {
     return { x: 0, y: 0, type: 'end' }
   }
 
+  // Command type from bits 0-1 of byte 2 (per pyembroidery/libembroidery)
+  // Bit 0 = jump, Bit 1 = color change/trim
+  // Both bits set with upper bits = color change (0xC3 pattern)
+  const flags = b2 & 0x03
   let type: StitchCommand['type'] = 'stitch'
-  if (cmd === 1) type = 'jump'
-  else if (cmd === 2) type = 'color_change'
-  else if (cmd === 3) type = 'end'
+
+  if (flags === 3) {
+    // Both jump + trim bits set: color change (0xC3 pattern common)
+    type = 'color_change'
+  } else if (flags === 2) {
+    // Trim/color change bit only
+    type = 'color_change'
+  } else if (flags === 1) {
+    // Jump bit only
+    type = 'jump'
+  }
 
   return { x, y, type }
 }
@@ -133,7 +159,9 @@ export function parseDST(buffer: ArrayBuffer): DSTDesign {
     curY += cmd.y
 
     if (cmd.type === 'color_change') {
-      colorSegments.push({ startIdx: segmentStart, endIdx: stitches.length })
+      if (stitches.length > segmentStart) {
+        colorSegments.push({ startIdx: segmentStart, endIdx: stitches.length })
+      }
       segmentStart = stitches.length
     }
 
@@ -178,12 +206,8 @@ const DEFAULT_PALETTE = [
 
 /**
  * Render a parsed DST design to a canvas and return as a data URL.
- *
- * @param design - Parsed DST design from parseDST()
- * @param size - Output canvas size in pixels (square)
- * @param threadColor - Primary thread color (overrides palette for single-color rendering)
- * @param backgroundColor - Background color ('transparent' for transparent)
- * @returns data URL of the rendered stitch preview
+ * Batches stitches into longer paths for performance (DST files can
+ * have 10,000-50,000+ stitches).
  */
 export function renderDSTToCanvas(
   design: DSTDesign,
@@ -194,7 +218,8 @@ export function renderDSTToCanvas(
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return canvas.toDataURL('image/png')
 
   // Background
   if (backgroundColor !== 'transparent') {
@@ -218,13 +243,13 @@ export function renderDSTToCanvas(
   const offsetY = (size - designHeight * scale) / 2 - bounds.minY * scale
 
   const toCanvasX = (x: number) => x * scale + offsetX
-  // Y is flipped in DST (positive Y is down in screen coords)
+  // Y is flipped in DST (positive Y goes up in DST, down in canvas)
   const toCanvasY = (y: number) => size - (y * scale + offsetY)
 
   // Thread width scales with design size
-  const threadWidth = Math.max(1.5, Math.min(4, size / 250))
+  const threadWidth = Math.max(1.2, Math.min(3.5, size / 300))
 
-  // Render each color segment
+  // Render each color segment - batch stitches into paths for performance
   colorSegments.forEach((segment, segIdx) => {
     const color = threadColor || DEFAULT_PALETTE[segIdx % DEFAULT_PALETTE.length]
 
@@ -233,30 +258,36 @@ export function renderDSTToCanvas(
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
 
-    let isDrawing = false
+    ctx.beginPath()
+    let pathStarted = false
 
     for (let i = segment.startIdx; i < segment.endIdx; i++) {
       const stitch = stitches[i]
 
       if (stitch.type === 'jump' || stitch.type === 'color_change') {
-        // Jump/color change - move without drawing
-        isDrawing = false
+        // Stroke what we have so far, then break the path
+        if (pathStarted) {
+          ctx.stroke()
+          ctx.beginPath()
+          pathStarted = false
+        }
         continue
       }
 
       const sx = toCanvasX(stitch.x)
       const sy = toCanvasY(stitch.y)
 
-      if (!isDrawing) {
-        ctx.beginPath()
+      if (!pathStarted) {
         ctx.moveTo(sx, sy)
-        isDrawing = true
+        pathStarted = true
       } else {
         ctx.lineTo(sx, sy)
-        ctx.stroke()
-        ctx.beginPath()
-        ctx.moveTo(sx, sy)
       }
+    }
+
+    // Stroke any remaining path
+    if (pathStarted) {
+      ctx.stroke()
     }
   })
 
