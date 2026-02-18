@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/app/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -8,11 +8,6 @@ export async function POST(request: NextRequest) {
     if (!documentId) {
       return NextResponse.json({ error: 'Document ID required' }, { status: 400 })
     }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
 
     // Fetch all line items for this document to find customer-added/modified ones
     const { data: allItems } = await supabase
