@@ -70,6 +70,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     .eq('decoration_type', 'dtf')
     .single()
 
+  // Fetch Embroidery pricing matrix
+  const { data: embroideryPricingMatrix } = await supabase
+    .from('apparel_pricing_matrices')
+    .select('*')
+    .eq('decoration_type', 'embroidery')
+    .single()
+
   if (!document) {
     return <div style={{ color: '#f1f5f9', padding: '40px' }}>Document not found</div>
   }
@@ -85,6 +92,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       feeTypes={feeTypes || []}
       payments={payments || []}
       dtfPricingMatrix={dtfPricingMatrix || null}
+      embroideryPricingMatrix={embroideryPricingMatrix || null}
     />
   )
 }

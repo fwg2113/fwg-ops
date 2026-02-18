@@ -196,6 +196,7 @@ type Props = {
   feeTypes: FeeType[]
   payments: Payment[]
   dtfPricingMatrix?: DtfPricingMatrix | null
+  embroideryPricingMatrix?: DtfPricingMatrix | null
 }
 
 // ============================================================================
@@ -216,7 +217,8 @@ export default function DocumentDetail({
   lineItemTypes = [],
   feeTypes = [],
   payments: initialPayments = [],
-  dtfPricingMatrix = null
+  dtfPricingMatrix = null,
+  embroideryPricingMatrix = null
 }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1464,6 +1466,8 @@ export default function DocumentDetail({
       press_fee_per_location?: number   // Default $2.25, editable
       markup_percent?: number  // Auto-calculated from quantity tiers, editable
       manual_price_override?: boolean   // Override auto-calculation
+      // Embroidery Pricing fields
+      embroidery_fee_per_location?: number  // Editable per-location fee
     }
   }
 
@@ -1487,6 +1491,19 @@ export default function DocumentDetail({
         const pressFee = af.press_fee_per_location ?? 2.25
         const totalFeePerLocation = designFee + pressFee
         const totalDecorationFee = designLocationsCount * totalFeePerLocation
+        totalAmount += totalDecorationFee * totalQty
+      }
+    }
+
+    // Add embroidery fees (per unit, so multiply by qty)
+    if (item && isEmbroideryApparel(item)) {
+      const af = getApparelFields(item)
+      const manualOverride = af.manual_price_override || false
+
+      if (!manualOverride) {
+        const designLocationsCount = countDesignLocations(item)
+        const embFee = af.embroidery_fee_per_location ?? getEmbroideryDefaultFee(totalQty || 1)
+        const totalDecorationFee = designLocationsCount * embFee
         totalAmount += totalDecorationFee * totalQty
       }
     }
@@ -1569,6 +1586,42 @@ export default function DocumentDetail({
     return af.apparel_mode === true && item.category?.toUpperCase() !== 'EMBROIDERY'
   }
 
+  const isEmbroideryApparel = (item: LineItem): boolean => {
+    const af = getApparelFields(item)
+    return af.apparel_mode === true && item.category?.toUpperCase() === 'EMBROIDERY'
+  }
+
+  const getEmbroideryMarkupPercent = (quantity: number): number => {
+    if (embroideryPricingMatrix && embroideryPricingMatrix.quantity_breaks) {
+      const qtyBreak = embroideryPricingMatrix.quantity_breaks.find(
+        (breakPoint) => quantity >= breakPoint.min && quantity <= breakPoint.max
+      )
+      if (qtyBreak) {
+        return qtyBreak.markup_pct
+      }
+    }
+    // Fallback
+    if (quantity >= 499) return 125
+    if (quantity >= 249) return 150
+    if (quantity >= 99) return 160
+    if (quantity >= 49) return 175
+    if (quantity >= 24) return 185
+    if (quantity >= 2) return 225
+    return 350
+  }
+
+  const getEmbroideryDefaultFee = (quantity: number): number => {
+    if (embroideryPricingMatrix && embroideryPricingMatrix.quantity_breaks) {
+      const qtyBreak = embroideryPricingMatrix.quantity_breaks.find(
+        (breakPoint) => quantity >= breakPoint.min && quantity <= breakPoint.max
+      )
+      if (qtyBreak && qtyBreak.decoration_prices) {
+        return qtyBreak.decoration_prices.up_to_10k ?? 0
+      }
+    }
+    return 0
+  }
+
   // Manual recalculation function for apparel line totals
   const recalculateApparelLineTotal = async (itemId: string) => {
     const item = lineItems.find(i => i.id === itemId)
@@ -1612,17 +1665,18 @@ export default function DocumentDetail({
 
       if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
         cf[fieldPath] = value
-      } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location' || fieldPath === 'manual_price_override') {
-        // DTF pricing fields (non-markup)
+      } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location' || fieldPath === 'manual_price_override' || fieldPath === 'embroidery_fee_per_location') {
+        // DTF / Embroidery pricing fields (non-markup)
         cf[fieldPath] = value
       } else if (fieldPath === 'markup_percent') {
         // Markup percentage - recalculate garment prices
         cf[fieldPath] = value
 
-        // If markup changed and this is DTF apparel, recalculate garment prices
-        if (isDTFApparel({ ...item, custom_fields: cf })) {
+        // If markup changed, recalculate garment prices
+        if (isDTFApparel({ ...item, custom_fields: cf }) || isEmbroideryApparel({ ...item, custom_fields: cf })) {
           const sizes = { ...(cf.sizes || {}) }
-          const newMarkupPercent = value !== undefined ? value : getDTFMarkupPercent(1)
+          const getAutoMarkup = isDTFApparel({ ...item, custom_fields: cf }) ? getDTFMarkupPercent : getEmbroideryMarkupPercent
+          const newMarkupPercent = value !== undefined ? value : getAutoMarkup(1)
           const newMarkupMultiplier = newMarkupPercent / 100
 
           // Recalculate all garment prices using stored wholesale prices
@@ -1644,10 +1698,10 @@ export default function DocumentDetail({
         sizeData[sizeField] = value
 
         // If manually updating price, back-calculate wholesale based on current markup
-        if (sizeField === 'price' && isDTFApparel({ ...item, custom_fields: cf })) {
+        if (sizeField === 'price' && (isDTFApparel({ ...item, custom_fields: cf }) || isEmbroideryApparel({ ...item, custom_fields: cf }))) {
           const currentTotalQty = Object.values(sizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
-          // Use manually-set markup if available, otherwise use auto markup
-          const currentMarkup = cf.markup_percent ?? getDTFMarkupPercent(currentTotalQty || 1)
+          const getAutoMarkup = isDTFApparel({ ...item, custom_fields: cf }) ? getDTFMarkupPercent : getEmbroideryMarkupPercent
+          const currentMarkup = cf.markup_percent ?? getAutoMarkup(currentTotalQty || 1)
           const markupMultiplier = currentMarkup / 100
           sizeData.wholesale = markupMultiplier > 0 ? value / markupMultiplier : value
         }
@@ -1656,16 +1710,14 @@ export default function DocumentDetail({
         cf.sizes = sizes
       }
 
-      // If quantity changed and this is DTF apparel, recalculate garment prices with new markup
-      if (fieldPath.includes('.qty') && isDTFApparel({ ...item, custom_fields: cf })) {
+      // If quantity changed, recalculate garment prices with new markup
+      if (fieldPath.includes('.qty') && (isDTFApparel({ ...item, custom_fields: cf }) || isEmbroideryApparel({ ...item, custom_fields: cf }))) {
         const sizes = { ...(cf.sizes || {}) }
-        // Calculate new total quantity
         const newTotalQty = Object.values(sizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
-        // Get new markup percentage based on total quantity
-        const newMarkupPercent = getDTFMarkupPercent(newTotalQty)
+        const getAutoMarkup = isDTFApparel({ ...item, custom_fields: cf }) ? getDTFMarkupPercent : getEmbroideryMarkupPercent
+        const newMarkupPercent = getAutoMarkup(newTotalQty)
         const newMarkupMultiplier = newMarkupPercent / 100
 
-        // Recalculate all garment prices using stored wholesale prices
         Object.keys(sizes).forEach(sizeName => {
           const sizeData = sizes[sizeName]
           if (sizeData.wholesale !== undefined && sizeData.wholesale > 0) {
@@ -1992,7 +2044,7 @@ export default function DocumentDetail({
 
         // Auto-recalculate line total to include new decoration locations
         const updatedItem = updated.find(i => i.id === mockupLineItemId)
-        if (updatedItem && isDTFApparel(updatedItem)) {
+        if (updatedItem && (isDTFApparel(updatedItem) || isEmbroideryApparel(updatedItem))) {
           const af = getApparelFields(updatedItem)
           const sizes = af.sizes || {}
           const { totalQty, totalAmount } = recalcApparelTotals(sizes, updatedItem)
@@ -3470,7 +3522,7 @@ export default function DocumentDetail({
                           </div>
 
                           {/* Manual Price Override Checkbox */}
-                          {enabledSizes.length > 0 && isDTFApparel(item) && (
+                          {enabledSizes.length > 0 && (isDTFApparel(item) || isEmbroideryApparel(item)) && (
                             <div style={{ marginBottom: '8px', padding: '8px 10px', background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '6px' }}>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                                 <input
@@ -3491,7 +3543,7 @@ export default function DocumentDetail({
 
                           {/* Size Grid */}
                           {enabledSizes.length > 0 && (() => {
-                            // Calculate per-unit decoration fee for DTF apparel
+                            // Calculate per-unit decoration fee for DTF or Embroidery apparel
                             const { totalQty } = recalcApparelTotals(sizes)
                             let perUnitDecorationFee = 0
                             if (isDTFApparel(item)) {
@@ -3501,7 +3553,10 @@ export default function DocumentDetail({
                               const totalFeePerLocation = designFee + pressFee
                               const totalDecorationFee = designLocationsCount * totalFeePerLocation
                               perUnitDecorationFee = totalDecorationFee
-
+                            } else if (isEmbroideryApparel(item)) {
+                              const designLocationsCount = countDesignLocations(item)
+                              const embFee = af.embroidery_fee_per_location ?? getEmbroideryDefaultFee(totalQty || 1)
+                              perUnitDecorationFee = designLocationsCount * embFee
                             }
 
                             const manualOverride = af.manual_price_override || false
@@ -3639,6 +3694,98 @@ export default function DocumentDetail({
                                   <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Total Decoration:</span>
                                   <span style={{ fontSize: '13px', color: '#22c55e', fontWeight: 700 }}>${totalDecorationFee.toFixed(2)}</span>
                                   <span style={{ fontSize: '11px', color: '#64748b' }}>({designLocationsCount} × ${totalFeePerLocation.toFixed(2)})</span>
+                                </div>
+
+                                {/* Markup Percentage */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Markup:</span>
+                                  <input
+                                    type="number"
+                                    step="1"
+                                    value={currentMarkup}
+                                    onChange={e => updateApparelField(item.id, 'markup_percent', parseFloat(e.target.value) || 0)}
+                                    style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
+                                  />
+                                  <span style={{ fontSize: '12px', color: '#f1f5f9' }}>%</span>
+                                  <span style={{ fontSize: '11px', color: '#64748b' }}>(Qty: {totalQty}, Auto: {autoMarkup}%)</span>
+                                  <button
+                                    onClick={() => updateApparelField(item.id, 'markup_percent', undefined as any)}
+                                    style={{ padding: '2px 8px', background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                                    title={`Reset to auto (${autoMarkup}%)`}
+                                  >
+                                    Reset
+                                  </button>
+                                </div>
+
+                                {/* Recalculate Total Button */}
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={() => recalculateApparelLineTotal(item.id)}
+                                    style={{
+                                      padding: '6px 12px',
+                                      background: 'rgba(34,197,94,0.1)',
+                                      border: '1px solid rgba(34,197,94,0.3)',
+                                      borderRadius: '6px',
+                                      color: '#22c55e',
+                                      fontSize: '12px',
+                                      cursor: 'pointer',
+                                      fontWeight: 600,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                    title="Recalculate line total including decoration fees"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                                    </svg>
+                                    Recalculate Total
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          {/* Embroidery Pricing Section */}
+                          {isEmbroideryApparel(item) && enabledSizes.length > 0 && (() => {
+                            const designLocationsCount = countDesignLocations(item)
+                            const { totalQty } = recalcApparelTotals(sizes)
+                            const defaultEmbFee = getEmbroideryDefaultFee(totalQty || 1)
+                            const embFee = af.embroidery_fee_per_location ?? defaultEmbFee
+                            const totalDecorationFee = designLocationsCount * embFee
+                            const autoMarkup = getEmbroideryMarkupPercent(totalQty)
+                            const currentMarkup = af.markup_percent ?? autoMarkup
+
+                            return (
+                              <div style={{ marginTop: '12px', padding: '12px', background: '#1a1a2e', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', textTransform: 'uppercase', marginBottom: '10px' }}>Embroidery Pricing</div>
+
+                                {/* Embroidery Fee */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Embroidery Fee:</span>
+                                  <span style={{ fontSize: '12px', color: '#f1f5f9' }}>{designLocationsCount} location{designLocationsCount !== 1 ? 's' : ''} × $</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={embFee}
+                                    onChange={e => updateApparelField(item.id, 'embroidery_fee_per_location', parseFloat(e.target.value) || 0)}
+                                    style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
+                                  />
+                                  <span style={{ fontSize: '12px', color: '#22c55e', fontWeight: 600 }}> = ${totalDecorationFee.toFixed(2)}</span>
+                                  <button
+                                    onClick={() => updateApparelField(item.id, 'embroidery_fee_per_location', undefined as any)}
+                                    style={{ padding: '2px 8px', background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                                    title={`Reset to auto ($${defaultEmbFee.toFixed(2)})`}
+                                  >
+                                    Reset
+                                  </button>
+                                </div>
+
+                                {/* Total Decoration Fees */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', paddingTop: '6px', borderTop: '1px solid rgba(148,163,184,0.1)' }}>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', minWidth: '110px' }}>Total Decoration:</span>
+                                  <span style={{ fontSize: '13px', color: '#22c55e', fontWeight: 700 }}>${totalDecorationFee.toFixed(2)}</span>
+                                  <span style={{ fontSize: '11px', color: '#64748b' }}>({designLocationsCount} × ${embFee.toFixed(2)})</span>
                                 </div>
 
                                 {/* Markup Percentage */}
