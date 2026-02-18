@@ -1644,7 +1644,7 @@ document.getElementById('fwgInquiryForm').addEventListener('submit', function(e)
         user_agent: formData.user_agent
       };
 
-      return fetch(FWG_CONFIG.API_URL + '/api/public/submit-form', {
+      return fetch(FWG_CONFIG.API_URL + '/api/submissions/public', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
