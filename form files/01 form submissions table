@@ -1,0 +1,114 @@
+-- =============================================
+--  FWG FORM SUBMISSIONS TABLE
+--  Run this in Supabase SQL Editor
+-- =============================================
+
+-- Main submissions table
+CREATE TABLE IF NOT EXISTS form_submissions (
+  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at      TIMESTAMPTZ DEFAULT now() NOT NULL,
+  status          TEXT DEFAULT 'new' NOT NULL,  -- new, reviewed, quoted, converted, archived
+
+  -- Step 1: Contact Info
+  business_name   TEXT NOT NULL,
+  contact_name    TEXT NOT NULL,
+  email           TEXT NOT NULL,
+  phone           TEXT NOT NULL,
+  contact_method  TEXT NOT NULL,  -- email, text, call
+
+  -- Step 2: Vehicles (stored as JSON array)
+  -- Each vehicle: { type, year, make, model, color, color_other, conditionals: {}, browsing, other_desc, photo_urls: [] }
+  vehicles        JSONB NOT NULL DEFAULT '[]'::jsonb,
+
+  -- Step 3: Coverage Type
+  coverage_type   TEXT NOT NULL,  -- full_wrap, partial_wrap, graphics_lettering, not_sure
+
+  -- Step 4: Artwork & Design
+  artwork_status  TEXT NOT NULL,  -- fleet_match, print_ready, logo_vision, logo_only, from_scratch, ai_mockup
+  ai_acknowledged BOOLEAN DEFAULT false,
+  logo_urls       TEXT[] DEFAULT '{}',  -- array of storage URLs
+
+  -- Step 5: Timeline & Budget
+  timeline        TEXT NOT NULL,  -- asap, 30_days, 30_60_days, 60_90_days, planning
+  budget          TEXT,           -- under_1000, 1000_2500, 2500_5000, 5000_10000, 10000_plus, not_sure
+
+  -- Step 6: Additional
+  additional_info TEXT,
+
+  -- Metadata
+  source_page     TEXT,           -- which page the form was submitted from
+  user_agent      TEXT,
+  ip_address      TEXT
+);
+
+-- Index for common queries
+CREATE INDEX idx_submissions_status ON form_submissions(status);
+CREATE INDEX idx_submissions_created ON form_submissions(created_at DESC);
+CREATE INDEX idx_submissions_email ON form_submissions(email);
+
+-- Enable Row Level Security
+ALTER TABLE form_submissions ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Allow anonymous inserts (form submissions from the website)
+CREATE POLICY "Allow anonymous inserts"
+  ON form_submissions
+  FOR INSERT
+  TO anon
+  WITH CHECK (true);
+
+-- Policy: Only authenticated users can read (ops dashboard)
+CREATE POLICY "Authenticated users can read"
+  ON form_submissions
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Policy: Only authenticated users can update (status changes, etc.)
+CREATE POLICY "Authenticated users can update"
+  ON form_submissions
+  FOR UPDATE
+  TO authenticated
+  USING (true);
+
+
+-- =============================================
+--  FILE STORAGE BUCKET
+-- =============================================
+
+-- Create storage bucket for form uploads
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'form-uploads',
+  'form-uploads',
+  true,  -- public read so ops dashboard can view files
+  10485760,  -- 10MB max per file
+  ARRAY[
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
+    'application/pdf',
+    'application/postscript',                    -- .ai, .eps
+    'image/svg+xml',                             -- .svg
+    'application/illustrator'                    -- .ai alternate
+  ]
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policy: Anyone can upload (form submissions)
+CREATE POLICY "Allow public uploads"
+  ON storage.objects
+  FOR INSERT
+  TO anon
+  WITH CHECK (bucket_id = 'form-uploads');
+
+-- Storage policy: Anyone can read (public bucket)
+CREATE POLICY "Allow public reads"
+  ON storage.objects
+  FOR SELECT
+  TO anon
+  USING (bucket_id = 'form-uploads');
+
+-- Storage policy: Authenticated users can delete (ops cleanup)
+CREATE POLICY "Authenticated can delete"
+  ON storage.objects
+  FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'form-uploads');
