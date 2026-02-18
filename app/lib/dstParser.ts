@@ -59,68 +59,61 @@ function parseDSTHeader(data: Uint8Array): DSTHeader {
 /**
  * Decode a 3-byte DST stitch command into X/Y deltas and command type.
  *
- * DST bit layout (per pyembroidery / libembroidery):
+ * DST bit layout (per pyembroidery DstReader.py):
  *
- * Byte 0 (b0):
- *   bit 0 (0x01): x+1    bit 1 (0x02): x-1
- *   bit 2 (0x04): x+9    bit 3 (0x08): x-9
- *   bit 4 (0x10): y-9    bit 5 (0x20): y+9
- *   bit 6 (0x40): y-1    bit 7 (0x80): y+1
+ * X uses balanced ternary (1,3,9,27,81) from lower bits of each byte.
+ * Y uses the same system from upper bits, then is NEGATED.
  *
- * Byte 1 (b1):
- *   bit 0 (0x01): x+3    bit 1 (0x02): x-3
- *   bit 2 (0x04): x+27   bit 3 (0x08): x-27
- *   bit 4 (0x10): y-27   bit 5 (0x20): y+27
- *   bit 6 (0x40): y-3    bit 7 (0x80): y+3
+ * decode_dx:                          decode_dy (before negation):
+ *   b0 bit 0: +1   b0 bit 1: -1       b0 bit 7: +1   b0 bit 6: -1
+ *   b0 bit 2: +9   b0 bit 3: -9       b0 bit 5: +9   b0 bit 4: -9
+ *   b1 bit 0: +3   b1 bit 1: -3       b1 bit 7: +3   b1 bit 6: -3
+ *   b1 bit 2: +27  b1 bit 3: -27      b1 bit 5: +27  b1 bit 4: -27
+ *   b2 bit 2: +81  b2 bit 3: -81      b2 bit 5: +81  b2 bit 4: -81
  *
- * Byte 2 (b2):
- *   bit 0 (0x01): jump flag
- *   bit 1 (0x02): color change / trim flag
- *   bit 2 (0x04): x+81   bit 3 (0x08): x-81
- *   bit 5 (0x20): y+81   bit 6 (0x40): y-81
- *   bits 4,7: set flags (usually 1 for valid commands)
+ * Final dy = -y (pyembroidery negates the accumulated Y value)
+ *
+ * Command type from byte 2 (checked in priority order):
+ *   (b2 & 0xF3) == 0xF3 → end
+ *   (b2 & 0xC3) == 0xC3 → color change
+ *   (b2 & 0x43) == 0x43 → sequin (treated as jump)
+ *   (b2 & 0x83) == 0x83 → jump/move
+ *   else → normal stitch
  */
 function decodeStitchCommand(b0: number, b1: number, b2: number): StitchCommand {
   let x = 0
   let y = 0
 
-  // Byte 0
+  // X: lower bits of each byte (balanced ternary 1,3,9,27,81)
   if (b0 & 0x01) x += 1
   if (b0 & 0x02) x -= 1
   if (b0 & 0x04) x += 9
   if (b0 & 0x08) x -= 9
-  if (b0 & 0x80) y += 1
-  if (b0 & 0x40) y -= 1
-  if (b0 & 0x20) y += 9
-  if (b0 & 0x10) y -= 9
-
-  // Byte 1
   if (b1 & 0x01) x += 3
   if (b1 & 0x02) x -= 3
   if (b1 & 0x04) x += 27
   if (b1 & 0x08) x -= 27
-  if (b1 & 0x80) y += 3
-  if (b1 & 0x40) y -= 3
-  if (b1 & 0x20) y += 27
-  if (b1 & 0x10) y -= 27
-
-  // Byte 2 - movement bits
   if (b2 & 0x04) x += 81
   if (b2 & 0x08) x -= 81
-  if (b2 & 0x20) y += 81
-  if (b2 & 0x40) y -= 81
 
-  // Command type detection per pyembroidery's cascading bit checks.
-  // Byte 2 layout: bit 7,4 = valid-command flags (usually set),
-  // bits 6,5,3,2 = movement, bits 1,0 = command flags.
-  // The upper bits (7,6) disambiguate when lower bits 0,1 are both set.
-  //
-  // End:          (b2 & 0xF3) == 0xF3  (all flag+cmd bits set)
-  // Color change: (b2 & 0xC3) == 0xC3  (bits 7,6,1,0 all set)
-  // Jump/move:    (b2 & 0x83) == 0x83  (bits 7,1,0 set, not bit 6)
-  // Normal stitch: bits 0,1 both clear
+  // Y: upper bits of each byte, then negated (balanced ternary 1,3,9,27,81)
+  // pyembroidery accumulates y then returns -y, so effective signs are flipped
+  if (b0 & 0x80) y -= 1
+  if (b0 & 0x40) y += 1
+  if (b0 & 0x20) y -= 9
+  if (b0 & 0x10) y += 9
+  if (b1 & 0x80) y -= 3
+  if (b1 & 0x40) y += 3
+  if (b1 & 0x20) y -= 27
+  if (b1 & 0x10) y += 27
+  if (b2 & 0x20) y -= 81
+  if (b2 & 0x10) y += 81
 
-  // End-of-file marker
+  // Command type detection per pyembroidery's cascading bitmask checks.
+  // Bits 0,1 of b2 are set for non-stitch commands; bits 6,7 distinguish which.
+  // Normal stitches have bits 0,1 clear (or neither 0x83 nor 0x43 pattern).
+
+  // End-of-file marker: all flag bits set, b0/b1 zero
   if (b0 === 0x00 && b1 === 0x00 && (b2 & 0xF3) === 0xF3) {
     return { x: 0, y: 0, type: 'end' }
   }
@@ -128,14 +121,11 @@ function decodeStitchCommand(b0: number, b1: number, b2: number): StitchCommand 
   let type: StitchCommand['type'] = 'stitch'
 
   if ((b2 & 0xC3) === 0xC3) {
-    // Bits 7,6,1,0 all set → color change
     type = 'color_change'
-  } else if (b2 & 0x01) {
-    // Bit 0 set → jump (covers 0x83, 0x93, 0x91, etc.)
+  } else if ((b2 & 0x83) === 0x83) {
     type = 'jump'
-  }
-  // Bit 1 alone (trim) also acts as a jump/move
-  else if (b2 & 0x02) {
+  } else if ((b2 & 0x43) === 0x43) {
+    // Sequin mode toggle - treat as jump
     type = 'jump'
   }
 
