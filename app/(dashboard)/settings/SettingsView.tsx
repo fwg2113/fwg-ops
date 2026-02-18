@@ -252,6 +252,8 @@ export default function SettingsView({
   const [dtfPricing, setDtfPricing] = useState<DtfPricingMatrix | null>(initialDtfPricing || null)
   const [editingDtfBreak, setEditingDtfBreak] = useState<number | null>(null)
   const [savingDtfPricing, setSavingDtfPricing] = useState(false)
+  const [addingDtfBreak, setAddingDtfBreak] = useState(false)
+  const [newDtfBreak, setNewDtfBreak] = useState({ min: 0, max: 0, markup_pct: 200, decoration_prices: { front: 5.00, back: 5.00, left_sleeve: 5.00, right_sleeve: 5.00, extra: 5.00 } })
   // Embroidery Pricing state
   const [embroideryPricing, setEmbroideryPricing] = useState<DtfPricingMatrix | null>(initialEmbroideryPricing || null)
   const [editingEmbroideryBreak, setEditingEmbroideryBreak] = useState<number | null>(null)
@@ -3855,7 +3857,7 @@ export default function SettingsView({
                           value={qtyBreak.min}
                           onChange={e => {
                             const newBreaks = [...dtfPricing.quantity_breaks]
-                            newBreaks[index].min = parseInt(e.target.value) || 0
+                            newBreaks[index] = { ...newBreaks[index], min: parseInt(e.target.value) || 0 }
                             setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
                           }}
                           style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
@@ -3866,7 +3868,7 @@ export default function SettingsView({
                           value={qtyBreak.max}
                           onChange={e => {
                             const newBreaks = [...dtfPricing.quantity_breaks]
-                            newBreaks[index].max = parseInt(e.target.value) || 0
+                            newBreaks[index] = { ...newBreaks[index], max: parseInt(e.target.value) || 0 }
                             setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
                           }}
                           style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
@@ -3880,7 +3882,7 @@ export default function SettingsView({
                           value={qtyBreak.markup_pct}
                           onChange={e => {
                             const newBreaks = [...dtfPricing.quantity_breaks]
-                            newBreaks[index].markup_pct = parseInt(e.target.value) || 0
+                            newBreaks[index] = { ...newBreaks[index], markup_pct: parseInt(e.target.value) || 0 }
                             setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
                           }}
                           style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
@@ -3891,7 +3893,11 @@ export default function SettingsView({
                     <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         <button
-                          onClick={() => setEditingDtfBreak(null)}
+                          onClick={() => {
+                            // Reload from server to cancel
+                            fetch('/api/settings/dtf-pricing').then(r => r.json()).then(d => { if (d?.quantity_breaks) setDtfPricing(d) })
+                            setEditingDtfBreak(null)
+                          }}
                           style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
                         >
                           Cancel
@@ -3932,22 +3938,136 @@ export default function SettingsView({
                       {qtyBreak.markup_pct}%
                     </td>
                     <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => setEditingDtfBreak(index)}
-                        style={{ padding: '6px 12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
-                      >
-                        Edit
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => setEditingDtfBreak(index)}
+                          style={{ padding: '6px 12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Remove tier ${qtyBreak.min}-${qtyBreak.max === 99999 ? '∞' : qtyBreak.max}?`)) return
+                            setSavingDtfPricing(true)
+                            try {
+                              const newBreaks = dtfPricing.quantity_breaks.filter((_, i) => i !== index)
+                              const res = await fetch('/api/settings/dtf-pricing', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: dtfPricing.id, quantity_breaks: newBreaks })
+                              })
+                              if (res.ok) {
+                                setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
+                              } else {
+                                alert('Failed to remove tier')
+                              }
+                            } catch {
+                              alert('Error removing tier')
+                            }
+                            setSavingDtfPricing(false)
+                          }}
+                          style={{ padding: '6px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
               ))}
+
+              {/* Add new row */}
+              {addingDtfBreak ? (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.03)' }}>
+                  <td style={{ padding: '12px 20px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        value={newDtfBreak.min || ''}
+                        placeholder="Min"
+                        onChange={e => setNewDtfBreak({ ...newDtfBreak, min: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                      <span style={{ color: '#64748b' }}>to</span>
+                      <input
+                        type="number"
+                        value={newDtfBreak.max || ''}
+                        placeholder="Max"
+                        onChange={e => setNewDtfBreak({ ...newDtfBreak, max: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 20px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        value={newDtfBreak.markup_pct}
+                        onChange={e => setNewDtfBreak({ ...newDtfBreak, markup_pct: parseInt(e.target.value) || 0 })}
+                        style={{ width: '80px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
+                      />
+                      <span style={{ color: '#64748b' }}>%</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => { setAddingDtfBreak(false); setNewDtfBreak({ min: 0, max: 0, markup_pct: 200, decoration_prices: { front: 5.00, back: 5.00, left_sleeve: 5.00, right_sleeve: 5.00, extra: 5.00 } }) }}
+                        style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                      >Cancel</button>
+                      <button
+                        onClick={async () => {
+                          if (newDtfBreak.min <= 0 || newDtfBreak.max <= 0 || newDtfBreak.max < newDtfBreak.min) {
+                            alert('Max must be >= Min, and both must be > 0')
+                            return
+                          }
+                          setSavingDtfPricing(true)
+                          try {
+                            const newBreaks = [...dtfPricing.quantity_breaks, newDtfBreak].sort((a, b) => a.min - b.min)
+                            const res = await fetch('/api/settings/dtf-pricing', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: dtfPricing.id, quantity_breaks: newBreaks })
+                            })
+                            if (res.ok) {
+                              setDtfPricing({ ...dtfPricing, quantity_breaks: newBreaks })
+                              setAddingDtfBreak(false)
+                              setNewDtfBreak({ min: 0, max: 0, markup_pct: 200, decoration_prices: { front: 5.00, back: 5.00, left_sleeve: 5.00, right_sleeve: 5.00, extra: 5.00 } })
+                            } else {
+                              alert('Failed to add tier')
+                            }
+                          } catch {
+                            alert('Error adding tier')
+                          }
+                          setSavingDtfPricing(false)
+                        }}
+                        disabled={savingDtfPricing}
+                        style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingDtfPricing ? 0.6 : 1 }}
+                      >{savingDtfPricing ? 'Saving...' : 'Add & Save'}</button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                  <td colSpan={3} style={{ padding: '12px 20px' }}>
+                    <button
+                      onClick={() => {
+                        const lastBreak = dtfPricing.quantity_breaks[dtfPricing.quantity_breaks.length - 1]
+                        const suggestedMin = lastBreak ? lastBreak.max + 1 : 1
+                        setNewDtfBreak({ min: suggestedMin, max: suggestedMin + 99, markup_pct: 200, decoration_prices: { front: 5.00, back: 5.00, left_sleeve: 5.00, right_sleeve: 5.00, extra: 5.00 } })
+                        setAddingDtfBreak(true)
+                      }}
+                      style={{ padding: '8px 16px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}
+                    >+ Add Row</button>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
 
           <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
             <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
-              💡 <strong>Note:</strong> These markup percentages are applied to garment wholesale prices. When you change quantity in a quote, garment prices will automatically recalculate based on these tiers.
+              These markup percentages are applied to garment wholesale prices. When you change quantity in a quote, garment prices will automatically recalculate based on these tiers.
             </p>
           </div>
         </div>
