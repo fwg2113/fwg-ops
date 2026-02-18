@@ -39,7 +39,8 @@ function parseDSTHeader(data: Uint8Array): DSTHeader {
   const headerText = decoder.decode(data.slice(0, 512))
 
   const getValue = (key: string): string => {
-    const regex = new RegExp(key + ':([^\\r\\n]*)')
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(escaped + ':([^\\r\\n]*)')
     const match = headerText.match(regex)
     return match ? match[1].trim() : ''
   }
