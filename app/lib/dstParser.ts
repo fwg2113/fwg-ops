@@ -314,16 +314,24 @@ export async function renderDSTFile(
   const buffer = await file.arrayBuffer()
   const design = parseDST(buffer)
 
-  // Debug: log parse results
+  // Debug: log parse results and raw stitch bytes
   const typeCounts = { stitch: 0, jump: 0, color_change: 0, end: 0 }
   for (const s of design.stitches) typeCounts[s.type]++
+  const raw = new Uint8Array(buffer)
+  const sampleStitches: string[] = []
+  for (let i = 512; i < Math.min(512 + 30, raw.length); i += 3) {
+    const b0 = raw[i], b1 = raw[i + 1], b2 = raw[i + 2]
+    sampleStitches.push(
+      `[${b0.toString(16).padStart(2,'0')} ${b1.toString(16).padStart(2,'0')} ${b2.toString(16).padStart(2,'0')}] b2bits=${b2.toString(2).padStart(8,'0')} b2&03=${(b2&3)}`
+    )
+  }
   console.log('[DST]', file.name, {
     header: design.header,
     totalCommands: design.stitches.length,
     types: typeCounts,
     bounds: design.bounds,
     segments: design.colorSegments.length,
-    firstBytes: Array.from(new Uint8Array(buffer.slice(0, 20))).map(b => b.toString(16).padStart(2, '0')).join(' ')
+    firstStitchBytes: sampleStitches,
   })
 
   return renderDSTToCanvas(design, size, threadColor)
