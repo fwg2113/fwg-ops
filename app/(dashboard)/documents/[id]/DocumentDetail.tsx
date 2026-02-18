@@ -377,6 +377,7 @@ export default function DocumentDetail({
 
   // Apparel size management
   const [apparelSizeMenu, setApparelSizeMenu] = useState<string | null>(null)
+  const [apparelColorDropdown, setApparelColorDropdown] = useState<string | null>(null)
 
   // Mockup builder state
   const [mockupBuilderOpen, setMockupBuilderOpen] = useState(false)
@@ -3282,75 +3283,128 @@ export default function DocumentDetail({
                                 }}
                               />
                             </div>
-                            <div style={{ width: '210px' }}>
+                            <div style={{ width: '210px', position: 'relative' }}>
                               <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Color</div>
                               {ssProductCache[item.id] && ssProductCache[item.id].colors ? (
-                                <select
-                                  value={af.color || ''}
-                                  onChange={async (e) => {
-                                    const newColor = e.target.value
+                                <div style={{ position: 'relative' }}>
+                                  {/* Selected color display / trigger */}
+                                  <div
+                                    onClick={() => setApparelColorDropdown(apparelColorDropdown === item.id ? null : item.id)}
+                                    style={{
+                                      ...inputStyle, padding: '8px', fontSize: '13px',
+                                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                      justifyContent: 'space-between'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                      {af.color ? (() => {
+                                        const selColor = ssProductCache[item.id].colors.find((c: any) => c.colorName === af.color)
+                                        return (
+                                          <>
+                                            <span style={{
+                                              width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0,
+                                              border: '1px solid rgba(148,163,184,0.3)',
+                                              background: selColor?.colorHex ? `#${selColor.colorHex.replace('#', '')}` : '#ccc',
+                                              ...(selColor?.colorSwatchUrl && !selColor?.colorHex ? { backgroundImage: `url(${selColor.colorSwatchUrl})`, backgroundSize: 'cover' } : {})
+                                            }} />
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{af.color}</span>
+                                          </>
+                                        )
+                                      })() : <span style={{ color: '#64748b' }}>Select Color</span>}
+                                    </div>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, opacity: 0.5 }}>
+                                      <polyline points="6 9 12 15 18 9"/>
+                                    </svg>
+                                  </div>
+                                  {/* Dropdown */}
+                                  {apparelColorDropdown === item.id && (
+                                    <div style={{
+                                      position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '2px',
+                                      background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px',
+                                      padding: '4px', zIndex: 200, maxHeight: '280px', overflowY: 'auto',
+                                      boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+                                    }}>
+                                      {ssProductCache[item.id].colors.map((color: any, index: number) => {
+                                        const product = ssProductCache[item.id]
+                                        const isSelected = af.color === color.colorName
+                                        return (
+                                          <div
+                                            key={color.colorID || `color-${index}`}
+                                            onClick={async () => {
+                                              setApparelColorDropdown(null)
+                                              const newColor = color.colorName
 
-                                    // Update sizes with new color's pricing (keep description unchanged)
-                                    const product = ssProductCache[item.id]
-                                    const selectedColor = product.colors.find((c: any) => c.colorName === newColor)
+                                              const selectedColor = product.colors.find((c: any) => c.colorName === newColor)
+                                              if (selectedColor && selectedColor.sizes) {
+                                                const existingSizes = af.sizes || {}
+                                                const totalQty = Object.values(existingSizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
+                                                const markupPercent = getDTFMarkupPercent(totalQty || 1)
+                                                const markupMultiplier = markupPercent / 100
 
-                                    if (selectedColor && selectedColor.sizes) {
-                                      // Calculate total quantity to determine markup
-                                      const existingSizes = af.sizes || {}
-                                      const totalQty = Object.values(existingSizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
-                                      const markupPercent = getDTFMarkupPercent(totalQty || 1)
-                                      const markupMultiplier = markupPercent / 100
+                                                const sizesObj: Record<string, { qty: number; price: number; wholesale: number }> = {}
+                                                selectedColor.sizes.forEach((s: any) => {
+                                                  const existingSize = (af.sizes || {})[s.sizeName]
+                                                  const wholesalePrice = s.wholesalePrice || 0
+                                                  const retailPrice = wholesalePrice * markupMultiplier
+                                                  sizesObj[s.sizeName] = {
+                                                    qty: existingSize?.qty || 0,
+                                                    price: retailPrice,
+                                                    wholesale: wholesalePrice
+                                                  }
+                                                })
 
-                                      const sizesObj: Record<string, { qty: number; price: number; wholesale: number }> = {}
-                                      selectedColor.sizes.forEach((s: any) => {
-                                        const existingSize = (af.sizes || {})[s.sizeName]
-                                        const wholesalePrice = s.wholesalePrice || 0
-                                        const retailPrice = wholesalePrice * markupMultiplier
+                                                const newItems = lineItems.map(li => {
+                                                  if (li.id !== item.id) return li
+                                                  return {
+                                                    ...li,
+                                                    custom_fields: {
+                                                      ...li.custom_fields,
+                                                      color: newColor,
+                                                      color_hex: selectedColor.colorHex || undefined,
+                                                      color_swatch_url: selectedColor.colorSwatchUrl || undefined,
+                                                      sizes: sizesObj,
+                                                      enabled_sizes: selectedColor.sizes.map((s: any) => s.sizeName)
+                                                    }
+                                                  }
+                                                })
+                                                setLineItems(newItems)
 
-                                        sizesObj[s.sizeName] = {
-                                          qty: existingSize?.qty || 0,
-                                          price: retailPrice,
-                                          wholesale: wholesalePrice
-                                        }
-                                      })
-
-                                      // Update custom_fields with color and sizes (don't change description)
-                                      const newItems = lineItems.map(li => {
-                                        if (li.id !== item.id) return li
-                                        return {
-                                          ...li,
-                                          custom_fields: {
-                                            ...li.custom_fields,
-                                            color: newColor,  // Just the color name (e.g., "Black")
-                                            sizes: sizesObj,
-                                            enabled_sizes: selectedColor.sizes.map((s: any) => s.sizeName)
-                                          }
-                                        }
-                                      })
-                                      setLineItems(newItems)
-
-                                      const updatedItem = newItems.find(i => i.id === item.id)
-                                      if (updatedItem) {
-                                        await supabase.from('line_items').update({
-                                          custom_fields: updatedItem.custom_fields,
-                                        }).eq('id', item.id)
-                                      }
-                                    }
-                                  }}
-                                  style={{ ...inputStyle, padding: '8px', fontSize: '13px' }}
-                                >
-                                  <option value="">Select Color</option>
-                                  {ssProductCache[item.id].colors.map((color: any, index: number) => {
-                                    const product = ssProductCache[item.id]
-                                    // Format like Printavo: Brand - Style# - Color - Description
-                                    const optionText = `${product.brandName} - ${product.styleName} - ${color.colorName}`
-                                    return (
-                                      <option key={color.colorID || `color-${index}`} value={color.colorName}>
-                                        {optionText}
-                                      </option>
-                                    )
-                                  })}
-                                </select>
+                                                const updatedItem = newItems.find(i => i.id === item.id)
+                                                if (updatedItem) {
+                                                  await supabase.from('line_items').update({
+                                                    custom_fields: updatedItem.custom_fields,
+                                                  }).eq('id', item.id)
+                                                }
+                                              }
+                                            }}
+                                            style={{
+                                              display: 'flex', alignItems: 'center', gap: '8px',
+                                              padding: '8px 10px', borderRadius: '6px', cursor: 'pointer',
+                                              background: isSelected ? 'rgba(190,30,45,0.15)' : 'transparent',
+                                              transition: 'background 0.1s ease'
+                                            }}
+                                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(148,163,184,0.1)' }}
+                                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                                          >
+                                            <span style={{
+                                              width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                                              border: isSelected ? '2px solid #be1e2d' : '1px solid rgba(148,163,184,0.3)',
+                                              background: color.colorHex ? `#${color.colorHex.replace('#', '')}` : '#555',
+                                              ...(color.colorSwatchUrl && !color.colorHex ? { backgroundImage: `url(${color.colorSwatchUrl})`, backgroundSize: 'cover' } : {})
+                                            }} />
+                                            <span style={{
+                                              fontSize: '12px', color: isSelected ? '#be1e2d' : '#e2e8f0',
+                                              fontWeight: isSelected ? 600 : 400,
+                                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                                            }}>
+                                              {product.brandName} - {product.styleName} - {color.colorName}
+                                            </span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
                               ) : (
                                 <input
                                   type="text"

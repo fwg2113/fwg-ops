@@ -10,7 +10,7 @@ const twilioClient = twilio(
 
 export async function POST(request: NextRequest) {
   try {
-    const { documentId, optionId, optionTitle, question, customerName, contactPreference, sizeQuantities, action } = await request.json()
+    const { documentId, optionId, optionTitle, question, customerName, contactPreference, sizeQuantities, lineItemUpdates, action } = await request.json()
 
     if (!documentId || !optionId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -70,6 +70,61 @@ export async function POST(request: NextRequest) {
     if (updateError) {
       console.error('Update error:', updateError)
       return NextResponse.json({ error: 'Failed to update document' }, { status: 500 })
+    }
+
+    // Apply customer line item updates (sizes, colors) if provided
+    if (isApproval && lineItemUpdates && typeof lineItemUpdates === 'object') {
+      const itemIds = Object.keys(lineItemUpdates)
+      if (itemIds.length > 0) {
+        const { data: items } = await supabase
+          .from('line_items')
+          .select('*')
+          .in('id', itemIds)
+          .eq('document_id', documentId)
+
+        if (items) {
+          for (const item of items) {
+            const updates = lineItemUpdates[item.id]
+            if (!updates) continue
+
+            const cf = { ...(item.custom_fields || {}) }
+            let totalQty = item.quantity
+            let lineTotal = item.line_total
+
+            if (updates.color) {
+              cf.color = updates.color
+            }
+
+            if (updates.sizes && cf.sizes) {
+              const existingSizes = cf.sizes as Record<string, { qty: number; price: number; wholesale?: number }>
+              let newTotalQty = 0
+              let newLineTotal = 0
+              for (const [sizeName, newQty] of Object.entries(updates.sizes as Record<string, number>)) {
+                if (existingSizes[sizeName]) {
+                  existingSizes[sizeName].qty = newQty
+                }
+                newTotalQty += newQty
+                newLineTotal += newQty * (existingSizes[sizeName]?.price || 0)
+              }
+              cf.sizes = existingSizes
+              totalQty = newTotalQty
+              lineTotal = newLineTotal
+            }
+
+            cf.customer_modified = true
+            cf.customer_modified_at = new Date().toISOString()
+
+            await supabase
+              .from('line_items')
+              .update({
+                custom_fields: cf,
+                quantity: totalQty,
+                line_total: lineTotal
+              })
+              .eq('id', item.id)
+          }
+        }
+      }
     }
 
     const businessPhone = process.env.TWILIO_PHONE_TO || '+12406933715'

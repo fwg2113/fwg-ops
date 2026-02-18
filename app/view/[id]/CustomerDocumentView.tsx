@@ -210,6 +210,18 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   // Ref for PDF capture
   const documentRef = useRef<HTMLDivElement>(null)
 
+  // Customer-editable size quantities (per line item: { itemId: { S: 5, M: 10, ... } })
+  const [customerSizeQtys, setCustomerSizeQtys] = useState<Record<string, Record<string, number>>>({})
+  // Customer color selection (per line item: { itemId: 'Navy' })
+  const [customerColors, setCustomerColors] = useState<Record<string, string>>({})
+  // Supplier product data cache (per line item)
+  const [supplierProducts, setSupplierProducts] = useState<Record<string, any>>({})
+  const [loadingProducts, setLoadingProducts] = useState<Record<string, boolean>>({})
+  // Canvas ref for mockup re-rendering
+  const mockupCanvasRef = useRef<HTMLCanvasElement>(null)
+  // Track which items have customer-edited quantities
+  const [editedItems, setEditedItems] = useState<Set<string>>(new Set())
+
   // Option lightbox state
   const [optLightbox, setOptLightbox] = useState<{ optionId: string; index: number } | null>(null)
   const [optLightboxZoom, setOptLightboxZoom] = useState(1)
@@ -234,6 +246,142 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
       })
     }
   }, [doc.id, doc.status])
+
+  // Fetch supplier product data for apparel items (to get all available colors)
+  useEffect(() => {
+    const apparelItems = lineItems.filter(item => item.custom_fields?.apparel_mode === true && item.custom_fields?.style_id && item.custom_fields?.supplier)
+    apparelItems.forEach(async (item) => {
+      const cf = item.custom_fields!
+      const styleId = cf.style_id
+      const supplier = cf.supplier as string
+      if (supplierProducts[item.id]) return // Already fetched
+
+      setLoadingProducts(prev => ({ ...prev, [item.id]: true }))
+      try {
+        let url = ''
+        if (supplier === 'sanmar') {
+          url = `/api/suppliers/sanmar/product/${encodeURIComponent(cf.item_number || styleId)}`
+        } else {
+          url = `/api/suppliers/ss/style/${encodeURIComponent(styleId)}`
+        }
+        const res = await fetch(url)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.data) {
+            setSupplierProducts(prev => ({ ...prev, [item.id]: data.data }))
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch supplier product for color picker:', err)
+      }
+      setLoadingProducts(prev => ({ ...prev, [item.id]: false }))
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineItems.length])
+
+  // Initialize customer size quantities from existing line item data
+  useEffect(() => {
+    const initial: Record<string, Record<string, number>> = {}
+    lineItems.forEach(item => {
+      const cf = item.custom_fields || {}
+      if (cf.apparel_mode && cf.sizes) {
+        const sizes = cf.sizes as Record<string, { qty: number; price: number }>
+        const sizeQtys: Record<string, number> = {}
+        Object.entries(sizes).forEach(([sizeName, sizeData]) => {
+          sizeQtys[sizeName] = sizeData.qty || 0
+        })
+        initial[item.id] = sizeQtys
+      }
+    })
+    setCustomerSizeQtys(initial)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Helper: generate mockup preview for a given garment image URL + mockup config
+  const generateMockupPreview = useCallback(async (garmentImageUrl: string, mockupConfig: any, location: string): Promise<string | null> => {
+    try {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return null
+
+      canvas.width = 800
+      canvas.height = 800
+
+      // Load garment image through proxy to avoid CORS
+      const garmentImg = new Image()
+      garmentImg.crossOrigin = 'anonymous'
+      await new Promise<void>((resolve, reject) => {
+        garmentImg.onload = () => resolve()
+        garmentImg.onerror = reject
+        garmentImg.src = `/api/proxy-image?url=${encodeURIComponent(garmentImageUrl)}`
+      })
+
+      // Draw garment
+      const scale = Math.min(canvas.width / garmentImg.width, canvas.height / garmentImg.height)
+      const w = garmentImg.width * scale
+      const h = garmentImg.height * scale
+      const x = (canvas.width - w) / 2
+      const y = (canvas.height - h) / 2
+      ctx.drawImage(garmentImg, x, y, w, h)
+
+      // Draw logos for this location
+      if (mockupConfig?.logos) {
+        const locationLogos = mockupConfig.logos.filter((l: any) => l.location === location)
+        for (const logo of locationLogos) {
+          try {
+            const logoImg = new Image()
+            logoImg.crossOrigin = 'anonymous'
+            await new Promise<void>((resolve, reject) => {
+              logoImg.onload = () => resolve()
+              logoImg.onerror = reject
+              logoImg.src = logo.url.startsWith('data:') ? logo.url : `/api/proxy-image?url=${encodeURIComponent(logo.url)}`
+            })
+            const lx = x + (logo.position?.x || 0) / 100 * w
+            const ly = y + (logo.position?.y || 0) / 100 * h
+            const lw = (logo.size?.width || 20) / 100 * w
+            const lh = (logo.size?.height || 20) / 100 * h
+
+            ctx.save()
+            if (logo.rotation) {
+              ctx.translate(lx + lw / 2, ly + lh / 2)
+              ctx.rotate((logo.rotation * Math.PI) / 180)
+              ctx.drawImage(logoImg, -lw / 2, -lh / 2, lw, lh)
+            } else {
+              ctx.drawImage(logoImg, lx, ly, lw, lh)
+            }
+            ctx.restore()
+          } catch {
+            // Skip logos that fail to load
+          }
+        }
+      }
+
+      // Draw text elements for this location
+      if (mockupConfig?.textElements) {
+        const locationTexts = mockupConfig.textElements.filter((t: any) => t.location === location)
+        for (const te of locationTexts) {
+          ctx.save()
+          const tx = x + (te.position?.x || 0) / 100 * w
+          const ty = y + (te.position?.y || 0) / 100 * h
+          ctx.font = `${te.fontSize || 24}px ${te.fontFamily || 'Arial'}`
+          ctx.fillStyle = te.color || '#000000'
+          ctx.textAlign = 'center'
+          if (te.rotation) {
+            ctx.translate(tx, ty)
+            ctx.rotate((te.rotation * Math.PI) / 180)
+            ctx.fillText(te.text || '', 0, 0)
+          } else {
+            ctx.fillText(te.text || '', tx, ty)
+          }
+          ctx.restore()
+        }
+      }
+
+      return canvas.toDataURL('image/png')
+    } catch {
+      return null
+    }
+  }, [])
 
   // Parse fees
   const fees: Fee[] = (() => {
@@ -553,10 +701,31 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const handleApprove = async () => {
     setApproving(true)
     try {
+      // Build line item updates from customer edits (quantities and colors)
+      const lineItemUpdates: Record<string, { sizes?: Record<string, number>; color?: string }> = {}
+      for (const item of lineItems) {
+        const cf = item.custom_fields || {}
+        if (!cf.apparel_mode) continue
+        const updates: { sizes?: Record<string, number>; color?: string } = {}
+        if (customerSizeQtys[item.id] && editedItems.has(item.id)) {
+          updates.sizes = customerSizeQtys[item.id]
+        }
+        if (customerColors[item.id] && customerColors[item.id] !== cf.color) {
+          updates.color = customerColors[item.id]
+        }
+        if (updates.sizes || updates.color) {
+          lineItemUpdates[item.id] = updates
+        }
+      }
+
       const res = await fetch('/api/documents/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: doc.id, convertToInvoice: true })
+        body: JSON.stringify({
+          documentId: doc.id,
+          convertToInvoice: true,
+          lineItemUpdates: Object.keys(lineItemUpdates).length > 0 ? lineItemUpdates : undefined
+        })
       })
       if (res.ok) {
         setStatus('approved')
@@ -580,6 +749,24 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
       const sizeQtys = optionSizeQtys[optionId] || {}
       const hasQuantities = Object.values(sizeQtys).some(q => q > 0)
 
+      // Build line item updates for this option's items
+      const groupItems = (opt as any)._items || []
+      const lineItemUpdates: Record<string, { sizes?: Record<string, number>; color?: string }> = {}
+      for (const item of groupItems) {
+        const cf = item.custom_fields || {}
+        if (!cf.apparel_mode) continue
+        const updates: { sizes?: Record<string, number>; color?: string } = {}
+        if (customerSizeQtys[item.id] && editedItems.has(item.id)) {
+          updates.sizes = customerSizeQtys[item.id]
+        }
+        if (customerColors[item.id] && customerColors[item.id] !== cf.color) {
+          updates.color = customerColors[item.id]
+        }
+        if (updates.sizes || updates.color) {
+          lineItemUpdates[item.id] = updates
+        }
+      }
+
       const res = await fetch('/api/documents/option-selection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -590,6 +777,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           customerName: doc.customer_name,
           contactPreference: optionContactPrefs[optionId] || 'sms',
           sizeQuantities: hasQuantities ? sizeQtys : null,
+          lineItemUpdates: Object.keys(lineItemUpdates).length > 0 ? lineItemUpdates : undefined,
           action: 'approve'
         })
       })
@@ -1127,6 +1315,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                             const isApparelItem = cf.apparel_mode === true
                             const enabledSizes = (cf.enabled_sizes || []) as string[]
                             const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+                            const currentColor = customerColors[item.id] || cf.color
+                            const product = supplierProducts[item.id]
+                            const availableColors = product?.colors || []
 
                             return (
                               <div key={item.id} style={{ padding: '12px 0', borderBottom: '1px solid #f1f5f9' }}>
@@ -1139,7 +1330,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>
                                       {item.description || 'Line Item'}
-                                      {cf.color && <span style={{ color: '#6b7280', fontWeight: 400 }}> — {cf.color}</span>}
+                                      {currentColor && <span style={{ color: '#6b7280', fontWeight: 400 }}> — {currentColor}</span>}
                                     </div>
                                     {cf.item_number && (
                                       <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>Item #{cf.item_number}</div>
@@ -1151,24 +1342,83 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   </div>
                                 </div>
 
-                                {/* Apparel size breakdown */}
+                                {/* Color picker for apparel items */}
+                                {isApparelItem && availableColors.length > 1 && (
+                                  <div style={{ marginTop: '10px', marginLeft: '18px' }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                                      Color Options
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                      {availableColors.map((c: any, ci: number) => {
+                                        const isActive = c.colorName === currentColor
+                                        return (
+                                          <div
+                                            key={c.colorID || ci}
+                                            onClick={() => setCustomerColors(prev => ({ ...prev, [item.id]: c.colorName }))}
+                                            title={c.colorName}
+                                            style={{
+                                              width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer',
+                                              border: isActive ? '3px solid #be1e2d' : '2px solid #e5e7eb',
+                                              background: c.colorHex ? `#${c.colorHex.replace('#', '')}` : '#ccc',
+                                              ...(c.colorSwatchUrl && !c.colorHex ? { backgroundImage: `url(${c.colorSwatchUrl})`, backgroundSize: 'cover' } : {}),
+                                              transition: 'all 0.15s ease',
+                                              boxShadow: isActive ? '0 0 0 2px rgba(190,30,45,0.3)' : 'none'
+                                            }}
+                                          />
+                                        )
+                                      })}
+                                    </div>
+                                    {currentColor !== cf.color && (
+                                      <div style={{ fontSize: '12px', color: '#be1e2d', marginTop: '4px', fontWeight: 500 }}>
+                                        Changed to: {currentColor}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Apparel size breakdown - editable */}
                                 {isApparelItem && enabledSizes.length > 0 && (
-                                  <div style={{ marginTop: '10px', marginLeft: '18px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {enabledSizes.map(size => {
-                                      const s = sizes[size] || { qty: 0, price: 0 }
-                                      if (s.qty <= 0) return null
-                                      return (
-                                        <div key={size} style={{
-                                          display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                                          padding: '8px 15px', background: '#f8f9fa', borderRadius: '8px',
-                                          border: '1px solid #e5e7eb', minWidth: '75px'
-                                        }}>
-                                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
-                                          <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{s.qty}</div>
-                                          <div style={{ fontSize: '14px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
-                                        </div>
-                                      )
-                                    })}
+                                  <div style={{ marginTop: '10px', marginLeft: '18px' }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                                      Sizes & Quantities
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                      {enabledSizes.map(size => {
+                                        const s = sizes[size] || { qty: 0, price: 0 }
+                                        const custQty = customerSizeQtys[item.id]?.[size] ?? s.qty
+                                        return (
+                                          <div key={size} style={{
+                                            display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                            padding: '8px 10px', background: custQty > 0 ? 'rgba(190,30,45,0.03)' : '#f8f9fa', borderRadius: '8px',
+                                            border: custQty > 0 ? '2px solid #be1e2d' : '1px solid #e5e7eb', minWidth: '75px',
+                                            transition: 'all 0.15s ease'
+                                          }}>
+                                            <div style={{ fontSize: '13px', fontWeight: 700, color: custQty > 0 ? '#be1e2d' : '#6b7280', textTransform: 'uppercase' }}>{size}</div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={custQty || ''}
+                                              placeholder="0"
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0
+                                                setCustomerSizeQtys(prev => ({
+                                                  ...prev,
+                                                  [item.id]: { ...(prev[item.id] || {}), [size]: val }
+                                                }))
+                                                setEditedItems(prev => new Set(prev).add(item.id))
+                                              }}
+                                              style={{
+                                                width: '52px', padding: '6px 4px', marginTop: '4px',
+                                                border: '1px solid #e5e7eb', borderRadius: '6px',
+                                                fontSize: '16px', fontWeight: 600, textAlign: 'center',
+                                                background: '#ffffff', outline: 'none', fontFamily: 'inherit'
+                                              }}
+                                            />
+                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(s.price)} ea</div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1345,34 +1595,55 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                             </span>
                           </div>
 
-                          {/* Group option with apparel sizes already set: confirmation view */}
+                          {/* Group option with apparel sizes already set: editable confirmation view */}
                           {isGroupOption && hasApparelSizes ? (
                             <div style={{ marginBottom: '16px' }}>
                               <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 12px 0' }}>
-                                Please confirm the sizes and quantities below are correct.
+                                Review and update the sizes and quantities below before approving.
                               </p>
                               {groupApparelItems.map((item: LineItem) => {
                                 const cf = item.custom_fields || {} as any
                                 const enabledSizes = (cf.enabled_sizes || []) as string[]
                                 const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
-                                const itemTotalQty = enabledSizes.reduce((sum, s) => sum + ((sizes[s]?.qty) || 0), 0)
+                                const custQtys = customerSizeQtys[item.id] || {}
+                                const itemTotalQty = enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? sizes[s]?.qty ?? 0), 0)
                                 return (
                                   <div key={item.id} style={{ marginBottom: '12px' }}>
                                     <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a', marginBottom: '8px' }}>
-                                      {item.description}{cf.color ? ` — ${cf.color}` : ''} ({itemTotalQty} pcs)
+                                      {item.description}{cf.color ? ` — ${customerColors[item.id] || cf.color}` : ''} ({itemTotalQty} pcs)
                                     </div>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                       {enabledSizes.map(size => {
                                         const s = sizes[size] || { qty: 0, price: 0 }
-                                        if (s.qty <= 0) return null
+                                        const custQty = custQtys[size] ?? s.qty
                                         return (
                                           <div key={size} style={{
                                             display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                                            padding: '8px 15px', background: '#ffffff', borderRadius: '8px',
-                                            border: '1px solid #e5e7eb', minWidth: '68px'
+                                            padding: '8px 10px', background: custQty > 0 ? 'rgba(190,30,45,0.03)' : '#ffffff', borderRadius: '8px',
+                                            border: custQty > 0 ? '2px solid #be1e2d' : '1px solid #e5e7eb', minWidth: '68px',
+                                            transition: 'all 0.15s ease'
                                           }}>
-                                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
-                                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '2px' }}>{s.qty}</div>
+                                            <div style={{ fontSize: '13px', fontWeight: 700, color: custQty > 0 ? '#be1e2d' : '#6b7280', textTransform: 'uppercase' }}>{size}</div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={custQty || ''}
+                                              placeholder="0"
+                                              onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0
+                                                setCustomerSizeQtys(prev => ({
+                                                  ...prev,
+                                                  [item.id]: { ...(prev[item.id] || {}), [size]: val }
+                                                }))
+                                                setEditedItems(prev => new Set(prev).add(item.id))
+                                              }}
+                                              style={{
+                                                width: '52px', padding: '6px 4px', marginTop: '4px',
+                                                border: '1px solid #e5e7eb', borderRadius: '6px',
+                                                fontSize: '16px', fontWeight: 600, textAlign: 'center',
+                                                background: '#ffffff', outline: 'none', fontFamily: 'inherit'
+                                              }}
+                                            />
                                           </div>
                                         )
                                       })}
@@ -1834,8 +2105,15 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                             const isApparelItem = cf.apparel_mode === true
                             const enabledSizes = (cf.enabled_sizes || []) as string[]
                             const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+                            const currentColor = customerColors[item.id] || cf.color
+                            const product = supplierProducts[item.id]
+                            const availableColors = product?.colors || []
 
                             if (isApparelItem && enabledSizes.length > 0) {
+                              // Calculate total from customer-edited quantities
+                              const custQtys = customerSizeQtys[item.id] || {}
+                              const totalPcs = enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? sizes[s]?.qty ?? 0), 0)
+
                               return (
                                 <div>
                                   {/* Apparel item header */}
@@ -1848,7 +2126,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                     <div style={{ flex: 1 }}>
                                       <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>
                                         {item.description || 'Line Item'}
-                                        {cf.color && <span style={{ color: '#6b7280', fontWeight: 400 }}> — {cf.color}</span>}
+                                        {currentColor && <span style={{ color: '#6b7280', fontWeight: 400 }}> — {currentColor}</span>}
                                       </div>
                                       {cf.item_number && (
                                         <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>Item #{cf.item_number}</div>
@@ -1856,34 +2134,100 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                     </div>
                                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                       <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
-                                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} pcs total</div>
+                                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{totalPcs} pcs total</div>
                                     </div>
                                   </div>
 
-                                  {/* Size breakdown grid */}
-                                  <div style={{ marginTop: '10px', marginLeft: '20px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {enabledSizes.map(size => {
-                                      const s = sizes[size] || { qty: 0, price: 0 }
-                                      if (s.qty <= 0) return null
-                                      return (
-                                        <div key={size} style={{
-                                          display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                                          padding: '8px 15px', background: '#f8f9fa', borderRadius: '8px',
-                                          border: '1px solid #e5e7eb', minWidth: '75px'
-                                        }}>
-                                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#be1e2d', textTransform: 'uppercase' }}>{size}</div>
-                                          <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{s.qty}</div>
-                                          <div style={{ fontSize: '14px', color: '#6b7280' }}>{formatCurrency(s.price)} ea</div>
+                                  {/* Color picker */}
+                                  {availableColors.length > 1 && canApprove && (
+                                    <div style={{ marginTop: '12px', marginLeft: '20px' }}>
+                                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                                        Color Options
+                                      </div>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                        {availableColors.map((c: any, ci: number) => {
+                                          const isActive = c.colorName === currentColor
+                                          return (
+                                            <div
+                                              key={c.colorID || ci}
+                                              onClick={() => setCustomerColors(prev => ({ ...prev, [item.id]: c.colorName }))}
+                                              title={c.colorName}
+                                              style={{
+                                                width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer',
+                                                border: isActive ? '3px solid #be1e2d' : '2px solid #e5e7eb',
+                                                background: c.colorHex ? `#${c.colorHex.replace('#', '')}` : '#ccc',
+                                                ...(c.colorSwatchUrl && !c.colorHex ? { backgroundImage: `url(${c.colorSwatchUrl})`, backgroundSize: 'cover' } : {}),
+                                                transition: 'all 0.15s ease',
+                                                boxShadow: isActive ? '0 0 0 2px rgba(190,30,45,0.3)' : 'none'
+                                              }}
+                                            />
+                                          )
+                                        })}
+                                      </div>
+                                      {currentColor !== cf.color && currentColor && (
+                                        <div style={{ fontSize: '12px', color: '#be1e2d', marginTop: '4px', fontWeight: 500 }}>
+                                          Changed to: {currentColor}
                                         </div>
-                                      )
-                                    })}
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Size breakdown grid - editable when quote can be approved */}
+                                  <div style={{ marginTop: '10px', marginLeft: '20px' }}>
+                                    {canApprove && (
+                                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                                        Sizes & Quantities
+                                      </div>
+                                    )}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                      {enabledSizes.map(size => {
+                                        const s = sizes[size] || { qty: 0, price: 0 }
+                                        const custQty = custQtys[size] ?? s.qty
+                                        if (!canApprove && custQty <= 0) return null
+                                        return (
+                                          <div key={size} style={{
+                                            display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                            padding: '8px 10px', background: custQty > 0 ? (canApprove ? 'rgba(190,30,45,0.03)' : '#f8f9fa') : '#f8f9fa', borderRadius: '8px',
+                                            border: custQty > 0 && canApprove ? '2px solid #be1e2d' : '1px solid #e5e7eb', minWidth: '75px',
+                                            transition: 'all 0.15s ease'
+                                          }}>
+                                            <div style={{ fontSize: '14px', fontWeight: 700, color: custQty > 0 ? '#be1e2d' : '#6b7280', textTransform: 'uppercase' }}>{size}</div>
+                                            {canApprove ? (
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={custQty || ''}
+                                                placeholder="0"
+                                                onChange={(e) => {
+                                                  const val = parseInt(e.target.value) || 0
+                                                  setCustomerSizeQtys(prev => ({
+                                                    ...prev,
+                                                    [item.id]: { ...(prev[item.id] || {}), [size]: val }
+                                                  }))
+                                                  setEditedItems(prev => new Set(prev).add(item.id))
+                                                }}
+                                                style={{
+                                                  width: '52px', padding: '6px 4px', marginTop: '4px',
+                                                  border: '1px solid #e5e7eb', borderRadius: '6px',
+                                                  fontSize: '16px', fontWeight: 600, textAlign: 'center',
+                                                  background: '#ffffff', outline: 'none', fontFamily: 'inherit'
+                                                }}
+                                              />
+                                            ) : (
+                                              <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{custQty}</div>
+                                            )}
+                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(s.price)} ea</div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
                                   </div>
 
                                   {/* Qty tier pricing table */}
                                   {pricingMatrices.length > 0 && (() => {
                                     const tiers = buildTierPricing(item, pricingMatrices)
                                     if (!tiers || tiers.length === 0) return null
-                                    const currentQty = item.quantity || 0
+                                    const currentQty = totalPcs || item.quantity || 0
                                     const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
                                     const matrix = pricingMatrices.find(m => m.decoration_type === (isEmbroidery ? 'embroidery' : 'dtf'))
                                     const sortedBreaks = matrix ? [...matrix.quantity_breaks].sort((a, b) => a.min - b.min) : []
@@ -1937,6 +2281,59 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   {item.quantity > 1 && (
                                     <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} x {formatCurrency(item.rate || item.unit_price)}</div>
                                   )}
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          {/* Dynamic mockup preview when customer changes color */}
+                          {(() => {
+                            const cf = item.custom_fields || {}
+                            const selectedColor = customerColors[item.id]
+                            const hasColorChange = selectedColor && selectedColor !== cf.color && cf.apparel_mode && cf.mockup_config
+                            if (!hasColorChange) return null
+
+                            const product = supplierProducts[item.id]
+                            if (!product) return null
+                            const newColorData = product.colors?.find((c: any) => c.colorName === selectedColor)
+                            if (!newColorData) return null
+
+                            // Show the new color's garment images as a preview
+                            const previewImages: { url: string; location: string }[] = []
+                            if (newColorData.frontImage) previewImages.push({ url: newColorData.frontImage, location: 'Front' })
+                            if (newColorData.backImage) previewImages.push({ url: newColorData.backImage, location: 'Back' })
+                            if (newColorData.sideImage) previewImages.push({ url: newColorData.sideImage, location: 'Side' })
+
+                            if (previewImages.length === 0) return null
+
+                            return (
+                              <div style={{ marginTop: '16px', padding: '12px', background: '#fffbf0', border: '1px solid #f59e0b', borderRadius: '10px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                                  Preview: {selectedColor}
+                                </div>
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: previewImages.length === 1 ? '1fr' : `repeat(${Math.min(previewImages.length, 3)}, 1fr)`,
+                                  gap: '8px'
+                                }}>
+                                  {previewImages.map((preview, pidx) => (
+                                    <div key={pidx}>
+                                      <div style={{ fontSize: '11px', color: '#92400e', marginBottom: '4px', fontWeight: 500 }}>{preview.location}</div>
+                                      <div style={{
+                                        position: 'relative', width: '100%', paddingBottom: '100%',
+                                        borderRadius: '8px', overflow: 'hidden', background: '#f1f5f9'
+                                      }}>
+                                        <img
+                                          src={preview.url}
+                                          alt={`${selectedColor} ${preview.location}`}
+                                          style={{
+                                            position: 'absolute', top: 0, left: 0,
+                                            width: '100%', height: '100%', objectFit: 'contain'
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             )
