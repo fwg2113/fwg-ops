@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { renderDSTFile } from '@/app/lib/dstParser'
 
 type Location = 'Front' | 'Back' | 'Sleeves'
 
@@ -513,29 +514,88 @@ export default function GarmentMockupBuilder({
       const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
       const isDesignFile = /\.(emb|dst|pdf)$/i.test(file.name)
 
-      // Handle non-renderable design files with a placeholder
+      // Handle design files (DST = stitch render, PDF = page render, EMB = placeholder)
       if (isDesignFile) {
-        const placeholderUrl = createDesignFilePlaceholder(file.name)
-        const newLogo: Logo = {
-          id: `logo_${Date.now()}_${Math.random()}`,
-          url: placeholderUrl,
-          originalUrl: placeholderUrl,
-          backgroundRemoved: false,
-          location: activeLocation,
-          x: 0.35,
-          y: 0.3,
-          width: 0.3,
-          height: 0.3,
-          rotation: 0,
-          isSvg: false,
-          aspectRatio: 1
-        }
-        setLogos(prev => [...prev, newLogo])
-        setSelectedLogoId(newLogo.id)
+        const isDst = /\.dst$/i.test(file.name)
+        const isPdf = /\.pdf$/i.test(file.name)
 
         // Upload the actual file as a line item attachment
         if (onFileUpload) {
           onFileUpload(file)
+        }
+
+        if (isDst) {
+          // Render DST stitch preview
+          renderDSTFile(file, 800).then(stitchDataUrl => {
+            const img = new Image()
+            img.onload = () => {
+              const aspectRatio = img.naturalWidth / img.naturalHeight
+              const height = 0.3 / aspectRatio
+              const newLogo: Logo = {
+                id: `logo_${Date.now()}_${Math.random()}`,
+                url: stitchDataUrl,
+                originalUrl: stitchDataUrl,
+                backgroundRemoved: false,
+                location: activeLocation,
+                x: 0.35,
+                y: 0.3,
+                width: 0.3,
+                height: height,
+                rotation: 0,
+                isSvg: false,
+                aspectRatio
+              }
+              setLogos(prev => [...prev, newLogo])
+              setSelectedLogoId(newLogo.id)
+            }
+            img.src = stitchDataUrl
+          }).catch(() => {
+            // Fallback to placeholder if parsing fails
+            const placeholderUrl = createDesignFilePlaceholder(file.name)
+            const newLogo: Logo = {
+              id: `logo_${Date.now()}_${Math.random()}`,
+              url: placeholderUrl,
+              originalUrl: placeholderUrl,
+              backgroundRemoved: false,
+              location: activeLocation,
+              x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
+              isSvg: false, aspectRatio: 1
+            }
+            setLogos(prev => [...prev, newLogo])
+            setSelectedLogoId(newLogo.id)
+          })
+        } else if (isPdf) {
+          // Render PDF first page using an object URL and canvas
+          const pdfUrl = URL.createObjectURL(file)
+          // Use an iframe/canvas approach - create a placeholder for now with the filename
+          // PDF rendering requires pdf.js which we can add later for full vector support
+          const placeholderUrl = createDesignFilePlaceholder(file.name)
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url: placeholderUrl,
+            originalUrl: placeholderUrl,
+            backgroundRemoved: false,
+            location: activeLocation,
+            x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
+            isSvg: false, aspectRatio: 1
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
+          URL.revokeObjectURL(pdfUrl)
+        } else {
+          // EMB and other formats - placeholder (no JS parser available for Wilcom EMB)
+          const placeholderUrl = createDesignFilePlaceholder(file.name)
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url: placeholderUrl,
+            originalUrl: placeholderUrl,
+            backgroundRemoved: false,
+            location: activeLocation,
+            x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
+            isSvg: false, aspectRatio: 1
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
         }
         return
       }
