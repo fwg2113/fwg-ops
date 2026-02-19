@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const required = REQUIRED_BY_FORM_TYPE[formType] || REQUIRED_BY_FORM_TYPE.commercial_wrap
     const missing = required.filter(f => !body[f])
     if (missing.length > 0) {
+      console.error(`Missing required fields [${formType}]:`, missing, '| Received keys:', Object.keys(body))
       return NextResponse.json(
         { error: 'Missing required fields', fields: missing },
         { status: 400, headers: CORS_HEADERS }
