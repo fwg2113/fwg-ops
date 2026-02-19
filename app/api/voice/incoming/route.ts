@@ -40,13 +40,14 @@ export async function POST(request: Request) {
     
     console.log('Insert error:', insertError)
 
-    // Build dial - escape & as &amp; for XML
+    // Build dial - ring browser clients AND team phones simultaneously
     const numbers = teamPhones.map(p => `<Number>${p.phone}</Number>`).join('\n    ')
     const actionUrl = `https://fwg-ops.vercel.app/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
+    <Client>ops-dashboard</Client>
     ${numbers}
   </Dial>
 </Response>`
