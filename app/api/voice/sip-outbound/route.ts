@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     // Return TwiML to connect the call with business number as caller ID
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${twilioNumber}">
+  <Dial callerId="${twilioNumber}" answerOnBridge="true">
     <Number>${dialNumber}</Number>
   </Dial>
 </Response>`
