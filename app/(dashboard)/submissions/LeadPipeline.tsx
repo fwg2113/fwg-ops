@@ -19,6 +19,8 @@ type Submission = {
   price_range_min: number
   price_range_max: number
   created_at: string
+  form_type?: string
+  services?: string[]
 }
 
 type Document = {
@@ -49,6 +51,7 @@ type PipelineCard = {
   viewed: boolean
   status: string
   bucket?: string
+  formType?: string
 }
 
 type Props = {
@@ -60,6 +63,7 @@ type Props = {
 export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
+  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling'>('all')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = () => {
@@ -102,19 +106,29 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
     // Process submissions - New/In Progress go to newLeads
     submissions.forEach(sub => {
       if (sub.status === 'converted' || sub.status === 'lost' || sub.status === 'archived') return
-      
+
+      // Apply form type filter
+      const subFormType = sub.form_type || 'commercial_wrap'
+      if (formTypeFilter !== 'all' && subFormType !== formTypeFilter) return
+
+      const isStyling = subFormType === 'automotive_styling'
+      const description = isStyling
+        ? (sub.services || []).map((s: string) => s.replace(/_/g, ' ')).join(', ') || 'Styling inquiry'
+        : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || ''
+
       const card: PipelineCard = {
         type: 'submission',
         id: sub.id,
         docNumber: sub.submission_id || sub.id,
         name: sub.customer_name || 'Unknown',
-        description: [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || '',
+        description,
         amount: sub.price_range_max || 0,
         date: sub.created_at,
         viewed: false,
-        status: sub.status
+        status: sub.status,
+        formType: subFormType
       }
-      
+
       if (matchesSearch(card)) {
         lanes.newLeads.push(card)
       }
@@ -276,13 +290,21 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
     }
   }
 
+  const getFormTypeBadge = (formType?: string) => {
+    if (formType === 'automotive_styling') {
+      return { label: 'STYLING', bg: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }
+    }
+    return { label: 'COMMERCIAL', bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }
+  }
+
   const renderCard = (card: PipelineCard) => {
     const badgeStyle = getBadgeStyle(card.type)
-    const badgeLabel = card.type === 'submission' 
-      ? `SUBMISSION ${card.docNumber}` 
-      : card.type === 'quote' 
-        ? `QUOTE ${card.docNumber}` 
+    const badgeLabel = card.type === 'submission'
+      ? `SUBMISSION ${card.docNumber}`
+      : card.type === 'quote'
+        ? `QUOTE ${card.docNumber}`
         : `INVOICE ${card.docNumber}`
+    const formBadge = card.type === 'submission' ? getFormTypeBadge(card.formType) : null
 
     return (
       <div
@@ -307,18 +329,34 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-          <span style={{
-            padding: '3px 8px',
-            borderRadius: '4px',
-            fontSize: '10px',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.3px',
-            background: badgeStyle.bg,
-            color: badgeStyle.color
-          }}>
-            {badgeLabel}
-          </span>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{
+              padding: '3px 8px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.3px',
+              background: badgeStyle.bg,
+              color: badgeStyle.color
+            }}>
+              {badgeLabel}
+            </span>
+            {formBadge && (
+              <span style={{
+                padding: '3px 6px',
+                borderRadius: '4px',
+                fontSize: '9px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.3px',
+                background: formBadge.bg,
+                color: formBadge.color
+              }}>
+                {formBadge.label}
+              </span>
+            )}
+          </div>
           {card.amount > 0 && (
             <span style={{ color: '#22c55e', fontWeight: 600, fontSize: '14px' }}>
               ${card.amount.toLocaleString()}
@@ -427,26 +465,54 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
 
       {/* Controls Row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
-        {/* Search */}
-        <div style={{ position: 'relative', flex: '1', maxWidth: '350px' }}>
-          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>
-            <SearchIcon />
-          </span>
-          <input
-            type="text"
-            placeholder="Search pipeline..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '10px 12px 10px 42px',
-              background: '#1d1d1d',
-              border: '1px solid rgba(148, 163, 184, 0.2)',
-              borderRadius: '8px',
-              color: '#f1f5f9',
-              fontSize: '14px'
-            }}
-          />
+        {/* Search + Filter */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: '1' }}>
+          <div style={{ position: 'relative', flex: '1', maxWidth: '350px' }}>
+            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>
+              <SearchIcon />
+            </span>
+            <input
+              type="text"
+              placeholder="Search pipeline..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 12px 10px 42px',
+                background: '#1d1d1d',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                borderRadius: '8px',
+                color: '#f1f5f9',
+                fontSize: '14px'
+              }}
+            />
+          </div>
+          {/* Form Type Filter */}
+          <div style={{ display: 'flex', gap: '4px', background: '#1d1d1d', borderRadius: '8px', padding: '4px' }}>
+            {([
+              { key: 'all', label: 'All' },
+              { key: 'commercial_wrap', label: 'Commercial' },
+              { key: 'automotive_styling', label: 'Styling' },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFormTypeFilter(key)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  background: formTypeFilter === key ? '#d71cd1' : 'transparent',
+                  color: formTypeFilter === key ? 'white' : '#94a3b8',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Stats */}
