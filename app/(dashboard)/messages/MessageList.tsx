@@ -246,6 +246,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
   const [selectedCall, setSelectedCall] = useState<Call | null>(null)
   const [callModalMessage, setCallModalMessage] = useState('')
   const [sendingFromModal, setSendingFromModal] = useState(false)
+  const [callingFromModal, setCallingFromModal] = useState(false)
   const [attachment, setAttachment] = useState<{ file: File, url: string, uploading: boolean } | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [lightboxZoom, setLightboxZoom] = useState(1)
@@ -1673,6 +1674,51 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
               alignItems: 'center'
             }}>
               <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  disabled={callingFromModal}
+                  onClick={async () => {
+                    setCallingFromModal(true)
+                    try {
+                      const response = await fetch('/api/voice/call', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          to: selectedCall.caller_phone,
+                          customerName: selectedCall.caller_name || formatPhone(selectedCall.caller_phone)
+                        })
+                      })
+                      if (response.ok) {
+                        // Mark as read
+                        await supabase.from('calls').update({ read: true }).eq('id', selectedCall.id)
+                        setCalls(calls.map(c => c.id === selectedCall.id ? { ...c, read: true } : c))
+                        alert('Call initiated! Your phone will ring shortly.')
+                      } else {
+                        const data = await response.json()
+                        alert(data.error || 'Failed to initiate call')
+                      }
+                    } catch {
+                      alert('Failed to initiate call')
+                    }
+                    setCallingFromModal(false)
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#22c55e',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: callingFromModal ? 'not-allowed' : 'pointer',
+                    opacity: callingFromModal ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <PhoneIcon />
+                  {callingFromModal ? 'Calling...' : 'Call Back'}
+                </button>
                 {(selectedCall.status === 'missed' || selectedCall.status === 'voicemail') && !selectedCall.read && (
                   <button
                     onClick={async () => {
