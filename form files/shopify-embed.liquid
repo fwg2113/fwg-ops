@@ -678,7 +678,9 @@ switch (stepNum) {
 case 1:
 if (!document.getElementById('businessName').value.trim()) errors.push('businessName');
 if (!document.getElementById('contactName').value.trim()) errors.push('contactName');
-if (!document.getElementById('email').value.trim()) errors.push('email');
+var emailVal = document.getElementById('email').value.trim();
+if (!emailVal) { errors.push('email'); }
+else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailVal)) { errors.push('email'); }
 if (!document.getElementById('phone').value.trim()) errors.push('phone');
 if (!document.getElementById('contactMethodHidden').value) errors.push('contactMethod');
 break;
@@ -1313,6 +1315,8 @@ setTimeout(function() { highlightErrors(step, errs); }, 50);
 if (errors.includes('aiAcknowledge')) {
 showToast('AI artwork requires acknowledgment');
 openAiPolicyModal();
+} else if (i === 1 && errors.length === 1 && errors[0] === 'email' && document.getElementById('email').value.trim()) {
+showToast('Please enter a valid email address');
 } else {
 showToast('Please fill in all required fields');
 }

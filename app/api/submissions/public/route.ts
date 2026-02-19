@@ -24,6 +24,18 @@ const COVERAGE_TO_CATEGORY: Record<string, string> = {
   not_sure: 'OTHER',
 }
 
+// ─── Normalise an email value: coerce to string, strip invisible
+// characters (zero-width spaces, BOM, non-breaking spaces), trim, and
+// lower-case.  Returns empty string when the input is falsy. ───
+function normalizeEmail(raw: unknown): string {
+  if (!raw) return ''
+  return String(raw)
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF\u00A0\u200E\u200F]/g, '') // invisible / directional chars
+    .replace(/\s+/g, '')  // collapse any remaining whitespace (shouldn't be in emails)
+    .toLowerCase()
+}
+
 // ─── Main handler ───
 export async function POST(request: NextRequest) {
   try {
@@ -31,11 +43,22 @@ export async function POST(request: NextRequest) {
 
     const formType = body.form_type || 'commercial_wrap'
 
-    // Sanitize string inputs
-    if (body.email) body.email = String(body.email).trim()
+    // ── Resolve email from whichever field the form sends ──
+    // Some form versions use "email", others may use "customer_email" or "contact_email".
+    const rawEmail = body.email ?? body.customer_email ?? body.contact_email ?? ''
+    body.email = normalizeEmail(rawEmail)
+
+    // Sanitize other string inputs
     if (body.phone) body.phone = String(body.phone).trim()
     if (body.contact_name) body.contact_name = String(body.contact_name).trim()
     if (body.business_name) body.business_name = String(body.business_name).trim()
+
+    // Also resolve contact_name from alternate field names
+    if (!body.contact_name && body.customer_name) {
+      body.contact_name = String(body.customer_name).trim()
+    }
+
+    console.log(`[${formType}] submission received — keys: ${Object.keys(body).join(', ')}, email: ${JSON.stringify(body.email)}`)
 
     // ── Validate required fields (varies by form type) ──
     const REQUIRED_BY_FORM_TYPE: Record<string, string[]> = {
@@ -45,7 +68,7 @@ export async function POST(request: NextRequest) {
     const required = REQUIRED_BY_FORM_TYPE[formType] || REQUIRED_BY_FORM_TYPE.commercial_wrap
     const missing = required.filter(f => !body[f])
     if (missing.length > 0) {
-      console.error(`Missing required fields [${formType}]:`, missing, '| Received keys:', Object.keys(body))
+      console.error(`Missing required fields [${formType}]:`, missing, '| Received keys:', Object.keys(body), '| Body:', JSON.stringify(body).slice(0, 500))
       return NextResponse.json(
         { error: 'Missing required fields', fields: missing },
         { status: 400, headers: CORS_HEADERS }
@@ -53,8 +76,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Basic email validation ──
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
-      console.error(`Invalid email [${formType}]:`, JSON.stringify(body.email))
+    // Lenient regex: local@domain.tld — allows + tags, dots, hyphens, etc.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(body.email)) {
+      console.error(`Invalid email [${formType}]:`, JSON.stringify(body.email), '| raw:', JSON.stringify(rawEmail), '| Body:', JSON.stringify(body).slice(0, 500))
       return NextResponse.json(
         { error: 'Invalid email address' },
         { status: 400, headers: CORS_HEADERS }
