@@ -1345,6 +1345,7 @@ return uploadFiles(logoInput, folder + '/logos');
 })
 .then(function(logoUrls) {
 var payload = {
+form_type: 'commercial_wrap',
 business_name: formData.business_name,
 contact_name: formData.contact_name,
 email: formData.email,
