@@ -115,7 +115,7 @@ type DashboardData = {
   pinnedItems: PinnedItem[]
   metrics: {
     monthlyRevenue: number
-    ppfVinylRevenue: number
+    commissionPool: number
     bonus25Pct: number
     embroideryBonus10Pct: number
     yearlyRevenue: number
@@ -652,7 +652,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
           {[
             { value: data.metrics.monthlyRevenue, label: `${new Date().toLocaleString('default', { month: 'short' })} Revenue`, color: '#d71cd1' },
-            { value: data.metrics.ppfVinylRevenue, label: 'PPF & Vinyl', color: '#d71cd1' },
+            { value: data.metrics.commissionPool, label: 'Commission Pool', color: '#d71cd1' },
             { value: Math.round(data.metrics.bonus25Pct), label: '2.5% Bonus', color: '#22c55e' },
             { value: Math.round(data.metrics.embroideryBonus10Pct), label: 'Embroidery 10%', color: '#06b6d4' },
             { value: data.metrics.yearlyRevenue, label: `${new Date().getFullYear()} YTD`, color: '#a855f7' },

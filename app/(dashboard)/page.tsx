@@ -112,7 +112,7 @@ export default async function DashboardPage() {
     pinnedItems: pinnedItems || [],
     metrics: {
       monthlyRevenue: liveMetrics.fwgMtdTotal,
-      ppfVinylRevenue: liveMetrics.bonusEligibleMtd,
+      commissionPool: liveMetrics.bonusEligibleMtd,
       bonus25Pct: liveMetrics.bonus25Pct,
       embroideryBonus10Pct: liveMetrics.embroideryBonus10Pct,
       yearlyRevenue: liveMetrics.fwgYtdTotal,
