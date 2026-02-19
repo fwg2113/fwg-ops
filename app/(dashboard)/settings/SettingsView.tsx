@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import { BUILTIN_SOUNDS, playSound, playCustomSound, type SoundOption } from '../../lib/notificationSounds'
 
@@ -2960,8 +2960,8 @@ export default function SettingsView({
             </div>
             <div style={{ padding: '12px' }}>
               {callSettings.length > 0 ? callSettings.map((setting) => (
+                <Fragment key={setting.id}>
                 <div
-                  key={setting.id}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -3127,6 +3127,7 @@ export default function SettingsView({
                     </button>
                   </div>
                 )}
+                </Fragment>
               )) : (
                 <p style={{ color: '#64748b', padding: '20px', textAlign: 'center' }}>No team phones configured</p>
               )}
