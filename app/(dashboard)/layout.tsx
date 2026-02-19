@@ -2,6 +2,7 @@
 
 import Sidebar from '../components/Sidebar'
 import NotificationManager from '../components/NotificationManager'
+import PhoneWidget from './components/PhoneWidget'
 
 export default function DashboardLayout({
   children,
@@ -32,6 +33,7 @@ export default function DashboardLayout({
           {children}
         </main>
         <NotificationManager />
+        <PhoneWidget />
       </div>
     </>
   )

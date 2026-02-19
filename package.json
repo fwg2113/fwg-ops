@@ -13,6 +13,7 @@
     "@aws-sdk/client-s3": "^3.985.0",
     "@aws-sdk/s3-request-presigner": "^3.975.0",
     "@supabase/supabase-js": "^2.91.1",
+    "@twilio/voice-sdk": "^2.18.0",
     "googleapis": "^144.0.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",
