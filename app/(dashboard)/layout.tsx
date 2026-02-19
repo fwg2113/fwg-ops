@@ -1,8 +1,10 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import Sidebar from '../components/Sidebar'
 import NotificationManager from '../components/NotificationManager'
-import PhoneWidget from './components/PhoneWidget'
+
+const PhoneWidget = dynamic(() => import('./components/PhoneWidget'), { ssr: false })
 
 export default function DashboardLayout({
   children,
