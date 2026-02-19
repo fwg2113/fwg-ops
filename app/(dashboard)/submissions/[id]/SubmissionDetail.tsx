@@ -58,6 +58,12 @@ type Submission = {
   additional_info?: string
   budget?: string
   source_page?: string
+  // Form type
+  form_type?: string
+  // Styling-form-specific fields
+  services?: string[]
+  service_details?: Record<string, any>
+  reference_image_urls?: string[]
 }
 
 // Icons as components
@@ -193,6 +199,24 @@ const BUDGET_LABELS: Record<string, string> = {
   '5000_10000': '$5,000 \u2013 $10,000',
   '10000_plus': '$10,000+',
   'not_sure': 'Not sure yet'
+}
+
+const SERVICE_LABELS: Record<string, string> = {
+  'printed_wraps': 'Printed Wraps',
+  'full_color_change': 'Full Color Change',
+  'styling_graphics': 'Styling Graphics',
+  'tuxedo_roof': 'Tuxedo / Roof Wraps',
+  'chrome_delete': 'Chrome Delete',
+  'custom_taillights': 'Custom Taillights',
+  'racing_stripes': 'Racing Stripes',
+  'custom_decals': 'Custom Decals',
+  'back_window_flags': 'Back Window Flags',
+  'other': 'Other',
+}
+
+const FORM_TYPE_LABELS: Record<string, string> = {
+  'commercial_wrap': 'Commercial Wrap',
+  'automotive_styling': 'Automotive Styling',
 }
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
@@ -445,8 +469,21 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
             <h1 style={{ color: '#f1f5f9', fontSize: '22px', fontWeight: 600, margin: 0 }}>
               {submission.customer_name || 'Unknown Customer'}
             </h1>
-            <span style={{ color: '#64748b', fontSize: '13px', fontFamily: 'monospace' }}>
-              SUBMISSION #{submission.submission_number || submission.id.slice(0, 8)}
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#64748b', fontSize: '13px', fontFamily: 'monospace' }}>
+                SUBMISSION #{submission.submission_number || submission.id.slice(0, 8)}
+              </span>
+              <span style={{
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontSize: '10px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                background: submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                color: submission.form_type === 'automotive_styling' ? '#f97316' : '#3b82f6',
+              }}>
+                {FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}
+              </span>
             </span>
           </div>
         </div>
@@ -634,39 +671,80 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           )}
 
           <div style={{ borderTop: '1px solid rgba(148, 163, 184, 0.08)', marginTop: '8px', paddingTop: '8px' }}>
-            <div style={rowStyle}>
-              <span style={labelStyle}>Coverage Type</span>
-              <span style={valueStyle}>
-                {COVERAGE_LABELS[submission.coverage_type || ''] || PROJECT_LABELS[submission.project_type] || submission.coverage_type || submission.project_type || '-'}
-              </span>
-            </div>
-            <div style={rowStyle}>
-              <span style={labelStyle}>Artwork Status</span>
-              <span style={{ ...valueStyle, display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
-                {ARTWORK_LABELS[submission.artwork_status || ''] || DESIGN_LABELS[submission.design_scenario] || submission.artwork_status || submission.design_scenario || '-'}
-                {submission.ai_acknowledged && (
-                  <span style={{
-                    background: 'rgba(234, 179, 8, 0.15)',
-                    color: '#eab308',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    padding: '2px 6px',
-                    borderRadius: '4px'
-                  }}>AI</span>
+            {submission.form_type === 'automotive_styling' ? (
+              <>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Services</span>
+                  <span style={{ ...valueStyle, maxWidth: '60%' }}>
+                    {submission.services && submission.services.length > 0
+                      ? submission.services.map((s: string) => SERVICE_LABELS[s] || s.replace(/_/g, ' ')).join(', ')
+                      : '-'}
+                  </span>
+                </div>
+                {submission.service_details && Object.keys(submission.service_details).length > 0 && (
+                  Object.entries(submission.service_details).map(([svc, detail]) => {
+                    if (!detail) return null
+                    const parts = typeof detail === 'object'
+                      ? Object.entries(detail as Record<string, any>).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(', ')
+                      : String(detail)
+                    return (
+                      <div key={svc} style={rowStyle}>
+                        <span style={labelStyle}>{SERVICE_LABELS[svc] || svc.replace(/_/g, ' ')}</span>
+                        <span style={{ ...valueStyle, maxWidth: '60%' }}>{parts}</span>
+                      </div>
+                    )
+                  })
                 )}
-              </span>
-            </div>
-            {submission.logo_urls && submission.logo_urls.length > 0 && (
-              <div style={lastRowStyle}>
-                <span style={labelStyle}>Logo Files</span>
-                <span style={valueStyle}>
-                  {submission.logo_urls.map((url: string, i: number) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
-                      Logo {i + 1}
-                    </a>
-                  ))}
-                </span>
-              </div>
+                {submission.reference_image_urls && submission.reference_image_urls.length > 0 && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>Reference Images</span>
+                    <span style={valueStyle}>
+                      {submission.reference_image_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          Image {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Coverage Type</span>
+                  <span style={valueStyle}>
+                    {COVERAGE_LABELS[submission.coverage_type || ''] || PROJECT_LABELS[submission.project_type] || submission.coverage_type || submission.project_type || '-'}
+                  </span>
+                </div>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Artwork Status</span>
+                  <span style={{ ...valueStyle, display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                    {ARTWORK_LABELS[submission.artwork_status || ''] || DESIGN_LABELS[submission.design_scenario] || submission.artwork_status || submission.design_scenario || '-'}
+                    {submission.ai_acknowledged && (
+                      <span style={{
+                        background: 'rgba(234, 179, 8, 0.15)',
+                        color: '#eab308',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: '4px'
+                      }}>AI</span>
+                    )}
+                  </span>
+                </div>
+                {submission.logo_urls && submission.logo_urls.length > 0 && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>Logo Files</span>
+                    <span style={valueStyle}>
+                      {submission.logo_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          Logo {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -725,6 +803,10 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 ))}
               </select>
             </span>
+          </div>
+          <div style={rowStyle}>
+            <span style={labelStyle}>Form Type</span>
+            <span style={valueStyle}>{FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}</span>
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>Source</span>
