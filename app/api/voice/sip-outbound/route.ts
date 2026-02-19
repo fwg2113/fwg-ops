@@ -23,15 +23,23 @@ export async function POST(request: Request) {
     const sipMatch = to.match(/^sip:([^@]+)@/)
     if (sipMatch) {
       dialNumber = sipMatch[1]
-      // Add + prefix if it's a raw number without it
-      if (/^\d{10,}$/.test(dialNumber)) {
-        dialNumber = '+1' + dialNumber
-      } else if (/^\+?\d+$/.test(dialNumber)) {
-        if (!dialNumber.startsWith('+')) {
-          dialNumber = '+' + dialNumber
-        }
-      }
     }
+    // Clean up and normalize to E.164 format (+1XXXXXXXXXX)
+    dialNumber = dialNumber.replace(/[^+\d]/g, '') // strip non-numeric except +
+    if (dialNumber.startsWith('+')) {
+      // Already has +, leave it (e.g. +15551234567)
+    } else if (dialNumber.startsWith('1') && dialNumber.length === 11) {
+      // 11 digits starting with 1 = US number with country code, just add +
+      dialNumber = '+' + dialNumber
+    } else if (dialNumber.length === 10) {
+      // 10 digits = US number without country code, add +1
+      dialNumber = '+1' + dialNumber
+    } else {
+      // Fallback: add + if missing
+      dialNumber = '+' + dialNumber
+    }
+
+    console.log('SIP outbound parsed number:', { raw: to, parsed: dialNumber })
 
     const twilioNumber = process.env.TWILIO_PHONE_NUMBER
     if (!twilioNumber) {
