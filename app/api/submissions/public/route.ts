@@ -199,14 +199,14 @@ function formatLabel(key: string) {
 // ─── Service labels for styling forms ──────────────────────
 const SERVICE_LABELS: Record<string, string> = {
   printed_wraps: 'Printed Wraps',
-  full_color_change: 'Full Color Change',
+  color_change: 'Full Color Change',
   styling_graphics: 'Styling Graphics',
   tuxedo_roof: 'Tuxedo / Roof Wraps',
   chrome_delete: 'Chrome Delete',
   custom_taillights: 'Custom Taillights',
   racing_stripes: 'Racing Stripes',
   custom_decals: 'Custom Decals',
-  back_window_flags: 'Back Window Flags',
+  window_flags: 'Back Window Flags',
   other: 'Other',
 }
 
@@ -237,6 +237,9 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     }
     if (v.paint_condition) {
       vehicleHTML += emailRow('Paint Condition', v.paint_condition)
+    }
+    if (v.paint_issue) {
+      vehicleHTML += emailRow('Paint Issues', 'Yes' + (v.paint_desc ? ' — ' + v.paint_desc : ''))
     }
   })
 
