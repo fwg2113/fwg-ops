@@ -351,7 +351,7 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
   </div>
 </body></html>`
 
-  await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${resendApiKey}`,
@@ -364,4 +364,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       html: emailHTML,
     }),
   })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    console.error(`Resend API error [${formType}]: ${res.status} — ${errBody}`)
+    throw new Error(`Resend ${res.status}: ${errBody}`)
+  }
+
+  console.log(`Notification email sent for ${formType} submission`)
 }
