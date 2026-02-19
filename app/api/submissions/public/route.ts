@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
 
     const formType = body.form_type || 'commercial_wrap'
 
+    // Sanitize string inputs
+    if (body.email) body.email = String(body.email).trim()
+    if (body.phone) body.phone = String(body.phone).trim()
+    if (body.contact_name) body.contact_name = String(body.contact_name).trim()
+    if (body.business_name) body.business_name = String(body.business_name).trim()
+
     // ── Validate required fields (varies by form type) ──
     const REQUIRED_BY_FORM_TYPE: Record<string, string[]> = {
       commercial_wrap: ['business_name', 'contact_name', 'email', 'phone', 'contact_method', 'coverage_type', 'artwork_status', 'timeline'],
@@ -48,6 +54,7 @@ export async function POST(request: NextRequest) {
 
     // ── Basic email validation ──
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+      console.error(`Invalid email [${formType}]:`, JSON.stringify(body.email))
       return NextResponse.json(
         { error: 'Invalid email address' },
         { status: 400, headers: CORS_HEADERS }
