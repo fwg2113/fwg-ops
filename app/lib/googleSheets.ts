@@ -124,7 +124,10 @@ export async function getCommandCenterMetrics() {
     'Full Wrap Revenue',
     'Partial Wrap Revenue',
     'Vinyl Lettering Revenue',
-    'Vinyl Graphics Revenue'
+    'Vinyl Graphics Revenue',
+    'Signage Revenue',
+    'Stickers Revenue',
+    'Labels Revenue'
   ]
 
   // Category display name mapping
