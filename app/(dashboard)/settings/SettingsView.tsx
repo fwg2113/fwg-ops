@@ -795,7 +795,9 @@ export default function SettingsView({
       ring_order: callSettings.length + 1
     }
     if (newPhone.sip_uri.trim()) {
-      insertData.sip_uri = newPhone.sip_uri.trim()
+      let sipVal = newPhone.sip_uri.trim().replace(/^SIP:\s*/i, '')
+      if (sipVal && !sipVal.startsWith('sip:')) sipVal = 'sip:' + sipVal
+      insertData.sip_uri = sipVal
     }
 
     const { data, error } = await supabase
@@ -826,7 +828,11 @@ export default function SettingsView({
   }
 
   const saveSipUri = async (id: string) => {
-    const value = editingSipValue.trim() || null
+    let value = editingSipValue.trim() || null
+    if (value) {
+      value = value.replace(/^SIP:\s*/i, '')
+      if (!value.startsWith('sip:')) value = 'sip:' + value
+    }
     const { error } = await supabase
       .from('call_settings')
       .update({ sip_uri: value })
