@@ -11,10 +11,10 @@ export async function POST(request: Request) {
     
     console.log('Incoming call:', { callSid, from, to })
 
-    // Get enabled team phone numbers
+    // Get enabled team phone numbers and SIP URIs
     const { data: teamPhones, error: phoneError } = await supabase
       .from('call_settings')
-      .select('phone, name')
+      .select('phone, name, sip_uri')
       .eq('enabled', true)
       .order('ring_order', { ascending: true })
 
@@ -40,8 +40,12 @@ export async function POST(request: Request) {
     
     console.log('Insert error:', insertError)
 
-    // Build dial - ring browser clients AND team phones simultaneously
+    // Build dial - ring browser clients, team phones, AND SIP endpoints simultaneously
     const numbers = teamPhones.map(p => `<Number>${p.phone}</Number>`).join('\n    ')
+    const sipUris = teamPhones
+      .filter(p => p.sip_uri)
+      .map(p => `<Sip>${p.sip_uri}</Sip>`)
+      .join('\n    ')
     const actionUrl = `https://fwg-ops.vercel.app/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -49,6 +53,7 @@ export async function POST(request: Request) {
   <Dial callerId="${to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
     <Client>ops-dashboard</Client>
     ${numbers}
+    ${sipUris}
   </Dial>
 </Response>`
 
