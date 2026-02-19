@@ -103,6 +103,29 @@ export default function PhoneWidget() {
     ringtoneRef.current = null
   }, [])
 
+  // Load Twilio Voice SDK via script tag (bypasses bundler issues)
+  const loadTwilioSDK = useCallback((): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      // Already loaded
+      if ((window as any).Twilio?.Device) {
+        resolve((window as any).Twilio.Device)
+        return
+      }
+      // Already loading
+      const existing = document.querySelector('script[src="/twilio-voice.min.js"]')
+      if (existing) {
+        existing.addEventListener('load', () => resolve((window as any).Twilio.Device))
+        existing.addEventListener('error', reject)
+        return
+      }
+      const script = document.createElement('script')
+      script.src = '/twilio-voice.min.js'
+      script.onload = () => resolve((window as any).Twilio.Device)
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+  }, [])
+
   // Initialize Twilio Device
   useEffect(() => {
     let device: any
@@ -110,7 +133,7 @@ export default function PhoneWidget() {
 
     async function init() {
       try {
-        const { Device } = await import('@twilio/voice-sdk')
+        const Device = await loadTwilioSDK()
 
         const res = await fetch('/api/voice/token', {
           method: 'POST',
@@ -207,7 +230,7 @@ export default function PhoneWidget() {
       if (timerRef.current) clearInterval(timerRef.current)
       device?.destroy()
     }
-  }, [lookupCaller, startRingtone, stopRingtone])
+  }, [lookupCaller, startRingtone, stopRingtone, loadTwilioSDK])
 
   const answerCall = () => {
     if (activeCallRef.current) {
