@@ -41,6 +41,7 @@ type CallSetting = {
   name: string
   enabled: boolean
   ring_order: number
+  sip_uri: string | null
 }
 
 type TemplateTask = {
@@ -233,7 +234,9 @@ export default function SettingsView({
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>(initialTaskStatuses)
   const [taskPriorities, setTaskPriorities] = useState<TaskPriority[]>(initialTaskPriorities)
   const [showAddPhone, setShowAddPhone] = useState(false)
-  const [newPhone, setNewPhone] = useState({ name: '', phone: '' })
+  const [newPhone, setNewPhone] = useState({ name: '', phone: '', sip_uri: '' })
+  const [editingSipId, setEditingSipId] = useState<string | null>(null)
+  const [editingSipValue, setEditingSipValue] = useState('')
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<{ templateId: string; task: TemplateTask } | null>(null)
   const [addingTask, setAddingTask] = useState<string | null>(null)
@@ -785,24 +788,29 @@ export default function SettingsView({
     
     const phoneFormatted = cleanPhone.length === 10 ? `+1${cleanPhone}` : `+${cleanPhone}`
     
+    const insertData: Record<string, unknown> = {
+      name: newPhone.name.trim(),
+      phone: phoneFormatted,
+      enabled: true,
+      ring_order: callSettings.length + 1
+    }
+    if (newPhone.sip_uri.trim()) {
+      insertData.sip_uri = newPhone.sip_uri.trim()
+    }
+
     const { data, error } = await supabase
       .from('call_settings')
-      .insert({
-        name: newPhone.name.trim(),
-        phone: phoneFormatted,
-        enabled: true,
-        ring_order: callSettings.length + 1
-      })
+      .insert(insertData)
       .select()
       .single()
-    
+
     if (error) {
       alert('Error adding phone: ' + error.message)
       return
     }
-    
+
     setCallSettings([...callSettings, data])
-    setNewPhone({ name: '', phone: '' })
+    setNewPhone({ name: '', phone: '', sip_uri: '' })
     setShowAddPhone(false)
   }
 
@@ -815,6 +823,25 @@ export default function SettingsView({
       .eq('id', id)
 
     setCallSettings(callSettings.filter(c => c.id !== id))
+  }
+
+  const saveSipUri = async (id: string) => {
+    const value = editingSipValue.trim() || null
+    const { error } = await supabase
+      .from('call_settings')
+      .update({ sip_uri: value })
+      .eq('id', id)
+
+    if (error) {
+      alert('Error saving SIP URI: ' + error.message)
+      return
+    }
+
+    setCallSettings(callSettings.map(c =>
+      c.id === id ? { ...c, sip_uri: value } : c
+    ))
+    setEditingSipId(null)
+    setEditingSipValue('')
   }
 
   const updateTemplateTask = async (taskId: string, updates: Partial<TemplateTask>) => {
@@ -2967,6 +2994,11 @@ export default function SettingsView({
                       <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
                         {formatPhone(setting.phone)}
                       </p>
+                      {setting.sip_uri && (
+                        <p style={{ color: '#8b5cf6', fontSize: '12px', margin: '2px 0 0 0', fontFamily: 'monospace' }}>
+                          SIP: {setting.sip_uri}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -3004,6 +3036,23 @@ export default function SettingsView({
                       </div>
                     </label>
                     <button
+                      onClick={() => {
+                        setEditingSipId(editingSipId === setting.id ? null : setting.id)
+                        setEditingSipValue(setting.sip_uri || '')
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        background: 'transparent',
+                        border: `1px solid ${setting.sip_uri ? 'rgba(139, 92, 246, 0.4)' : 'rgba(148, 163, 184, 0.2)'}`,
+                        borderRadius: '6px',
+                        color: setting.sip_uri ? '#8b5cf6' : '#64748b',
+                        fontSize: '12px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {setting.sip_uri ? 'SIP' : '+ SIP'}
+                    </button>
+                    <button
                       onClick={() => removeTeamPhone(setting.id)}
                       style={{
                         padding: '6px 10px',
@@ -3019,6 +3068,65 @@ export default function SettingsView({
                     </button>
                   </div>
                 </div>
+                {editingSipId === setting.id && (
+                  <div style={{
+                    padding: '10px 16px 14px',
+                    background: '#1e1f25',
+                    borderRadius: '0 0 8px 8px',
+                    marginTop: '-8px',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'center'
+                  }}>
+                    <label style={{ color: '#8b5cf6', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap' }}>SIP URI</label>
+                    <input
+                      type="text"
+                      value={editingSipValue}
+                      onChange={(e) => setEditingSipValue(e.target.value)}
+                      placeholder="sip:name@yourdomain.sip.twilio.com"
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        background: '#282a30',
+                        border: '1px solid rgba(139, 92, 246, 0.3)',
+                        borderRadius: '6px',
+                        color: '#f1f5f9',
+                        fontSize: '13px',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    <button
+                      onClick={() => saveSipUri(setting.id)}
+                      style={{
+                        padding: '8px 14px',
+                        background: '#8b5cf6',
+                        border: 'none',
+                        borderRadius: '6px',
+                        color: 'white',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        fontWeight: 500
+                      }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => { setEditingSipId(null); setEditingSipValue('') }}
+                      style={{
+                        padding: '8px 10px',
+                        background: 'transparent',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '6px',
+                        color: '#64748b',
+                        fontSize: '12px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               )) : (
                 <p style={{ color: '#64748b', padding: '20px', textAlign: 'center' }}>No team phones configured</p>
               )}
@@ -3028,11 +3136,12 @@ export default function SettingsView({
           <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '20px' }}>
             <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 12px 0' }}>How Call Forwarding Works</h3>
             <ul style={{ color: '#94a3b8', fontSize: '14px', margin: 0, paddingLeft: '20px', lineHeight: '1.8' }}>
-              <li>When someone calls your Twilio number, all enabled phones ring simultaneously</li>
+              <li>When someone calls your Twilio number, all enabled phones, SIP apps, and the browser ring simultaneously</li>
               <li>First person to answer gets the call, others stop ringing</li>
               <li>Your business number shows as the caller ID (save it as "FWG" in your contacts)</li>
-              <li>If no one answers within 25 seconds, caller goes to voicemail</li>
+              <li>If no one answers within 40 seconds, caller goes to voicemail</li>
               <li>All calls are logged in the dashboard with caller info and duration</li>
+              <li><strong style={{ color: '#8b5cf6' }}>SIP Apps:</strong> Add a SIP URI to ring a SIP app (Oiga, Linphone) on your phone — like Google Voice for your business number</li>
             </ul>
           </div>
 
@@ -3094,6 +3203,25 @@ export default function SettingsView({
                         borderRadius: '8px',
                         color: '#f1f5f9',
                         fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>SIP URI <span style={{ color: '#64748b' }}>(optional — for SIP app calling)</span></label>
+                    <input
+                      type="text"
+                      value={newPhone.sip_uri}
+                      onChange={(e) => setNewPhone({ ...newPhone, sip_uri: e.target.value })}
+                      placeholder="sip:name@yourdomain.sip.twilio.com"
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: '#111111',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '8px',
+                        color: '#f1f5f9',
+                        fontSize: '13px',
+                        fontFamily: 'monospace'
                       }}
                     />
                   </div>
