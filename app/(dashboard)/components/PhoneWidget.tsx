@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 
-type WidgetState = 'initializing' | 'ready' | 'incoming' | 'active' | 'error'
+type WidgetState = 'initializing' | 'ready' | 'incoming' | 'calling' | 'active' | 'error'
 
 export default function PhoneWidget() {
   const [state, setState] = useState<WidgetState>('initializing')
@@ -285,19 +285,39 @@ export default function PhoneWidget() {
 
       activeCallRef.current = call
       setCallerInfo({ from: formatted })
-      setState('active')
+      setState('calling')
       setExpanded(true)
       setDialNumber('')
       setCallDuration(0)
-      timerRef.current = setInterval(() => {
-        setCallDuration(d => d + 1)
-      }, 1000)
+
+      call.on('ringing', () => {
+        // Remote phone has started ringing
+        console.log('Outbound call ringing')
+      })
+
+      call.on('accept', () => {
+        // Call connected - other party answered
+        console.log('Outbound call accepted/connected')
+        setState('active')
+        setCallDuration(0)
+        timerRef.current = setInterval(() => {
+          setCallDuration(d => d + 1)
+        }, 1000)
+      })
 
       call.on('disconnect', () => {
         setState('ready')
         setExpanded(false)
         setCallDuration(0)
         setMuted(false)
+        activeCallRef.current = null
+        if (timerRef.current) clearInterval(timerRef.current)
+      })
+
+      call.on('error', (err: any) => {
+        console.error('Outbound call error:', err)
+        setState('ready')
+        setExpanded(false)
         activeCallRef.current = null
         if (timerRef.current) clearInterval(timerRef.current)
       })
@@ -314,6 +334,7 @@ export default function PhoneWidget() {
 
   const statusColor = state === 'ready' ? '#22c55e' :
                       state === 'incoming' ? '#f59e0b' :
+                      state === 'calling' ? '#8b5cf6' :
                       state === 'active' ? '#3b82f6' :
                       state === 'error' ? '#ef4444' : '#64748b'
 
@@ -407,6 +428,54 @@ export default function PhoneWidget() {
                   </svg>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Calling (outbound ringing) */}
+          {state === 'calling' && (
+            <div style={{ padding: '24px', textAlign: 'center' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'rgba(139, 92, 246, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                animation: 'phoneRingPulse 1.5s ease-in-out infinite'
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+              </div>
+              <p style={{ color: '#8b5cf6', fontSize: '13px', fontWeight: 600, margin: '0 0 4px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Calling...
+              </p>
+              <h3 style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: 700, margin: '0 0 24px 0' }}>
+                {callerInfo.name || formatPhone(callerInfo.from)}
+              </h3>
+              <button
+                onClick={hangUp}
+                title="Cancel call"
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto'
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                  <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
+                  <line x1="23" y1="1" x2="1" y2="23" />
+                </svg>
+              </button>
             </div>
           )}
 

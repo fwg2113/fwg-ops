@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${twilioNumber}">
+  <Dial callerId="${twilioNumber}" answerOnBridge="true">
     <Number>${to}</Number>
   </Dial>
 </Response>`
