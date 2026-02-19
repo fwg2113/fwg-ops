@@ -14,8 +14,8 @@ export async function POST(request: Request) {
 
     const duration = parseInt(dialCallDuration) || 0
     
-    // If there was any duration, the call was answered - end cleanly
-    if (duration > 0 || dialCallStatus === 'completed' || dialCallStatus === 'answered') {
+    // Only treat as answered if someone actually picked up
+    if (dialCallStatus === 'answered' || (dialCallStatus === 'completed' && duration > 0)) {
       await supabase
         .from('calls')
         .update({
