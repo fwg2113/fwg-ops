@@ -112,6 +112,7 @@ type DashboardData = {
   tasks: Task[]
   customerActions: CustomerAction[]
   productionStatus: Record<string, { total: number; completed: number }>
+  nextProductionTasks: Record<string, { id: string; title: string; status: string; sort_order: number }>
   pinnedItems: PinnedItem[]
   metrics: {
     monthlyRevenue: number
@@ -121,6 +122,26 @@ type DashboardData = {
     yearlyRevenue: number
   }
   categoryBreakdown: { category: string; amount: number }[]
+}
+
+// Action Queue item - flattened view of all active projects
+type ActionQueueItem = {
+  id: string // unique key
+  entityId: string // actual document/submission/task id
+  type: 'submission' | 'quote' | 'invoice' | 'task'
+  state: 'action_needed' | 'production_complete' | 'in_production' | 'waiting' | 'idle'
+  customerName: string
+  projectDescription: string
+  category?: string
+  docNumber?: number
+  total?: number
+  nextAction: string
+  nextActionId?: string // customer_action or task id to complete
+  canComplete: boolean // whether the next action has a completable button
+  productionProgress?: { completed: number; total: number }
+  waitingDays?: number
+  viewed?: boolean
+  priority: number // lower = more urgent
 }
 
 // ============================================================================
@@ -254,11 +275,10 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['submissions', 'quotes', 'invoices', 'tasks']))
   const [showArchiveModal, setShowArchiveModal] = useState<{ type: 'document' | 'submission'; id: string } | null>(null)
   const [archiveReason, setArchiveReason] = useState<'won' | 'cold'>('cold')
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'NORMAL', due_date: '' })
+  const [queueFilter, setQueueFilter] = useState<string>('all')
 
   // Sync with server data on refresh
   useEffect(() => { setData(initialData) }, [initialData])
@@ -284,29 +304,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     }
   })
 
-  // Get TODO actions for a document
   const getTodoActions = (docId: string) => (actionsByDocId.get(docId) || []).filter(a => a.status === 'TODO')
-  const getAllActions = (docId: string) => actionsByDocId.get(docId) || []
-  const getSubActions = (subId: string) => actionsBySubId.get(subId) || []
   const getSubTodoActions = (subId: string) => (actionsBySubId.get(subId) || []).filter(a => a.status === 'TODO')
-
-  // Toggle card expansion
-  const toggleCard = (id: string) => {
-    setExpandedCards(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
-  // Toggle section collapse
-  const toggleSection = (section: string) => {
-    setCollapsedSections(prev => {
-      const next = new Set(prev)
-      next.has(section) ? next.delete(section) : next.add(section)
-      return next
-    })
-  }
 
   // Complete a customer action
   const completeCustomerAction = async (actionId: string, e?: React.MouseEvent) => {
@@ -334,7 +333,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     }
   }
 
-  // Archive a document (save current status/bucket for restore)
+  // Archive a document
   const archiveDocument = async (docId: string, reason: 'won' | 'cold') => {
     const doc = [...data.quotes, ...data.invoices].find(d => d.id === docId)
     const bucketValue = reason === 'won' ? 'ARCHIVE_WON' : 'COLD'
@@ -355,7 +354,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     router.refresh()
   }
 
-  // Archive a submission (save current status for restore)
+  // Archive a submission
   const archiveSubmission = async (subId: string) => {
     const sub = data.submissions.find(s => s.id === subId)
     await supabase.from('submissions').update({
@@ -397,39 +396,204 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     setShowTaskDetailModal(false)
   }
 
-  // Filter out COLD bucket from active view
+  // ========================================================================
+  // BUILD ACTION QUEUE - Flatten all active items into a single sorted list
+  // ========================================================================
   const activeQuotes = data.quotes.filter(q => q.bucket !== 'COLD')
   const activeInvoices = data.invoices.filter(i => i.bucket !== 'COLD')
-  const activeSubmissions = data.submissions
+  const manualTasks = data.tasks.filter(t => t.status !== 'COMPLETED')
 
-  // Waiting items for the existing section
-  const waitingItems = data.quotes
-    .filter(q => q.status === 'sent' || q.status === 'viewed')
-    .map(q => {
-      const sentDate = q.sent_at ? new Date(q.sent_at) : new Date(q.created_at)
-      const daysWaiting = Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24))
-      return { ...q, daysWaiting }
+  const actionQueue: ActionQueueItem[] = []
+
+  // Add submissions
+  for (const sub of data.submissions) {
+    const todoActions = getSubTodoActions(sub.id)
+    const nextAction = todoActions.sort((a, b) => a.sort_order - b.sort_order)[0]
+    const vehicle = sub.vehicles && sub.vehicles.length > 0
+      ? sub.vehicles.length === 1
+        ? [sub.vehicles[0].year, sub.vehicles[0].make, sub.vehicles[0].model].filter(Boolean).join(' ') || sub.vehicles[0].type_label
+        : `${sub.vehicles.length} vehicles`
+      : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ')
+    const desc = [vehicle, sub.coverage_type || sub.project_type].filter(Boolean).join(' \u2022 ')
+
+    actionQueue.push({
+      id: `sub-${sub.id}`,
+      entityId: sub.id,
+      type: 'submission',
+      state: nextAction ? 'action_needed' : 'idle',
+      customerName: sub.customer_name,
+      projectDescription: desc || 'New submission',
+      category: sub.coverage_type || sub.project_type,
+      total: sub.price_range_max > 0 ? sub.price_range_max : undefined,
+      nextAction: nextAction ? (stepLabels[nextAction.step_key] || nextAction.title) : 'Up to date',
+      nextActionId: nextAction?.id,
+      canComplete: !!nextAction,
+      priority: nextAction ? 0 : 4,
     })
-    .sort((a, b) => b.daysWaiting - a.daysWaiting)
-  const waitingTotal = waitingItems.reduce((sum, q) => sum + (q.total || 0), 0)
+  }
 
-  // Sort documents by urgency: action_needed first, then production_complete, then in_production, then waiting, then idle
-  const stateOrder: Record<string, number> = { 'action_needed': 0, 'production_complete': 1, 'in_production': 2, 'waiting': 3, 'idle': 4 }
-  const sortByState = (docs: Document[]) => [...docs].sort((a, b) => {
-    const sa = getCardState(a, getTodoActions(a.id), data.productionStatus)
-    const sb = getCardState(b, getTodoActions(b.id), data.productionStatus)
-    return (stateOrder[sa] ?? 4) - (stateOrder[sb] ?? 4)
-  })
+  // Add quotes
+  for (const doc of activeQuotes) {
+    const todoActions = getTodoActions(doc.id)
+    const state = getCardState(doc, todoActions, data.productionStatus)
+    const nextAction = todoActions.sort((a, b) => a.sort_order - b.sort_order)[0]
+    const sentDate = doc.sent_at ? new Date(doc.sent_at) : null
+    const daysWaiting = sentDate ? Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24)) : undefined
 
-  const sortedQuotes = sortByState(activeQuotes)
-  const sortedInvoices = sortByState(activeInvoices)
+    let nextActionText = 'Up to date'
+    let nextActionId: string | undefined
+    let canComplete = false
+
+    if (nextAction) {
+      nextActionText = stepLabels[nextAction.step_key] || nextAction.title
+      nextActionId = nextAction.id
+      canComplete = true
+    } else if (state === 'waiting') {
+      nextActionText = doc.status === 'viewed'
+        ? `Customer viewed${daysWaiting !== undefined ? ` \u2022 ${daysWaiting}d ago` : ''}`
+        : `Sent${daysWaiting !== undefined ? ` \u2022 ${daysWaiting}d waiting` : ''}`
+    }
+
+    const stateOrderMap: Record<string, number> = { 'action_needed': 0, 'production_complete': 1, 'in_production': 2, 'waiting': 3, 'idle': 4 }
+
+    actionQueue.push({
+      id: `quote-${doc.id}`,
+      entityId: doc.id,
+      type: 'quote',
+      state,
+      customerName: doc.customer_name,
+      projectDescription: doc.vehicle_description || doc.project_description || '',
+      category: doc.category,
+      docNumber: doc.doc_number,
+      total: doc.total,
+      nextAction: nextActionText,
+      nextActionId,
+      canComplete,
+      waitingDays: daysWaiting,
+      viewed: doc.status === 'viewed',
+      priority: stateOrderMap[state] ?? 4,
+    })
+  }
+
+  // Add invoices
+  for (const doc of activeInvoices) {
+    const todoActions = getTodoActions(doc.id)
+    const state = getCardState(doc, todoActions, data.productionStatus)
+    const prodStat = data.productionStatus[doc.id]
+    const nextProdTask = data.nextProductionTasks[doc.id]
+    const nextAction = todoActions.sort((a, b) => a.sort_order - b.sort_order)[0]
+
+    let nextActionText = 'Up to date'
+    let nextActionId: string | undefined
+    let canComplete = false
+
+    if (state === 'production_complete' && nextAction) {
+      nextActionText = stepLabels[nextAction.step_key] || nextAction.title
+      nextActionId = nextAction.id
+      canComplete = true
+    } else if (state === 'in_production' && nextProdTask) {
+      nextActionText = nextProdTask.title
+    } else if (nextAction) {
+      nextActionText = stepLabels[nextAction.step_key] || nextAction.title
+      nextActionId = nextAction.id
+      canComplete = true
+    }
+
+    const stateOrderMap: Record<string, number> = { 'action_needed': 0, 'production_complete': 1, 'in_production': 2, 'waiting': 3, 'idle': 4 }
+
+    actionQueue.push({
+      id: `invoice-${doc.id}`,
+      entityId: doc.id,
+      type: 'invoice',
+      state,
+      customerName: doc.customer_name,
+      projectDescription: doc.vehicle_description || doc.project_description || '',
+      category: doc.category,
+      docNumber: doc.doc_number,
+      total: doc.total,
+      nextAction: nextActionText,
+      nextActionId,
+      canComplete,
+      productionProgress: prodStat,
+      priority: stateOrderMap[state] ?? 4,
+    })
+  }
+
+  // Add manual tasks
+  for (const t of manualTasks) {
+    actionQueue.push({
+      id: `task-${t.id}`,
+      entityId: t.id,
+      type: 'task',
+      state: 'action_needed',
+      customerName: t.title,
+      projectDescription: t.description || '',
+      nextAction: t.title,
+      nextActionId: t.id,
+      canComplete: true,
+      priority: t.priority === 'URGENT' ? -1 : t.priority === 'HIGH' ? 0 : 1,
+    })
+  }
+
+  // Sort: by priority (lower = more urgent), then by state
+  actionQueue.sort((a, b) => a.priority - b.priority)
+
+  // Filter
+  const filteredQueue = queueFilter === 'all'
+    ? actionQueue
+    : actionQueue.filter(item => item.state === queueFilter)
+
+  // Count by state for filter badges
+  const stateCounts = actionQueue.reduce((acc, item) => {
+    acc[item.state] = (acc[item.state] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
   const maxCategoryValue = Math.max(...data.categoryBreakdown.map(c => c.amount), 1)
-  const manualTasks = data.tasks.filter(t => t.status !== 'COMPLETED')
+
+  // Navigation helpers
+  const navigateToItem = (item: ActionQueueItem) => {
+    if (item.type === 'submission') router.push(`/submissions?id=${item.entityId}`)
+    else if (item.type === 'task') { setSelectedTask(manualTasks.find(t => t.id === item.entityId) || null); setShowTaskDetailModal(true) }
+    else router.push(`/documents/${item.entityId}`)
+  }
+
+  const handleComplete = (item: ActionQueueItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (item.type === 'task') {
+      completeTask(item.entityId, e)
+    } else if (item.nextActionId) {
+      completeCustomerAction(item.nextActionId, e)
+    }
+  }
+
+  // State colors and labels
+  const stateConfig: Record<string, { label: string; color: string; bg: string }> = {
+    'action_needed': { label: 'Action Needed', color: '#d71cd1', bg: 'rgba(215, 28, 209, 0.08)' },
+    'production_complete': { label: 'Production Complete', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.08)' },
+    'in_production': { label: 'In Production', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.08)' },
+    'waiting': { label: 'Waiting on Customer', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.08)' },
+    'idle': { label: 'Up to Date', color: '#64748b', bg: 'rgba(100, 116, 139, 0.06)' },
+  }
+
+  const typeConfig: Record<string, { label: string; color: string; bg: string }> = {
+    'submission': { label: 'Submission', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.15)' },
+    'quote': { label: 'Quote', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
+    'invoice': { label: 'Invoice', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)' },
+    'task': { label: 'Task', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.15)' },
+  }
+
+  // Group queue items by state for rendering
+  const stateGroups: { state: string; items: ActionQueueItem[] }[] = []
+  const stateRenderOrder = ['action_needed', 'production_complete', 'in_production', 'waiting', 'idle']
+  for (const s of stateRenderOrder) {
+    const items = filteredQueue.filter(item => item.state === s)
+    if (items.length > 0) stateGroups.push({ state: s, items })
+  }
 
   return (
     <div>
-      {/* Customer Action Center */}
+      {/* Action Queue */}
       <div style={{
         background: '#111111',
         border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -443,7 +607,10 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '16px', fontWeight: 600, color: '#f1f5f9' }}>
             <span style={{ color: '#d71cd1' }}><LightningIcon /></span>
-            Customer Action Center
+            Action Queue
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b', padding: '2px 8px', background: 'rgba(148,163,184,0.1)', borderRadius: '6px' }}>
+              {actionQueue.length} active
+            </span>
             <button onClick={handleRefresh} style={{
               background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer',
               padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center',
@@ -464,184 +631,87 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           </button>
         </div>
 
-        <div style={{ padding: '12px' }}>
-          {/* Submissions Section */}
-          <SectionHeader
-            title="Submissions"
-            count={activeSubmissions.length}
-            color="#06b6d4"
-            collapsed={collapsedSections.has('submissions')}
-            onToggle={() => toggleSection('submissions')}
-          />
-          {!collapsedSections.has('submissions') && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-              {activeSubmissions.length === 0 ? (
-                <EmptyState text="No active submissions" />
-              ) : activeSubmissions.map(sub => (
-                <SubmissionCard
-                  key={sub.id}
-                  submission={sub}
-                  actions={getSubActions(sub.id)}
-                  todoActions={getSubTodoActions(sub.id)}
-                  expanded={expandedCards.has(`sub-${sub.id}`)}
-                  onToggle={() => toggleCard(`sub-${sub.id}`)}
-                  onComplete={completeCustomerAction}
-                  onArchive={() => setShowArchiveModal({ type: 'submission', id: sub.id })}
-                  onClick={() => router.push(`/submissions?id=${sub.id}`)}
-                />
-              ))}
-            </div>
-          )}
+        {/* Filter Bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '12px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+          overflowX: 'auto'
+        }}>
+          {[
+            { key: 'all', label: 'All', count: actionQueue.length, color: '#94a3b8' },
+            { key: 'action_needed', label: 'Action Needed', count: stateCounts['action_needed'] || 0, color: '#d71cd1' },
+            { key: 'production_complete', label: 'Complete', count: stateCounts['production_complete'] || 0, color: '#22c55e' },
+            { key: 'in_production', label: 'In Production', count: stateCounts['in_production'] || 0, color: '#a855f7' },
+            { key: 'waiting', label: 'Waiting', count: stateCounts['waiting'] || 0, color: '#3b82f6' },
+            { key: 'idle', label: 'Up to Date', count: stateCounts['idle'] || 0, color: '#64748b' },
+          ].filter(f => f.key === 'all' || f.count > 0).map(f => (
+            <button key={f.key} onClick={() => setQueueFilter(f.key)} style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 12px', borderRadius: '8px', border: 'none',
+              background: queueFilter === f.key ? `${f.color}20` : 'transparent',
+              color: queueFilter === f.key ? f.color : '#64748b',
+              fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s', whiteSpace: 'nowrap'
+            }}>
+              {f.label}
+              <span style={{
+                fontSize: '11px', padding: '1px 6px', borderRadius: '6px',
+                background: queueFilter === f.key ? `${f.color}30` : 'rgba(148,163,184,0.1)',
+                color: queueFilter === f.key ? f.color : '#4b5563'
+              }}>{f.count}</span>
+            </button>
+          ))}
+        </div>
 
-          {/* Quotes Section */}
-          <SectionHeader
-            title="Quotes"
-            count={sortedQuotes.length}
-            color="#3b82f6"
-            collapsed={collapsedSections.has('quotes')}
-            onToggle={() => toggleSection('quotes')}
-          />
-          {!collapsedSections.has('quotes') && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-              {sortedQuotes.length === 0 ? (
-                <EmptyState text="No active quotes" />
-              ) : sortedQuotes.map(doc => (
-                <DocumentCard
-                  key={doc.id}
-                  doc={doc}
-                  allActions={getAllActions(doc.id)}
-                  todoActions={getTodoActions(doc.id)}
-                  state={getCardState(doc, getTodoActions(doc.id), data.productionStatus)}
-                  productionStatus={data.productionStatus[doc.id]}
-                  expanded={expandedCards.has(`doc-${doc.id}`)}
-                  onToggle={() => toggleCard(`doc-${doc.id}`)}
-                  onComplete={completeCustomerAction}
-                  onArchive={() => setShowArchiveModal({ type: 'document', id: doc.id })}
-                  onClick={() => router.push(`/documents/${doc.id}`)}
-                />
-              ))}
+        {/* Queue Items */}
+        <div style={{ padding: '8px 12px 12px' }}>
+          {stateGroups.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#4b5563' }}>
+              <div style={{ fontSize: '14px', marginBottom: '4px' }}>No items match this filter</div>
+              <div style={{ fontSize: '12px' }}>Try selecting a different filter above</div>
             </div>
-          )}
-
-          {/* Invoices Section */}
-          <SectionHeader
-            title="Invoices"
-            count={sortedInvoices.length}
-            color="#22c55e"
-            collapsed={collapsedSections.has('invoices')}
-            onToggle={() => toggleSection('invoices')}
-          />
-          {!collapsedSections.has('invoices') && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-              {sortedInvoices.length === 0 ? (
-                <EmptyState text="No active invoices" />
-              ) : sortedInvoices.map(doc => (
-                <DocumentCard
-                  key={doc.id}
-                  doc={doc}
-                  allActions={getAllActions(doc.id)}
-                  todoActions={getTodoActions(doc.id)}
-                  state={getCardState(doc, getTodoActions(doc.id), data.productionStatus)}
-                  productionStatus={data.productionStatus[doc.id]}
-                  expanded={expandedCards.has(`doc-${doc.id}`)}
-                  onToggle={() => toggleCard(`doc-${doc.id}`)}
-                  onComplete={completeCustomerAction}
-                  onArchive={() => setShowArchiveModal({ type: 'document', id: doc.id })}
-                  onClick={() => router.push(`/documents/${doc.id}`)}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Manual Tasks Section */}
-          {manualTasks.length > 0 && (
-            <>
-              <SectionHeader
-                title="Tasks"
-                count={manualTasks.length}
-                color="#fbbf24"
-                collapsed={collapsedSections.has('tasks')}
-                onToggle={() => toggleSection('tasks')}
-              />
-              {!collapsedSections.has('tasks') && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
-                  {manualTasks.map(t => (
-                    <div key={t.id} onClick={() => { setSelectedTask(t); setShowTaskDetailModal(true) }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '12px',
-                        padding: '10px 14px', background: '#1d1d1d', borderRadius: '10px',
-                        cursor: 'pointer', border: '1px solid rgba(148, 163, 184, 0.1)',
-                        transition: 'border-color 0.15s'
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.borderColor = '#fbbf24'}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.1)'}
-                    >
-                      <button onClick={(e) => completeTask(t.id, e)} style={{
-                        width: '22px', height: '22px', borderRadius: '6px', border: '2px solid #fbbf24',
-                        background: 'transparent', cursor: 'pointer', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fbbf24'
-                      }}>
-                        <CheckIcon />
-                      </button>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {t.title}
-                        </div>
-                        {t.description && (
-                          <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description}</div>
-                        )}
-                      </div>
-                      <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' }}>
-                        {t.priority}
-                      </span>
-                    </div>
-                  ))}
+          ) : stateGroups.map(group => {
+            const cfg = stateConfig[group.state]
+            return (
+              <div key={group.state} style={{ marginBottom: '4px' }}>
+                {/* State group header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 8px 6px', marginTop: '4px'
+                }}>
+                  <div style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: cfg.color, flexShrink: 0,
+                    boxShadow: `0 0 6px ${cfg.color}60`
+                  }} />
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    {cfg.label}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#4b5563' }}>{group.items.length}</span>
+                  <div style={{ flex: 1, height: '1px', background: `${cfg.color}15` }} />
                 </div>
-              )}
-            </>
-          )}
+
+                {/* Items */}
+                {group.items.map(item => (
+                  <ActionQueueRow
+                    key={item.id}
+                    item={item}
+                    stateConfig={cfg}
+                    typeConfig={typeConfig[item.type]}
+                    onClick={() => navigateToItem(item)}
+                    onComplete={item.canComplete ? (e) => handleComplete(item, e) : undefined}
+                    onArchive={
+                      item.type === 'submission' ? () => setShowArchiveModal({ type: 'submission', id: item.entityId })
+                      : item.type !== 'task' ? () => setShowArchiveModal({ type: 'document', id: item.entityId })
+                      : undefined
+                    }
+                  />
+                ))}
+              </div>
+            )
+          })}
         </div>
       </div>
-
-      {/* Waiting on Customer */}
-      {waitingItems.length > 0 && (
-        <div style={{
-          background: '#111111', border: '1px solid rgba(148, 163, 184, 0.2)',
-          borderRadius: '16px', padding: '20px', marginBottom: '20px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', fontWeight: 600, color: '#64748b' }}>
-              <span style={{ color: '#3b82f6' }}><ClockIcon /></span>
-              Waiting on Customer
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6' }}>${waitingTotal.toLocaleString()}</div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '10px' }}>
-            {waitingItems.map(q => {
-              const daysWaiting = Math.floor((Date.now() - (q.sent_at ? new Date(q.sent_at).getTime() : new Date(q.created_at).getTime())) / (1000 * 60 * 60 * 24))
-              return (
-                <div key={q.id} onClick={() => router.push(`/documents/${q.id}`)} style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
-                  background: '#1d1d1d', borderRadius: '10px', cursor: 'pointer',
-                  border: '1px solid transparent', transition: 'all 0.15s ease'
-                }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = '#3b82f6'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}
-                >
-                  <EyeIcon viewed={q.status === 'viewed'} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {q.customer_name}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>Quote #{q.doc_number} &bull; {daysWaiting}d waiting</div>
-                  </div>
-                  <div style={{ fontWeight: 600, color: '#94a3b8', flexShrink: 0 }}>${(q.total || 0).toLocaleString()}</div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Snapshot Metrics */}
       <div style={{
@@ -810,374 +880,156 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
 }
 
 // ============================================================================
-// SECTION HEADER
+// ACTION QUEUE ROW - Single flat row for each project
 // ============================================================================
 
-function SectionHeader({ title, count, color, collapsed, onToggle }: {
-  title: string; count: number; color: string; collapsed: boolean; onToggle: () => void
-}) {
-  return (
-    <button onClick={onToggle} style={{
-      display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-      padding: '10px 12px', marginBottom: collapsed ? '4px' : '8px',
-      background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '8px',
-      transition: 'background 0.15s'
-    }}
-      onMouseEnter={e => e.currentTarget.style.background = 'rgba(148,163,184,0.05)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-    >
-      <div style={{ color }}><ChevronDownIcon open={!collapsed} /></div>
-      <span style={{ fontSize: '13px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</span>
-      <span style={{
-        fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px',
-        background: `${color}20`, color
-      }}>{count}</span>
-      <div style={{ flex: 1, height: '1px', background: 'rgba(148,163,184,0.1)' }} />
-    </button>
-  )
-}
-
-// ============================================================================
-// EMPTY STATE
-// ============================================================================
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '20px', color: '#4b5563', fontSize: '13px' }}>
-      {text}
-    </div>
-  )
-}
-
-// ============================================================================
-// SUBMISSION CARD
-// ============================================================================
-
-function SubmissionCard({ submission, actions, todoActions, expanded, onToggle, onComplete, onArchive, onClick }: {
-  submission: Submission
-  actions: CustomerAction[]
-  todoActions: CustomerAction[]
-  expanded: boolean
-  onToggle: () => void
-  onComplete: (actionId: string, e?: React.MouseEvent) => void
-  onArchive: () => void
+function ActionQueueRow({ item, stateConfig, typeConfig, onClick, onComplete, onArchive }: {
+  item: ActionQueueItem
+  stateConfig: { label: string; color: string; bg: string }
+  typeConfig: { label: string; color: string; bg: string }
   onClick: () => void
+  onComplete?: (e: React.MouseEvent) => void
+  onArchive?: () => void
 }) {
   const [hovered, setHovered] = useState(false)
-  const liveTask = todoActions.sort((a, b) => a.sort_order - b.sort_order)[0]
-  const vehicle = submission.vehicles && submission.vehicles.length > 0
-    ? submission.vehicles.length === 1
-      ? [submission.vehicles[0].year, submission.vehicles[0].make, submission.vehicles[0].model].filter(Boolean).join(' ') || submission.vehicles[0].type_label
-      : `${submission.vehicles.length} vehicles`
-    : [submission.vehicle_year, submission.vehicle_make, submission.vehicle_model].filter(Boolean).join(' ')
 
   return (
     <div
+      onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: '#1d1d1d', borderRadius: '12px',
-        border: `1px solid ${hovered ? '#06b6d4' : 'rgba(148,163,184,0.12)'}`,
-        transition: 'border-color 0.15s', overflow: 'hidden'
+        display: 'flex', alignItems: 'center', gap: '12px',
+        padding: '12px 14px', margin: '0 0 4px',
+        background: hovered ? 'rgba(148,163,184,0.05)' : 'transparent',
+        borderRadius: '10px', cursor: 'pointer',
+        border: `1px solid ${hovered ? `${stateConfig.color}30` : 'transparent'}`,
+        transition: 'all 0.15s ease'
       }}
     >
-      {/* Card Header */}
-      <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', cursor: 'pointer' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-            <span style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {submission.customer_name}
-            </span>
-            <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(6,182,212,0.15)', color: '#06b6d4', flexShrink: 0 }}>
-              Submission
-            </span>
-          </div>
-          <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {vehicle}{(submission.coverage_type || submission.project_type) ? ` \u2022 ${formatCategoryLabel(submission.coverage_type || submission.project_type)}` : ''}
-          </div>
-        </div>
-        {submission.price_range_max > 0 && (
-          <div style={{ fontSize: '15px', fontWeight: 700, color: '#22c55e', flexShrink: 0 }}>${submission.price_range_max.toLocaleString()}</div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {getStateBadge(todoActions.length > 0 ? 'action_needed' : 'idle')}
-        </div>
-      </div>
-
-      {/* Live Task */}
-      {liveTask && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '10px 16px', borderTop: '1px solid rgba(148,163,184,0.08)',
-          background: 'rgba(215,28,209,0.04)'
-        }}>
-          <button onClick={(e) => onComplete(liveTask.id, e)} style={{
-            width: '22px', height: '22px', borderRadius: '6px', border: '2px solid #d71cd1',
-            background: 'transparent', cursor: 'pointer', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#d71cd1',
-            transition: 'all 0.15s'
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#d71cd1'; e.currentTarget.style.color = 'white' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#d71cd1' }}
-          >
-            <CheckIcon />
-          </button>
-          <span style={{ fontSize: '13px', fontWeight: 500, color: '#e2e8f0', flex: 1 }}>
-            {stepLabels[liveTask.step_key] || liveTask.title}
-          </span>
-        </div>
-      )}
-
-      {/* Expand/Archive Row */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '6px 16px 8px', borderTop: '1px solid rgba(148,163,184,0.05)'
-      }}>
-        <button onClick={(e) => { e.stopPropagation(); onToggle() }} style={{
-          display: 'flex', alignItems: 'center', gap: '4px',
-          background: 'transparent', border: 'none', color: '#4b5563',
-          fontSize: '11px', cursor: 'pointer', padding: '4px 0'
-        }}>
-          <ChevronDownIcon open={expanded} />
-          {expanded ? 'Hide' : 'Workflow'}
-        </button>
-        <button onClick={(e) => { e.stopPropagation(); onArchive() }} style={{
-          display: 'flex', alignItems: 'center', gap: '4px',
-          background: 'transparent', border: 'none', color: '#4b5563',
-          fontSize: '11px', cursor: 'pointer', padding: '4px'
+      {/* Complete button */}
+      {onComplete ? (
+        <button onClick={onComplete} style={{
+          width: '24px', height: '24px', borderRadius: '7px',
+          border: `2px solid ${stateConfig.color}`,
+          background: 'transparent', cursor: 'pointer', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          color: stateConfig.color, transition: 'all 0.15s', padding: 0
         }}
-          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-          onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}
+          onMouseEnter={e => { e.currentTarget.style.background = stateConfig.color; e.currentTarget.style.color = 'white' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = stateConfig.color }}
         >
-          <ArchiveIcon /> Archive
+          <CheckIcon />
         </button>
-      </div>
-
-      {/* Expanded Workflow Timeline */}
-      {expanded && actions.length > 0 && (
-        <div style={{ padding: '0 16px 12px', borderTop: '1px solid rgba(148,163,184,0.08)' }}>
-          <WorkflowTimeline actions={actions} onComplete={onComplete} />
+      ) : (
+        <div style={{
+          width: '24px', height: '24px', borderRadius: '7px', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `${stateConfig.color}15`
+        }}>
+          {item.state === 'waiting' && <EyeIcon viewed={item.viewed || false} size={14} />}
+          {item.state === 'in_production' && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={stateConfig.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          )}
+          {item.state === 'idle' && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={stateConfig.color} strokeWidth="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
         </div>
       )}
-    </div>
-  )
-}
 
-// ============================================================================
-// DOCUMENT CARD (Quote or Invoice)
-// ============================================================================
-
-function DocumentCard({ doc, allActions, todoActions, state, productionStatus, expanded, onToggle, onComplete, onArchive, onClick }: {
-  doc: Document
-  allActions: CustomerAction[]
-  todoActions: CustomerAction[]
-  state: string
-  productionStatus?: { total: number; completed: number }
-  expanded: boolean
-  onToggle: () => void
-  onComplete: (actionId: string, e?: React.MouseEvent) => void
-  onArchive: () => void
-  onClick: () => void
-}) {
-  const [hovered, setHovered] = useState(false)
-  const liveTask = todoActions.sort((a, b) => a.sort_order - b.sort_order)[0]
-  const isQuote = doc.doc_type === 'quote'
-  const borderColor = hovered ? (isQuote ? '#3b82f6' : '#22c55e') : 'rgba(148,163,184,0.12)'
-
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: '#1d1d1d', borderRadius: '12px',
-        border: `1px solid ${borderColor}`,
-        transition: 'border-color 0.15s', overflow: 'hidden'
-      }}
-    >
-      {/* Card Header */}
-      <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', cursor: 'pointer' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {doc.customer_name}
-            </span>
+      {/* Customer & Project Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+          <span style={{
+            fontSize: '14px', fontWeight: 600, color: '#f1f5f9',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+          }}>
+            {item.customerName}
+          </span>
+          {/* Type badge */}
+          <span style={{
+            fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '4px',
+            background: typeConfig.bg, color: typeConfig.color, flexShrink: 0, letterSpacing: '0.2px'
+          }}>
+            {typeConfig.label}{item.docNumber ? ` #${item.docNumber}` : ''}
+          </span>
+          {/* Category badge */}
+          {item.category && (
             <span style={{
-              fontSize: '11px', padding: '2px 8px', borderRadius: '4px', flexShrink: 0,
-              background: isQuote ? 'rgba(59,130,246,0.15)' : 'rgba(34,197,94,0.15)',
-              color: isQuote ? '#3b82f6' : '#22c55e'
+              fontSize: '10px', padding: '2px 7px', borderRadius: '4px',
+              background: 'rgba(148,163,184,0.1)', color: '#64748b', flexShrink: 0
             }}>
-              {isQuote ? 'Quote' : 'Invoice'} #{doc.doc_number}
+              {formatCategoryLabel(item.category)}
             </span>
-            {doc.category && (
-              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(148,163,184,0.1)', color: '#64748b', flexShrink: 0 }}>
-                {formatCategoryLabel(doc.category)}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {doc.vehicle_description || doc.project_description || ''}
-          </div>
+          )}
         </div>
-        <div style={{ fontSize: '15px', fontWeight: 700, color: '#22c55e', flexShrink: 0 }}>
-          ${(doc.total || 0).toLocaleString()}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {getStateBadge(state, doc)}
+        <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {item.projectDescription}
         </div>
       </div>
 
-      {/* Production Progress Bar */}
-      {state === 'in_production' && productionStatus && (
-        <div style={{ padding: '0 16px 8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ flex: 1, height: '6px', background: '#282a30', borderRadius: '3px', overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', borderRadius: '3px',
-                width: `${(productionStatus.completed / productionStatus.total) * 100}%`,
-                background: 'linear-gradient(90deg, #a855f7, #8b5cf6)',
-                transition: 'width 0.4s ease'
-              }} />
-            </div>
-            <span style={{ fontSize: '11px', color: '#a855f7', fontWeight: 600 }}>
-              {productionStatus.completed}/{productionStatus.total}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Live Task */}
-      {liveTask && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '10px 16px', borderTop: '1px solid rgba(148,163,184,0.08)',
-          background: state === 'production_complete' ? 'rgba(34,197,94,0.04)' : 'rgba(215,28,209,0.04)'
-        }}>
-          <button onClick={(e) => onComplete(liveTask.id, e)} style={{
-            width: '22px', height: '22px', borderRadius: '6px',
-            border: `2px solid ${state === 'production_complete' ? '#22c55e' : '#d71cd1'}`,
-            background: 'transparent', cursor: 'pointer', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            color: state === 'production_complete' ? '#22c55e' : '#d71cd1',
-            transition: 'all 0.15s'
-          }}
-            onMouseEnter={e => { const c = state === 'production_complete' ? '#22c55e' : '#d71cd1'; e.currentTarget.style.background = c; e.currentTarget.style.color = 'white' }}
-            onMouseLeave={e => { const c = state === 'production_complete' ? '#22c55e' : '#d71cd1'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c }}
-          >
-            <CheckIcon />
-          </button>
-          <span style={{ fontSize: '13px', fontWeight: 500, color: '#e2e8f0', flex: 1 }}>
-            {stepLabels[liveTask.step_key] || liveTask.title}
-          </span>
-        </div>
-      )}
-
-      {/* Waiting indicator when no live task */}
-      {!liveTask && state === 'waiting' && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          padding: '10px 16px', borderTop: '1px solid rgba(148,163,184,0.08)',
-          background: 'rgba(59,130,246,0.04)'
-        }}>
-          <EyeIcon viewed={doc.status === 'viewed'} size={14} />
-          <span style={{ fontSize: '12px', color: '#64748b' }}>
-            {doc.status === 'viewed' ? 'Customer viewed' : 'Sent'}{doc.sent_at ? ` \u2022 ${Math.floor((Date.now() - new Date(doc.sent_at).getTime()) / 86400000)}d ago` : ''}
-          </span>
-        </div>
-      )}
-
-      {/* Expand/Archive Row */}
+      {/* Next Action - THE KEY PIECE */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '6px 16px 8px', borderTop: '1px solid rgba(148,163,184,0.05)'
+        display: 'flex', alignItems: 'center', gap: '8px',
+        padding: '6px 12px', borderRadius: '8px',
+        background: stateConfig.bg,
+        flexShrink: 0, maxWidth: '220px'
       }}>
-        <button onClick={(e) => { e.stopPropagation(); onToggle() }} style={{
-          display: 'flex', alignItems: 'center', gap: '4px',
-          background: 'transparent', border: 'none', color: '#4b5563',
-          fontSize: '11px', cursor: 'pointer', padding: '4px 0'
+        <span style={{
+          fontSize: '13px', fontWeight: 600, color: stateConfig.color,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
         }}>
-          <ChevronDownIcon open={expanded} />
-          {expanded ? 'Hide' : 'Workflow'}{allActions.length > 0 ? ` (${allActions.filter(a => a.status === 'COMPLETED').length}/${allActions.length})` : ''}
-        </button>
+          {item.nextAction}
+        </span>
+      </div>
+
+      {/* Production progress bar (inline) */}
+      {item.productionProgress && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, width: '80px' }}>
+          <div style={{ flex: 1, height: '5px', background: '#282a30', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: '3px',
+              width: `${(item.productionProgress.completed / item.productionProgress.total) * 100}%`,
+              background: 'linear-gradient(90deg, #a855f7, #8b5cf6)',
+              transition: 'width 0.4s ease'
+            }} />
+          </div>
+          <span style={{ fontSize: '10px', color: '#a855f7', fontWeight: 600, flexShrink: 0 }}>
+            {item.productionProgress.completed}/{item.productionProgress.total}
+          </span>
+        </div>
+      )}
+
+      {/* Amount */}
+      {item.total !== undefined && (
+        <div style={{ fontSize: '14px', fontWeight: 600, color: '#22c55e', flexShrink: 0, minWidth: '60px', textAlign: 'right' }}>
+          ${item.total.toLocaleString()}
+        </div>
+      )}
+
+      {/* Archive button */}
+      {onArchive && hovered && (
         <button onClick={(e) => { e.stopPropagation(); onArchive() }} style={{
-          display: 'flex', alignItems: 'center', gap: '4px',
           background: 'transparent', border: 'none', color: '#4b5563',
-          fontSize: '11px', cursor: 'pointer', padding: '4px'
+          cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center',
+          flexShrink: 0, transition: 'color 0.15s'
         }}
           onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
           onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}
         >
-          <ArchiveIcon /> Archive
+          <ArchiveIcon />
         </button>
-      </div>
-
-      {/* Expanded Workflow Timeline */}
-      {expanded && allActions.length > 0 && (
-        <div style={{ padding: '0 16px 12px', borderTop: '1px solid rgba(148,163,184,0.08)' }}>
-          <WorkflowTimeline actions={allActions} onComplete={onComplete} />
-        </div>
       )}
-    </div>
-  )
-}
 
-// ============================================================================
-// WORKFLOW TIMELINE (Expandable dropdown)
-// ============================================================================
-
-function WorkflowTimeline({ actions, onComplete }: {
-  actions: CustomerAction[]
-  onComplete: (actionId: string, e?: React.MouseEvent) => void
-}) {
-  const sorted = [...actions].sort((a, b) => a.sort_order - b.sort_order)
-  return (
-    <div style={{ paddingTop: '10px' }}>
-      {sorted.map((action, idx) => {
-        const isCompleted = action.status === 'COMPLETED'
-        const isTodo = action.status === 'TODO'
-        const isLast = idx === sorted.length - 1
-        return (
-          <div key={action.id} style={{ display: 'flex', gap: '10px', position: 'relative' }}>
-            {/* Timeline connector */}
-            {!isLast && (
-              <div style={{
-                position: 'absolute', left: '10px', top: '22px', bottom: '-2px',
-                width: '2px', background: isCompleted ? '#22c55e30' : '#282a30'
-              }} />
-            )}
-            {/* Step indicator */}
-            <div style={{
-              width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: isCompleted ? '#22c55e' : isTodo ? '#282a30' : '#282a30',
-              border: isTodo ? '2px solid #64748b' : 'none',
-              color: isCompleted ? 'white' : '#64748b', zIndex: 1,
-              cursor: isTodo ? 'pointer' : 'default',
-              transition: 'all 0.15s'
-            }}
-              onClick={isTodo ? (e) => onComplete(action.id, e) : undefined}
-              onMouseEnter={isTodo ? (e) => { e.currentTarget.style.borderColor = '#d71cd1'; e.currentTarget.style.color = '#d71cd1' } : undefined}
-              onMouseLeave={isTodo ? (e) => { e.currentTarget.style.borderColor = '#64748b'; e.currentTarget.style.color = '#64748b' } : undefined}
-            >
-              {isCompleted && <CheckIcon />}
-            </div>
-            {/* Step content */}
-            <div style={{ flex: 1, paddingBottom: isLast ? 0 : '12px' }}>
-              <div style={{
-                fontSize: '13px', fontWeight: 500,
-                color: isCompleted ? '#64748b' : isTodo ? '#e2e8f0' : '#4b5563',
-                textDecoration: isCompleted ? 'line-through' : 'none'
-              }}>
-                {stepLabels[action.step_key] || action.title}
-              </div>
-              {action.completed_at && (
-                <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '2px' }}>
-                  Completed {new Date(action.completed_at).toLocaleDateString()}
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      })}
+      {/* Navigate arrow */}
+      <div style={{ color: hovered ? stateConfig.color : '#333', flexShrink: 0, transition: 'color 0.15s' }}>
+        <ChevronRightIcon />
+      </div>
     </div>
   )
 }
