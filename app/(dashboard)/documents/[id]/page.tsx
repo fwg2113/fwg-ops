@@ -83,13 +83,6 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     .eq('decoration_type', 'embroidery_fee')
     .single()
 
-  // Fallback to legacy combined matrix if new ones don't exist yet
-  const { data: embroideryLegacyMatrix } = await supabase
-    .from('apparel_pricing_matrices')
-    .select('*')
-    .eq('decoration_type', 'embroidery')
-    .single()
-
   if (!document) {
     return <div style={{ color: '#f1f5f9', padding: '40px' }}>Document not found</div>
   }
@@ -105,8 +98,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       feeTypes={feeTypes || []}
       payments={payments || []}
       dtfPricingMatrix={dtfPricingMatrix || null}
-      embroideryMarkupMatrix={embroideryMarkupMatrix || embroideryLegacyMatrix || null}
-      embroideryFeeMatrix={embroideryFeeMatrix || embroideryLegacyMatrix || null}
+      embroideryMarkupMatrix={embroideryMarkupMatrix || null}
+      embroideryFeeMatrix={embroideryFeeMatrix || null}
     />
   )
 }

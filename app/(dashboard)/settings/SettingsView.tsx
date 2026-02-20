@@ -169,7 +169,7 @@ type NotificationSettings = {
   email_alert_address: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers'
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers'
 
 type DtfPricingMatrix = {
   id: string
@@ -202,7 +202,6 @@ export default function SettingsView({
   initialPricingMatrix,
   initialCustomerWorkflows,
   initialDtfPricing,
-  initialEmbroideryPricing,
   initialEmbroideryMarkupPricing,
   initialEmbroideryFeePricing
 }: {
@@ -221,7 +220,6 @@ export default function SettingsView({
   initialPricingMatrix: PricingRow[]
   initialCustomerWorkflows: CustomerWorkflowTemplate[]
   initialDtfPricing?: DtfPricingMatrix | null
-  initialEmbroideryPricing?: DtfPricingMatrix | null
   initialEmbroideryMarkupPricing?: DtfPricingMatrix | null
   initialEmbroideryFeePricing?: DtfPricingMatrix | null
 }) {
@@ -261,10 +259,6 @@ export default function SettingsView({
   const [savingDtfPricing, setSavingDtfPricing] = useState(false)
   const [addingDtfBreak, setAddingDtfBreak] = useState(false)
   const [newDtfBreak, setNewDtfBreak] = useState({ min: 0, max: 0, markup_pct: 200, decoration_prices: { front: 5.00, back: 5.00, left_sleeve: 5.00, right_sleeve: 5.00, extra: 5.00 } })
-  // Embroidery Pricing state (legacy combined)
-  const [embroideryPricing, setEmbroideryPricing] = useState<DtfPricingMatrix | null>(initialEmbroideryPricing || null)
-  const [editingEmbroideryBreak, setEditingEmbroideryBreak] = useState<number | null>(null)
-  const [savingEmbroideryPricing, setSavingEmbroideryPricing] = useState(false)
   // Embroidery Markup state (separate qty breaks)
   const [embMarkupPricing, setEmbMarkupPricing] = useState<DtfPricingMatrix | null>(initialEmbroideryMarkupPricing || null)
   const [editingEmbMarkupBreak, setEditingEmbMarkupBreak] = useState<number | null>(null)
@@ -287,14 +281,14 @@ export default function SettingsView({
   // Derive qty tiers from existing pricing matrix on mount
   useEffect(() => {
     if (!qtyTiersLoaded) {
-      const source = dtfPricing || embroideryPricing
+      const source = dtfPricing || embMarkupPricing
       if (source && source.quantity_breaks) {
         const sorted = [...source.quantity_breaks].sort((a, b) => a.min - b.min)
         setQtyTiers(sorted.map(qb => ({ min: qb.min, max: qb.max })))
         setQtyTiersLoaded(true)
       }
     }
-  }, [dtfPricing, embroideryPricing, qtyTiersLoaded])
+  }, [dtfPricing, embMarkupPricing, qtyTiersLoaded])
   // Customer Workflows state
   const [customerWorkflows, setCustomerWorkflows] = useState<CustomerWorkflowTemplate[]>(initialCustomerWorkflows)
   const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null)
@@ -531,7 +525,6 @@ export default function SettingsView({
     { key: 'dtf-pricing', label: 'DTF Pricing' },
     { key: 'embroidery-markup', label: 'Emb. Markup' },
     { key: 'embroidery-fee', label: 'Emb. Fee' },
-    { key: 'embroidery-pricing', label: 'Embroidery Pricing' },
     { key: 'automations', label: 'Automations' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'calls', label: 'Call Forwarding' },
@@ -3804,7 +3797,7 @@ export default function SettingsView({
                         <button
                           onClick={() => {
                             // Reload original tiers from pricing data
-                            const source = dtfPricing || embroideryPricing
+                            const source = dtfPricing || embMarkupPricing
                             if (source && source.quantity_breaks) {
                               const sorted = [...source.quantity_breaks].sort((a, b) => a.min - b.min)
                               setQtyTiers(sorted.map(qb => ({ min: qb.min, max: qb.max })))
@@ -3824,13 +3817,9 @@ export default function SettingsView({
                               })
                               if (res.ok) {
                                 setEditingTierIdx(null)
-                                // Refresh DTF and Embroidery pricing to reflect new ranges
-                                const [dtfRes, embRes] = await Promise.all([
-                                  fetch('/api/settings/dtf-pricing'),
-                                  fetch('/api/settings/embroidery-pricing')
-                                ])
+                                // Refresh DTF pricing to reflect new ranges
+                                const dtfRes = await fetch('/api/settings/dtf-pricing')
                                 if (dtfRes.ok) setDtfPricing(await dtfRes.json())
-                                if (embRes.ok) setEmbroideryPricing(await embRes.json())
                               } else {
                                 alert('Failed to save qty tiers')
                               }
@@ -3869,12 +3858,8 @@ export default function SettingsView({
                               })
                               if (res.ok) {
                                 setQtyTiers(updated)
-                                const [dtfRes, embRes] = await Promise.all([
-                                  fetch('/api/settings/dtf-pricing'),
-                                  fetch('/api/settings/embroidery-pricing')
-                                ])
+                                const dtfRes = await fetch('/api/settings/dtf-pricing')
                                 if (dtfRes.ok) setDtfPricing(await dtfRes.json())
-                                if (embRes.ok) setEmbroideryPricing(await embRes.json())
                               } else {
                                 alert('Failed to remove tier')
                               }
@@ -3936,12 +3921,8 @@ export default function SettingsView({
                               setQtyTiers(updated)
                               setAddingTier(false)
                               setNewTier({ min: 0, max: 0 })
-                              const [dtfRes, embRes] = await Promise.all([
-                                fetch('/api/settings/dtf-pricing'),
-                                fetch('/api/settings/embroidery-pricing')
-                              ])
+                              const dtfRes = await fetch('/api/settings/dtf-pricing')
                               if (dtfRes.ok) setDtfPricing(await dtfRes.json())
-                              if (embRes.ok) setEmbroideryPricing(await embRes.json())
                             } else {
                               alert('Failed to add tier')
                             }
@@ -4707,171 +4688,6 @@ export default function SettingsView({
           <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
             <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
               Per-location decoration fees based on stitch count. Changes apply to future quotes only — existing approved quotes are not affected.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Embroidery Pricing Tab */}
-      {activeTab === 'embroidery-pricing' && embroideryPricing && (
-        <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-            <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Embroidery Pricing Matrix</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Manage quantity breaks, markup percentages, and decoration prices for embroidery</p>
-          </div>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'rgba(148, 163, 184, 0.05)' }}>
-                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Qty Range</th>
-                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Markup %</th>
-                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Up to 10k</th>
-                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>10k - 20k</th>
-                <th style={{ padding: '12px 20px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '12px', textTransform: 'uppercase' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {embroideryPricing.quantity_breaks.map((qtyBreak, index) => (
-                editingEmbroideryBreak === index ? (
-                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                    <td style={{ padding: '12px 20px' }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <input
-                          type="number"
-                          value={qtyBreak.min}
-                          onChange={e => {
-                            const newBreaks = [...embroideryPricing.quantity_breaks]
-                            newBreaks[index] = { ...newBreaks[index], min: parseInt(e.target.value) || 0 }
-                            setEmbroideryPricing({ ...embroideryPricing, quantity_breaks: newBreaks })
-                          }}
-                          style={{ width: '70px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
-                        />
-                        <span style={{ color: '#64748b' }}>to</span>
-                        <input
-                          type="number"
-                          value={qtyBreak.max}
-                          onChange={e => {
-                            const newBreaks = [...embroideryPricing.quantity_breaks]
-                            newBreaks[index] = { ...newBreaks[index], max: parseInt(e.target.value) || 0 }
-                            setEmbroideryPricing({ ...embroideryPricing, quantity_breaks: newBreaks })
-                          }}
-                          style={{ width: '70px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
-                        />
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 20px' }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <input
-                          type="number"
-                          value={qtyBreak.markup_pct}
-                          onChange={e => {
-                            const newBreaks = [...embroideryPricing.quantity_breaks]
-                            newBreaks[index] = { ...newBreaks[index], markup_pct: parseInt(e.target.value) || 0 }
-                            setEmbroideryPricing({ ...embroideryPricing, quantity_breaks: newBreaks })
-                          }}
-                          style={{ width: '70px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
-                        />
-                        <span style={{ color: '#64748b' }}>%</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 20px' }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span style={{ color: '#64748b' }}>$</span>
-                        <input
-                          type="number"
-                          step="0.50"
-                          value={qtyBreak.decoration_prices.up_to_10k ?? 0}
-                          onChange={e => {
-                            const newBreaks = [...embroideryPricing.quantity_breaks]
-                            newBreaks[index] = { ...newBreaks[index], decoration_prices: { ...newBreaks[index].decoration_prices, up_to_10k: parseFloat(e.target.value) || 0 } }
-                            setEmbroideryPricing({ ...embroideryPricing, quantity_breaks: newBreaks })
-                          }}
-                          style={{ width: '70px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
-                        />
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 20px' }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span style={{ color: '#64748b' }}>$</span>
-                        <input
-                          type="number"
-                          step="0.50"
-                          value={qtyBreak.decoration_prices['10k_to_20k'] ?? 0}
-                          onChange={e => {
-                            const newBreaks = [...embroideryPricing.quantity_breaks]
-                            newBreaks[index] = { ...newBreaks[index], decoration_prices: { ...newBreaks[index].decoration_prices, '10k_to_20k': parseFloat(e.target.value) || 0 } }
-                            setEmbroideryPricing({ ...embroideryPricing, quantity_breaks: newBreaks })
-                          }}
-                          style={{ width: '70px', padding: '6px 10px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#f1f5f9', fontSize: '13px' }}
-                        />
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => setEditingEmbroideryBreak(null)}
-                          style={{ padding: '6px 12px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={async () => {
-                            setSavingEmbroideryPricing(true)
-                            try {
-                              const res = await fetch('/api/settings/embroidery-pricing', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: embroideryPricing.id, quantity_breaks: embroideryPricing.quantity_breaks })
-                              })
-                              if (res.ok) {
-                                setEditingEmbroideryBreak(null)
-                              } else {
-                                alert('Failed to save pricing')
-                              }
-                            } catch (err) {
-                              alert('Error saving pricing')
-                            }
-                            setSavingEmbroideryPricing(false)
-                          }}
-                          disabled={savingEmbroideryPricing}
-                          style={{ padding: '6px 12px', background: '#d71cd1', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, opacity: savingEmbroideryPricing ? 0.6 : 1 }}
-                        >
-                          {savingEmbroideryPricing ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={index} style={{ borderTop: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>
-                      {qtyBreak.min} - {qtyBreak.max === 99999 ? '∞' : qtyBreak.max}
-                    </td>
-                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
-                      {qtyBreak.markup_pct}%
-                    </td>
-                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>
-                      ${(qtyBreak.decoration_prices.up_to_10k ?? 0).toFixed(2)}
-                    </td>
-                    <td style={{ padding: '12px 20px', color: '#f1f5f9', fontSize: '14px' }}>
-                      ${(qtyBreak.decoration_prices['10k_to_20k'] ?? 0).toFixed(2)}
-                    </td>
-                    <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => setEditingEmbroideryBreak(index)}
-                        style={{ padding: '6px 12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                )
-              ))}
-            </tbody>
-          </table>
-
-          <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(148, 163, 184, 0.1)', background: 'rgba(139,92,246,0.05)' }}>
-            <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
-              Decoration prices are per-location based on stitch count. Markup percentages are applied to garment wholesale prices. Changes apply to future quotes only — existing approved quotes are not affected.
             </p>
           </div>
         </div>
