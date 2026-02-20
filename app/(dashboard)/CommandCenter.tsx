@@ -278,7 +278,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const [showArchiveModal, setShowArchiveModal] = useState<{ type: 'document' | 'submission'; id: string } | null>(null)
   const [archiveReason, setArchiveReason] = useState<'won' | 'cold'>('cold')
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'NORMAL', due_date: '' })
-  const [queueFilter, setQueueFilter] = useState<string>('all')
+  const [queueFilter, setQueueFilter] = useState<string>('action_needed')
 
   // Sync with server data on refresh
   useEffect(() => { setData(initialData) }, [initialData])
