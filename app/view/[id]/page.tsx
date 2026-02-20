@@ -33,9 +33,23 @@ export default async function CustomerViewPage({ params }: { params: Promise<{ i
     .order('created_at', { ascending: false })
 
   // Fetch pricing matrices for tier breakdown display
-  const { data: pricingMatrices } = await supabase
+  const { data: livePricingMatrices } = await supabase
     .from('apparel_pricing_matrices')
     .select('*')
+
+  // Use frozen snapshot matrices for final quotes/invoices (options_mode off),
+  // live matrices for interactive options mode
+  let pricingMatrices = livePricingMatrices || []
+  if (!document?.options_mode && document?.pricing_snapshot_json) {
+    try {
+      const snapshot = typeof document.pricing_snapshot_json === 'string'
+        ? JSON.parse(document.pricing_snapshot_json) : document.pricing_snapshot_json
+      if (snapshot?.matrices) {
+        const snapshotMatrices = Object.values(snapshot.matrices) as any[]
+        if (snapshotMatrices.length > 0) pricingMatrices = snapshotMatrices
+      }
+    } catch { /* fall back to live */ }
+  }
 
   if (!document) {
     return (

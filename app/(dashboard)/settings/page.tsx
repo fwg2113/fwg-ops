@@ -110,13 +110,6 @@ export default async function SettingsPage() {
     .eq('decoration_type', 'dtf')
     .single()
 
-  // Embroidery Pricing Matrix (legacy combined)
-  const { data: embroideryPricing } = await supabase
-    .from('apparel_pricing_matrices')
-    .select('*')
-    .eq('decoration_type', 'embroidery')
-    .single()
-
   // Embroidery Markup Matrix (separate qty breaks for markup %)
   const { data: embroideryMarkupPricing } = await supabase
     .from('apparel_pricing_matrices')
@@ -151,7 +144,6 @@ export default async function SettingsPage() {
       initialPricingMatrix={pricingMatrix || []}
       initialCustomerWorkflows={customerWorkflows || []}
       initialDtfPricing={dtfPricing}
-      initialEmbroideryPricing={embroideryPricing}
       initialEmbroideryMarkupPricing={embroideryMarkupPricing}
       initialEmbroideryFeePricing={embroideryFeePricing}
     />

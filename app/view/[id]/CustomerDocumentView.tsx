@@ -124,9 +124,7 @@ function buildTierPricing(
   if (isEmbroidery) {
     // Embroidery uses split matrices: embroidery_markup (for markup %) and embroidery_fee (for decoration prices)
     markupMatrix = matrices.find(m => m.decoration_type === 'embroidery_markup')
-      || matrices.find(m => m.decoration_type === 'embroidery') // legacy fallback
     feeMatrix = matrices.find(m => m.decoration_type === 'embroidery_fee')
-      || matrices.find(m => m.decoration_type === 'embroidery') // legacy fallback
   } else {
     markupMatrix = matrices.find(m => m.decoration_type === 'dtf')
     feeMatrix = markupMatrix
@@ -196,7 +194,7 @@ function getActiveTierPrice(
 
   const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
   const markupMatrix = isEmbroidery
-    ? (matrices.find(m => m.decoration_type === 'embroidery_markup') || matrices.find(m => m.decoration_type === 'embroidery'))
+    ? matrices.find(m => m.decoration_type === 'embroidery_markup')
     : matrices.find(m => m.decoration_type === 'dtf')
   if (!markupMatrix) return null
 

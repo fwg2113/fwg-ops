@@ -112,6 +112,7 @@ type Document = {
   followup_count?: number; last_followup_at?: string; revision_history_json?: any; discount_note?: string
   options_mode?: boolean; options_json?: QuoteOption[]; history_log?: HistoryEntry[]
   fulfillment_type?: string; fulfillment_details?: any
+  send_options_json?: any; pricing_snapshot_json?: any; pricing_locked?: boolean; pricing_snapshot_at?: string
 }
 
 type HistoryEntry = {
@@ -134,6 +135,7 @@ type LineItem = {
   id: string; document_id: string; group_id: string; category: string; line_type: string; package_key: string
   description: string; quantity: number; sqft: number; unit_price: number; rate: number; line_total: number
   sort_order: number; attachments?: Attachment[]; custom_fields?: Record<string, any>; taxable?: boolean
+  decoration_type?: string; stitch_count?: string; decoration_locations?: any
 }
 
 type LineItemGroup = { group_id: string; category_key: string }
@@ -318,6 +320,37 @@ export default function DocumentDetail({
       return []
     } catch { return [] }
   })
+  // Pricing lock + change detection state
+  const [pricingLocked, setPricingLocked] = useState(initialDoc.pricing_locked || false)
+  const [showPricingChangedModal, setShowPricingChangedModal] = useState(false)
+  const [pricingChangeSummary, setPricingChangeSummary] = useState<string[]>([])
+
+  // On mount: detect if pricing settings have changed since last snapshot
+  useEffect(() => {
+    if (!initialDoc.pricing_snapshot_json || !pricingLocked) return
+    const snapshot = typeof initialDoc.pricing_snapshot_json === 'string'
+      ? JSON.parse(initialDoc.pricing_snapshot_json) : initialDoc.pricing_snapshot_json
+    if (!snapshot?.matrices) return
+
+    const changes: string[] = []
+    const compare = (label: string, snapshotMatrix: any, liveMatrix: any) => {
+      if (!snapshotMatrix && !liveMatrix) return
+      if (!snapshotMatrix || !liveMatrix) { changes.push(`${label} matrix added or removed`); return }
+      const snapBreaks = JSON.stringify(snapshotMatrix.quantity_breaks || [])
+      const liveBreaks = JSON.stringify(liveMatrix.quantity_breaks || [])
+      if (snapBreaks !== liveBreaks) changes.push(`${label} pricing has changed`)
+    }
+    compare('DTF', snapshot.matrices.dtf, dtfPricingMatrix)
+    compare('Embroidery Markup', snapshot.matrices.embroidery_markup, embroideryMarkupMatrix)
+    compare('Embroidery Fee', snapshot.matrices.embroidery_fee, embroideryFeeMatrix)
+
+    if (changes.length > 0) {
+      setPricingChangeSummary(changes)
+      setShowPricingChangedModal(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleDiscountNoteBlur = async () => {
     await supabase.from('documents').update({ discount_note: discountNote }).eq('id', doc.id)
     setDoc({ ...doc, discount_note: discountNote })
@@ -890,15 +923,35 @@ export default function DocumentDetail({
     setSendingFollowUp(false)
   }
   const handleOpenSendModal = () => {
-    setSendEmail(!!customerEmail)
-    setSendSms(!!customerPhone)
-    setApprovalType('both')
-    setCustomApprovalText('')
-    setIncludeLineAttachments(lineItemAttachmentCount > 0)
-    setIncludeProjectAttachments(false)
-    setPaymentTerms('deposit_50')
-    setCustomPaymentAmount(0)
-    setNotificationPref('sms')
+    // Load previous send settings if available, otherwise use defaults
+    const prev = (() => {
+      try {
+        if (typeof doc.send_options_json === 'string') return JSON.parse(doc.send_options_json)
+        return doc.send_options_json || null
+      } catch { return null }
+    })()
+
+    if (prev) {
+      setSendEmail(prev.email !== undefined ? prev.email : !!customerEmail)
+      setSendSms(prev.sms !== undefined ? prev.sms : !!customerPhone)
+      setApprovalType(prev.approvalType || 'both')
+      setCustomApprovalText(prev.customApprovalText || '')
+      setIncludeLineAttachments(prev.includeLineAttachments !== undefined ? prev.includeLineAttachments : lineItemAttachmentCount > 0)
+      setIncludeProjectAttachments(prev.includeProjectAttachments || false)
+      setPaymentTerms(prev.paymentTerms || 'deposit_50')
+      setCustomPaymentAmount(prev.paymentTerms === 'custom' ? (prev.depositAmount || 0) : 0)
+      setNotificationPref(prev.customerNotificationPref || 'sms')
+    } else {
+      setSendEmail(!!customerEmail)
+      setSendSms(!!customerPhone)
+      setApprovalType('both')
+      setCustomApprovalText('')
+      setIncludeLineAttachments(lineItemAttachmentCount > 0)
+      setIncludeProjectAttachments(false)
+      setPaymentTerms('deposit_50')
+      setCustomPaymentAmount(0)
+      setNotificationPref('sms')
+    }
     setShowSendModal(true)
   }
 
@@ -992,18 +1045,60 @@ export default function DocumentDetail({
         depositAmount,
         customerNotificationPref: notificationPref
       }
-      
-      await supabase.from('documents').update({ 
-        status: 'sent', 
-        sent_at: new Date().toISOString(),
+
+      // Capture pricing snapshot from current matrices
+      const pricingSnapshot: Record<string, any> = { captured_at: new Date().toISOString(), matrices: {} }
+      if (dtfPricingMatrix) pricingSnapshot.matrices.dtf = dtfPricingMatrix
+      if (embroideryMarkupMatrix) pricingSnapshot.matrices.embroidery_markup = embroideryMarkupMatrix
+      if (embroideryFeeMatrix) pricingSnapshot.matrices.embroidery_fee = embroideryFeeMatrix
+
+      const sentAt = new Date().toISOString()
+      await supabase.from('documents').update({
+        status: 'sent',
+        sent_at: sentAt,
         deposit_required: depositAmount,
-        send_options_json: sendOptions
+        send_options_json: sendOptions,
+        pricing_snapshot_json: pricingSnapshot,
+        pricing_snapshot_at: sentAt,
+        pricing_locked: true
       }).eq('id', doc.id)
-      
-      setDoc({ ...doc, status: 'sent', sent_at: new Date().toISOString(), deposit_required: depositAmount })
+
+      // Create send snapshot for activity log (full record of what customer sees)
+      const snapshotData = {
+        document: {
+          id: doc.id, doc_number: doc.doc_number, doc_type: doc.doc_type,
+          customer_name: customerName, company_name: companyName,
+          customer_email: customerEmail, customer_phone: customerPhone,
+          vehicle_description: vehicleDescription, project_description: projectDescription,
+          subtotal, fees, fees_total: feesTotal, discount_amount: discountAmount,
+          discount_percent: doc.discount_percent, discount_note: discountNote,
+          tax_amount: taxAmount, total, deposit_required: depositAmount,
+          notes, valid_until: validUntil, options_mode: optionsMode,
+          options_json: optionsMode ? options : null, attachments
+        },
+        line_items: lineItems.map(li => ({
+          id: li.id, group_id: li.group_id, category: li.category, description: li.description,
+          quantity: li.quantity, unit_price: li.unit_price, line_total: li.line_total,
+          custom_fields: li.custom_fields, decoration_type: li.decoration_type,
+          stitch_count: li.stitch_count, attachments: li.attachments, taxable: li.taxable
+        })),
+        send_options: sendOptions,
+        pricing_matrices: pricingSnapshot.matrices
+      }
+      const { data: snapshotRow } = await supabase.from('document_send_snapshots').insert({
+        document_id: doc.id,
+        snapshot_data: snapshotData
+      }).select('id').single()
+
+      setDoc({ ...doc, status: 'sent', sent_at: sentAt, deposit_required: depositAmount, send_options_json: sendOptions, pricing_locked: true })
       setShowSendModal(false)
       showToast('Sent successfully!', 'success')
-      await appendHistory('Sent', `${doc.doc_type === 'quote' ? 'Quote' : 'Invoice'} sent to ${doc.customer_name}`)
+
+      // Build rich activity detail
+      const deliveryMethods = [sendSms && 'SMS', sendEmail && 'Email'].filter(Boolean).join(' & ')
+      const termsLabel = paymentTerms === 'deposit_50' ? '50% deposit' : paymentTerms === 'full' ? 'Full payment' : `Custom ($${depositAmount.toFixed(2)})`
+      const snapshotLink = snapshotRow?.id ? ` [snapshot:${snapshotRow.id}]` : ''
+      await appendHistory('Sent', `${doc.doc_type === 'quote' ? 'Quote' : 'Invoice'} sent via ${deliveryMethods} | ${termsLabel} ($${depositAmount.toFixed(2)}) | Total: $${total.toFixed(2)}${snapshotLink}`)
       
     } catch (err) {
       showToast('Failed to send', 'error')
@@ -3238,6 +3333,35 @@ export default function DocumentDetail({
               </svg>
               {optionsMode ? 'Options Mode ON' : 'Options Mode OFF'}
             </button>
+            {/* Pricing Lock Toggle */}
+            <button
+              onClick={async () => {
+                const newLocked = !pricingLocked
+                setPricingLocked(newLocked)
+                await supabase.from('documents').update({ pricing_locked: newLocked }).eq('id', doc.id)
+              }}
+              title={pricingLocked ? 'Pricing locked — settings changes won\'t affect this document' : 'Pricing unlocked — settings changes can be applied'}
+              style={{
+                padding: '10px 16px',
+                background: pricingLocked ? 'linear-gradient(135deg, #f59e0b, #d97706)' : '#282a30',
+                border: pricingLocked ? 'none' : '1px solid rgba(148,163,184,0.2)',
+                borderRadius: '8px',
+                color: pricingLocked ? 'white' : '#94a3b8',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {pricingLocked ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+              )}
+              {pricingLocked ? 'Pricing Locked' : 'Pricing Unlocked'}
+            </button>
           </div>
         </div>
       )}
@@ -4468,7 +4592,25 @@ export default function DocumentDetail({
                         background: dotColor, border: '2px solid #111111'
                       }} />
                       <div style={{ fontSize: '13px', fontWeight: 500, color: '#f1f5f9' }}>{entry.event}</div>
-                      {entry.detail && <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>{entry.detail}</div>}
+                      {entry.detail && (() => {
+                        const snapshotMatch = entry.detail.match(/\[snapshot:([a-f0-9-]+)\]/)
+                        const cleanDetail = entry.detail.replace(/\s*\[snapshot:[a-f0-9-]+\]/, '')
+                        return (
+                          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                            {cleanDetail}
+                            {snapshotMatch && (
+                              <a
+                                href={`/snapshot/${snapshotMatch[1]}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ marginLeft: '8px', color: '#3b82f6', textDecoration: 'none', fontWeight: 500, fontSize: '11px' }}
+                              >
+                                View Snapshot &rarr;
+                              </a>
+                            )}
+                          </div>
+                        )
+                      })()}
                       <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>{timeStr}</div>
                     </div>
                   )
@@ -4667,6 +4809,138 @@ export default function DocumentDetail({
         </div>
       )}
 
+      {/* Pricing Changed Modal */}
+      {showPricingChangedModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '480px', margin: '0 16px', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600, margin: 0 }}>Pricing Settings Changed</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', margin: '2px 0 0 0' }}>Since this document was last sent</p>
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '16px 24px' }}>
+              <p style={{ color: '#94a3b8', fontSize: '14px', margin: '0 0 12px 0' }}>
+                The following pricing settings have changed since this document was last sent to the customer:
+              </p>
+              <ul style={{ margin: '0 0 16px 0', paddingLeft: '20px' }}>
+                {pricingChangeSummary.map((change, i) => (
+                  <li key={i} style={{ color: '#f59e0b', fontSize: '13px', padding: '2px 0' }}>{change}</li>
+                ))}
+              </ul>
+              <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
+                Would you like to apply the updated pricing to this document? This will recalculate all apparel line item prices using the current settings.
+              </p>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => setShowPricingChangedModal(false)}
+                style={{ padding: '8px 16px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}
+              >
+                Keep Current Pricing
+              </button>
+              <button
+                onClick={async () => {
+                  // Apply new pricing to all apparel line items
+                  const allMatrices = [dtfPricingMatrix, embroideryMarkupMatrix, embroideryFeeMatrix].filter(Boolean) as any[]
+                  let updatedItems = [...lineItems]
+                  let changed = false
+
+                  for (let i = 0; i < updatedItems.length; i++) {
+                    const item = updatedItems[i]
+                    const cf = item.custom_fields || {}
+                    if (!cf.apparel_mode) continue
+
+                    const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number; wholesale: number }>
+                    const wholesalePrices = Object.values(sizes).map(s => s.wholesale || 0).filter(w => w > 0)
+                    if (wholesalePrices.length === 0) continue
+                    const avgWholesale = wholesalePrices.reduce((a, b) => a + b, 0) / wholesalePrices.length
+
+                    const isEmb = item.category === 'EMBROIDERY' || cf.decoration_type === 'embroidery'
+                    const markupMatrix = isEmb ? embroideryMarkupMatrix : dtfPricingMatrix
+                    const feeMatrix = isEmb ? embroideryFeeMatrix : dtfPricingMatrix
+                    if (!markupMatrix?.quantity_breaks) continue
+
+                    const totalQty = Object.values(sizes).reduce((s, sz) => s + (sz.qty || 0), 0)
+                    const sortedMarkupBreaks = [...markupMatrix.quantity_breaks].sort((a: any, b: any) => a.min - b.min)
+                    const sortedFeeBreaks = feeMatrix?.quantity_breaks ? [...feeMatrix.quantity_breaks].sort((a: any, b: any) => a.min - b.min) : []
+
+                    // Find matching tier
+                    let tierIdx = sortedMarkupBreaks.length - 1
+                    for (let t = 0; t < sortedMarkupBreaks.length; t++) {
+                      if (totalQty >= sortedMarkupBreaks[t].min && totalQty <= sortedMarkupBreaks[t].max) {
+                        tierIdx = t
+                        break
+                      }
+                    }
+                    const tier = sortedMarkupBreaks[tierIdx]
+                    const garmentPrice = avgWholesale * (tier.markup_pct / 100)
+
+                    let decorationFee = 0
+                    if (!cf.manual_price_override) {
+                      if (isEmb) {
+                        const embFeeOverride = cf.embroidery_fee_per_location as number | undefined
+                        const designLocations = cf.design_locations_count || 1
+                        if (embFeeOverride !== undefined) {
+                          decorationFee = embFeeOverride * designLocations
+                        } else {
+                          const feeTier = sortedFeeBreaks.find((ft: any) => tier.min >= ft.min && tier.min <= ft.max) || sortedFeeBreaks[tierIdx]
+                          if (feeTier?.decoration_prices) {
+                            const stitchTier = cf.stitch_count || 'up_to_10k'
+                            const stitchKey = stitchTier === '10k_to_20k' || stitchTier === '20k_plus' ? '10k_to_20k' : 'up_to_10k'
+                            decorationFee = (feeTier.decoration_prices[stitchKey] || 0) * designLocations
+                          }
+                        }
+                      } else {
+                        const designLocations = cf.design_locations_count || 1
+                        const designFee = cf.design_fee_per_location ?? 5.00
+                        const pressFee = cf.press_fee_per_location ?? 2.25
+                        decorationFee = designLocations * (designFee + pressFee)
+                      }
+                    }
+
+                    const newUnitPrice = Math.round((garmentPrice + decorationFee) * 100) / 100
+                    const newLineTotal = Math.round(newUnitPrice * totalQty * 100) / 100
+
+                    if (newUnitPrice !== item.unit_price || newLineTotal !== item.line_total) {
+                      updatedItems[i] = { ...item, unit_price: newUnitPrice, line_total: newLineTotal }
+                      await supabase.from('line_items').update({ unit_price: newUnitPrice, line_total: newLineTotal }).eq('id', item.id)
+                      changed = true
+                    }
+                  }
+
+                  if (changed) {
+                    setLineItems(updatedItems)
+                    // Take new snapshot
+                    const newSnapshot: Record<string, any> = { captured_at: new Date().toISOString(), matrices: {} }
+                    if (dtfPricingMatrix) newSnapshot.matrices.dtf = dtfPricingMatrix
+                    if (embroideryMarkupMatrix) newSnapshot.matrices.embroidery_markup = embroideryMarkupMatrix
+                    if (embroideryFeeMatrix) newSnapshot.matrices.embroidery_fee = embroideryFeeMatrix
+
+                    await supabase.from('documents').update({
+                      pricing_snapshot_json: newSnapshot,
+                      pricing_snapshot_at: new Date().toISOString()
+                    }).eq('id', doc.id)
+
+                    await appendHistory('Pricing Updated', 'Applied latest pricing matrix changes to apparel line items')
+                  }
+
+                  setShowPricingChangedModal(false)
+                }}
+                style={{ padding: '8px 16px', background: '#f59e0b', border: 'none', borderRadius: '8px', color: '#1a1a1a', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+              >
+                Apply New Pricing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Send Modal */}
       {showSendModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowSendModal(false)}>
@@ -4781,6 +5055,8 @@ export default function DocumentDetail({
                   else if (paymentTerms === 'custom') depositAmount = Number(customPaymentAmount) || 0
 
                   const sendOptions = {
+                    sms: sendSms,
+                    email: sendEmail,
                     approvalType: isQuote ? approvalType : null,
                     customApprovalText: approvalType === 'custom' ? customApprovalText : null,
                     includeLineAttachments,
@@ -4790,14 +5066,24 @@ export default function DocumentDetail({
                     customerNotificationPref: notificationPref
                   }
 
+                  // Also capture pricing snapshot on copy link
+                  const pricingSnapshot: Record<string, any> = { captured_at: new Date().toISOString(), matrices: {} }
+                  if (dtfPricingMatrix) pricingSnapshot.matrices.dtf = dtfPricingMatrix
+                  if (embroideryMarkupMatrix) pricingSnapshot.matrices.embroidery_markup = embroideryMarkupMatrix
+                  if (embroideryFeeMatrix) pricingSnapshot.matrices.embroidery_fee = embroideryFeeMatrix
+
+                  const sentAt = doc.sent_at || new Date().toISOString()
                   await supabase.from('documents').update({
                     status: 'sent',
-                    sent_at: doc.sent_at || new Date().toISOString(),
+                    sent_at: sentAt,
                     deposit_required: depositAmount,
-                    send_options_json: sendOptions
+                    send_options_json: sendOptions,
+                    pricing_snapshot_json: pricingSnapshot,
+                    pricing_snapshot_at: sentAt,
+                    pricing_locked: true
                   }).eq('id', doc.id)
 
-                  setDoc({ ...doc, status: 'sent', sent_at: doc.sent_at || new Date().toISOString(), deposit_required: depositAmount })
+                  setDoc({ ...doc, status: 'sent', sent_at: sentAt, deposit_required: depositAmount, send_options_json: sendOptions, pricing_locked: true })
 
                   navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id)
                   showToast('Settings saved & link copied!', 'success')
