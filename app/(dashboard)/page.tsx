@@ -48,13 +48,15 @@ export default async function DashboardPage() {
   ]
 
   let productionStatus: Record<string, { total: number; completed: number }> = {}
+  let nextProductionTasks: Record<string, { id: string; title: string; status: string; sort_order: number }> = {}
   if (inProductionIds.length > 0) {
     const { data: prodTasks } = await supabase
       .from('tasks')
-      .select('document_id, status')
+      .select('document_id, status, id, title, sort_order')
       .eq('auto_generated', true)
       .or('archived.is.null,archived.eq.false')
       .in('document_id', inProductionIds)
+      .order('sort_order', { ascending: true })
 
     if (prodTasks) {
       for (const t of prodTasks) {
@@ -65,6 +67,10 @@ export default async function DashboardPage() {
         productionStatus[t.document_id].total++
         if (t.status === 'COMPLETED') {
           productionStatus[t.document_id].completed++
+        }
+        // Track the first non-completed task as the "next" task
+        if (t.status !== 'COMPLETED' && !nextProductionTasks[t.document_id]) {
+          nextProductionTasks[t.document_id] = { id: t.id, title: t.title, status: t.status, sort_order: t.sort_order }
         }
       }
     }
@@ -109,6 +115,7 @@ export default async function DashboardPage() {
     tasks: tasks || [],
     customerActions: customerActions || [],
     productionStatus,
+    nextProductionTasks,
     pinnedItems: pinnedItems || [],
     metrics: {
       monthlyRevenue: liveMetrics.fwgMtdTotal,
