@@ -18,7 +18,9 @@ export default async function ProductionPage() {
       paid_at,
       customer_name,
       vehicle_description,
-      project_description
+      project_description,
+      snoozed,
+      snoozed_at
     `)
     .eq('in_production', true)
     .order('created_at', { ascending: false })

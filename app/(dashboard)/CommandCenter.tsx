@@ -49,6 +49,8 @@ type Document = {
   balance_due?: number
   fulfillment_type?: string
   fulfillment_details?: any
+  snoozed?: boolean
+  snoozed_at?: string
 }
 
 type Submission = {
@@ -71,6 +73,8 @@ type Submission = {
   converted_to_quote_id?: string
   vehicles?: { type_label: string; year?: string; make?: string; model?: string }[]
   coverage_type?: string
+  snoozed?: boolean
+  snoozed_at?: string
 }
 
 type CustomerAction = {
@@ -142,6 +146,7 @@ type ActionQueueItem = {
   waitingDays?: number
   viewed?: boolean
   priority: number // lower = more urgent
+  snoozed?: boolean
 }
 
 // ============================================================================
@@ -199,6 +204,21 @@ const ArchiveIcon = () => (
     <polyline points="21 8 21 21 3 21 3 8" />
     <rect x="1" y="3" width="22" height="5" />
     <line x1="10" y1="12" x2="14" y2="12" />
+  </svg>
+)
+
+const SnoozeIcon = ({ size = 14 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 3l14 0" />
+    <path d="M5 3l14 14" />
+    <path d="M5 17l14 0" />
+  </svg>
+)
+
+const UnsnoozeIcon = ({ size = 14 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </svg>
 )
 
@@ -366,6 +386,35 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     router.refresh()
   }
 
+  // Snooze/unsnooze a document or submission
+  const toggleSnooze = async (entityId: string, entityType: 'submission' | 'quote' | 'invoice', currentSnoozed: boolean) => {
+    const newSnoozed = !currentSnoozed
+    const apiType = entityType === 'submission' ? 'submission' : 'document'
+
+    // Optimistic update
+    if (entityType === 'submission') {
+      setData(d => ({ ...d, submissions: d.submissions.map(s => s.id === entityId ? { ...s, snoozed: newSnoozed, snoozed_at: newSnoozed ? new Date().toISOString() : undefined } : s) }))
+    } else {
+      setData(d => ({
+        ...d,
+        quotes: d.quotes.map(q => q.id === entityId ? { ...q, snoozed: newSnoozed, snoozed_at: newSnoozed ? new Date().toISOString() : undefined } : q),
+        invoices: d.invoices.map(i => i.id === entityId ? { ...i, snoozed: newSnoozed, snoozed_at: newSnoozed ? new Date().toISOString() : undefined } : i),
+      }))
+    }
+
+    try {
+      const res = await fetch('/api/documents/snooze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: entityId, type: apiType, snoozed: newSnoozed })
+      })
+      if (!res.ok) console.error('Failed to toggle snooze:', await res.text())
+      else router.refresh()
+    } catch (err) {
+      console.error('Failed to toggle snooze:', err)
+    }
+  }
+
   // Complete a manual task
   const completeTask = async (taskId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -429,6 +478,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       nextActionId: nextAction?.id,
       canComplete: !!nextAction,
       priority: nextAction ? 0 : 4,
+      snoozed: !!sub.snoozed,
     })
   }
 
@@ -472,6 +522,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       waitingDays: daysWaiting,
       viewed: doc.status === 'viewed',
       priority: stateOrderMap[state] ?? 4,
+      snoozed: !!doc.snoozed,
     })
   }
 
@@ -516,6 +567,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       canComplete,
       productionProgress: prodStat,
       priority: stateOrderMap[state] ?? 4,
+      snoozed: !!doc.snoozed,
     })
   }
 
@@ -538,13 +590,19 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   // Sort: by priority (lower = more urgent), then by state
   actionQueue.sort((a, b) => a.priority - b.priority)
 
-  // Filter
-  const filteredQueue = queueFilter === 'all'
-    ? actionQueue
-    : actionQueue.filter(item => item.state === queueFilter)
+  // Separate snoozed items from active queue
+  const snoozedQueue = actionQueue.filter(item => item.snoozed)
+  const activeQueue = actionQueue.filter(item => !item.snoozed)
 
-  // Count by state for filter badges
-  const stateCounts = actionQueue.reduce((acc, item) => {
+  // Filter
+  const filteredQueue = queueFilter === 'snoozed'
+    ? snoozedQueue
+    : queueFilter === 'all'
+      ? activeQueue
+      : activeQueue.filter(item => item.state === queueFilter)
+
+  // Count by state for filter badges (only non-snoozed items)
+  const stateCounts = activeQueue.reduce((acc, item) => {
     acc[item.state] = (acc[item.state] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -583,12 +641,19 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
     'task': { label: 'Task', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.15)' },
   }
 
+  // Snoozed state config for rendering
+  const snoozedStateConfig = { label: 'Snoozed', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.08)' }
+
   // Group queue items by state for rendering
   const stateGroups: { state: string; items: ActionQueueItem[] }[] = []
-  const stateRenderOrder = ['action_needed', 'production_complete', 'in_production', 'waiting', 'idle']
-  for (const s of stateRenderOrder) {
-    const items = filteredQueue.filter(item => item.state === s)
-    if (items.length > 0) stateGroups.push({ state: s, items })
+  if (queueFilter === 'snoozed') {
+    if (filteredQueue.length > 0) stateGroups.push({ state: 'snoozed', items: filteredQueue })
+  } else {
+    const stateRenderOrder = ['action_needed', 'production_complete', 'in_production', 'waiting', 'idle']
+    for (const s of stateRenderOrder) {
+      const items = filteredQueue.filter(item => item.state === s)
+      if (items.length > 0) stateGroups.push({ state: s, items })
+    }
   }
 
   return (
@@ -609,7 +674,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
             <span style={{ color: '#d71cd1' }}><LightningIcon /></span>
             Action Queue
             <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b', padding: '2px 8px', background: 'rgba(148,163,184,0.1)', borderRadius: '6px' }}>
-              {actionQueue.length} active
+              {activeQueue.length} active
             </span>
             <button onClick={handleRefresh} style={{
               background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer',
@@ -638,12 +703,13 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           overflowX: 'auto'
         }}>
           {[
-            { key: 'all', label: 'All', count: actionQueue.length, color: '#94a3b8' },
+            { key: 'all', label: 'All', count: activeQueue.length, color: '#94a3b8' },
             { key: 'action_needed', label: 'Action Needed', count: stateCounts['action_needed'] || 0, color: '#d71cd1' },
             { key: 'production_complete', label: 'Complete', count: stateCounts['production_complete'] || 0, color: '#22c55e' },
             { key: 'in_production', label: 'In Production', count: stateCounts['in_production'] || 0, color: '#a855f7' },
             { key: 'waiting', label: 'Waiting', count: stateCounts['waiting'] || 0, color: '#3b82f6' },
             { key: 'idle', label: 'Up to Date', count: stateCounts['idle'] || 0, color: '#64748b' },
+            { key: 'snoozed', label: 'Snoozed', count: snoozedQueue.length, color: '#f59e0b' },
           ].filter(f => f.key === 'all' || f.count > 0).map(f => (
             <button key={f.key} onClick={() => setQueueFilter(f.key)} style={{
               display: 'flex', alignItems: 'center', gap: '6px',
@@ -671,7 +737,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
               <div style={{ fontSize: '12px' }}>Try selecting a different filter above</div>
             </div>
           ) : stateGroups.map(group => {
-            const cfg = stateConfig[group.state]
+            const cfg = group.state === 'snoozed' ? snoozedStateConfig : stateConfig[group.state]
             return (
               <div key={group.state} style={{ marginBottom: '4px' }}>
                 {/* State group header */}
@@ -696,7 +762,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
                   <ActionQueueRow
                     key={item.id}
                     item={item}
-                    stateConfig={cfg}
+                    stateConfig={group.state === 'snoozed' ? (stateConfig[item.state] || cfg) : cfg}
                     typeConfig={typeConfig[item.type]}
                     onClick={() => navigateToItem(item)}
                     onComplete={item.canComplete ? (e) => handleComplete(item, e) : undefined}
@@ -705,6 +771,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
                       : item.type !== 'task' ? () => setShowArchiveModal({ type: 'document', id: item.entityId })
                       : undefined
                     }
+                    onSnooze={item.type !== 'task' ? () => toggleSnooze(item.entityId, item.type, !!item.snoozed) : undefined}
+                    isSnoozed={!!item.snoozed}
                   />
                 ))}
               </div>
@@ -883,13 +951,15 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
 // ACTION QUEUE ROW - Single flat row for each project
 // ============================================================================
 
-function ActionQueueRow({ item, stateConfig, typeConfig, onClick, onComplete, onArchive }: {
+function ActionQueueRow({ item, stateConfig, typeConfig, onClick, onComplete, onArchive, onSnooze, isSnoozed }: {
   item: ActionQueueItem
   stateConfig: { label: string; color: string; bg: string }
   typeConfig: { label: string; color: string; bg: string }
   onClick: () => void
   onComplete?: (e: React.MouseEvent) => void
   onArchive?: () => void
+  onSnooze?: () => void
+  isSnoozed?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
 
@@ -1010,6 +1080,24 @@ function ActionQueueRow({ item, stateConfig, typeConfig, onClick, onComplete, on
         <div style={{ fontSize: '14px', fontWeight: 600, color: '#22c55e', flexShrink: 0, minWidth: '60px', textAlign: 'right' }}>
           ${item.total.toLocaleString()}
         </div>
+      )}
+
+      {/* Snooze button */}
+      {onSnooze && hovered && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSnooze() }}
+          title={isSnoozed ? 'Unsnooze' : 'Snooze'}
+          style={{
+            background: 'transparent', border: 'none',
+            color: isSnoozed ? '#f59e0b' : '#4b5563',
+            cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center',
+            flexShrink: 0, transition: 'color 0.15s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = '#f59e0b'}
+          onMouseLeave={e => e.currentTarget.style.color = isSnoozed ? '#f59e0b' : '#4b5563'}
+        >
+          {isSnoozed ? <UnsnoozeIcon /> : <SnoozeIcon />}
+        </button>
       )}
 
       {/* Archive button */}

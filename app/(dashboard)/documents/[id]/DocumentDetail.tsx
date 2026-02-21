@@ -113,6 +113,7 @@ type Document = {
   options_mode?: boolean; options_json?: QuoteOption[]; history_log?: HistoryEntry[]
   fulfillment_type?: string; fulfillment_details?: any
   send_options_json?: any; pricing_snapshot_json?: any; pricing_locked?: boolean; pricing_snapshot_at?: string
+  snoozed?: boolean; snoozed_at?: string
 }
 
 type HistoryEntry = {
@@ -1177,6 +1178,23 @@ export default function DocumentDetail({
     await appendHistory('Moved to Cold', 'Document moved to cold bucket')
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
     setSaving(false)
+  }
+
+  const handleToggleSnooze = async () => {
+    const newSnoozed = !doc.snoozed
+    setDoc({ ...doc, snoozed: newSnoozed, snoozed_at: newSnoozed ? new Date().toISOString() : undefined })
+    try {
+      const res = await fetch('/api/documents/snooze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: doc.id, type: 'document', snoozed: newSnoozed })
+      })
+      if (!res.ok) console.error('Failed to toggle snooze:', await res.text())
+      else await appendHistory(newSnoozed ? 'Snoozed' : 'Unsnoozed', newSnoozed ? 'Document snoozed from action queue' : 'Document restored to action queue')
+    } catch (err) {
+      console.error('Failed to toggle snooze:', err)
+      setDoc({ ...doc, snoozed: !newSnoozed })
+    }
   }
 
   const handleSaveFulfillment = async () => {
@@ -3045,6 +3063,28 @@ export default function DocumentDetail({
             }
             return null
           })()}
+
+          {/* Snooze Button */}
+          <ActionButton
+            onClick={handleToggleSnooze}
+            disabled={saving}
+            variant="secondary"
+            style={doc.snoozed ? { color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.3)', background: 'rgba(245, 158, 11, 0.1)' } : {}}
+          >
+            {doc.snoozed ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 3l14 0" />
+                <path d="M5 3l14 14" />
+                <path d="M5 17l14 0" />
+              </svg>
+            )}
+            {doc.snoozed ? 'Unsnooze' : 'Snooze'}
+          </ActionButton>
 
           {/* Refresh Button */}
           <ActionButton onClick={handleRefresh} variant="secondary">
