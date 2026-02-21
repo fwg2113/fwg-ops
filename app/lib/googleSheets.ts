@@ -41,8 +41,25 @@ function getCurrentYear(): number {
   return new Date().getFullYear()
 }
 
+// In-memory cache for Google Sheets data (5 minute TTL)
+const sheetsCache: Record<string, { data: any; expiresAt: number }> = {}
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+function getCached<T>(key: string): T | null {
+  const entry = sheetsCache[key]
+  if (entry && Date.now() < entry.expiresAt) return entry.data as T
+  return null
+}
+
+function setCache(key: string, data: any) {
+  sheetsCache[key] = { data, expiresAt: Date.now() + CACHE_TTL_MS }
+}
+
 // Read TRANSACTIONS sheet from Financial Core
 async function getTransactionsData() {
+  const cached = getCached<any[]>('transactions')
+  if (cached) return cached
+
   const sheets = getGoogleSheetsClient()
 
   const response = await sheets.spreadsheets.values.get({
@@ -59,13 +76,16 @@ async function getTransactionsData() {
   const COL_AMOUNT = 5      // Column F
   const COL_CATEGORY = 7    // Column H
 
-  return rows.map(row => ({
+  const result = rows.map(row => ({
     date: row[COL_DATE] ? new Date(row[COL_DATE]) : null,
     business: row[COL_BUSINESS],
     direction: row[COL_DIRECTION],
     amount: parseCurrency(row[COL_AMOUNT]),
     category: row[COL_CATEGORY]
   }))
+
+  setCache('transactions', result)
+  return result
 }
 
 // Read Documents sheet from Ops
