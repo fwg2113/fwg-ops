@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 type PaymentDoc = {
@@ -27,6 +27,7 @@ type Payment = {
   status: string
   notes: string | null
   synced_to_sheets: boolean
+  read: boolean
   created_at: string
   documents: PaymentDoc | PaymentDoc[]
 }
@@ -87,6 +88,20 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
   const [dateRange, setDateRange] = useState<'all' | '7d' | '30d' | '90d'>('all')
   // Track synced status overrides locally for optimistic UI
   const [syncedOverrides, setSyncedOverrides] = useState<Record<string, boolean>>({})
+
+  // Auto-mark unread payments as read when visiting this page
+  useEffect(() => {
+    const unreadIds = initialPayments.filter(p => !p.read).map(p => p.id)
+    if (unreadIds.length > 0) {
+      fetch('/api/payments/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentIds: unreadIds }),
+      }).then(() => {
+        window.dispatchEvent(new Event('unread-counts-changed'))
+      }).catch(() => {})
+    }
+  }, [])
 
   function isSynced(payment: Payment): boolean {
     return syncedOverrides[payment.id] ?? payment.synced_to_sheets

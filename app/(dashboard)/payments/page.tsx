@@ -18,6 +18,7 @@ export default async function PaymentsPage() {
       status,
       notes,
       synced_to_sheets,
+      read,
       created_at,
       documents!inner(
         doc_number,
