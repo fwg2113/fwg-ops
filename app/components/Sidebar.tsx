@@ -8,7 +8,7 @@ const navSections = [
   {
     title: 'CORE',
     items: [
-      { href: '/', label: 'Command', labelGradient: 'Center', icon: 'grid' },
+      { href: '/', label: 'Command', labelGradient: 'Center', icon: 'grid', badgeKey: 'actions' },
       { href: '/submissions', label: 'Lead', labelGradient: 'Pipeline', icon: 'activity' },
     ]
   },
@@ -161,23 +161,25 @@ const icons: Record<string, React.ReactElement> = {
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number }>({ messages: 0, email: 0, payments: 0 })
+  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number }>({ messages: 0, email: 0, payments: 0, actions: 0 })
 
   const fetchUnreadCounts = useCallback(async () => {
     try {
-      const [msgRes, emailRes, payRes] = await Promise.all([
+      const [msgRes, emailRes, payRes, actionsRes] = await Promise.all([
         fetch('/api/messages/unread-count'),
         fetch('/api/gmail/unread-count'),
         fetch('/api/payments/unread-count'),
+        fetch('/api/customer-actions/count'),
       ])
-      const [msgData, emailData, payData] = await Promise.all([
-        msgRes.json(), emailRes.json(), payRes.json(),
+      const [msgData, emailData, payData, actionsData] = await Promise.all([
+        msgRes.json(), emailRes.json(), payRes.json(), actionsRes.json(),
       ])
 
       setUnreadCounts({
         messages: msgData.count || 0,
         email: emailData.count || 0,
         payments: payData.count || 0,
+        actions: actionsData.count || 0,
       })
     } catch (err) {
       console.error('Failed to fetch unread counts:', err)
@@ -302,7 +304,7 @@ export default function Sidebar() {
                       height: '20px',
                       padding: '0 6px',
                       borderRadius: '999px',
-                      background: ('badgeKey' in item && item.badgeKey === 'payments') ? '#16a34a' : '#d71cd1',
+                      background: ('badgeKey' in item && item.badgeKey === 'payments') ? '#16a34a' : ('badgeKey' in item && item.badgeKey === 'actions') ? '#06b6d4' : '#d71cd1',
                       color: '#ffffff',
                       fontSize: '11px',
                       fontWeight: 700,
