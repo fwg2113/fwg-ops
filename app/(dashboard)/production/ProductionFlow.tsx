@@ -40,6 +40,8 @@ type ProductionJob = {
   customer_name: string
   vehicle_description?: string | null
   project_description?: string | null
+  snoozed?: boolean
+  snoozed_at?: string | null
 }
 
 type ProductionFlowProps = {
@@ -328,6 +330,26 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
     } catch (error) {
       console.error('[ProductionFlow] Error archiving line item:', error)
       alert('Failed to archive line item')
+    }
+  }
+
+  // Snooze/unsnooze a production job
+  const toggleSnooze = async (jobId: string) => {
+    const job = jobs.find(j => j.id === jobId)
+    if (!job) return
+    const newSnoozed = !job.snoozed
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, snoozed: newSnoozed, snoozed_at: newSnoozed ? new Date().toISOString() : null } : j))
+    try {
+      const res = await fetch('/api/documents/snooze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: jobId, type: 'document', snoozed: newSnoozed })
+      })
+      if (!res.ok) console.error('Failed to toggle snooze:', await res.text())
+      else router.refresh()
+    } catch (err) {
+      console.error('Failed to toggle snooze:', err)
+      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, snoozed: !newSnoozed } : j))
     }
   }
 
@@ -855,6 +877,36 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
                       {job.vehicle_description || 'No vehicle description'}
                     </div>
                   </div>
+                  {/* Snooze button */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleSnooze(job.id) }}
+                    title={job.snoozed ? 'Unsnooze - restore to action queue' : 'Snooze - hide from action queue'}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      padding: '8px 14px', borderRadius: '8px',
+                      border: job.snoozed ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(148, 163, 184, 0.2)',
+                      background: job.snoozed ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                      color: job.snoozed ? '#f59e0b' : '#64748b',
+                      fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                      transition: 'all 0.15s', flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#f59e0b'; e.currentTarget.style.borderColor = 'rgba(245, 158, 11, 0.4)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = job.snoozed ? '#f59e0b' : '#64748b'; e.currentTarget.style.borderColor = job.snoozed ? 'rgba(245, 158, 11, 0.3)' : 'rgba(148, 163, 184, 0.2)' }}
+                  >
+                    {job.snoozed ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                      </svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 3l14 0" />
+                        <path d="M5 3l14 14" />
+                        <path d="M5 17l14 0" />
+                      </svg>
+                    )}
+                    {job.snoozed ? 'Unsnooze' : 'Snooze'}
+                  </button>
                 </div>
 
                 {/* Line Item Groups */}
