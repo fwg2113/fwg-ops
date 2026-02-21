@@ -41,7 +41,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const formType = String(body.form_type || body.formType || 'commercial_wrap').trim().toLowerCase()
+    let formType = String(body.form_type || body.formType || '').trim().toLowerCase()
+
+    // Auto-detect form type from payload fields when not explicitly set
+    if (!formType) {
+      if (body.ppf_package) {
+        formType = 'ppf'
+      } else if (Array.isArray(body.services) && body.services.length > 0) {
+        formType = 'automotive_styling'
+      } else {
+        formType = 'commercial_wrap'
+      }
+    }
 
     // ── Resolve email from whichever field the form sends ──
     // Some form versions use "email", others may use "customer_email" or "contact_email".
