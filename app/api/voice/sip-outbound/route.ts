@@ -60,9 +60,13 @@ export async function POST(request: Request) {
     })
 
     // Return TwiML to connect the call with business number as caller ID
+    // NOTE: answerOnBridge is intentionally NOT used for SIP outbound calls.
+    // With answerOnBridge="true", Twilio delays the 200 OK until the callee answers,
+    // which causes the SIP client's NAT mapping to expire. The ACK never arrives
+    // back at Twilio, triggering Error 32022 and dropping the call after ~32 seconds.
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${twilioNumber}" answerOnBridge="true">
+  <Dial callerId="${twilioNumber}">
     <Number>${dialNumber}</Number>
   </Dial>
 </Response>`
