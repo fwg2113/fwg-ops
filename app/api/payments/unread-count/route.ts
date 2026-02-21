@@ -3,11 +3,11 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Count payments not yet confirmed on the sheet
+    // Count unread payments (not yet seen/acknowledged by user)
     const { count, error } = await supabase
       .from('payments')
       .select('*', { count: 'exact', head: true })
-      .eq('synced_to_sheets', false)
+      .eq('read', false)
 
     if (error) {
       return NextResponse.json({ count: 0, error: error.message })

@@ -168,9 +168,10 @@ export default function CustomerView({ document: doc, lineItems }: { document: C
       const res = await fetch('/api/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           documentId: doc.id,
-          amount: cardTotal
+          amount: cardTotal,
+          netAmount: amountToPay
         })
       })
       
@@ -192,9 +193,10 @@ export default function CustomerView({ document: doc, lineItems }: { document: C
       const res = await fetch('/api/payment/bank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           documentId: doc.id,
-          amount: amountToPay
+          amount: amountToPay,
+          netAmount: amountToPay
         })
       })
       

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '../../lib/supabase'
 
 export async function POST(request: Request) {
-  const { documentId, amount } = await request.json()
+  const { documentId, amount, netAmount } = await request.json()
 
   if (!documentId || !amount) {
     return NextResponse.json({ error: 'Missing documentId or amount' }, { status: 400 })
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         ...(doc.customer_email ? { 'customer_email': doc.customer_email } : {}),
         'metadata[document_id]': documentId,
         'metadata[doc_number]': doc.doc_number?.toString() || '',
-        'metadata[base_amount]': amount.toString(),
+        'metadata[base_amount]': (netAmount || amount).toString(),
       }),
     })
 

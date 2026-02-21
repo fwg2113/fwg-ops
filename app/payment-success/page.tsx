@@ -32,14 +32,32 @@ export default async function PaymentSuccessPage({
       },
     })
     const session = await response.json()
-    
+
+    // Only record payment if Stripe confirms it's actually paid
+    // Bank transfers (ACH) redirect to success URL before payment completes
+    if (session.payment_status !== 'paid') {
+      const isPending = session.payment_status === 'unpaid' || session.payment_status === 'no_payment_required'
+      return <PaymentSuccessClient documentId={session.metadata?.document_id || null} amount={0} pending={isPending} />
+    }
+
     if (session.metadata?.document_id) {
       documentId = session.metadata.document_id
       const stripeAmount = (session.amount_total || 0) / 100
       // Use base amount for invoice balance (excludes CC processing fee)
       const baseAmount = session.metadata?.base_amount ? parseFloat(session.metadata.base_amount) : stripeAmount
       amount = baseAmount
-      
+
+      // Prevent duplicate payment records (e.g. customer refreshes success page)
+      const { data: existingPayment } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('processor_txn_id', session.payment_intent)
+        .maybeSingle()
+
+      if (existingPayment) {
+        return <PaymentSuccessClient documentId={documentId} amount={amount} />
+      }
+
       const { data: invoice } = await supabase
         .from('documents')
         .select('*')
