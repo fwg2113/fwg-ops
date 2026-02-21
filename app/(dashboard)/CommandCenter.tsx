@@ -771,7 +771,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
                       : item.type !== 'task' ? () => setShowArchiveModal({ type: 'document', id: item.entityId })
                       : undefined
                     }
-                    onSnooze={item.type !== 'task' ? () => toggleSnooze(item.entityId, item.type, !!item.snoozed) : undefined}
+                    onSnooze={item.type !== 'task' ? () => toggleSnooze(item.entityId, item.type as 'submission' | 'quote' | 'invoice', !!item.snoozed) : undefined}
                     isSnoozed={!!item.snoozed}
                   />
                 ))}
