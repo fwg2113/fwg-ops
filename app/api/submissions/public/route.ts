@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const formType = body.form_type || 'commercial_wrap'
+    const formType = String(body.form_type || body.formType || 'commercial_wrap').trim().toLowerCase()
 
     // ── Resolve email from whichever field the form sends ──
     // Some form versions use "email", others may use "customer_email" or "contact_email".
