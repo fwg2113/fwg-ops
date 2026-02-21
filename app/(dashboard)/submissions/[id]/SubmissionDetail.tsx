@@ -64,6 +64,10 @@ type Submission = {
   services?: string[]
   service_details?: Record<string, any>
   reference_image_urls?: string[]
+  // PPF-form-specific fields
+  ppf_package?: string
+  ppf_finish?: string
+  addons?: string[]
 }
 
 // Icons as components
@@ -214,9 +218,29 @@ const SERVICE_LABELS: Record<string, string> = {
   'other': 'Other',
 }
 
+const PPF_PACKAGE_LABELS: Record<string, string> = {
+  'full_vehicle': 'Full Vehicle PPF',
+  'full_front': 'Full Front End',
+  'track_pack': 'Track Pack',
+  'partial': 'Partial / Custom',
+}
+
+const PPF_FINISH_LABELS: Record<string, string> = {
+  'gloss': 'Gloss',
+  'matte': 'Matte / Satin',
+  'color': 'Colored PPF',
+}
+
+const ADDON_LABELS: Record<string, string> = {
+  'window_tint': 'Window Tint',
+  'ceramic_coating': 'Ceramic Coating',
+  'dash_cam': 'Dash Cam Install',
+}
+
 const FORM_TYPE_LABELS: Record<string, string> = {
   'commercial_wrap': 'Commercial Wrap',
   'automotive_styling': 'Automotive Styling',
+  'ppf': 'Paint Protection Film',
 }
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
@@ -479,8 +503,8 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 fontSize: '10px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                background: submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                color: submission.form_type === 'automotive_styling' ? '#f97316' : '#3b82f6',
+                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : '#3b82f6',
               }}>
                 {FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}
               </span>
@@ -671,7 +695,76 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           )}
 
           <div style={{ borderTop: '1px solid rgba(148, 163, 184, 0.08)', marginTop: '8px', paddingTop: '8px' }}>
-            {submission.form_type === 'automotive_styling' ? (
+            {submission.form_type === 'ppf' ? (
+              <>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>PPF Package</span>
+                  <span style={valueStyle}>
+                    {PPF_PACKAGE_LABELS[submission.ppf_package || ''] || submission.ppf_package || '-'}
+                  </span>
+                </div>
+                {submission.ppf_finish && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Finish</span>
+                    <span style={valueStyle}>
+                      {PPF_FINISH_LABELS[submission.ppf_finish] || submission.ppf_finish}
+                    </span>
+                  </div>
+                )}
+                {submission.service_details && Object.keys(submission.service_details).length > 0 && (
+                  <>
+                    {submission.service_details.ppf_film_color && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>Film Color</span>
+                        <span style={valueStyle}>
+                          {submission.service_details.ppf_film_color === 'other'
+                            ? (submission.service_details.ppf_film_color_other || 'Other')
+                            : submission.service_details.ppf_film_color.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                        </span>
+                      </div>
+                    )}
+                    {submission.service_details.ppf_colored_description && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>Color Description</span>
+                        <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.ppf_colored_description}</span>
+                      </div>
+                    )}
+                    {submission.service_details.ppf_colored_inspo_urls && submission.service_details.ppf_colored_inspo_urls.length > 0 && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>Inspiration</span>
+                        <span style={valueStyle}>
+                          {submission.service_details.ppf_colored_inspo_urls.map((url: string, i: number) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                              Image {i + 1}
+                            </a>
+                          ))}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {submission.addons && submission.addons.length > 0 && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Add-ons</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%' }}>
+                      {submission.addons.map((a: string) => ADDON_LABELS[a] || a.replace(/_/g, ' ')).join(', ')}
+                    </span>
+                  </div>
+                )}
+                {submission.reference_image_urls && submission.reference_image_urls.length > 0 && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>Reference Images</span>
+                    <span style={valueStyle}>
+                      {submission.reference_image_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          Image {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : submission.form_type === 'automotive_styling' ? (
               <>
                 <div style={rowStyle}>
                   <span style={labelStyle}>Services</span>
