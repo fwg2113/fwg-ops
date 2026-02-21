@@ -41,7 +41,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const formType = body.form_type || 'commercial_wrap'
+    let formType = String(body.form_type || body.formType || '').trim().toLowerCase()
+
+    // Auto-detect form type from payload fields when not explicitly set
+    if (!formType) {
+      if (body.ppf_package) {
+        formType = 'ppf'
+      } else if (Array.isArray(body.services) && body.services.length > 0) {
+        formType = 'automotive_styling'
+      } else {
+        formType = 'commercial_wrap'
+      }
+    }
 
     // ── Resolve email from whichever field the form sends ──
     // Some form versions use "email", others may use "customer_email" or "contact_email".
@@ -64,6 +75,7 @@ export async function POST(request: NextRequest) {
     const REQUIRED_BY_FORM_TYPE: Record<string, string[]> = {
       commercial_wrap: ['business_name', 'contact_name', 'email', 'phone', 'contact_method', 'coverage_type', 'artwork_status', 'timeline'],
       automotive_styling: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
+      ppf: ['contact_name', 'email', 'phone', 'contact_method', 'ppf_package', 'timeline'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType] || REQUIRED_BY_FORM_TYPE.commercial_wrap
     const missing = required.filter(f => !body[f])
@@ -156,8 +168,20 @@ export async function POST(request: NextRequest) {
 
         // ── Styling-form-specific columns ──
         services: body.services || [],
-        service_details: body.service_details || {},
+        service_details: formType === 'ppf'
+          ? {
+              ppf_film_color: body.ppf_film_color || null,
+              ppf_film_color_other: body.ppf_film_color_other || null,
+              ppf_colored_description: body.ppf_colored_description || null,
+              ppf_colored_inspo_urls: body.ppf_colored_inspo_urls || null,
+            }
+          : (body.service_details || {}),
         reference_image_urls: body.reference_image_urls || [],
+
+        // ── PPF-form-specific columns ──
+        ppf_package: body.ppf_package || null,
+        ppf_finish: body.ppf_finish || null,
+        addons: body.addons || null,
       })
       .select('id')
       .single()
@@ -228,6 +252,22 @@ function formatLabel(key: string) {
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
+// ─── PPF labels ──────────────────────────────────────────
+const PPF_PACKAGE_LABELS: Record<string, string> = {
+  full_vehicle: 'Full Vehicle PPF',
+  full_front: 'Full Front End',
+  track_pack: 'Track Pack',
+  partial: 'Partial / Custom',
+}
+const PPF_FINISH_LABELS: Record<string, string> = {
+  gloss: 'Gloss', matte: 'Matte / Satin', color: 'Colored PPF',
+}
+const ADDON_LABELS: Record<string, string> = {
+  window_tint: 'Window Tint',
+  ceramic_coating: 'Ceramic Coating',
+  dash_cam: 'Dash Cam Install',
+}
+
 // ─── Service labels for styling forms ──────────────────────
 const SERVICE_LABELS: Record<string, string> = {
   printed_wraps: 'Printed Wraps',
@@ -284,7 +324,50 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
   // ── Build form-type-specific sections ──
   let projectSectionHTML = ''
 
-  if (formType === 'automotive_styling') {
+  if (formType === 'ppf') {
+    // PPF package & finish
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('PPF Details')}
+      ${emailRow('Package', PPF_PACKAGE_LABELS[body.ppf_package] || body.ppf_package)}
+      ${body.ppf_finish ? emailRow('Finish', PPF_FINISH_LABELS[body.ppf_finish] || body.ppf_finish) : ''}
+    </table>`
+
+    // Colored PPF details (if applicable)
+    if (body.ppf_film_color) {
+      let colorRows = emailRow('Film Color', body.ppf_film_color === 'other' ? (body.ppf_film_color_other || 'Other') : formatLabel(body.ppf_film_color))
+      if (body.ppf_colored_description) colorRows += emailRow('Description', body.ppf_colored_description)
+      if (body.ppf_colored_inspo_urls && body.ppf_colored_inspo_urls.length > 0) {
+        colorRows += emailRow('Inspiration', body.ppf_colored_inspo_urls.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Image ${i + 1}</a>`).join(' &nbsp; '))
+      }
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Colored PPF')}
+        ${colorRows}
+      </table>`
+    }
+
+    // Add-ons
+    const addons = body.addons || []
+    if (addons.length > 0) {
+      const addonLabels = addons.map((a: string) => ADDON_LABELS[a] || formatLabel(a)).join(', ')
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Add-ons')}
+        ${emailRow('Selected', addonLabels)}
+      </table>`
+    }
+
+    // Reference images
+    const refImages = body.reference_image_urls || []
+    if (refImages.length > 0) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Reference Images')}
+        ${emailRow('Files', refImages.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Image ${i + 1}</a>`).join(' &nbsp; '))}
+      </table>`
+    }
+  } else if (formType === 'automotive_styling') {
     // Services section
     const services = body.services || []
     const serviceLabels = services.map((s: string) => SERVICE_LABELS[s] || formatLabel(s)).join(', ')
@@ -340,11 +423,19 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     </table>`
   }
 
-  const isCommercial = formType === 'commercial_wrap'
-  const emailTitle = isCommercial ? 'New Quote Request' : 'New Styling Inquiry'
-  const emailSubject = isCommercial
-    ? `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
-    : `New Styling Inquiry — ${body.contact_name} (${(body.services || []).length} service${(body.services || []).length !== 1 ? 's' : ''})`
+  let emailTitle: string
+  let emailSubject: string
+
+  if (formType === 'ppf') {
+    emailTitle = 'New PPF Inquiry'
+    emailSubject = `New PPF Inquiry — ${body.contact_name} (${PPF_PACKAGE_LABELS[body.ppf_package] || body.ppf_package})`
+  } else if (formType === 'automotive_styling') {
+    emailTitle = 'New Styling Inquiry'
+    emailSubject = `New Styling Inquiry — ${body.contact_name} (${(body.services || []).length} service${(body.services || []).length !== 1 ? 's' : ''})`
+  } else {
+    emailTitle = 'New Quote Request'
+    emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
+  }
 
   const emailHTML = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
