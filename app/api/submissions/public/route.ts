@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
     if (!formType) {
       if (body.ppf_package) {
         formType = 'ppf'
+      } else if (body.equipment) {
+        formType = 'cafe_wrap'
       } else if (Array.isArray(body.services) && body.services.length > 0) {
         formType = 'automotive_styling'
       } else {
@@ -76,6 +78,7 @@ export async function POST(request: NextRequest) {
       commercial_wrap: ['business_name', 'contact_name', 'email', 'phone', 'contact_method', 'coverage_type', 'artwork_status', 'timeline'],
       automotive_styling: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
       ppf: ['contact_name', 'email', 'phone', 'contact_method', 'ppf_package', 'timeline'],
+      cafe_wrap: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType] || REQUIRED_BY_FORM_TYPE.commercial_wrap
     const missing = required.filter(f => !body[f])
@@ -175,6 +178,12 @@ export async function POST(request: NextRequest) {
               ppf_colored_description: body.ppf_colored_description || null,
               ppf_colored_inspo_urls: body.ppf_colored_inspo_urls || null,
             }
+          : formType === 'cafe_wrap'
+          ? {
+              equipment: body.equipment || null,
+              branding_file_urls: body.branding?.file_urls || [],
+              branding_vision: body.branding?.vision || null,
+            }
           : (body.service_details || {}),
         reference_image_urls: body.reference_image_urls || [],
 
@@ -182,6 +191,12 @@ export async function POST(request: NextRequest) {
         ppf_package: body.ppf_package || null,
         ppf_finish: body.ppf_finish || null,
         addons: body.addons || null,
+
+        // ── Café-wrap-specific columns ──
+        location_city: body.location?.city || null,
+        location_state: body.location?.state || null,
+        delivery_method: body.delivery_method || null,
+        branding_status: body.branding?.status || null,
       })
       .select('id')
       .single()
@@ -280,6 +295,27 @@ const SERVICE_LABELS: Record<string, string> = {
   custom_decals: 'Custom Decals',
   window_flags: 'Back Window Flags',
   other: 'Other',
+}
+
+// ─── Café equipment labels ──────────────────────────────
+const EQUIPMENT_LABELS: Record<string, string> = {
+  espresso_machine: 'Espresso Machine', bean_grinder: 'Bean Grinder',
+  refrigerator: 'Refrigerator', display_case: 'Display Case',
+  pos_system: 'POS System', ice_machine: 'Ice Machine',
+  oven: 'Oven', blender_station: 'Blender Station',
+  other: 'Other',
+}
+const QUANTITY_LABELS: Record<string, string> = {
+  '1': '1 piece', '2_3': '2–3 pieces', '4_6': '4–6 pieces',
+  '7_plus': '7+ pieces',
+}
+const DELIVERY_LABELS: Record<string, string> = {
+  deliver_to_fwg: 'Deliver to FWG', vendor_coordination: 'Vendor Coordination',
+  onsite: 'On-site Service', not_sure: 'Not Sure Yet',
+}
+const BRANDING_LABELS: Record<string, string> = {
+  ready: 'Branding Ready', needs_adjustments: 'Needs Adjustments',
+  need_design: 'Need Design Help',
 }
 
 async function sendNotificationEmail(body: Record<string, any>, formType: string) {
@@ -408,6 +444,62 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
         ${emailRow('Files', refImages.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Image ${i + 1}</a>`).join(' &nbsp; '))}
       </table>`
     }
+  } else if (formType === 'cafe_wrap') {
+    // Café equipment wrap sections
+    const equip = body.equipment || {}
+    const equipTypes = (equip.types || []).map((t: string) => EQUIPMENT_LABELS[t] || formatLabel(t)).join(', ')
+    const equipQty = QUANTITY_LABELS[equip.quantity] || equip.quantity || '—'
+    const equipPhotos = (equip.photo_urls || []).length > 0
+      ? emailRow('Photos', equip.photo_urls.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Photo ${i + 1}</a>`).join(' &nbsp; '))
+      : ''
+    const otherDesc = equip.other_description ? emailRow('Other Description', equip.other_description) : ''
+
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Equipment Details')}
+      ${emailRow('Equipment Types', equipTypes || '—')}
+      ${emailRow('Quantity', equipQty)}
+      ${otherDesc}
+      ${equipPhotos}
+    </table>`
+
+    // Location
+    const loc = body.location || {}
+    if (loc.city || loc.state) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Location')}
+        ${loc.city ? emailRow('City', loc.city) : ''}
+        ${loc.state ? emailRow('State', loc.state) : ''}
+      </table>`
+    }
+
+    // Branding
+    const branding = body.branding || {}
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Branding Status')}
+      ${emailRow('Status', BRANDING_LABELS[branding.status] || branding.status || '—')}
+      ${branding.vision ? emailRow('Vision', branding.vision) : ''}
+      ${(branding.file_urls || []).length > 0 ? emailRow('Brand Files', branding.file_urls.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">File ${i + 1}</a>`).join(' &nbsp; ')) : ''}
+    </table>`
+
+    // Logistics
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Logistics')}
+      ${emailRow('Delivery Method', DELIVERY_LABELS[body.delivery_method] || body.delivery_method || '—')}
+    </table>`
+
+    // Reference images
+    const refImages = body.reference_image_urls || []
+    if (refImages.length > 0) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Reference Images')}
+        ${emailRow('Files', refImages.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Image ${i + 1}</a>`).join(' &nbsp; '))}
+      </table>`
+    }
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -432,6 +524,10 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
   } else if (formType === 'automotive_styling') {
     emailTitle = 'New Styling Inquiry'
     emailSubject = `New Styling Inquiry — ${body.contact_name} (${(body.services || []).length} service${(body.services || []).length !== 1 ? 's' : ''})`
+  } else if (formType === 'cafe_wrap') {
+    const cafeQty = QUANTITY_LABELS[body.equipment?.quantity] || body.equipment?.quantity || 'equipment'
+    emailTitle = 'New Café Wrap Inquiry'
+    emailSubject = `New Café Wrap Inquiry — ${body.contact_name} (${cafeQty})`
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
@@ -453,10 +549,10 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${emailRow('Phone', `<a href="tel:${body.phone}" style="color:#2B5EA7;">${body.phone}</a>`)}
       ${emailRow('Preferred', body.contact_method)}
     </table>
-    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'cafe_wrap' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Vehicle Details')}
       ${vehicleHTML}
-    </table>
+    </table>` : ''}
     ${projectSectionHTML}
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Timeline & Budget')}
