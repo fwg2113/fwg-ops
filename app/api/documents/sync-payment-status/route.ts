@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     // Get all payments for this document
     const { data: payments, error: paymentsError } = await supabase
       .from('payments')
-      .select('amount, created_at')
+      .select('amount, processing_fee, payment_method, created_at')
       .eq('document_id', documentId)
       .order('created_at', { ascending: true })
 
@@ -38,8 +38,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: paymentsError.message }, { status: 500 })
     }
 
-    // Calculate total amount paid
-    const totalPaid = (payments || []).reduce((sum, p) => sum + Number(p.amount), 0)
+    // Calculate total amount paid (exclude CC processing fees from balance calculation)
+    const totalPaid = (payments || []).reduce((sum, p) => {
+      const amt = Number(p.amount) || 0
+      const fee = Number(p.processing_fee) || 0
+      // Subtract processing fee so only the base invoice amount counts toward balance
+      if (fee > 0 && fee < amt) return sum + (amt - fee)
+      return sum + amt
+    }, 0)
     const balanceDue = Math.max(0, Number(doc.total) - totalPaid)
 
     // Determine status
