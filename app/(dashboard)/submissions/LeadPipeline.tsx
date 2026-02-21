@@ -21,6 +21,7 @@ type Submission = {
   created_at: string
   form_type?: string
   services?: string[]
+  ppf_package?: string
 }
 
 type Document = {
@@ -63,7 +64,7 @@ type Props = {
 export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling'>('all')
+  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf'>('all')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = () => {
@@ -112,9 +113,13 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
       if (formTypeFilter !== 'all' && subFormType !== formTypeFilter) return
 
       const isStyling = subFormType === 'automotive_styling'
-      const description = isStyling
-        ? (sub.services || []).map((s: string) => s.replace(/_/g, ' ')).join(', ') || 'Styling inquiry'
-        : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || ''
+      const isPPF = subFormType === 'ppf'
+      const PPF_PKG_LABELS: Record<string, string> = { full_vehicle: 'Full Vehicle PPF', full_front: 'Full Front End', track_pack: 'Track Pack', partial: 'Partial / Custom' }
+      const description = isPPF
+        ? (PPF_PKG_LABELS[sub.ppf_package || ''] || sub.ppf_package || 'PPF inquiry')
+        : isStyling
+          ? (sub.services || []).map((s: string) => s.replace(/_/g, ' ')).join(', ') || 'Styling inquiry'
+          : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || ''
 
       const card: PipelineCard = {
         type: 'submission',
@@ -291,6 +296,9 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   }
 
   const getFormTypeBadge = (formType?: string) => {
+    if (formType === 'ppf') {
+      return { label: 'PPF', bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }
+    }
     if (formType === 'automotive_styling') {
       return { label: 'STYLING', bg: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }
     }
@@ -493,6 +501,7 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
               { key: 'all', label: 'All' },
               { key: 'commercial_wrap', label: 'Commercial' },
               { key: 'automotive_styling', label: 'Styling' },
+              { key: 'ppf', label: 'PPF' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}
