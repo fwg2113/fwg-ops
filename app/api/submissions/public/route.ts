@@ -24,12 +24,41 @@ const COVERAGE_TO_CATEGORY: Record<string, string> = {
   not_sure: 'OTHER',
 }
 
+// ─── Normalise an email value: coerce to string, strip invisible
+// characters (zero-width spaces, BOM, non-breaking spaces), trim, and
+// lower-case.  Returns empty string when the input is falsy. ───
+function normalizeEmail(raw: unknown): string {
+  if (!raw) return ''
+  return String(raw)
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF\u00A0\u200E\u200F]/g, '') // invisible / directional chars
+    .replace(/\s+/g, '')  // collapse any remaining whitespace (shouldn't be in emails)
+    .toLowerCase()
+}
+
 // ─── Main handler ───
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
     const formType = body.form_type || 'commercial_wrap'
+
+    // ── Resolve email from whichever field the form sends ──
+    // Some form versions use "email", others may use "customer_email" or "contact_email".
+    const rawEmail = body.email ?? body.customer_email ?? body.contact_email ?? ''
+    body.email = normalizeEmail(rawEmail)
+
+    // Sanitize other string inputs
+    if (body.phone) body.phone = String(body.phone).trim()
+    if (body.contact_name) body.contact_name = String(body.contact_name).trim()
+    if (body.business_name) body.business_name = String(body.business_name).trim()
+
+    // Also resolve contact_name from alternate field names
+    if (!body.contact_name && body.customer_name) {
+      body.contact_name = String(body.customer_name).trim()
+    }
+
+    console.log(`[${formType}] submission received — keys: ${Object.keys(body).join(', ')}, email: ${JSON.stringify(body.email)}`)
 
     // ── Validate required fields (varies by form type) ──
     const REQUIRED_BY_FORM_TYPE: Record<string, string[]> = {
@@ -39,6 +68,7 @@ export async function POST(request: NextRequest) {
     const required = REQUIRED_BY_FORM_TYPE[formType] || REQUIRED_BY_FORM_TYPE.commercial_wrap
     const missing = required.filter(f => !body[f])
     if (missing.length > 0) {
+      console.error(`Missing required fields [${formType}]:`, missing, '| Received keys:', Object.keys(body), '| Body:', JSON.stringify(body).slice(0, 500))
       return NextResponse.json(
         { error: 'Missing required fields', fields: missing },
         { status: 400, headers: CORS_HEADERS }
@@ -46,7 +76,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Basic email validation ──
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+    // Lenient regex: local@domain.tld — allows + tags, dots, hyphens, etc.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(body.email)) {
+      console.error(`Invalid email [${formType}]:`, JSON.stringify(body.email), '| raw:', JSON.stringify(rawEmail), '| Body:', JSON.stringify(body).slice(0, 500))
       return NextResponse.json(
         { error: 'Invalid email address' },
         { status: 400, headers: CORS_HEADERS }
@@ -199,14 +231,14 @@ function formatLabel(key: string) {
 // ─── Service labels for styling forms ──────────────────────
 const SERVICE_LABELS: Record<string, string> = {
   printed_wraps: 'Printed Wraps',
-  full_color_change: 'Full Color Change',
+  color_change: 'Full Color Change',
   styling_graphics: 'Styling Graphics',
   tuxedo_roof: 'Tuxedo / Roof Wraps',
   chrome_delete: 'Chrome Delete',
   custom_taillights: 'Custom Taillights',
   racing_stripes: 'Racing Stripes',
   custom_decals: 'Custom Decals',
-  back_window_flags: 'Back Window Flags',
+  window_flags: 'Back Window Flags',
   other: 'Other',
 }
 
@@ -237,6 +269,9 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     }
     if (v.paint_condition) {
       vehicleHTML += emailRow('Paint Condition', v.paint_condition)
+    }
+    if (v.paint_issue) {
+      vehicleHTML += emailRow('Paint Issues', 'Yes' + (v.paint_desc ? ' — ' + v.paint_desc : ''))
     }
   })
 
@@ -348,7 +383,7 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
   </div>
 </body></html>`
 
-  await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${resendApiKey}`,
@@ -361,4 +396,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       html: emailHTML,
     }),
   })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    console.error(`Resend API error [${formType}]: ${res.status} — ${errBody}`)
+    throw new Error(`Resend ${res.status}: ${errBody}`)
+  }
+
+  console.log(`Notification email sent for ${formType} submission`)
 }
