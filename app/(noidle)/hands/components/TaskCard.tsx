@@ -12,6 +12,7 @@ interface TaskCardProps {
   onDelete: (id: string) => void
   onStatusToggle: (task: NihTask) => void
   onSubtaskToggle: (subtask: NihTask) => void
+  onAddSubtask: (parentId: string, title: string) => void
 }
 
 export default function TaskCard({
@@ -22,13 +23,15 @@ export default function TaskCard({
   onDelete,
   onStatusToggle,
   onSubtaskToggle,
+  onAddSubtask,
 }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [showActions, setShowActions] = useState(false)
+  const [newSubtask, setNewSubtask] = useState('')
 
   const isCompleted = task.status === 'completed'
   const isInProgress = task.status === 'in_progress'
-  const isProject = task.is_project && subtasks.length > 0
+  const isProject = task.is_project
   const completedSubtasks = subtasks.filter(s => s.status === 'completed').length
   const totalSubtasks = subtasks.length
 
@@ -356,6 +359,42 @@ export default function TaskCard({
               </span>
             </div>
           ))}
+          {/* Add sub-task input */}
+          <form
+            onSubmit={e => {
+              e.preventDefault()
+              if (newSubtask.trim()) {
+                onAddSubtask(task.id, newSubtask.trim())
+                setNewSubtask('')
+              }
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginTop: subtasks.length > 0 ? '4px' : '0',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ minWidth: '14px' }}>
+              <path d="M8 3V13M3 8H13" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <input
+              type="text"
+              value={newSubtask}
+              onChange={e => setNewSubtask(e.target.value)}
+              placeholder="Add a sub-task..."
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                padding: '4px 0',
+                fontSize: '13px',
+                color: '#e2e8f0',
+                outline: 'none',
+              }}
+            />
+          </form>
         </div>
       )}
     </div>

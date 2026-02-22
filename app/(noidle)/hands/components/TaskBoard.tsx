@@ -154,6 +154,18 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [refreshTasks]
   )
 
+  const handleAddSubtask = useCallback(
+    async (parentId: string, title: string) => {
+      const res = await fetch('/api/noidle/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, parent_id: parentId }),
+      })
+      if (res.ok) await refreshTasks()
+    },
+    [refreshTasks]
+  )
+
   const handleSubtaskToggle = useCallback(
     async (subtask: NihTask) => {
       const newStatus = subtask.status === 'completed' ? 'open' : 'completed'
@@ -235,6 +247,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onDelete={handleDeleteTask}
                 onStatusToggle={handleStatusToggle}
                 onSubtaskToggle={handleSubtaskToggle}
+                onAddSubtask={handleAddSubtask}
               />
             ))}
           </div>
