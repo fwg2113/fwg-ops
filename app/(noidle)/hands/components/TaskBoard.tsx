@@ -161,34 +161,31 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       <header
         style={{
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
-          padding: '24px 24px 16px',
+          justifyContent: 'center',
+          padding: '24px',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
-          gap: '16px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '0 auto' }}>
-          <HandsLogo size={56} />
+          <button
+            onClick={() => setShowTaskModal(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Add new task"
+          >
+            <HandsLogo size={56} />
+          </button>
           <span style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em' }}>
             No Idle Hands
           </span>
         </div>
-        <button
-          onClick={() => setShowTaskModal(true)}
-          style={{
-            background: '#d71cd1',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 20px',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          + New Task
-        </button>
       </header>
 
       {/* Main content */}
