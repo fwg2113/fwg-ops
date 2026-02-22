@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
     if (!formType) {
       if (body.ppf_package) {
         formType = 'ppf'
+      } else if (body.sticker_type) {
+        formType = 'sticker_label'
       } else if (body.equipment) {
         formType = 'cafe_wrap'
       } else if (Array.isArray(body.services) && body.services.length > 0) {
@@ -71,6 +73,11 @@ export async function POST(request: NextRequest) {
       body.contact_name = String(body.customer_name).trim()
     }
 
+    // Resolve business_name from alternate field name (sticker form sends "company")
+    if (!body.business_name && body.company) {
+      body.business_name = String(body.company).trim()
+    }
+
     console.log(`[${formType}] submission received — keys: ${Object.keys(body).join(', ')}, email: ${JSON.stringify(body.email)}`)
 
     // ── Validate required fields (varies by form type) ──
@@ -79,8 +86,15 @@ export async function POST(request: NextRequest) {
       automotive_styling: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
       ppf: ['contact_name', 'email', 'phone', 'contact_method', 'ppf_package', 'timeline'],
       cafe_wrap: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
+      sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material'],
     }
-    const required = REQUIRED_BY_FORM_TYPE[formType] || REQUIRED_BY_FORM_TYPE.commercial_wrap
+    const required = REQUIRED_BY_FORM_TYPE[formType]
+    if (!required) {
+      return NextResponse.json(
+        { error: `Unknown form type: ${formType}` },
+        { status: 400, headers: CORS_HEADERS }
+      )
+    }
     const missing = required.filter(f => !body[f])
     if (missing.length > 0) {
       console.error(`Missing required fields [${formType}]:`, missing, '| Received keys:', Object.keys(body), '| Body:', JSON.stringify(body).slice(0, 500))
@@ -196,6 +210,13 @@ export async function POST(request: NextRequest) {
               branding_file_urls: body.branding?.file_urls || [],
               branding_vision: body.branding?.vision || null,
             }
+          : formType === 'sticker_label'
+          ? {
+              size: body.size || null,
+              quantity: body.quantity || null,
+              notes: body.notes || null,
+              design_file_urls: body.design_file_urls || [],
+            }
           : (body.service_details || {}),
         reference_image_urls: body.reference_image_urls || [],
 
@@ -209,6 +230,12 @@ export async function POST(request: NextRequest) {
         location_state: body.location?.state || null,
         delivery_method: body.delivery_method || null,
         branding_status: body.branding?.status || null,
+
+        // ── Sticker/label-specific columns ──
+        sticker_type: body.sticker_type || null,
+        shape: body.shape || null,
+        material: body.material || null,
+        finish: body.finish || null,
       })
       .select('id')
       .single()
@@ -322,6 +349,24 @@ const DELIVERY_LABELS: Record<string, string> = {
 const BRANDING_LABELS: Record<string, string> = {
   ready: 'Branding Ready', needs_adjustments: 'Needs Adjustments',
   need_design: 'Need Design Help',
+}
+
+// ─── Sticker & label labels ──────────────────────────────
+const STICKER_TYPE_LABELS: Record<string, string> = {
+  'die-cut': 'Die-Cut Stickers', 'kiss-cut': 'Kiss-Cut / Easy Peel',
+  'sticker-sheets': 'Sticker Sheets', 'roll-labels': 'Roll Labels',
+}
+const STICKER_SHAPE_LABELS: Record<string, string> = {
+  contoured: 'Contoured', circle: 'Circle',
+  'rounded-corners': 'Rounded Corners', 'sharp-corners': 'Sharp Corners',
+  custom: 'Custom / Other',
+}
+const STICKER_MATERIAL_LABELS: Record<string, string> = {
+  vinyl: 'Vinyl', holographic: 'Holographic', clear: 'Clear',
+  'low-tack': 'Low Tack / Wall', unsure: 'Not Sure',
+}
+const STICKER_FINISH_LABELS: Record<string, string> = {
+  gloss: 'Gloss', matte: 'Matte', unsure: 'Not Sure',
 }
 
 async function sendNotificationEmail(body: Record<string, any>, formType: string) {
@@ -508,6 +553,43 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
         ${emailRow('Files', refImages.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Image ${i + 1}</a>`).join(' &nbsp; '))}
       </table>`
     }
+  } else if (formType === 'sticker_label') {
+    // Sticker & Label sections
+    const stickerSize = body.size
+    let sizeDisplay = '—'
+    if (stickerSize && typeof stickerSize === 'object' && stickerSize.width && stickerSize.height) {
+      sizeDisplay = `${stickerSize.width}" × ${stickerSize.height}"`
+    } else if (stickerSize) {
+      sizeDisplay = `${stickerSize}"`
+    }
+
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Sticker Details')}
+      ${emailRow('Type', STICKER_TYPE_LABELS[body.sticker_type] || body.sticker_type)}
+      ${emailRow('Shape', STICKER_SHAPE_LABELS[body.shape] || body.shape)}
+      ${emailRow('Material', STICKER_MATERIAL_LABELS[body.material] || body.material)}
+      ${emailRow('Size', sizeDisplay)}
+      ${body.quantity ? emailRow('Quantity', body.quantity) : ''}
+      ${body.finish ? emailRow('Finish', STICKER_FINISH_LABELS[body.finish] || body.finish) : ''}
+    </table>`
+
+    if (body.notes) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Project Notes')}
+        <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.notes}</td></tr>
+      </table>`
+    }
+
+    const designFiles = body.design_file_urls || []
+    if (designFiles.length > 0) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Design Files')}
+        ${emailRow('Files', designFiles.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">File ${i + 1}</a>`).join(' &nbsp; '))}
+      </table>`
+    }
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -541,6 +623,9 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     }, 0)
     emailTitle = 'New Café Wrap Inquiry'
     emailSubject = `New Café Wrap Inquiry — ${body.contact_name} (${totalPieces} piece${totalPieces !== 1 ? 's' : ''})`
+  } else if (formType === 'sticker_label') {
+    emailTitle = 'New Sticker Inquiry'
+    emailSubject = `New Sticker Inquiry — ${body.contact_name} (${body.quantity || '?'} pcs, ${STICKER_TYPE_LABELS[body.sticker_type] || body.sticker_type})`
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
@@ -562,16 +647,16 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${emailRow('Phone', `<a href="tel:${body.phone}" style="color:#2B5EA7;">${body.phone}</a>`)}
       ${emailRow('Preferred', body.contact_method)}
     </table>
-    ${formType !== 'cafe_wrap' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Vehicle Details')}
       ${vehicleHTML}
     </table>` : ''}
     ${projectSectionHTML}
-    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'sticker_label' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Timeline & Budget')}
       ${emailRow('Timeline', TIMELINE_LABELS[body.timeline] || body.timeline)}
       ${body.budget ? emailRow('Budget', BUDGET_LABELS[body.budget] || body.budget) : ''}
-    </table>
+    </table>` : ''}
     ${body.additional_info ? `
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Additional Notes')}
