@@ -73,6 +73,11 @@ type Submission = {
   location_state?: string
   delivery_method?: string
   branding_status?: string
+  // Sticker/label-specific fields
+  sticker_type?: string
+  shape?: string
+  material?: string
+  finish?: string
 }
 
 // Icons as components
@@ -247,6 +252,7 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   'automotive_styling': 'Automotive Styling',
   'ppf': 'Paint Protection Film',
   'cafe_wrap': 'Café Equipment Wrap',
+  'sticker_label': 'Stickers & Labels',
 }
 
 // ─── Café-specific labels ───
@@ -269,6 +275,33 @@ const CAFE_DELIVERY_LABELS: Record<string, string> = {
   'vendor_coordination': 'Vendor Coordination',
   'onsite': 'On-site Wrap',
   'not_sure': 'Not Sure Yet',
+}
+
+// ─── Sticker & Label labels ───
+const STICKER_TYPE_LABELS: Record<string, string> = {
+  'die-cut': 'Die-Cut Stickers',
+  'kiss-cut': 'Kiss-Cut / Easy Peel',
+  'sticker-sheets': 'Sticker Sheets',
+  'roll-labels': 'Roll Labels',
+}
+const STICKER_SHAPE_LABELS: Record<string, string> = {
+  'contoured': 'Contoured',
+  'circle': 'Circle',
+  'rounded-corners': 'Rounded Corners',
+  'sharp-corners': 'Sharp Corners',
+  'custom': 'Custom / Other',
+}
+const STICKER_MATERIAL_LABELS: Record<string, string> = {
+  'vinyl': 'Vinyl',
+  'holographic': 'Holographic',
+  'clear': 'Clear',
+  'low-tack': 'Low Tack / Wall',
+  'unsure': 'Not Sure',
+}
+const STICKER_FINISH_LABELS: Record<string, string> = {
+  'gloss': 'Gloss',
+  'matte': 'Matte',
+  'unsure': 'Not Sure',
 }
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
@@ -531,8 +564,8 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 fontSize: '10px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : '#3b82f6',
+                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : submission.form_type === 'sticker_label' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : submission.form_type === 'sticker_label' ? '#a855f7' : '#3b82f6',
               }}>
                 {FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}
               </span>
@@ -657,11 +690,11 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
         {/* Vehicle & Project (or Equipment & Details for café) */}
         <div style={sectionStyle}>
           <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
-            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : 'Vehicle & Project'}
+            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : submission.form_type === 'sticker_label' ? 'Sticker Details' : 'Vehicle & Project'}
           </div>
 
-          {/* Café wraps skip vehicle display entirely — equipment shown in project section below */}
-          {submission.form_type === 'cafe_wrap' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
+          {/* Café wraps and sticker/label skip vehicle display entirely */}
+          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
             <>
               <div style={rowStyle}>
                 <span style={labelStyle}>Vehicles</span>
@@ -823,6 +856,67 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                       {submission.reference_image_urls.map((url: string, i: number) => (
                         <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
                           Image {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : submission.form_type === 'sticker_label' ? (
+              <>
+                {/* Sticker Type */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Sticker Type</span>
+                  <span style={valueStyle}>{STICKER_TYPE_LABELS[submission.sticker_type || ''] || submission.sticker_type || '-'}</span>
+                </div>
+                {/* Shape */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Shape</span>
+                  <span style={valueStyle}>{STICKER_SHAPE_LABELS[submission.shape || ''] || submission.shape || '-'}</span>
+                </div>
+                {/* Material */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Material</span>
+                  <span style={valueStyle}>{STICKER_MATERIAL_LABELS[submission.material || ''] || submission.material || '-'}</span>
+                </div>
+                {/* Finish */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Finish</span>
+                  <span style={valueStyle}>{STICKER_FINISH_LABELS[submission.finish || ''] || submission.finish || '-'}</span>
+                </div>
+                {/* Size — from service_details */}
+                {submission.service_details?.size && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Size</span>
+                    <span style={valueStyle}>
+                      {typeof submission.service_details.size === 'object' && submission.service_details.size.width && submission.service_details.size.height
+                        ? `${submission.service_details.size.width}" × ${submission.service_details.size.height}"`
+                        : `${submission.service_details.size}"`}
+                    </span>
+                  </div>
+                )}
+                {/* Quantity */}
+                {submission.service_details?.quantity && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Quantity</span>
+                    <span style={valueStyle}>{submission.service_details.quantity}</span>
+                  </div>
+                )}
+                {/* Project Notes */}
+                {submission.service_details?.notes && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Project Notes</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.notes}</span>
+                  </div>
+                )}
+                {/* Design Files */}
+                {submission.service_details?.design_file_urls && submission.service_details.design_file_urls.length > 0 && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>Design Files</span>
+                    <span style={valueStyle}>
+                      {submission.service_details.design_file_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          File {i + 1}
                         </a>
                       ))}
                     </span>
