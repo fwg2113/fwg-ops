@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import type { BoardData, NihTask, FilterState } from '../types'
+import type { BoardData, NihTask } from '../types'
 import HandsLogo from './HandsLogo'
-import StatsBar from './StatsBar'
 import QuickAdd from './QuickAdd'
-import FilterBar from './FilterBar'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
 import CompleteModal from './CompleteModal'
@@ -15,43 +13,14 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [tasks, setTasks] = useState<NihTask[]>(initialData.tasks)
   const { categories, locations, teamMembers } = initialData
 
-  const [filters, setFilters] = useState<FilterState>({
-    category: null,
-    urgency: null,
-    timeEstimate: null,
-    location: null,
-    assignee: null,
-    showCompleted: false,
-  })
-
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
   const [completingTask, setCompletingTask] = useState<NihTask | null>(null)
 
-  // Filter tasks
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
-      // Always include subtasks if parent passes (we filter parents only)
-      if (task.parent_id) return true
-      if (!filters.showCompleted && task.status === 'completed') return false
-      if (filters.category && task.category_id !== filters.category) return false
-      if (filters.urgency && task.urgency !== filters.urgency) return false
-      if (filters.location && task.location_id !== filters.location) return false
-      if (filters.timeEstimate && task.time_estimate !== filters.timeEstimate) return false
-      if (filters.assignee) {
-        const hasAssignee = task.nih_task_assignees?.some(
-          a => a.nih_team_members?.id === filters.assignee
-        )
-        if (!hasAssignee) return false
-      }
-      return true
-    })
-  }, [tasks, filters])
-
-  // Separate into top-level and subtasks
+  // Separate into top-level and subtasks (hide completed top-level tasks)
   const topLevelTasks = useMemo(
-    () => filteredTasks.filter(t => !t.parent_id).sort((a, b) => a.sort_order - b.sort_order),
-    [filteredTasks]
+    () => tasks.filter(t => !t.parent_id && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
+    [tasks]
   )
 
   const subtasksMap = useMemo(() => {
@@ -223,18 +192,10 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
 
       {/* Main content */}
       <div style={{ padding: '24px', maxWidth: '960px', margin: '0 auto' }}>
-        <StatsBar tasks={tasks} />
         <QuickAdd onAdd={handleQuickAdd} />
-        <FilterBar
-          filters={filters}
-          onChange={setFilters}
-          categories={categories}
-          locations={locations}
-          teamMembers={teamMembers}
-        />
 
         {topLevelTasks.length === 0 ? (
-          <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={Object.values(filters).some(v => v !== null && v !== false)} />
+          <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
             {topLevelTasks.map(task => (
