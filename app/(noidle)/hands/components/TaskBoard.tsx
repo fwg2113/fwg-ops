@@ -204,11 +204,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   )
 
   const handleCompleteTask = useCallback(
-    async (id: string, notes: string) => {
+    async (id: string, notes: string, photoUrl: string | null) => {
       const res = await fetch(`/api/noidle/tasks/${id}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ notes, photo_url: photoUrl }),
       })
       if (res.ok) {
         await refreshTasks()
@@ -353,7 +353,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       {completingTask && (
         <CompleteModal
           task={completingTask}
-          onComplete={notes => handleCompleteTask(completingTask.id, notes)}
+          onComplete={(notes, photoUrl) => handleCompleteTask(completingTask.id, notes, photoUrl)}
           onClose={() => setCompletingTask(null)}
         />
       )}
