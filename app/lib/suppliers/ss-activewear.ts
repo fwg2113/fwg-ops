@@ -142,7 +142,9 @@ export class SSActivewearClient {
     this.apiKey = process.env.SS_ACTIVEWEAR_API_KEY || ''
 
     if (!this.accountNumber || !this.apiKey) {
-      throw new Error('SS Activewear credentials not configured. Set SS_ACTIVEWEAR_ACCOUNT_NUMBER and SS_ACTIVEWEAR_API_KEY in .env.local')
+      // Allow module to load during build without env vars
+      this.authHeader = ''
+      return
     }
 
     // Create Basic Auth header: base64(accountNumber:apiKey)
