@@ -1,10 +1,24 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import type { BoardData, NihTask } from '../types'
 import HandsLogo from './HandsLogo'
 import QuickAdd from './QuickAdd'
-import TaskCard from './TaskCard'
+import SortableTaskCard from './SortableTaskCard'
 import TaskModal from './TaskModal'
 import CompleteModal from './CompleteModal'
 import EmptyState from './EmptyState'
@@ -35,6 +49,14 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     return map
   }, [tasks])
 
+  const topLevelIds = useMemo(() => topLevelTasks.map(t => t.id), [topLevelTasks])
+
+  // DnD sensors — require 8px of movement before a drag starts so clicks still work
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
   // Refresh tasks from API
   const refreshTasks = useCallback(async () => {
     const res = await fetch('/api/noidle/tasks')
@@ -43,6 +65,72 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       setTasks(data)
     }
   }, [])
+
+  // Persist new order to API
+  const persistOrder = useCallback(async (orderedIds: string[]) => {
+    await fetch('/api/noidle/tasks/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds }),
+    })
+  }, [])
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      // Find indices in topLevelTasks
+      const oldIndex = topLevelTasks.findIndex(t => t.id === active.id)
+      const newIndex = topLevelTasks.findIndex(t => t.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+
+      // Build new order
+      const reordered = [...topLevelTasks]
+      const [moved] = reordered.splice(oldIndex, 1)
+      reordered.splice(newIndex, 0, moved)
+
+      // Optimistic update — update sort_order in local state
+      const updatedTasks = tasks.map(t => {
+        const idx = reordered.findIndex(r => r.id === t.id)
+        if (idx !== -1) return { ...t, sort_order: idx }
+        return t
+      })
+      setTasks(updatedTasks)
+
+      // Persist to DB
+      persistOrder(reordered.map(t => t.id))
+    },
+    [topLevelTasks, tasks, persistOrder]
+  )
+
+  // Subtask reorder handler
+  const handleSubtaskDragEnd = useCallback(
+    (parentId: string, event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+
+      const subs = subtasksMap[parentId] || []
+      const oldIndex = subs.findIndex(s => s.id === active.id)
+      const newIndex = subs.findIndex(s => s.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const reordered = [...subs]
+      const [moved] = reordered.splice(oldIndex, 1)
+      reordered.splice(newIndex, 0, moved)
+
+      // Optimistic update
+      const updatedTasks = tasks.map(t => {
+        const idx = reordered.findIndex(r => r.id === t.id)
+        if (idx !== -1) return { ...t, sort_order: idx }
+        return t
+      })
+      setTasks(updatedTasks)
+
+      persistOrder(reordered.map(t => t.id))
+    },
+    [subtasksMap, tasks, persistOrder]
+  )
 
   const handleQuickAdd = useCallback(
     async (title: string) => {
@@ -195,21 +283,30 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         {topLevelTasks.length === 0 ? (
           <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-            {topLevelTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                subtasks={subtasksMap[task.id] || []}
-                onEdit={t => setEditingTask(t)}
-                onComplete={t => setCompletingTask(t)}
-                onDelete={handleDeleteTask}
-                onStatusToggle={handleStatusToggle}
-                onSubtaskToggle={handleSubtaskToggle}
-                onAddSubtask={handleAddSubtask}
-              />
-            ))}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+                {topLevelTasks.map(task => (
+                  <SortableTaskCard
+                    key={task.id}
+                    task={task}
+                    subtasks={subtasksMap[task.id] || []}
+                    onEdit={t => setEditingTask(t)}
+                    onComplete={t => setCompletingTask(t)}
+                    onDelete={handleDeleteTask}
+                    onStatusToggle={handleStatusToggle}
+                    onSubtaskToggle={handleSubtaskToggle}
+                    onAddSubtask={handleAddSubtask}
+                    onSubtaskDragEnd={handleSubtaskDragEnd}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
