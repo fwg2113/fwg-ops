@@ -64,7 +64,7 @@ type Props = {
 export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf'>('all')
+  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf' | 'cafe_wrap'>('all')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = () => {
@@ -114,12 +114,22 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
 
       const isStyling = subFormType === 'automotive_styling'
       const isPPF = subFormType === 'ppf'
+      const isCafe = subFormType === 'cafe_wrap'
       const PPF_PKG_LABELS: Record<string, string> = { full_vehicle: 'Full Vehicle PPF', full_front: 'Full Front End', track_pack: 'Track Pack', partial: 'Partial / Custom' }
+      const CAFE_EQUIP_LABELS: Record<string, string> = { espresso_machine: 'Espresso Machine', drip_brewer: 'Drip Brewer', bean_grinder: 'Bean Grinder', milk_steamer: 'Milk Steamer', other: 'Other Equipment' }
       const description = isPPF
         ? (PPF_PKG_LABELS[sub.ppf_package || ''] || sub.ppf_package || 'PPF inquiry')
-        : isStyling
-          ? (sub.services || []).map((s: string) => s.replace(/_/g, ' ')).join(', ') || 'Styling inquiry'
-          : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || ''
+        : isCafe
+          ? (() => {
+              const equipArr = (sub as any).service_details?.equipment
+              if (Array.isArray(equipArr) && equipArr.length > 0) {
+                return equipArr.map((e: any) => CAFE_EQUIP_LABELS[e.type] || e.type?.replace(/_/g, ' ')).join(', ')
+              }
+              return 'Café equipment inquiry'
+            })()
+          : isStyling
+            ? (sub.services || []).map((s: string) => s.replace(/_/g, ' ')).join(', ') || 'Styling inquiry'
+            : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || ''
 
       const card: PipelineCard = {
         type: 'submission',
@@ -301,6 +311,9 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
     }
     if (formType === 'automotive_styling') {
       return { label: 'STYLING', bg: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }
+    }
+    if (formType === 'cafe_wrap') {
+      return { label: 'CAFÉ', bg: 'rgba(234, 179, 8, 0.15)', color: '#eab308' }
     }
     return { label: 'COMMERCIAL', bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }
   }
@@ -502,6 +515,7 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
               { key: 'commercial_wrap', label: 'Commercial' },
               { key: 'automotive_styling', label: 'Styling' },
               { key: 'ppf', label: 'PPF' },
+              { key: 'cafe_wrap', label: 'Café' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}

@@ -90,6 +90,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // ── Café wrap: validate equipment is a non-empty array ──
+    if (formType === 'cafe_wrap') {
+      if (!Array.isArray(body.equipment) || body.equipment.length === 0) {
+        console.error(`Invalid equipment payload [${formType}]: expected non-empty array, got`, typeof body.equipment)
+        return NextResponse.json(
+          { error: 'Equipment must be a non-empty array' },
+          { status: 400, headers: CORS_HEADERS }
+        )
+      }
+    }
+
     // ── Basic email validation ──
     // Lenient regex: local@domain.tld — allows + tags, dots, hyphens, etc.
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(body.email)) {
@@ -180,7 +191,8 @@ export async function POST(request: NextRequest) {
             }
           : formType === 'cafe_wrap'
           ? {
-              equipment: body.equipment || null,
+              equipment: body.equipment || [],
+              equipment_photo_urls: body.equipment_photo_urls || [],
               branding_file_urls: body.branding?.file_urls || [],
               branding_vision: body.branding?.vision || null,
             }
@@ -299,19 +311,13 @@ const SERVICE_LABELS: Record<string, string> = {
 
 // ─── Café equipment labels ──────────────────────────────
 const EQUIPMENT_LABELS: Record<string, string> = {
-  espresso_machine: 'Espresso Machine', bean_grinder: 'Bean Grinder',
-  refrigerator: 'Refrigerator', display_case: 'Display Case',
-  pos_system: 'POS System', ice_machine: 'Ice Machine',
-  oven: 'Oven', blender_station: 'Blender Station',
-  other: 'Other',
-}
-const QUANTITY_LABELS: Record<string, string> = {
-  '1': '1 piece', '2_3': '2–3 pieces', '4_6': '4–6 pieces',
-  '7_plus': '7+ pieces',
+  espresso_machine: 'Espresso Machine', drip_brewer: 'Drip Brewer',
+  bean_grinder: 'Bean Grinder', milk_steamer: 'Milk Steamer',
+  other: 'Other Equipment',
 }
 const DELIVERY_LABELS: Record<string, string> = {
-  deliver_to_fwg: 'Deliver to FWG', vendor_coordination: 'Vendor Coordination',
-  onsite: 'On-site Service', not_sure: 'Not Sure Yet',
+  deliver_to_fwg: 'Delivered to FWG', vendor_coordination: 'Vendor Coordination',
+  onsite: 'On-site Wrap', not_sure: 'Not Sure Yet',
 }
 const BRANDING_LABELS: Record<string, string> = {
   ready: 'Branding Ready', needs_adjustments: 'Needs Adjustments',
@@ -445,21 +451,23 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       </table>`
     }
   } else if (formType === 'cafe_wrap') {
-    // Café equipment wrap sections
-    const equip = body.equipment || {}
-    const equipTypes = (equip.types || []).map((t: string) => EQUIPMENT_LABELS[t] || formatLabel(t)).join(', ')
-    const equipQty = QUANTITY_LABELS[equip.quantity] || equip.quantity || '—'
-    const equipPhotos = (equip.photo_urls || []).length > 0
-      ? emailRow('Photos', equip.photo_urls.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Photo ${i + 1}</a>`).join(' &nbsp; '))
+    // Café equipment wrap sections — equipment is now an array of per-item objects
+    const equipItems: Array<{ type: string; model?: string; quantity?: string }> = Array.isArray(body.equipment) ? body.equipment : []
+    let equipRows = ''
+    equipItems.forEach((item: any) => {
+      const label = EQUIPMENT_LABELS[item.type] || formatLabel(item.type || 'Unknown')
+      const qty = item.quantity || '1'
+      const line = item.model ? `${label} × ${qty} — ${item.model}` : `${label} × ${qty}`
+      equipRows += emailRow('Item', line)
+    })
+    const equipPhotos = (body.equipment_photo_urls || []).length > 0
+      ? emailRow('Photos', body.equipment_photo_urls.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">Photo ${i + 1}</a>`).join(' &nbsp; '))
       : ''
-    const otherDesc = equip.other_description ? emailRow('Other Description', equip.other_description) : ''
 
     projectSectionHTML += `
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Equipment Details')}
-      ${emailRow('Equipment Types', equipTypes || '—')}
-      ${emailRow('Quantity', equipQty)}
-      ${otherDesc}
+      ${equipRows || emailRow('Equipment', '—')}
       ${equipPhotos}
     </table>`
 
@@ -525,9 +533,14 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     emailTitle = 'New Styling Inquiry'
     emailSubject = `New Styling Inquiry — ${body.contact_name} (${(body.services || []).length} service${(body.services || []).length !== 1 ? 's' : ''})`
   } else if (formType === 'cafe_wrap') {
-    const cafeQty = QUANTITY_LABELS[body.equipment?.quantity] || body.equipment?.quantity || 'equipment'
+    // Sum per-item quantities; treat "5+" as 5
+    const equipArr: Array<{ quantity?: string }> = Array.isArray(body.equipment) ? body.equipment : []
+    const totalPieces = equipArr.reduce((sum: number, item: any) => {
+      const q = parseInt(String(item.quantity || '1').replace('+', ''), 10)
+      return sum + (isNaN(q) ? 1 : q)
+    }, 0)
     emailTitle = 'New Café Wrap Inquiry'
-    emailSubject = `New Café Wrap Inquiry — ${body.contact_name} (${cafeQty})`
+    emailSubject = `New Café Wrap Inquiry — ${body.contact_name} (${totalPieces} piece${totalPieces !== 1 ? 's' : ''})`
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
