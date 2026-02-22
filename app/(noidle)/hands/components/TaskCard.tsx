@@ -132,6 +132,13 @@ export default function TaskCard({
                 {task.nih_locations.name}
               </span>
             )}
+
+            {/* Point of contact */}
+            {task.point_of_contact && (
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                POC: {task.point_of_contact}
+              </span>
+            )}
           </div>
 
           {/* Description preview */}
