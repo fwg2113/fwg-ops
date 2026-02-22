@@ -216,8 +216,7 @@ export default function TaskCard({
                 key={a.nih_team_members?.id || `assignee-${i}`}
                 title={a.nih_team_members?.name}
                 style={{
-                  width: '24px',
-                  height: '24px',
+                  height: '22px',
                   borderRadius: '999px',
                   background: a.nih_team_members?.avatar_color || '#6b7280',
                   display: 'flex',
@@ -226,11 +225,12 @@ export default function TaskCard({
                   fontSize: '10px',
                   fontWeight: 700,
                   color: '#fff',
-                  marginLeft: i > 0 ? '-6px' : '0',
-                  border: '2px solid #1d1d1d',
+                  marginLeft: i > 0 ? '4px' : '0',
+                  padding: '0 8px',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {a.nih_team_members?.name?.[0]?.toUpperCase()}
+                {a.nih_team_members?.name}
               </div>
             ))}
           </div>
