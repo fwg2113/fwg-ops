@@ -4,7 +4,7 @@ import { supabase } from '../../../../lib/supabase'
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { title, description, category_id, location_id, urgency, time_estimate, status, is_project, point_of_contact, assignee_ids } = body
+  const { title, description, category_id, location_id, urgency, time_estimate, status, is_project, point_of_contact, assignee_ids, completed_at, completion_notes, completed_by } = body
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (title !== undefined) updates.title = title
@@ -16,6 +16,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (status !== undefined) updates.status = status
   if (is_project !== undefined) updates.is_project = is_project
   if (point_of_contact !== undefined) updates.point_of_contact = point_of_contact || null
+  if (completed_at !== undefined) updates.completed_at = completed_at
+  if (completion_notes !== undefined) updates.completion_notes = completion_notes
+  if (completed_by !== undefined) updates.completed_by = completed_by || null
 
   const { data: task, error } = await supabase
     .from('nih_tasks')
