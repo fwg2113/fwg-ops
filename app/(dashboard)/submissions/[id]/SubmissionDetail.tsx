@@ -68,6 +68,11 @@ type Submission = {
   ppf_package?: string
   ppf_finish?: string
   addons?: string[]
+  // Café-wrap-specific fields
+  location_city?: string
+  location_state?: string
+  delivery_method?: string
+  branding_status?: string
 }
 
 // Icons as components
@@ -241,6 +246,29 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   'commercial_wrap': 'Commercial Wrap',
   'automotive_styling': 'Automotive Styling',
   'ppf': 'Paint Protection Film',
+  'cafe_wrap': 'Café Equipment Wrap',
+}
+
+// ─── Café-specific labels ───
+const CAFE_EQUIPMENT_LABELS: Record<string, string> = {
+  'espresso_machine': 'Espresso Machine',
+  'drip_brewer': 'Drip Brewer',
+  'bean_grinder': 'Bean Grinder',
+  'milk_steamer': 'Milk Steamer',
+  'other': 'Other Equipment',
+}
+
+const CAFE_BRANDING_LABELS: Record<string, string> = {
+  'ready': 'Ready to use',
+  'needs_adjustments': 'Needs adjustments',
+  'need_design': 'Need design support',
+}
+
+const CAFE_DELIVERY_LABELS: Record<string, string> = {
+  'deliver_to_fwg': 'Delivered to FWG',
+  'vendor_coordination': 'Vendor Coordination',
+  'onsite': 'On-site Wrap',
+  'not_sure': 'Not Sure Yet',
 }
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
@@ -503,8 +531,8 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 fontSize: '10px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : '#3b82f6',
+                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : '#3b82f6',
               }}>
                 {FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}
               </span>
@@ -626,14 +654,14 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           </div>
         </div>
 
-        {/* Vehicle & Project */}
+        {/* Vehicle & Project (or Equipment & Details for café) */}
         <div style={sectionStyle}>
           <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
-            <TruckIcon /> Vehicle & Project
+            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : 'Vehicle & Project'}
           </div>
 
-          {/* New multi-vehicle display */}
-          {submission.vehicles && submission.vehicles.length > 0 ? (
+          {/* Café wraps skip vehicle display entirely — equipment shown in project section below */}
+          {submission.form_type === 'cafe_wrap' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
             <>
               <div style={rowStyle}>
                 <span style={labelStyle}>Vehicles</span>
@@ -788,6 +816,111 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                     )
                   })
                 )}
+                {submission.reference_image_urls && submission.reference_image_urls.length > 0 && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>Reference Images</span>
+                    <span style={valueStyle}>
+                      {submission.reference_image_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          Image {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : submission.form_type === 'cafe_wrap' ? (
+              <>
+                {/* Equipment list from service_details.equipment array */}
+                {(() => {
+                  const equipArr: Array<{ type: string; model?: string; quantity?: string }> = submission.service_details?.equipment || []
+                  if (equipArr.length > 0) {
+                    return (
+                      <>
+                        <div style={rowStyle}>
+                          <span style={labelStyle}>Equipment</span>
+                          <span style={valueStyle}>{equipArr.length} item{equipArr.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        {equipArr.map((item: any, idx: number) => (
+                          <div key={idx} style={{
+                            background: '#1d1d1d',
+                            borderRadius: '8px',
+                            padding: '10px 12px',
+                            marginTop: '8px',
+                            fontSize: '13px'
+                          }}>
+                            <div style={{ fontWeight: 600, color: '#f1f5f9', marginBottom: '2px' }}>
+                              {CAFE_EQUIPMENT_LABELS[item.type] || item.type?.replace(/_/g, ' ') || 'Unknown'}
+                            </div>
+                            <div style={{ color: '#94a3b8' }}>
+                              Qty: {item.quantity || '1'}
+                              {item.model && <span style={{ marginLeft: '12px' }}>{item.model}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )
+                  }
+                  return <div style={rowStyle}><span style={labelStyle}>Equipment</span><span style={valueStyle}>-</span></div>
+                })()}
+
+                {/* Equipment photos */}
+                {submission.service_details?.equipment_photo_urls && submission.service_details.equipment_photo_urls.length > 0 && (
+                  <div style={{ ...rowStyle, marginTop: '8px' }}>
+                    <span style={labelStyle}>Equipment Photos</span>
+                    <span style={valueStyle}>
+                      {submission.service_details.equipment_photo_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          Photo {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+
+                {/* Location */}
+                {(submission.location_city || submission.location_state) && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Location</span>
+                    <span style={valueStyle}>{[submission.location_city, submission.location_state].filter(Boolean).join(', ')}</span>
+                  </div>
+                )}
+
+                {/* Delivery method */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Delivery Method</span>
+                  <span style={valueStyle}>{CAFE_DELIVERY_LABELS[submission.delivery_method || ''] || submission.delivery_method || '-'}</span>
+                </div>
+
+                {/* Branding status */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Branding Status</span>
+                  <span style={valueStyle}>{CAFE_BRANDING_LABELS[submission.branding_status || ''] || submission.branding_status || '-'}</span>
+                </div>
+
+                {/* Brand files */}
+                {submission.service_details?.branding_file_urls && submission.service_details.branding_file_urls.length > 0 && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Brand Files</span>
+                    <span style={valueStyle}>
+                      {submission.service_details.branding_file_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          File {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+
+                {/* Design vision */}
+                {submission.service_details?.branding_vision && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Design Vision</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.branding_vision}</span>
+                  </div>
+                )}
+
+                {/* Reference images */}
                 {submission.reference_image_urls && submission.reference_image_urls.length > 0 && (
                   <div style={lastRowStyle}>
                     <span style={labelStyle}>Reference Images</span>
