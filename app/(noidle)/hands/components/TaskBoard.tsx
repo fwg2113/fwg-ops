@@ -161,15 +161,16 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       <header
         style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 24px',
+          padding: '24px 24px 16px',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
+          gap: '16px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <HandsLogo size={36} />
-          <span style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.02em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '0 auto' }}>
+          <HandsLogo size={56} />
+          <span style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em' }}>
             No Idle Hands
           </span>
         </div>
