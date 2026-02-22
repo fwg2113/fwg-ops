@@ -203,7 +203,7 @@ export default function TaskCard({
           <div style={{ display: 'flex', gap: '0', marginLeft: '4px' }}>
             {task.nih_task_assignees.map((a, i) => (
               <div
-                key={a.team_member_id}
+                key={a.nih_team_members?.id || `assignee-${i}`}
                 title={a.nih_team_members?.name}
                 style={{
                   width: '24px',
