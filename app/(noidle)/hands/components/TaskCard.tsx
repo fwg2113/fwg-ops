@@ -1,22 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useState, type DragEvent } from 'react'
 import type { NihTask } from '../types'
 import { URGENCY_COLORS } from '../types'
 
@@ -29,93 +13,17 @@ interface TaskCardProps {
   onStatusToggle: (task: NihTask) => void
   onSubtaskToggle: (subtask: NihTask) => void
   onAddSubtask: (parentId: string, title: string) => void
-  onSubtaskDragEnd?: (parentId: string, event: DragEndEvent) => void
-  dragListeners?: Record<string, unknown>
-  isDragging?: boolean
-}
-
-function SortableSubtask({
-  sub,
-  onSubtaskToggle,
-}: {
-  sub: NihTask
-  onSubtaskToggle: (subtask: NihTask) => void
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: sub.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  }
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      {/* Subtask drag handle */}
-      <div
-        {...listeners}
-        style={{
-          cursor: 'grab',
-          color: '#3f4451',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '2px',
-          touchAction: 'none',
-        }}
-        title="Drag to reorder"
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-          <circle cx="5" cy="4" r="1.5" fill="currentColor" />
-          <circle cx="11" cy="4" r="1.5" fill="currentColor" />
-          <circle cx="5" cy="8" r="1.5" fill="currentColor" />
-          <circle cx="11" cy="8" r="1.5" fill="currentColor" />
-          <circle cx="5" cy="12" r="1.5" fill="currentColor" />
-          <circle cx="11" cy="12" r="1.5" fill="currentColor" />
-        </svg>
-      </div>
-      <button
-        onClick={() => onSubtaskToggle(sub)}
-        style={{
-          width: '16px',
-          height: '16px',
-          minWidth: '16px',
-          borderRadius: '4px',
-          border: `1.5px solid ${sub.status === 'completed' ? '#22c55e' : '#4b5563'}`,
-          background: sub.status === 'completed' ? '#22c55e' : 'transparent',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 0,
-        }}
-      >
-        {sub.status === 'completed' && (
-          <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
-      <span
-        style={{
-          fontSize: '13px',
-          color: sub.status === 'completed' ? '#6b7280' : '#e2e8f0',
-          textDecoration: sub.status === 'completed' ? 'line-through' : 'none',
-        }}
-      >
-        {sub.title}
-      </span>
-    </div>
-  )
+  // Drag-and-drop props (top-level tasks)
+  isDragOver?: boolean
+  onDragStart?: () => void
+  onDragOver?: () => void
+  onDrop?: () => void
+  onDragEnd?: () => void
+  // Subtask drag-and-drop
+  subtaskDragOverId?: string | null
+  onSubtaskDragStart?: (subtaskId: string, parentId: string) => void
+  onSubtaskDragOver?: (subtaskId: string) => void
+  onSubtaskDrop?: (targetId: string, parentId: string) => void
 }
 
 export default function TaskCard({
@@ -127,9 +35,15 @@ export default function TaskCard({
   onStatusToggle,
   onSubtaskToggle,
   onAddSubtask,
-  onSubtaskDragEnd,
-  dragListeners,
-  isDragging,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  subtaskDragOverId,
+  onSubtaskDragStart,
+  onSubtaskDragOver,
+  onSubtaskDrop,
 }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [showActions, setShowActions] = useState(false)
@@ -141,19 +55,34 @@ export default function TaskCard({
   const completedSubtasks = subtasks.filter(s => s.status === 'completed').length
   const totalSubtasks = subtasks.length
 
-  const subtaskSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    onDragOver?.()
+  }
 
   return (
     <div
+      draggable
+      onDragStart={e => {
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', task.id)
+        onDragStart?.()
+      }}
+      onDragOver={handleDragOver}
+      onDrop={e => {
+        e.preventDefault()
+        onDrop?.()
+      }}
+      onDragEnd={() => onDragEnd?.()}
       style={{
         background: '#1d1d1d',
         borderRadius: '12px',
-        border: `1px solid ${isDragging ? 'rgba(34,211,238,0.5)' : isInProgress ? 'rgba(34,211,238,0.3)' : 'rgba(255,255,255,0.06)'}`,
+        border: `1px solid ${isDragOver ? 'rgba(34,211,238,0.5)' : isInProgress ? 'rgba(34,211,238,0.3)' : 'rgba(255,255,255,0.06)'}`,
         opacity: isCompleted ? 0.6 : 1,
-        transition: 'border-color 0.15s',
+        transition: 'border-color 0.15s, transform 0.15s',
+        transform: isDragOver ? 'scale(1.01)' : 'scale(1)',
+        cursor: 'default',
       }}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
@@ -168,7 +97,6 @@ export default function TaskCard({
       >
         {/* Drag handle */}
         <div
-          {...dragListeners}
           style={{
             cursor: 'grab',
             color: '#3f4451',
@@ -176,7 +104,6 @@ export default function TaskCard({
             alignItems: 'center',
             marginTop: '3px',
             padding: '2px',
-            touchAction: 'none',
           }}
           title="Drag to reorder"
         >
@@ -459,17 +386,90 @@ export default function TaskCard({
             gap: '6px',
           }}
         >
-          <DndContext
-            sensors={subtaskSensors}
-            collisionDetection={closestCenter}
-            onDragEnd={e => onSubtaskDragEnd?.(task.id, e)}
-          >
-            <SortableContext items={subtasks.map(s => s.id)} strategy={verticalListSortingStrategy}>
-              {subtasks.map(sub => (
-                <SortableSubtask key={sub.id} sub={sub} onSubtaskToggle={onSubtaskToggle} />
-              ))}
-            </SortableContext>
-          </DndContext>
+          {subtasks.map(sub => (
+            <div
+              key={sub.id}
+              draggable
+              onDragStart={e => {
+                e.stopPropagation()
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('text/plain', sub.id)
+                onSubtaskDragStart?.(sub.id, task.id)
+              }}
+              onDragOver={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                e.dataTransfer.dropEffect = 'move'
+                onSubtaskDragOver?.(sub.id)
+              }}
+              onDrop={e => {
+                e.preventDefault()
+                e.stopPropagation()
+                onSubtaskDrop?.(sub.id, task.id)
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderRadius: '6px',
+                padding: '2px 4px',
+                background: subtaskDragOverId === sub.id ? 'rgba(34,211,238,0.08)' : 'transparent',
+                transition: 'background 0.15s',
+              }}
+            >
+              {/* Subtask drag handle */}
+              <div
+                style={{
+                  cursor: 'grab',
+                  color: '#3f4451',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '2px',
+                }}
+                title="Drag to reorder"
+              >
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+                  <circle cx="5" cy="4" r="1.5" fill="currentColor" />
+                  <circle cx="11" cy="4" r="1.5" fill="currentColor" />
+                  <circle cx="5" cy="8" r="1.5" fill="currentColor" />
+                  <circle cx="11" cy="8" r="1.5" fill="currentColor" />
+                  <circle cx="5" cy="12" r="1.5" fill="currentColor" />
+                  <circle cx="11" cy="12" r="1.5" fill="currentColor" />
+                </svg>
+              </div>
+              <button
+                onClick={() => onSubtaskToggle(sub)}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  minWidth: '16px',
+                  borderRadius: '4px',
+                  border: `1.5px solid ${sub.status === 'completed' ? '#22c55e' : '#4b5563'}`,
+                  background: sub.status === 'completed' ? '#22c55e' : 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                {sub.status === 'completed' && (
+                  <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+              <span
+                style={{
+                  fontSize: '13px',
+                  color: sub.status === 'completed' ? '#6b7280' : '#e2e8f0',
+                  textDecoration: sub.status === 'completed' ? 'line-through' : 'none',
+                }}
+              >
+                {sub.title}
+              </span>
+            </div>
+          ))}
           {/* Add sub-task input */}
           <form
             onSubmit={e => {

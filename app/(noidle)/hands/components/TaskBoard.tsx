@@ -1,24 +1,10 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import type { BoardData, NihTask } from '../types'
 import HandsLogo from './HandsLogo'
 import QuickAdd from './QuickAdd'
-import SortableTaskCard from './SortableTaskCard'
+import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
 import CompleteModal from './CompleteModal'
 import EmptyState from './EmptyState'
@@ -30,6 +16,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
   const [completingTask, setCompletingTask] = useState<NihTask | null>(null)
+
+  // Drag state
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const dragContext = useRef<'tasks' | 'subtasks'>('tasks')
+  const dragParentId = useRef<string | null>(null)
 
   // Separate into top-level and subtasks (hide completed top-level tasks)
   const topLevelTasks = useMemo(
@@ -49,14 +41,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     return map
   }, [tasks])
 
-  const topLevelIds = useMemo(() => topLevelTasks.map(t => t.id), [topLevelTasks])
-
-  // DnD sensors — require 8px of movement before a drag starts so clicks still work
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
   // Refresh tasks from API
   const refreshTasks = useCallback(async () => {
     const res = await fetch('/api/noidle/tasks')
@@ -75,44 +59,79 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     })
   }, [])
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event
-      if (!over || active.id === over.id) return
+  // Top-level task drag handlers
+  const handleTaskDragStart = useCallback((taskId: string) => {
+    dragContext.current = 'tasks'
+    dragParentId.current = null
+    setDragId(taskId)
+  }, [])
 
-      // Find indices in topLevelTasks
-      const oldIndex = topLevelTasks.findIndex(t => t.id === active.id)
-      const newIndex = topLevelTasks.findIndex(t => t.id === over.id)
+  const handleTaskDragOver = useCallback((taskId: string) => {
+    if (dragContext.current === 'tasks') {
+      setDragOverId(taskId)
+    }
+  }, [])
+
+  const handleTaskDrop = useCallback(
+    (targetId: string) => {
+      if (!dragId || dragId === targetId || dragContext.current !== 'tasks') {
+        setDragId(null)
+        setDragOverId(null)
+        return
+      }
+
+      const oldIndex = topLevelTasks.findIndex(t => t.id === dragId)
+      const newIndex = topLevelTasks.findIndex(t => t.id === targetId)
       if (oldIndex === -1 || newIndex === -1) return
 
-      // Build new order
       const reordered = [...topLevelTasks]
       const [moved] = reordered.splice(oldIndex, 1)
       reordered.splice(newIndex, 0, moved)
 
-      // Optimistic update — update sort_order in local state
+      // Optimistic update
       const updatedTasks = tasks.map(t => {
         const idx = reordered.findIndex(r => r.id === t.id)
         if (idx !== -1) return { ...t, sort_order: idx }
         return t
       })
       setTasks(updatedTasks)
+      setDragId(null)
+      setDragOverId(null)
 
-      // Persist to DB
       persistOrder(reordered.map(t => t.id))
     },
-    [topLevelTasks, tasks, persistOrder]
+    [dragId, topLevelTasks, tasks, persistOrder]
   )
 
-  // Subtask reorder handler
-  const handleSubtaskDragEnd = useCallback(
-    (parentId: string, event: DragEndEvent) => {
-      const { active, over } = event
-      if (!over || active.id === over.id) return
+  const handleDragEnd = useCallback(() => {
+    setDragId(null)
+    setDragOverId(null)
+  }, [])
+
+  // Subtask drag handlers
+  const handleSubtaskDragStart = useCallback((subtaskId: string, parentId: string) => {
+    dragContext.current = 'subtasks'
+    dragParentId.current = parentId
+    setDragId(subtaskId)
+  }, [])
+
+  const handleSubtaskDragOver = useCallback((subtaskId: string) => {
+    if (dragContext.current === 'subtasks') {
+      setDragOverId(subtaskId)
+    }
+  }, [])
+
+  const handleSubtaskDrop = useCallback(
+    (targetId: string, parentId: string) => {
+      if (!dragId || dragId === targetId || dragContext.current !== 'subtasks' || dragParentId.current !== parentId) {
+        setDragId(null)
+        setDragOverId(null)
+        return
+      }
 
       const subs = subtasksMap[parentId] || []
-      const oldIndex = subs.findIndex(s => s.id === active.id)
-      const newIndex = subs.findIndex(s => s.id === over.id)
+      const oldIndex = subs.findIndex(s => s.id === dragId)
+      const newIndex = subs.findIndex(s => s.id === targetId)
       if (oldIndex === -1 || newIndex === -1) return
 
       const reordered = [...subs]
@@ -126,10 +145,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         return t
       })
       setTasks(updatedTasks)
+      setDragId(null)
+      setDragOverId(null)
 
       persistOrder(reordered.map(t => t.id))
     },
-    [subtasksMap, tasks, persistOrder]
+    [dragId, subtasksMap, tasks, persistOrder]
   )
 
   const handleQuickAdd = useCallback(
@@ -283,30 +304,30 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         {topLevelTasks.length === 0 ? (
           <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={topLevelIds} strategy={verticalListSortingStrategy}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-                {topLevelTasks.map(task => (
-                  <SortableTaskCard
-                    key={task.id}
-                    task={task}
-                    subtasks={subtasksMap[task.id] || []}
-                    onEdit={t => setEditingTask(t)}
-                    onComplete={t => setCompletingTask(t)}
-                    onDelete={handleDeleteTask}
-                    onStatusToggle={handleStatusToggle}
-                    onSubtaskToggle={handleSubtaskToggle}
-                    onAddSubtask={handleAddSubtask}
-                    onSubtaskDragEnd={handleSubtaskDragEnd}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+            {topLevelTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                subtasks={subtasksMap[task.id] || []}
+                onEdit={t => setEditingTask(t)}
+                onComplete={t => setCompletingTask(t)}
+                onDelete={handleDeleteTask}
+                onStatusToggle={handleStatusToggle}
+                onSubtaskToggle={handleSubtaskToggle}
+                onAddSubtask={handleAddSubtask}
+                isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
+                onDragStart={() => handleTaskDragStart(task.id)}
+                onDragOver={() => handleTaskDragOver(task.id)}
+                onDrop={() => handleTaskDrop(task.id)}
+                onDragEnd={handleDragEnd}
+                subtaskDragOverId={dragOverId}
+                onSubtaskDragStart={handleSubtaskDragStart}
+                onSubtaskDragOver={handleSubtaskDragOver}
+                onSubtaskDrop={handleSubtaskDrop}
+              />
+            ))}
+          </div>
         )}
       </div>
 
