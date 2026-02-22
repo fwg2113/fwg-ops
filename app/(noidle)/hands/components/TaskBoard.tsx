@@ -1,11 +1,9 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
-import type { BoardData, NihTask, FilterState } from '../types'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import type { BoardData, NihTask, NihTeamMember } from '../types'
 import HandsLogo from './HandsLogo'
-import StatsBar from './StatsBar'
 import QuickAdd from './QuickAdd'
-import FilterBar from './FilterBar'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
 import CompleteModal from './CompleteModal'
@@ -15,43 +13,20 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [tasks, setTasks] = useState<NihTask[]>(initialData.tasks)
   const { categories, locations, teamMembers } = initialData
 
-  const [filters, setFilters] = useState<FilterState>({
-    category: null,
-    urgency: null,
-    timeEstimate: null,
-    location: null,
-    assignee: null,
-    showCompleted: false,
-  })
-
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
   const [completingTask, setCompletingTask] = useState<NihTask | null>(null)
 
-  // Filter tasks
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
-      // Always include subtasks if parent passes (we filter parents only)
-      if (task.parent_id) return true
-      if (!filters.showCompleted && task.status === 'completed') return false
-      if (filters.category && task.category_id !== filters.category) return false
-      if (filters.urgency && task.urgency !== filters.urgency) return false
-      if (filters.location && task.location_id !== filters.location) return false
-      if (filters.timeEstimate && task.time_estimate !== filters.timeEstimate) return false
-      if (filters.assignee) {
-        const hasAssignee = task.nih_task_assignees?.some(
-          a => a.nih_team_members?.id === filters.assignee
-        )
-        if (!hasAssignee) return false
-      }
-      return true
-    })
-  }, [tasks, filters])
+  // Drag state
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const dragContext = useRef<'tasks' | 'subtasks'>('tasks')
+  const dragParentId = useRef<string | null>(null)
 
-  // Separate into top-level and subtasks
+  // Separate into top-level and subtasks (hide completed top-level tasks)
   const topLevelTasks = useMemo(
-    () => filteredTasks.filter(t => !t.parent_id).sort((a, b) => a.sort_order - b.sort_order),
-    [filteredTasks]
+    () => tasks.filter(t => !t.parent_id && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
+    [tasks]
   )
 
   const subtasksMap = useMemo(() => {
@@ -74,6 +49,109 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       setTasks(data)
     }
   }, [])
+
+  // Persist new order to API
+  const persistOrder = useCallback(async (orderedIds: string[]) => {
+    await fetch('/api/noidle/tasks/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderedIds }),
+    })
+  }, [])
+
+  // Top-level task drag handlers
+  const handleTaskDragStart = useCallback((taskId: string) => {
+    dragContext.current = 'tasks'
+    dragParentId.current = null
+    setDragId(taskId)
+  }, [])
+
+  const handleTaskDragOver = useCallback((taskId: string) => {
+    if (dragContext.current === 'tasks') {
+      setDragOverId(taskId)
+    }
+  }, [])
+
+  const handleTaskDrop = useCallback(
+    (targetId: string) => {
+      if (!dragId || dragId === targetId || dragContext.current !== 'tasks') {
+        setDragId(null)
+        setDragOverId(null)
+        return
+      }
+
+      const oldIndex = topLevelTasks.findIndex(t => t.id === dragId)
+      const newIndex = topLevelTasks.findIndex(t => t.id === targetId)
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const reordered = [...topLevelTasks]
+      const [moved] = reordered.splice(oldIndex, 1)
+      reordered.splice(newIndex, 0, moved)
+
+      // Optimistic update
+      const updatedTasks = tasks.map(t => {
+        const idx = reordered.findIndex(r => r.id === t.id)
+        if (idx !== -1) return { ...t, sort_order: idx }
+        return t
+      })
+      setTasks(updatedTasks)
+      setDragId(null)
+      setDragOverId(null)
+
+      persistOrder(reordered.map(t => t.id))
+    },
+    [dragId, topLevelTasks, tasks, persistOrder]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    setDragId(null)
+    setDragOverId(null)
+  }, [])
+
+  // Subtask drag handlers
+  const handleSubtaskDragStart = useCallback((subtaskId: string, parentId: string) => {
+    dragContext.current = 'subtasks'
+    dragParentId.current = parentId
+    setDragId(subtaskId)
+  }, [])
+
+  const handleSubtaskDragOver = useCallback((subtaskId: string) => {
+    if (dragContext.current === 'subtasks') {
+      setDragOverId(subtaskId)
+    }
+  }, [])
+
+  const handleSubtaskDrop = useCallback(
+    (targetId: string, parentId: string) => {
+      if (!dragId || dragId === targetId || dragContext.current !== 'subtasks' || dragParentId.current !== parentId) {
+        setDragId(null)
+        setDragOverId(null)
+        return
+      }
+
+      const subs = subtasksMap[parentId] || []
+      const oldIndex = subs.findIndex(s => s.id === dragId)
+      const newIndex = subs.findIndex(s => s.id === targetId)
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const reordered = [...subs]
+      const [moved] = reordered.splice(oldIndex, 1)
+      reordered.splice(newIndex, 0, moved)
+
+      // Optimistic update
+      const updatedTasks = tasks.map(t => {
+        const idx = reordered.findIndex(r => r.id === t.id)
+        if (idx !== -1) return { ...t, sort_order: idx }
+        return t
+      })
+      setTasks(updatedTasks)
+      setDragId(null)
+      setDragOverId(null)
+
+      persistOrder(reordered.map(t => t.id))
+    },
+    [dragId, subtasksMap, tasks, persistOrder]
+  )
 
   const handleQuickAdd = useCallback(
     async (title: string) => {
@@ -126,11 +204,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   )
 
   const handleCompleteTask = useCallback(
-    async (id: string, notes: string) => {
+    async (id: string, notes: string, photoUrl: string | null, completedByIds: string[]) => {
       const res = await fetch(`/api/noidle/tasks/${id}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ notes, photo_url: photoUrl, completed_by_ids: completedByIds }),
       })
       if (res.ok) {
         await refreshTasks()
@@ -154,6 +232,19 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [refreshTasks]
   )
 
+  const handleAddSubtask = useCallback(
+    async (parentId: string, title: string) => {
+      const res = await fetch('/api/noidle/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, parent_id: parentId }),
+      })
+      if (res.ok) await refreshTasks()
+    },
+    [refreshTasks]
+  )
+
+  // Subtask toggle — auto-trigger completion modal when all subtasks done
   const handleSubtaskToggle = useCallback(
     async (subtask: NihTask) => {
       const newStatus = subtask.status === 'completed' ? 'open' : 'completed'
@@ -169,9 +260,27 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       })
-      if (res.ok) await refreshTasks()
+      if (res.ok) {
+        const freshRes = await fetch('/api/noidle/tasks')
+        if (freshRes.ok) {
+          const freshTasks: NihTask[] = await freshRes.json()
+          setTasks(freshTasks)
+
+          // Check if all sibling subtasks are now completed
+          if (newStatus === 'completed' && subtask.parent_id) {
+            const siblings = freshTasks.filter(t => t.parent_id === subtask.parent_id)
+            const allDone = siblings.length > 0 && siblings.every(s => s.status === 'completed')
+            if (allDone) {
+              const parent = freshTasks.find(t => t.id === subtask.parent_id)
+              if (parent && parent.status !== 'completed') {
+                setCompletingTask(parent)
+              }
+            }
+          }
+        }
+      }
     },
-    [refreshTasks]
+    []
   )
 
   return (
@@ -181,48 +290,38 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 24px',
+          justifyContent: 'center',
+          padding: '16px',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <HandsLogo size={36} />
-          <span style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.02em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '0 auto' }}>
+          <button
+            onClick={() => setShowTaskModal(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Add new task"
+          >
+            <HandsLogo size={44} />
+          </button>
+          <span style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em' }}>
             No Idle Hands
           </span>
         </div>
-        <button
-          onClick={() => setShowTaskModal(true)}
-          style={{
-            background: '#d71cd1',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 20px',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          + New Task
-        </button>
       </header>
 
       {/* Main content */}
-      <div style={{ padding: '24px', maxWidth: '960px', margin: '0 auto' }}>
-        <StatsBar tasks={tasks} />
+      <div style={{ padding: '16px', maxWidth: '960px', margin: '0 auto' }}>
         <QuickAdd onAdd={handleQuickAdd} />
-        <FilterBar
-          filters={filters}
-          onChange={setFilters}
-          categories={categories}
-          locations={locations}
-          teamMembers={teamMembers}
-        />
 
         {topLevelTasks.length === 0 ? (
-          <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={Object.values(filters).some(v => v !== null && v !== false)} />
+          <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
             {topLevelTasks.map(task => (
@@ -235,6 +334,16 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onDelete={handleDeleteTask}
                 onStatusToggle={handleStatusToggle}
                 onSubtaskToggle={handleSubtaskToggle}
+                onAddSubtask={handleAddSubtask}
+                isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
+                onDragStart={() => handleTaskDragStart(task.id)}
+                onDragOver={() => handleTaskDragOver(task.id)}
+                onDrop={() => handleTaskDrop(task.id)}
+                onDragEnd={handleDragEnd}
+                subtaskDragOverId={dragOverId}
+                onSubtaskDragStart={handleSubtaskDragStart}
+                onSubtaskDragOver={handleSubtaskDragOver}
+                onSubtaskDrop={handleSubtaskDrop}
               />
             ))}
           </div>
@@ -263,7 +372,8 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       {completingTask && (
         <CompleteModal
           task={completingTask}
-          onComplete={notes => handleCompleteTask(completingTask.id, notes)}
+          teamMembers={teamMembers}
+          onComplete={(notes, photoUrl, completedByIds) => handleCompleteTask(completingTask.id, notes, photoUrl, completedByIds)}
           onClose={() => setCompletingTask(null)}
         />
       )}
