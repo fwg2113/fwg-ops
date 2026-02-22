@@ -155,7 +155,11 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
           <div>
             <label style={labelStyle}>Urgency</label>
+<<<<<<< HEAD
             <select value={urgency} onChange={e => setUrgency(e.target.value as NihTask['urgency'])} style={inputStyle}>
+=======
+            <select value={urgency} onChange={e => setUrgency(e.target.value as 'low' | 'medium' | 'high' | 'critical')} style={inputStyle}>
+>>>>>>> claude/summarize-project-requirements-KGMmi
               {Object.entries(URGENCY_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}

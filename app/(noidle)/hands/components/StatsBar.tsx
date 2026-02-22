@@ -32,8 +32,8 @@ export default function StatsBar({ tasks }: StatsBarProps) {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '12px',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: '8px',
       }}
     >
       {stats.map(s => (
