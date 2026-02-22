@@ -46,7 +46,6 @@ export default function TaskCard({
   onSubtaskDrop,
 }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false)
-  const [showActions, setShowActions] = useState(false)
   const [newSubtask, setNewSubtask] = useState('')
 
   const isCompleted = task.status === 'completed'
@@ -84,8 +83,6 @@ export default function TaskCard({
         transform: isDragOver ? 'scale(1.01)' : 'scale(1)',
         cursor: 'default',
       }}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       <div
         style={{
@@ -117,18 +114,17 @@ export default function TaskCard({
           </svg>
         </div>
 
-        {/* Urgency dot / status checkbox */}
+        {/* Urgency dot / status checkbox — enlarged for touch */}
         <button
           onClick={() => (isCompleted ? null : onStatusToggle(task))}
           style={{
-            width: '18px',
-            height: '18px',
-            minWidth: '18px',
+            width: '24px',
+            height: '24px',
+            minWidth: '24px',
             borderRadius: '999px',
-            border: `2px solid ${URGENCY_COLORS[task.urgency]}`,
+            border: `2.5px solid ${URGENCY_COLORS[task.urgency]}`,
             background: isInProgress ? URGENCY_COLORS[task.urgency] : isCompleted ? '#4b5563' : 'transparent',
             cursor: isCompleted ? 'default' : 'pointer',
-            marginTop: '2px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -137,7 +133,7 @@ export default function TaskCard({
           title={isCompleted ? 'Completed' : isInProgress ? 'Click: back to open' : 'Click: start working'}
         >
           {isCompleted && (
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
@@ -298,23 +294,16 @@ export default function TaskCard({
           </div>
         )}
 
-        {/* Action buttons */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '4px',
-            opacity: showActions ? 1 : 0,
-            transition: 'opacity 0.15s',
-          }}
-        >
+        {/* Action buttons — always visible for touch */}
+        <div style={{ display: 'flex', gap: '6px' }}>
           {!isCompleted && (
             <button
               onClick={() => onComplete(task)}
               title="Mark complete"
               style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '6px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
                 border: 'none',
                 background: 'rgba(34,197,94,0.1)',
                 color: '#22c55e',
@@ -325,7 +314,7 @@ export default function TaskCard({
                 padding: 0,
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M3 8L7 12L13 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
@@ -334,9 +323,9 @@ export default function TaskCard({
             onClick={() => onEdit(task)}
             title="Edit"
             style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
+              width: '36px',
+              height: '36px',
+              borderRadius: '8px',
               border: 'none',
               background: 'rgba(255,255,255,0.06)',
               color: '#94a3b8',
@@ -347,29 +336,8 @@ export default function TaskCard({
               padding: 0,
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <button
-            onClick={() => onDelete(task.id)}
-            title="Delete"
-            style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              border: 'none',
-              background: 'rgba(239,68,68,0.1)',
-              color: '#ef4444',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-              <path d="M2 4H14M5 4V2H11V4M6 7V12M10 7V12M3 4L4 14H12L13 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
@@ -412,7 +380,8 @@ export default function TaskCard({
                 alignItems: 'center',
                 gap: '8px',
                 borderRadius: '6px',
-                padding: '2px 4px',
+                padding: '6px 4px',
+                minHeight: '40px',
                 background: subtaskDragOverId === sub.id ? 'rgba(34,211,238,0.08)' : 'transparent',
                 transition: 'background 0.15s',
               }}
@@ -440,11 +409,11 @@ export default function TaskCard({
               <button
                 onClick={() => onSubtaskToggle(sub)}
                 style={{
-                  width: '16px',
-                  height: '16px',
-                  minWidth: '16px',
-                  borderRadius: '4px',
-                  border: `1.5px solid ${sub.status === 'completed' ? '#22c55e' : '#4b5563'}`,
+                  width: '22px',
+                  height: '22px',
+                  minWidth: '22px',
+                  borderRadius: '5px',
+                  border: `2px solid ${sub.status === 'completed' ? '#22c55e' : '#4b5563'}`,
                   background: sub.status === 'completed' ? '#22c55e' : 'transparent',
                   cursor: 'pointer',
                   display: 'flex',
@@ -454,14 +423,14 @@ export default function TaskCard({
                 }}
               >
                 {sub.status === 'completed' && (
-                  <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                     <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
               </button>
               <span
                 style={{
-                  fontSize: '13px',
+                  fontSize: '14px',
                   color: sub.status === 'completed' ? '#6b7280' : '#e2e8f0',
                   textDecoration: sub.status === 'completed' ? 'line-through' : 'none',
                 }}
@@ -499,8 +468,8 @@ export default function TaskCard({
                 background: 'transparent',
                 border: 'none',
                 borderBottom: '1px solid rgba(255,255,255,0.08)',
-                padding: '4px 0',
-                fontSize: '13px',
+                padding: '8px 0',
+                fontSize: '16px',
                 color: '#e2e8f0',
                 outline: 'none',
               }}

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useCallback, useRef } from 'react'
-import type { BoardData, NihTask } from '../types'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import type { BoardData, NihTask, NihTeamMember } from '../types'
 import HandsLogo from './HandsLogo'
 import QuickAdd from './QuickAdd'
 import TaskCard from './TaskCard'
@@ -204,11 +204,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   )
 
   const handleCompleteTask = useCallback(
-    async (id: string, notes: string, photoUrl: string | null) => {
+    async (id: string, notes: string, photoUrl: string | null, completedByIds: string[]) => {
       const res = await fetch(`/api/noidle/tasks/${id}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes, photo_url: photoUrl }),
+        body: JSON.stringify({ notes, photo_url: photoUrl, completed_by_ids: completedByIds }),
       })
       if (res.ok) {
         await refreshTasks()
@@ -244,6 +244,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [refreshTasks]
   )
 
+  // Subtask toggle — auto-trigger completion modal when all subtasks done
   const handleSubtaskToggle = useCallback(
     async (subtask: NihTask) => {
       const newStatus = subtask.status === 'completed' ? 'open' : 'completed'
@@ -259,9 +260,27 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       })
-      if (res.ok) await refreshTasks()
+      if (res.ok) {
+        const freshRes = await fetch('/api/noidle/tasks')
+        if (freshRes.ok) {
+          const freshTasks: NihTask[] = await freshRes.json()
+          setTasks(freshTasks)
+
+          // Check if all sibling subtasks are now completed
+          if (newStatus === 'completed' && subtask.parent_id) {
+            const siblings = freshTasks.filter(t => t.parent_id === subtask.parent_id)
+            const allDone = siblings.length > 0 && siblings.every(s => s.status === 'completed')
+            if (allDone) {
+              const parent = freshTasks.find(t => t.id === subtask.parent_id)
+              if (parent && parent.status !== 'completed') {
+                setCompletingTask(parent)
+              }
+            }
+          }
+        }
+      }
     },
-    [refreshTasks]
+    []
   )
 
   return (
@@ -272,11 +291,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '24px',
+          padding: '16px',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '0 auto' }}>
           <button
             onClick={() => setShowTaskModal(true)}
             style={{
@@ -289,16 +308,16 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
             }}
             title="Add new task"
           >
-            <HandsLogo size={56} />
+            <HandsLogo size={44} />
           </button>
-          <span style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '-0.02em' }}>
+          <span style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em' }}>
             No Idle Hands
           </span>
         </div>
       </header>
 
       {/* Main content */}
-      <div style={{ padding: '24px', maxWidth: '960px', margin: '0 auto' }}>
+      <div style={{ padding: '16px', maxWidth: '960px', margin: '0 auto' }}>
         <QuickAdd onAdd={handleQuickAdd} />
 
         {topLevelTasks.length === 0 ? (
@@ -353,7 +372,8 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       {completingTask && (
         <CompleteModal
           task={completingTask}
-          onComplete={(notes, photoUrl) => handleCompleteTask(completingTask.id, notes, photoUrl)}
+          teamMembers={teamMembers}
+          onComplete={(notes, photoUrl, completedByIds) => handleCompleteTask(completingTask.id, notes, photoUrl, completedByIds)}
           onClose={() => setCompletingTask(null)}
         />
       )}
