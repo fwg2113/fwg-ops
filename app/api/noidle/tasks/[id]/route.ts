@@ -53,53 +53,49 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   // Get the task to check for points that need to be reversed
   const { data: task } = await supabase
     .from('nih_tasks')
-    .select('points, status, completed_by_names')
+    .select('points, status, completed_by, completed_by_names')
     .eq('id', id)
     .single()
 
-  // If task was completed with points, reverse them
-  if (task?.status === 'completed' && task.points > 0 && task.completed_by_names) {
-    // Find who completed it via the task's completed_by and assignees
-    const { data: completers } = await supabase
-      .from('nih_task_assignees')
-      .select('team_member_id')
-      .eq('task_id', id)
-
-    // Also check the direct completed_by field
+  // If task was completed with points, reverse them from the completer
+  if (task?.status === 'completed' && task.points > 0 && task.completed_by) {
+    // Find all team members mentioned in completed_by_names
+    const names = task.completed_by_names?.split(', ') || []
     const completerIds: string[] = []
-    if (completers?.length) {
-      completers.forEach(c => completerIds.push(c.team_member_id))
+
+    if (names.length > 1) {
+      // Multiple completers — look up their IDs by name
+      const { data: members } = await supabase
+        .from('nih_team_members')
+        .select('id, name')
+        .in('name', names)
+      if (members?.length) {
+        members.forEach(m => completerIds.push(m.id))
+      }
     }
 
-    // Look up the completed_by field as a fallback
-    const { data: fullTask } = await supabase
-      .from('nih_tasks')
-      .select('completed_by')
-      .eq('id', id)
-      .single()
-
-    if (fullTask?.completed_by && !completerIds.includes(fullTask.completed_by)) {
-      completerIds.push(fullTask.completed_by)
+    // Always include the primary completer
+    if (!completerIds.includes(task.completed_by)) {
+      completerIds.push(task.completed_by)
     }
 
-    if (completerIds.length > 0) {
-      const basePoints = Math.floor(task.points / completerIds.length)
-      const remainder = task.points - basePoints * completerIds.length
+    // Reverse the same point distribution used during completion
+    const basePoints = Math.floor(task.points / completerIds.length)
+    const remainder = task.points - basePoints * completerIds.length
 
-      for (let i = 0; i < completerIds.length; i++) {
-        const pts = basePoints + (i < remainder ? 1 : 0)
-        if (pts > 0) {
-          const { data: member } = await supabase
-            .from('nih_team_members')
-            .select('total_points')
-            .eq('id', completerIds[i])
-            .single()
+    for (let i = 0; i < completerIds.length; i++) {
+      const pts = basePoints + (i < remainder ? 1 : 0)
+      if (pts > 0) {
+        const { data: member } = await supabase
+          .from('nih_team_members')
+          .select('total_points')
+          .eq('id', completerIds[i])
+          .single()
 
-          await supabase
-            .from('nih_team_members')
-            .update({ total_points: Math.max(0, (member?.total_points || 0) - pts) })
-            .eq('id', completerIds[i])
-        }
+        await supabase
+          .from('nih_team_members')
+          .update({ total_points: Math.max(0, (member?.total_points || 0) - pts) })
+          .eq('id', completerIds[i])
       }
     }
   }
