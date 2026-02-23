@@ -13,7 +13,7 @@ const RANK_COLORS = ['#fbbf24', '#94a3b8', '#cd7f32'] // gold, silver, bronze
 const RANK_LABELS = ['1st', '2nd', '3rd']
 
 export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate }: LeaderboardProps) {
-  const [showPrizes, setShowPrizes] = useState(false)
+  const [showPrizes, setShowPrizes] = useState(true)
   const [editingPrizes, setEditingPrizes] = useState(false)
   const [prizeTexts, setPrizeTexts] = useState(prizes.map(p => p.prize_text))
   const [savingPrizes, setSavingPrizes] = useState(false)
