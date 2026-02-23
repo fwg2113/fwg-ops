@@ -19,7 +19,7 @@ export default function CompleteModal({ task, teamMembers, onComplete, onClose }
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [completedByIds, setCompletedByIds] = useState<string[]>(
     // Pre-select assigned team members
-    task.nih_task_assignees?.map(a => a.team_member_id) || []
+    task.nih_task_assignees?.map(a => a.team_member_id || a.nih_team_members?.id).filter(Boolean) as string[] || []
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
 
