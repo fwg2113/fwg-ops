@@ -211,9 +211,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const handleDeleteTask = useCallback(
     async (id: string) => {
       const res = await fetch(`/api/noidle/tasks/${id}`, { method: 'DELETE' })
-      if (res.ok) await refreshTasks()
+      if (res.ok) {
+        await refreshTasks()
+        await refreshTeamMembers()
+      }
     },
-    [refreshTasks]
+    [refreshTasks, refreshTeamMembers]
   )
 
   const handleCompleteTask = useCallback(
@@ -521,12 +524,38 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         padding: 0,
-                        minHeight: '56px',
+                        minHeight: '40px',
                         color: '#6b7280',
                       }}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this task? Any points awarded will be removed.')) {
+                          handleDeleteTask(task.id)
+                        }
+                      }}
+                      title="Delete"
+                      style={{
+                        flex: 1,
+                        width: '54px',
+                        border: 'none',
+                        borderTop: '1px solid rgba(255,255,255,0.04)',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        minHeight: '40px',
+                        color: '#6b7280',
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 4H13M5.5 4V3C5.5 2.45 5.95 2 6.5 2H9.5C10.05 2 10.5 2.45 10.5 3V4M6.5 7V12M9.5 7V12M4.5 4L5 13C5 13.55 5.45 14 6 14H10C10.55 14 11 13.55 11 13L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </button>
                   </div>
