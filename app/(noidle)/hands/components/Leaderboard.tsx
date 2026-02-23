@@ -23,8 +23,6 @@ export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate }: Lea
     .filter(m => m.total_points > 0)
     .sort((a, b) => b.total_points - a.total_points)
 
-  if (ranked.length === 0) return null
-
   const handleSavePrizes = async () => {
     setSavingPrizes(true)
     try {
@@ -104,71 +102,73 @@ export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate }: Lea
       </div>
 
       {/* Ranked list */}
-      <div style={{ padding: '0 12px 12px' }}>
-        {ranked.map((member, i) => (
-          <div
-            key={member.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '8px 4px',
-              borderBottom: i < ranked.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-            }}
-          >
-            {/* Rank number */}
-            <span style={{
-              width: '24px',
-              fontSize: '13px',
-              fontWeight: 700,
-              color: i < 3 ? RANK_COLORS[i] : '#4b5563',
-              textAlign: 'center',
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {i + 1}
-            </span>
+      {ranked.length > 0 && (
+        <div style={{ padding: '0 12px 12px' }}>
+          {ranked.map((member, i) => (
+            <div
+              key={member.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '8px 4px',
+                borderBottom: i < ranked.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+              }}
+            >
+              {/* Rank number */}
+              <span style={{
+                width: '24px',
+                fontSize: '13px',
+                fontWeight: 700,
+                color: i < 3 ? RANK_COLORS[i] : '#4b5563',
+                textAlign: 'center',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {i + 1}
+              </span>
 
-            {/* Avatar */}
-            <span style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '999px',
-              background: member.avatar_color,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              fontWeight: 700,
-              color: '#fff',
-              flexShrink: 0,
-              border: i < 3 ? `2px solid ${RANK_COLORS[i]}` : '2px solid transparent',
-            }}>
-              {member.name[0]}
-            </span>
+              {/* Avatar */}
+              <span style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '999px',
+                background: member.avatar_color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#fff',
+                flexShrink: 0,
+                border: i < 3 ? `2px solid ${RANK_COLORS[i]}` : '2px solid transparent',
+              }}>
+                {member.name[0]}
+              </span>
 
-            {/* Name */}
-            <span style={{
-              flex: 1,
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#e2e8f0',
-            }}>
-              {member.name}
-            </span>
+              {/* Name */}
+              <span style={{
+                flex: 1,
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#e2e8f0',
+              }}>
+                {member.name}
+              </span>
 
-            {/* Points */}
-            <span style={{
-              fontSize: '15px',
-              fontWeight: 700,
-              color: '#d71cd1',
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {member.total_points}
-              <span style={{ fontSize: '11px', fontWeight: 500, color: '#6b7280', marginLeft: '2px' }}>pts</span>
-            </span>
-          </div>
-        ))}
-      </div>
+              {/* Points */}
+              <span style={{
+                fontSize: '15px',
+                fontWeight: 700,
+                color: '#d71cd1',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {member.total_points}
+                <span style={{ fontSize: '11px', fontWeight: 500, color: '#6b7280', marginLeft: '2px' }}>pts</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Prizes section */}
       {showPrizes && (
