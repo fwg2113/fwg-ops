@@ -461,11 +461,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                             src={task.completion_photo_url}
                             alt="Completion photo"
                             style={{
-                              marginTop: '6px',
-                              borderRadius: '6px',
-                              maxWidth: '120px',
-                              maxHeight: '80px',
+                              marginTop: '8px',
+                              borderRadius: '8px',
+                              width: '100%',
+                              maxHeight: '200px',
                               objectFit: 'cover',
+                              border: '1px solid rgba(255,255,255,0.06)',
                             }}
                           />
                         )}
