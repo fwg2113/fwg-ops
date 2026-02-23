@@ -4,6 +4,24 @@ import type { NextRequest } from 'next/server'
 export function proxy(request: NextRequest) {
   const { pathname, hostname } = request.nextUrl
 
+  // Hands subdomain - rewrite to /hands route, no auth required
+  if (hostname.includes('hands')) {
+    if (
+      pathname.startsWith('/_next') ||
+      pathname.startsWith('/favicon') ||
+      pathname.startsWith('/api')
+    ) {
+      return NextResponse.next()
+    }
+    if (pathname === '/' || pathname === '') {
+      return NextResponse.rewrite(new URL('/hands', request.url))
+    }
+    if (pathname.startsWith('/hands')) {
+      return NextResponse.next()
+    }
+    return NextResponse.rewrite(new URL('/hands', request.url))
+  }
+
   // Portal domain - only allow customer-facing routes
   if (hostname.includes('portal')) {
     if (
