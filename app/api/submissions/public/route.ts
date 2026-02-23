@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
         formType = 'ppf'
       } else if (body.sticker_type) {
         formType = 'sticker_label'
+      } else if (Array.isArray(body.signage_types) && body.signage_types.length > 0) {
+        formType = 'signage_promo'
       } else if (body.equipment) {
         formType = 'cafe_wrap'
       } else if (Array.isArray(body.services) && body.services.length > 0) {
@@ -87,6 +89,7 @@ export async function POST(request: NextRequest) {
       ppf: ['contact_name', 'email', 'phone', 'contact_method', 'ppf_package', 'timeline'],
       cafe_wrap: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
       sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material', 'timeline'],
+      signage_promo: ['contact_name', 'email', 'contact_method', 'quantity', 'timeline'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType]
     if (!required) {
@@ -110,6 +113,17 @@ export async function POST(request: NextRequest) {
         console.error(`Invalid equipment payload [${formType}]: expected non-empty array, got`, typeof body.equipment)
         return NextResponse.json(
           { error: 'Equipment must be a non-empty array' },
+          { status: 400, headers: CORS_HEADERS }
+        )
+      }
+    }
+
+    // ── Signage promo: validate signage_types is a non-empty array ──
+    if (formType === 'signage_promo') {
+      if (!Array.isArray(body.signage_types) || body.signage_types.length === 0) {
+        console.error(`Invalid signage_types payload [${formType}]: expected non-empty array, got`, typeof body.signage_types)
+        return NextResponse.json(
+          { error: 'signage_types must be a non-empty array' },
           { status: 400, headers: CORS_HEADERS }
         )
       }
@@ -217,6 +231,13 @@ export async function POST(request: NextRequest) {
               notes: body.notes || null,
               design_file_urls: body.design_file_urls || [],
             }
+          : formType === 'signage_promo'
+          ? {
+              quantity: body.quantity || null,
+              size: body.size || null,
+              notes: body.notes || null,
+              design_file_urls: body.design_file_urls || [],
+            }
           : (body.service_details || {}),
         reference_image_urls: body.reference_image_urls || [],
 
@@ -236,6 +257,9 @@ export async function POST(request: NextRequest) {
         shape: body.shape || null,
         material: body.material || null,
         finish: body.finish || null,
+
+        // ── Signage/promo-specific columns ──
+        signage_types: body.signage_types || [],
       })
       .select('id')
       .single()
@@ -373,6 +397,57 @@ const STICKER_TIMELINE_LABELS: Record<string, string> = {
   rush: 'Rush (2–3 business days)',
   urgent: 'Urgent (24–48 hours)',
   same_day: 'Same Day — URGENT',
+  flexible: 'No Rush — Flexible',
+}
+
+// ─── Signage & Promo labels ──────────────────────────────
+const SIGNAGE_TYPE_LABELS: Record<string, string> = {
+  // Common (grid selections)
+  outdoor_building: 'Outdoor Building Signage',
+  window_perf: 'View-Through Window Perf',
+  storefront_hours: 'Storefront Hours',
+  raised_signage: 'Interior Raised Signage',
+  wall_graphics: 'Wall Graphics',
+  floor_graphics: 'Floor Graphics',
+  yard_signs: 'Yard Signs',
+  banner_stands: 'Banner Stands',
+  pvc_banners: 'PVC Banners',
+  a_frame_signs: 'A-Frame Signs & Sign Inserts',
+  coroplast_signs: 'Coroplast Signs',
+  backdrop_displays: 'Backdrop Displays',
+  // Extended catalog
+  real_estate_signs: 'Real estate signs',
+  parking_regulatory: 'Parking & regulatory signs',
+  construction_signs: 'Construction site signs',
+  fence_barricade: 'Fence & barricade graphics',
+  directional_wayfinding_ext: 'Directional & wayfinding (exterior)',
+  hanging_signs: 'Hanging signs',
+  lobby_reception: 'Lobby & reception signs',
+  acrylic_glass: 'Acrylic & glass prints',
+  directional_wayfinding_int: 'Directional & wayfinding (interior)',
+  backlit_lightbox: 'Backlit displays & lightbox graphics',
+  pop_displays: 'Point-of-purchase displays',
+  shelf_talkers: 'Shelf talkers & aisle markers',
+  menu_boards: 'Menu boards',
+  posters_prints: 'Posters & mounted prints',
+  tabletop_displays: 'Tabletop displays',
+  temp_event_signage: 'Temporary event signage',
+  reflective_safety: 'Reflective & safety signs',
+  aluminum_composite: 'Aluminum composite signs',
+  magnetic_signs: 'Magnetic signs',
+  dry_erase: 'Dry erase boards & writable graphics',
+  fabric_graphics: 'Repositionable fabric graphics',
+  backlit_film: 'Backlit film prints',
+  frosted_etched: 'Frosted & etched glass vinyl',
+}
+const SIGNAGE_TIMELINE_LABELS: Record<string, string> = {
+  same_day: '🚨 Same Day — URGENT',
+  urgent: '🔴 Urgent (24–48 hrs)',
+  rush: '🔶 Rush (2–3 days)',
+  standard: 'Standard (5–7 days)',
+  '30_days': 'Within 30 days',
+  '30_60_days': '30–60 days',
+  '60_90_days': '60–90+ days',
   flexible: 'No Rush — Flexible',
 }
 
@@ -605,6 +680,48 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
         ${emailRow('Files', designFiles.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">File ${i + 1}</a>`).join(' &nbsp; '))}
       </table>`
     }
+  } else if (formType === 'signage_promo') {
+    // Signage & Promo sections
+    const signageTypes: string[] = body.signage_types || []
+    const signageTypesList = signageTypes.map((t: string) => SIGNAGE_TYPE_LABELS[t] || formatLabel(t)).join(', ')
+
+    // Timeline row with urgency styling
+    const signageTL = body.timeline || ''
+    const signageTLLabel = SIGNAGE_TIMELINE_LABELS[signageTL] || signageTL
+    const isUrgentSignage = signageTL === 'same_day' || signageTL === 'urgent' || signageTL === 'rush'
+    const signageTLColor = signageTL === 'same_day' ? '#CE0000' : signageTL === 'urgent' ? '#D84315' : signageTL === 'rush' ? '#E65100' : '#1D1D1D'
+    const signageTimelineRowHTML = `<tr><td style="padding:8px 16px;color:#7D7D7D;font-weight:500;width:120px;vertical-align:top;">Timeline</td><td style="padding:8px 16px;color:${isUrgentSignage ? signageTLColor : '#1D1D1D'};font-weight:${isUrgentSignage ? '700' : '500'};">${signageTLLabel}</td></tr>`
+
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Signage Types')}
+      ${signageTypes.map((t: string) => emailRow('•', SIGNAGE_TYPE_LABELS[t] || formatLabel(t))).join('')}
+    </table>`
+
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Project Details')}
+      ${body.quantity ? emailRow('Quantity', body.quantity) : ''}
+      ${body.size ? emailRow('Size', body.size) : ''}
+      ${signageTimelineRowHTML}
+    </table>`
+
+    const signageDesignFiles = body.design_file_urls || []
+    if (signageDesignFiles.length > 0) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Design Files')}
+        ${emailRow('Files', signageDesignFiles.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">File ${i + 1}</a>`).join(' &nbsp; '))}
+      </table>`
+    }
+
+    if (body.notes) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Project Notes')}
+        <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.notes}</td></tr>
+      </table>`
+    }
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -650,14 +767,27 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     } else {
       emailSubject = `New Sticker Inquiry — ${body.contact_name} (${body.quantity || '?'} pcs)`
     }
+  } else if (formType === 'signage_promo') {
+    emailTitle = 'New Signage Inquiry'
+    const tl = body.timeline || ''
+    const signageCount = (body.signage_types || []).length
+    if (tl === 'same_day') {
+      emailSubject = `🚨 SAME DAY URGENT — Signage Inquiry from ${body.contact_name}`
+    } else if (tl === 'urgent') {
+      emailSubject = `🔴 URGENT — Signage Inquiry from ${body.contact_name} (24-48 hrs)`
+    } else if (tl === 'rush') {
+      emailSubject = `🔶 Rush Order — Signage Inquiry from ${body.contact_name} (2-3 days)`
+    } else {
+      emailSubject = `New Signage Inquiry — ${body.contact_name} (${signageCount} item${signageCount !== 1 ? 's' : ''})`
+    }
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
   }
 
-  // Build urgency banner for sticker_label forms
+  // Build urgency banner for sticker_label and signage_promo forms
   let urgencyBannerHTML = ''
-  if (formType === 'sticker_label') {
+  if (formType === 'sticker_label' || formType === 'signage_promo') {
     const tl = body.timeline || ''
     if (tl === 'same_day') {
       urgencyBannerHTML = `<div style="background:#CE0000;padding:18px 28px;text-align:center;"><span style="color:#FFFFFF;font-size:18px;font-weight:800;letter-spacing:0.5px;">🚨 SAME DAY URGENT — STOP AND HANDLE IMMEDIATELY 🚨</span></div>`
@@ -685,12 +815,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${emailRow('Phone', `<a href="tel:${body.phone}" style="color:#2B5EA7;">${body.phone}</a>`)}
       ${emailRow('Preferred', body.contact_method)}
     </table>
-    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Vehicle Details')}
       ${vehicleHTML}
     </table>` : ''}
     ${projectSectionHTML}
-    ${formType !== 'sticker_label' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'sticker_label' && formType !== 'signage_promo' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Timeline & Budget')}
       ${emailRow('Timeline', TIMELINE_LABELS[body.timeline] || body.timeline)}
       ${body.budget ? emailRow('Budget', BUDGET_LABELS[body.budget] || body.budget) : ''}
