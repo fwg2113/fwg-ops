@@ -322,9 +322,9 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           title="Add new task"
         >
-          <HandsLogo size={36} />
+          <HandsLogo size={72} />
         </button>
-        <h1 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
+        <h1 style={{ fontSize: '40px', fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
           No Idle Hands
         </h1>
       </header>
