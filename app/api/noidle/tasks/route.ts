@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase'
 export async function GET() {
   const { data, error } = await supabase
     .from('nih_tasks')
-    .select('*, nih_categories(*), nih_locations(*), nih_task_assignees(nih_team_members(*))')
+    .select('*, nih_categories(*), nih_locations(*), nih_task_assignees(*, nih_team_members(*))')
     .order('sort_order', { ascending: true })
 
   if (error) {

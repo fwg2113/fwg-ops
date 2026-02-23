@@ -206,9 +206,6 @@ export default function TaskCard({
                 fontSize: '12px',
                 color: '#6b7280',
                 margin: '4px 0 0',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
               }}
             >
               {task.description}
