@@ -23,6 +23,7 @@ type Submission = {
   services?: string[]
   ppf_package?: string
   timeline?: string
+  signage_types?: string[]
 }
 
 type Document = {
@@ -66,7 +67,7 @@ type Props = {
 export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf' | 'cafe_wrap' | 'sticker_label'>('all')
+  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf' | 'cafe_wrap' | 'sticker_label' | 'signage_promo'>('all')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = () => {
@@ -118,24 +119,34 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
       const isPPF = subFormType === 'ppf'
       const isCafe = subFormType === 'cafe_wrap'
       const isSticker = subFormType === 'sticker_label'
+      const isSignage = subFormType === 'signage_promo'
       const PPF_PKG_LABELS: Record<string, string> = { full_vehicle: 'Full Vehicle PPF', full_front: 'Full Front End', track_pack: 'Track Pack', partial: 'Partial / Custom' }
       const CAFE_EQUIP_LABELS: Record<string, string> = { espresso_machine: 'Espresso Machine', drip_brewer: 'Drip Brewer', bean_grinder: 'Bean Grinder', milk_steamer: 'Milk Steamer', other: 'Other Equipment' }
       const STICKER_TYPE_LABELS: Record<string, string> = { 'die-cut': 'Die-Cut Stickers', 'kiss-cut': 'Kiss-Cut / Easy Peel', 'sticker-sheets': 'Sticker Sheets', 'roll-labels': 'Roll Labels' }
+      const SIGNAGE_TYPE_LABELS: Record<string, string> = { outdoor_building: 'Outdoor Building Signage', window_perf: 'View-Through Window Perf', storefront_hours: 'Storefront Hours', raised_signage: 'Interior Raised Signage', wall_graphics: 'Wall Graphics', floor_graphics: 'Floor Graphics', yard_signs: 'Yard Signs', banner_stands: 'Banner Stands', pvc_banners: 'PVC Banners', a_frame_signs: 'A-Frame Signs & Sign Inserts', coroplast_signs: 'Coroplast Signs', backdrop_displays: 'Backdrop Displays' }
       const description = isPPF
         ? (PPF_PKG_LABELS[sub.ppf_package || ''] || sub.ppf_package || 'PPF inquiry')
         : isSticker
           ? (STICKER_TYPE_LABELS[(sub as any).sticker_type || ''] || (sub as any).sticker_type || 'Sticker inquiry')
-          : isCafe
+          : isSignage
             ? (() => {
-                const equipArr = (sub as any).service_details?.equipment
-                if (Array.isArray(equipArr) && equipArr.length > 0) {
-                  return equipArr.map((e: any) => CAFE_EQUIP_LABELS[e.type] || e.type?.replace(/_/g, ' ')).join(', ')
+                const types: string[] = (sub as any).signage_types || []
+                if (types.length > 0) {
+                  return types.slice(0, 3).map((t: string) => SIGNAGE_TYPE_LABELS[t] || t.replace(/_/g, ' ')).join(', ') + (types.length > 3 ? ` +${types.length - 3} more` : '')
                 }
-                return 'Café equipment inquiry'
+                return 'Signage inquiry'
               })()
-            : isStyling
-              ? (sub.services || []).map((s: string) => s.replace(/_/g, ' ')).join(', ') || 'Styling inquiry'
-              : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || ''
+            : isCafe
+              ? (() => {
+                  const equipArr = (sub as any).service_details?.equipment
+                  if (Array.isArray(equipArr) && equipArr.length > 0) {
+                    return equipArr.map((e: any) => CAFE_EQUIP_LABELS[e.type] || e.type?.replace(/_/g, ' ')).join(', ')
+                  }
+                  return 'Café equipment inquiry'
+                })()
+              : isStyling
+                ? (sub.services || []).map((s: string) => s.replace(/_/g, ' ')).join(', ') || 'Styling inquiry'
+                : [sub.vehicle_year, sub.vehicle_make, sub.vehicle_model].filter(Boolean).join(' ') || sub.project_type?.replace(/_/g, ' ') || ''
 
       const card: PipelineCard = {
         type: 'submission',
@@ -325,12 +336,15 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
     if (formType === 'sticker_label') {
       return { label: 'STICKERS', bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }
     }
+    if (formType === 'signage_promo') {
+      return { label: 'SIGNAGE', bg: 'rgba(20, 184, 166, 0.15)', color: '#14b8a6' }
+    }
     return { label: 'COMMERCIAL', bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }
   }
 
-  // Urgency helpers for sticker_label cards
+  // Urgency helpers for sticker_label and signage_promo cards
   const getStickerUrgency = (card: PipelineCard) => {
-    if (card.formType !== 'sticker_label' || !card.timeline) return null
+    if ((card.formType !== 'sticker_label' && card.formType !== 'signage_promo') || !card.timeline) return null
     const tl = card.timeline
     if (tl === 'same_day') return { border: '2px solid #ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.5), 0 0 16px rgba(239,68,68,0.25)', animation: 'urgency-pulse 2s ease-in-out infinite', badge: '🚨 SAME DAY', badgeBg: '#ef4444', badgeColor: '#fff' }
     if (tl === 'urgent') return { border: '2px solid #ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.35)', animation: '', badge: '🔴 URGENT', badgeBg: '#ef4444', badgeColor: '#fff' }
@@ -563,6 +577,7 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
               { key: 'ppf', label: 'PPF' },
               { key: 'cafe_wrap', label: 'Café' },
               { key: 'sticker_label', label: 'Stickers' },
+              { key: 'signage_promo', label: 'Signage' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}
