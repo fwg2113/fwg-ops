@@ -78,6 +78,8 @@ type Submission = {
   shape?: string
   material?: string
   finish?: string
+  // Signage/promo-specific fields
+  signage_types?: string[]
 }
 
 // Icons as components
@@ -253,6 +255,7 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   'ppf': 'Paint Protection Film',
   'cafe_wrap': 'Café Equipment Wrap',
   'sticker_label': 'Stickers & Labels',
+  'signage_promo': 'Signage & Promo',
 }
 
 // ─── Café-specific labels ───
@@ -308,6 +311,57 @@ const STICKER_TIMELINE_LABELS: Record<string, string> = {
   'rush': 'Rush (2–3 business days)',
   'urgent': 'Urgent (24–48 hours)',
   'same_day': 'Same Day — URGENT',
+  'flexible': 'No Rush — Flexible',
+}
+
+// ─── Signage & Promo labels ───
+const SIGNAGE_TYPE_LABELS: Record<string, string> = {
+  // Common (grid selections)
+  'outdoor_building': 'Outdoor Building Signage',
+  'window_perf': 'View-Through Window Perf',
+  'storefront_hours': 'Storefront Hours',
+  'raised_signage': 'Interior Raised Signage',
+  'wall_graphics': 'Wall Graphics',
+  'floor_graphics': 'Floor Graphics',
+  'yard_signs': 'Yard Signs',
+  'banner_stands': 'Banner Stands',
+  'pvc_banners': 'PVC Banners',
+  'a_frame_signs': 'A-Frame Signs & Sign Inserts',
+  'coroplast_signs': 'Coroplast Signs',
+  'backdrop_displays': 'Backdrop Displays',
+  // Extended catalog
+  'real_estate_signs': 'Real estate signs',
+  'parking_regulatory': 'Parking & regulatory signs',
+  'construction_signs': 'Construction site signs',
+  'fence_barricade': 'Fence & barricade graphics',
+  'directional_wayfinding_ext': 'Directional & wayfinding (exterior)',
+  'hanging_signs': 'Hanging signs',
+  'lobby_reception': 'Lobby & reception signs',
+  'acrylic_glass': 'Acrylic & glass prints',
+  'directional_wayfinding_int': 'Directional & wayfinding (interior)',
+  'backlit_lightbox': 'Backlit displays & lightbox graphics',
+  'pop_displays': 'Point-of-purchase displays',
+  'shelf_talkers': 'Shelf talkers & aisle markers',
+  'menu_boards': 'Menu boards',
+  'posters_prints': 'Posters & mounted prints',
+  'tabletop_displays': 'Tabletop displays',
+  'temp_event_signage': 'Temporary event signage',
+  'reflective_safety': 'Reflective & safety signs',
+  'aluminum_composite': 'Aluminum composite signs',
+  'magnetic_signs': 'Magnetic signs',
+  'dry_erase': 'Dry erase boards & writable graphics',
+  'fabric_graphics': 'Repositionable fabric graphics',
+  'backlit_film': 'Backlit film prints',
+  'frosted_etched': 'Frosted & etched glass vinyl',
+}
+const SIGNAGE_TIMELINE_LABELS: Record<string, string> = {
+  'same_day': '🚨 Same Day — URGENT',
+  'urgent': '🔴 Urgent (24–48 hrs)',
+  'rush': '🔶 Rush (2–3 days)',
+  'standard': 'Standard (5–7 days)',
+  '30_days': 'Within 30 days',
+  '30_60_days': '30–60 days',
+  '60_90_days': '60–90+ days',
   'flexible': 'No Rush — Flexible',
 }
 
@@ -944,6 +998,66 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                   </span>
                 </div>
               </>
+            ) : submission.form_type === 'signage_promo' ? (
+              <>
+                {/* Signage Types */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Signage Types</span>
+                  <span style={{ ...valueStyle, maxWidth: '60%' }}>
+                    {submission.signage_types && submission.signage_types.length > 0
+                      ? submission.signage_types.map((t: string) => SIGNAGE_TYPE_LABELS[t] || t.replace(/_/g, ' ')).join(', ')
+                      : '-'}
+                  </span>
+                </div>
+                {/* Quantity */}
+                {submission.service_details?.quantity && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Quantity</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.quantity}</span>
+                  </div>
+                )}
+                {/* Size */}
+                {submission.service_details?.size && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Size</span>
+                    <span style={valueStyle}>{submission.service_details.size}</span>
+                  </div>
+                )}
+                {/* Project Notes */}
+                {submission.service_details?.notes && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Project Notes</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.notes}</span>
+                  </div>
+                )}
+                {/* Design Files */}
+                {submission.service_details?.design_file_urls && submission.service_details.design_file_urls.length > 0 && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Design Files</span>
+                    <span style={valueStyle}>
+                      {submission.service_details.design_file_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          File {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+                {/* Timeline */}
+                <div style={lastRowStyle}>
+                  <span style={labelStyle}>Timeline</span>
+                  <span style={valueStyle}>
+                    {(() => {
+                      const tl = submission.timeline || ''
+                      const label = SIGNAGE_TIMELINE_LABELS[tl] || tl || '-'
+                      if (tl === 'same_day') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🚨 {label}</span>
+                      if (tl === 'urgent') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔴 {label}</span>
+                      if (tl === 'rush') return <span style={{ background: '#f97316', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔶 {label}</span>
+                      return label
+                    })()}
+                  </span>
+                </div>
+              </>
             ) : submission.form_type === 'cafe_wrap' ? (
               <>
                 {/* Equipment list from service_details.equipment array */}
@@ -1112,9 +1226,10 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           <div style={lastRowStyle}>
             <span style={labelStyle}>Timeline</span>
             <span style={valueStyle}>
-              {submission.form_type === 'sticker_label' ? (() => {
+              {submission.form_type === 'sticker_label' || submission.form_type === 'signage_promo' ? (() => {
                 const tl = submission.timeline || ''
-                const label = STICKER_TIMELINE_LABELS[tl] || tl || '-'
+                const tlLabels = submission.form_type === 'signage_promo' ? SIGNAGE_TIMELINE_LABELS : STICKER_TIMELINE_LABELS
+                const label = tlLabels[tl] || tl || '-'
                 if (tl === 'same_day') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🚨 {label}</span>
                 if (tl === 'urgent') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔴 {label}</span>
                 if (tl === 'rush') return <span style={{ background: '#f97316', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔶 {label}</span>
