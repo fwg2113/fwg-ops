@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
         formType = 'sticker_label'
       } else if (Array.isArray(body.signage_types) && body.signage_types.length > 0) {
         formType = 'signage_promo'
+      } else if (Array.isArray(body.items) && body.items.length > 0 && body.garment_supply) {
+        formType = 'embroidery'
       } else if (body.equipment) {
         formType = 'cafe_wrap'
       } else if (Array.isArray(body.services) && body.services.length > 0) {
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
       cafe_wrap: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
       sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material', 'timeline'],
       signage_promo: ['contact_name', 'email', 'contact_method', 'quantity', 'timeline'],
+      embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'design_size', 'digitizing', 'timeline'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType]
     if (!required) {
@@ -113,6 +116,17 @@ export async function POST(request: NextRequest) {
         console.error(`Invalid equipment payload [${formType}]: expected non-empty array, got`, typeof body.equipment)
         return NextResponse.json(
           { error: 'Equipment must be a non-empty array' },
+          { status: 400, headers: CORS_HEADERS }
+        )
+      }
+    }
+
+    // ── Embroidery: validate items is a non-empty array ──
+    if (formType === 'embroidery') {
+      if (!Array.isArray(body.items) || body.items.length === 0) {
+        console.error(`Invalid items payload [${formType}]: expected non-empty array, got`, typeof body.items)
+        return NextResponse.json(
+          { error: 'Items must be a non-empty array' },
           { status: 400, headers: CORS_HEADERS }
         )
       }
@@ -238,6 +252,12 @@ export async function POST(request: NextRequest) {
               notes: body.notes || null,
               design_file_urls: body.design_file_urls || [],
             }
+          : formType === 'embroidery'
+          ? {
+              sourcing_notes: body.sourcing_notes || null,
+              notes: body.notes || null,
+              design_file_urls: body.design_file_urls || [],
+            }
           : (body.service_details || {}),
         reference_image_urls: body.reference_image_urls || [],
 
@@ -260,6 +280,12 @@ export async function POST(request: NextRequest) {
 
         // ── Signage/promo-specific columns ──
         signage_types: body.signage_types || [],
+
+        // ── Embroidery-specific columns ──
+        embroidery_items: body.items || [],
+        garment_supply: body.garment_supply || null,
+        design_size: body.design_size || null,
+        digitizing: body.digitizing || null,
       })
       .select('id')
       .single()
@@ -441,6 +467,45 @@ const SIGNAGE_TYPE_LABELS: Record<string, string> = {
   frosted_etched: 'Frosted & etched glass vinyl',
 }
 const SIGNAGE_TIMELINE_LABELS: Record<string, string> = {
+  same_day: '🚨 Same Day — URGENT',
+  urgent: '🔴 Urgent (24–48 hrs)',
+  rush: '🔶 Rush (2–3 days)',
+  standard: 'Standard (5–7 days)',
+  '30_days': 'Within 30 days',
+  '30_60_days': '30–60 days',
+  '60_90_days': '60–90+ days',
+  flexible: 'No Rush — Flexible',
+}
+
+// ─── Embroidery labels ──────────────────────────────
+const EMBROIDERY_PRODUCT_LABELS: Record<string, string> = {
+  polos: 'Polo Shirts', hats: 'Hats / Caps', hoodies: 'Hoodies / Sweaters',
+  jackets: 'Jackets', bags: 'Bags / Totes', aprons: 'Aprons / Workwear',
+  blankets: 'Blankets / Towels', other_product: 'Other',
+}
+const EMBROIDERY_PLACEMENT_LABELS: Record<string, string> = {
+  left_chest: 'Left Chest', right_chest: 'Right Chest', center_chest: 'Center Chest',
+  full_back: 'Full Back', upper_back: 'Upper Back', sleeve: 'Sleeve(s)',
+  collar_nape: 'Collar / Nape', hood: 'Hood', hat_front: 'Hat Front',
+  hat_side: 'Hat Side', hat_back: 'Hat Back', front: 'Front', back: 'Back',
+  strap: 'Strap', pocket: 'Pocket', full_front: 'Full Front', corner: 'Corner',
+  center: 'Center', other_custom: 'Other / Custom',
+}
+const EMBROIDERY_GARMENT_SUPPLY_LABELS: Record<string, string> = {
+  customer_supplies: 'Customer providing garments',
+  fwg_sources: 'FWG sourcing garments',
+  not_sure: 'Not sure yet',
+}
+const EMBROIDERY_DESIGN_SIZE_LABELS: Record<string, string> = {
+  small: 'Small (under 4")', medium: 'Medium (4–7")', large: 'Large (7–12")',
+  oversized: 'Oversized (12"+)', not_sure: 'Not sure',
+}
+const EMBROIDERY_DIGITIZING_LABELS: Record<string, string> = {
+  have_file: 'Has embroidery-ready file',
+  needs_digitizing: 'Needs digitizing',
+  not_sure: 'Not sure',
+}
+const EMBROIDERY_TIMELINE_LABELS: Record<string, string> = {
   same_day: '🚨 Same Day — URGENT',
   urgent: '🔴 Urgent (24–48 hrs)',
   rush: '🔶 Rush (2–3 days)',
@@ -722,6 +787,76 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
         <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.notes}</td></tr>
       </table>`
     }
+  } else if (formType === 'embroidery') {
+    // ── Embroidery sections ──
+    const items: Array<{ product: string; placements?: string[]; quantity?: string; description?: string }> = body.items || []
+
+    // Products section — loop through items
+    let itemsHTML = ''
+    items.forEach((item: any, idx: number) => {
+      const productLabel = EMBROIDERY_PRODUCT_LABELS[item.product] || formatLabel(item.product || 'Unknown')
+      const placements = (item.placements || []).map((p: string) => EMBROIDERY_PLACEMENT_LABELS[p] || formatLabel(p)).join(', ')
+      itemsHTML += `<tr><td colspan="2" style="padding:12px 16px 6px;font-weight:700;color:#1D1D1D;font-size:14px;border-bottom:1px solid #EDEEEE;">Product ${idx + 1}: ${productLabel}</td></tr>`
+      if (item.product === 'other_product' && item.description) {
+        itemsHTML += emailRow('Description', item.description)
+      } else if (placements) {
+        itemsHTML += emailRow('Placements', placements)
+      }
+      if (item.quantity) itemsHTML += emailRow('Quantity', item.quantity)
+    })
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Products')}
+      ${itemsHTML}
+    </table>`
+
+    // Garment supply + sourcing notes
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Garment Supply')}
+      ${emailRow('Supply', EMBROIDERY_GARMENT_SUPPLY_LABELS[body.garment_supply] || body.garment_supply)}
+      ${body.sourcing_notes ? emailRow('Sourcing Notes', body.sourcing_notes) : ''}
+    </table>`
+
+    // Design details
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Design Details')}
+      ${emailRow('Size', EMBROIDERY_DESIGN_SIZE_LABELS[body.design_size] || body.design_size)}
+      ${emailRow('Digitizing', EMBROIDERY_DIGITIZING_LABELS[body.digitizing] || body.digitizing)}
+    </table>`
+
+    // Design files
+    const embDesignFiles = body.design_file_urls || []
+    if (embDesignFiles.length > 0) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Design Files')}
+        ${emailRow('Files', embDesignFiles.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">File ${i + 1}</a>`).join(' &nbsp; '))}
+      </table>`
+    }
+
+    // Timeline with urgency styling
+    const embTL = body.timeline || ''
+    const embTLLabel = EMBROIDERY_TIMELINE_LABELS[embTL] || embTL
+    const isUrgentEmb = embTL === 'same_day' || embTL === 'urgent' || embTL === 'rush'
+    const embTLColor = embTL === 'same_day' ? '#CE0000' : embTL === 'urgent' ? '#D84315' : embTL === 'rush' ? '#E65100' : '#1D1D1D'
+    const embTimelineRowHTML = `<tr><td style="padding:8px 16px;color:#7D7D7D;font-weight:500;width:120px;vertical-align:top;">Timeline</td><td style="padding:8px 16px;color:${isUrgentEmb ? embTLColor : '#1D1D1D'};font-weight:${isUrgentEmb ? '700' : '500'};">${embTLLabel}</td></tr>`
+
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Timeline')}
+      ${embTimelineRowHTML}
+    </table>`
+
+    // Project notes
+    if (body.notes) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Project Notes')}
+        <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.notes}</td></tr>
+      </table>`
+    }
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -780,14 +915,27 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     } else {
       emailSubject = `New Signage Inquiry — ${body.contact_name} (${signageCount} item${signageCount !== 1 ? 's' : ''})`
     }
+  } else if (formType === 'embroidery') {
+    emailTitle = 'New Embroidery Inquiry'
+    const tl = body.timeline || ''
+    const itemCount = (body.items || []).length
+    if (tl === 'same_day') {
+      emailSubject = `🚨 SAME DAY URGENT — Embroidery Inquiry from ${body.contact_name}`
+    } else if (tl === 'urgent') {
+      emailSubject = `🔴 URGENT — Embroidery Inquiry from ${body.contact_name} (24-48 hrs)`
+    } else if (tl === 'rush') {
+      emailSubject = `🔶 Rush Order — Embroidery Inquiry from ${body.contact_name} (2-3 days)`
+    } else {
+      emailSubject = `New Embroidery Inquiry — ${body.contact_name} (${itemCount} product${itemCount !== 1 ? 's' : ''})`
+    }
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
   }
 
-  // Build urgency banner for sticker_label and signage_promo forms
+  // Build urgency banner for sticker_label, signage_promo, and embroidery forms
   let urgencyBannerHTML = ''
-  if (formType === 'sticker_label' || formType === 'signage_promo') {
+  if (formType === 'sticker_label' || formType === 'signage_promo' || formType === 'embroidery') {
     const tl = body.timeline || ''
     if (tl === 'same_day') {
       urgencyBannerHTML = `<div style="background:#CE0000;padding:18px 28px;text-align:center;"><span style="color:#FFFFFF;font-size:18px;font-weight:800;letter-spacing:0.5px;">🚨 SAME DAY URGENT — STOP AND HANDLE IMMEDIATELY 🚨</span></div>`
@@ -815,12 +963,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${emailRow('Phone', `<a href="tel:${body.phone}" style="color:#2B5EA7;">${body.phone}</a>`)}
       ${emailRow('Preferred', body.contact_method)}
     </table>
-    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Vehicle Details')}
       ${vehicleHTML}
     </table>` : ''}
     ${projectSectionHTML}
-    ${formType !== 'sticker_label' && formType !== 'signage_promo' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Timeline & Budget')}
       ${emailRow('Timeline', TIMELINE_LABELS[body.timeline] || body.timeline)}
       ${body.budget ? emailRow('Budget', BUDGET_LABELS[body.budget] || body.budget) : ''}
