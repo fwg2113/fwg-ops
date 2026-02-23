@@ -84,6 +84,9 @@ type Submission = {
   embroidery_items?: Array<{ product: string; placements?: string[]; quantity?: string; description?: string }>
   garment_supply?: string
   digitizing?: string
+  // General contact fields
+  service_interest?: string
+  message?: string
 }
 
 // Icons as components
@@ -261,6 +264,7 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   'sticker_label': 'Stickers & Labels',
   'signage_promo': 'Signage & Promo',
   'embroidery': 'Embroidery',
+  'general_contact': 'General Contact',
 }
 
 // ─── Café-specific labels ───
@@ -421,6 +425,19 @@ const EMBROIDERY_TIMELINE_LABELS: Record<string, string> = {
   '30_60_days': '30–60 days',
   '60_90_days': '60–90+ days',
   'flexible': 'No Rush — Flexible',
+}
+
+// ─── General Contact labels ───
+const SERVICE_INTEREST_LABELS: Record<string, string> = {
+  'commercial_wraps': 'Vehicle Wraps (Commercial / Fleet)',
+  'automotive_styling': 'Automotive Styling & Color Change',
+  'ppf': 'Paint Protection Film (PPF)',
+  'signs_banners': 'Signs & Banners',
+  'stickers_labels': 'Stickers & Labels',
+  'embroidery': 'Custom Embroidery',
+  'cafe_equipment': 'Café & Equipment Wraps',
+  'print_design': 'Print & Design Services',
+  'other': 'Something Else / Not Sure',
 }
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
@@ -683,8 +700,8 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 fontSize: '10px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : submission.form_type === 'sticker_label' ? 'rgba(168, 85, 247, 0.15)' : submission.form_type === 'embroidery' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : submission.form_type === 'sticker_label' ? '#a855f7' : submission.form_type === 'embroidery' ? '#ec4899' : '#3b82f6',
+                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : submission.form_type === 'sticker_label' ? 'rgba(168, 85, 247, 0.15)' : submission.form_type === 'embroidery' ? 'rgba(236, 72, 153, 0.15)' : submission.form_type === 'general_contact' ? 'rgba(148, 163, 184, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : submission.form_type === 'sticker_label' ? '#a855f7' : submission.form_type === 'embroidery' ? '#ec4899' : submission.form_type === 'general_contact' ? '#94a3b8' : '#3b82f6',
               }}>
                 {FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}
               </span>
@@ -809,11 +826,11 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
         {/* Vehicle & Project (or Equipment & Details for café) */}
         <div style={sectionStyle}>
           <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
-            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : submission.form_type === 'sticker_label' ? 'Sticker Details' : submission.form_type === 'embroidery' ? 'Embroidery Details' : 'Vehicle & Project'}
+            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : submission.form_type === 'sticker_label' ? 'Sticker Details' : submission.form_type === 'embroidery' ? 'Embroidery Details' : submission.form_type === 'general_contact' ? 'Inquiry Details' : 'Vehicle & Project'}
           </div>
 
           {/* Café wraps, sticker/label, and embroidery skip vehicle display entirely */}
-          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' || submission.form_type === 'embroidery' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
+          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' || submission.form_type === 'embroidery' || submission.form_type === 'general_contact' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
             <>
               <div style={rowStyle}>
                 <span style={labelStyle}>Vehicles</span>
@@ -1209,6 +1226,36 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                     })()}
                   </span>
                 </div>
+              </>
+            ) : submission.form_type === 'general_contact' ? (
+              <>
+                {/* Service Interest */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Service Interest</span>
+                  <span style={valueStyle}>{SERVICE_INTEREST_LABELS[submission.service_interest || ''] || submission.service_interest || '-'}</span>
+                </div>
+
+                {/* Message */}
+                {submission.message && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Message</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%', whiteSpace: 'pre-wrap' }}>{submission.message}</span>
+                  </div>
+                )}
+
+                {/* Attachments */}
+                {submission.service_details?.file_urls && submission.service_details.file_urls.length > 0 && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>Attachments</span>
+                    <span style={valueStyle}>
+                      {submission.service_details.file_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          File {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </>
             ) : submission.form_type === 'cafe_wrap' ? (
               <>

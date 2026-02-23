@@ -25,6 +25,8 @@ type Submission = {
   timeline?: string
   signage_types?: string[]
   embroidery_items?: Array<{ product: string; placements?: string[]; quantity?: string; description?: string }>
+  service_interest?: string
+  message?: string
 }
 
 type Document = {
@@ -68,7 +70,7 @@ type Props = {
 export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf' | 'cafe_wrap' | 'sticker_label' | 'signage_promo' | 'embroidery'>('all')
+  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf' | 'cafe_wrap' | 'sticker_label' | 'signage_promo' | 'embroidery' | 'general_contact'>('all')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = () => {
@@ -122,12 +124,16 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
       const isSticker = subFormType === 'sticker_label'
       const isSignage = subFormType === 'signage_promo'
       const isEmbroidery = subFormType === 'embroidery'
+      const isGeneralContact = subFormType === 'general_contact'
       const PPF_PKG_LABELS: Record<string, string> = { full_vehicle: 'Full Vehicle PPF', full_front: 'Full Front End', track_pack: 'Track Pack', partial: 'Partial / Custom' }
       const CAFE_EQUIP_LABELS: Record<string, string> = { espresso_machine: 'Espresso Machine', drip_brewer: 'Drip Brewer', bean_grinder: 'Bean Grinder', milk_steamer: 'Milk Steamer', other: 'Other Equipment' }
       const STICKER_TYPE_LABELS: Record<string, string> = { 'die-cut': 'Die-Cut Stickers', 'kiss-cut': 'Kiss-Cut / Easy Peel', 'sticker-sheets': 'Sticker Sheets', 'roll-labels': 'Roll Labels' }
       const SIGNAGE_TYPE_LABELS: Record<string, string> = { outdoor_building: 'Outdoor Building Signage', window_perf: 'View-Through Window Perf', storefront_hours: 'Storefront Hours', raised_signage: 'Interior Raised Signage', wall_graphics: 'Wall Graphics', floor_graphics: 'Floor Graphics', yard_signs: 'Yard Signs', banner_stands: 'Banner Stands', pvc_banners: 'PVC Banners', a_frame_signs: 'A-Frame Signs & Sign Inserts', coroplast_signs: 'Coroplast Signs', backdrop_displays: 'Backdrop Displays' }
       const EMBROIDERY_PRODUCT_LABELS: Record<string, string> = { polos: 'Polo Shirts', hats: 'Hats / Caps', hoodies: 'Hoodies / Sweaters', jackets: 'Jackets', bags: 'Bags / Totes', aprons: 'Aprons / Workwear', blankets: 'Blankets / Towels', other_product: 'Other' }
-      const description = isEmbroidery
+      const GC_SERVICE_INTEREST_LABELS: Record<string, string> = { commercial_wraps: 'Vehicle Wraps', automotive_styling: 'Automotive Styling', ppf: 'PPF', signs_banners: 'Signs & Banners', stickers_labels: 'Stickers & Labels', embroidery: 'Embroidery', cafe_equipment: 'Café Wraps', print_design: 'Print & Design', other: 'Other' }
+      const description = isGeneralContact
+        ? (GC_SERVICE_INTEREST_LABELS[sub.service_interest || ''] || sub.service_interest?.replace(/_/g, ' ') || 'Contact inquiry')
+        : isEmbroidery
         ? (() => {
             const items = sub.embroidery_items || []
             if (items.length > 0) {
@@ -352,6 +358,9 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
     }
     if (formType === 'embroidery') {
       return { label: 'EMBROIDERY', bg: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' }
+    }
+    if (formType === 'general_contact') {
+      return { label: 'CONTACT', bg: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }
     }
     return { label: 'COMMERCIAL', bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }
   }
@@ -593,6 +602,7 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
               { key: 'sticker_label', label: 'Stickers' },
               { key: 'signage_promo', label: 'Signage' },
               { key: 'embroidery', label: 'Embroidery' },
+              { key: 'general_contact', label: 'Contact' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}

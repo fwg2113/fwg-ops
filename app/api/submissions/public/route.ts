@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
         formType = 'signage_promo'
       } else if (Array.isArray(body.items) && body.items.length > 0 && body.garment_supply) {
         formType = 'embroidery'
+      } else if (body.service_interest && body.message) {
+        formType = 'general_contact'
       } else if (body.equipment) {
         formType = 'cafe_wrap'
       } else if (Array.isArray(body.services) && body.services.length > 0) {
@@ -93,6 +95,7 @@ export async function POST(request: NextRequest) {
       sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material', 'timeline'],
       signage_promo: ['contact_name', 'email', 'contact_method', 'quantity', 'timeline'],
       embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'digitizing', 'timeline'],
+      general_contact: ['contact_name', 'email', 'contact_method', 'service_interest', 'message'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType]
     if (!required) {
@@ -258,6 +261,10 @@ export async function POST(request: NextRequest) {
               notes: body.notes || null,
               design_file_urls: body.design_file_urls || [],
             }
+          : formType === 'general_contact'
+          ? {
+              file_urls: body.file_urls || [],
+            }
           : (body.service_details || {}),
         reference_image_urls: body.reference_image_urls || [],
 
@@ -285,6 +292,10 @@ export async function POST(request: NextRequest) {
         embroidery_items: body.items || [],
         garment_supply: body.garment_supply || null,
         digitizing: body.digitizing || null,
+
+        // ── General contact columns ──
+        service_interest: body.service_interest || null,
+        message: body.message || null,
       })
       .select('id')
       .single()
@@ -509,6 +520,19 @@ const EMBROIDERY_TIMELINE_LABELS: Record<string, string> = {
   '30_60_days': '30–60 days',
   '60_90_days': '60–90+ days',
   flexible: 'No Rush — Flexible',
+}
+
+// ─── General Contact labels ──────────────────────────
+const SERVICE_INTEREST_LABELS: Record<string, string> = {
+  commercial_wraps: 'Vehicle Wraps (Commercial / Fleet)',
+  automotive_styling: 'Automotive Styling & Color Change',
+  ppf: 'Paint Protection Film (PPF)',
+  signs_banners: 'Signs & Banners',
+  stickers_labels: 'Stickers & Labels',
+  embroidery: 'Custom Embroidery',
+  cafe_equipment: 'Café & Equipment Wraps',
+  print_design: 'Print & Design Services',
+  other: 'Something Else / Not Sure',
 }
 
 async function sendNotificationEmail(body: Record<string, any>, formType: string) {
@@ -851,6 +875,30 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
         <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.notes}</td></tr>
       </table>`
     }
+  } else if (formType === 'general_contact') {
+    // ── General Contact sections ──
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Service Interest')}
+      ${emailRow('Interest', SERVICE_INTEREST_LABELS[body.service_interest] || body.service_interest)}
+    </table>`
+
+    if (body.message) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Message')}
+        <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.message}</td></tr>
+      </table>`
+    }
+
+    const contactFiles = body.file_urls || []
+    if (contactFiles.length > 0) {
+      projectSectionHTML += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+        ${sectionHeader('Attachments')}
+        ${emailRow('Files', contactFiles.map((u: string, i: number) => `<a href="${u}" style="color:#2B5EA7;">File ${i + 1}</a>`).join(' &nbsp; '))}
+      </table>`
+    }
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -922,6 +970,9 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     } else {
       emailSubject = `New Embroidery Inquiry — ${body.contact_name} (${itemCount} product${itemCount !== 1 ? 's' : ''})`
     }
+  } else if (formType === 'general_contact') {
+    emailTitle = 'New Contact Inquiry'
+    emailSubject = `New Contact Inquiry — ${body.contact_name} (${SERVICE_INTEREST_LABELS[body.service_interest] || body.service_interest})`
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
@@ -957,12 +1008,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${emailRow('Phone', `<a href="tel:${body.phone}" style="color:#2B5EA7;">${body.phone}</a>`)}
       ${emailRow('Preferred', body.contact_method)}
     </table>
-    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'general_contact' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Vehicle Details')}
       ${vehicleHTML}
     </table>` : ''}
     ${projectSectionHTML}
-    ${formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'general_contact' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Timeline & Budget')}
       ${emailRow('Timeline', TIMELINE_LABELS[body.timeline] || body.timeline)}
       ${body.budget ? emailRow('Budget', BUDGET_LABELS[body.budget] || body.budget) : ''}
