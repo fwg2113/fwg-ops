@@ -23,9 +23,21 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const dragContext = useRef<'tasks' | 'subtasks'>('tasks')
   const dragParentId = useRef<string | null>(null)
 
+  const [showCompleted, setShowCompleted] = useState(false)
+
   // Separate into top-level and subtasks (hide completed top-level tasks)
   const topLevelTasks = useMemo(
     () => tasks.filter(t => !t.parent_id && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
+    [tasks]
+  )
+
+  // Completed top-level tasks
+  const completedTasks = useMemo(
+    () => tasks.filter(t => !t.parent_id && t.status === 'completed').sort((a, b) => {
+      const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0
+      const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0
+      return bTime - aTime // most recent first
+    }),
     [tasks]
   )
 
@@ -346,6 +358,150 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onSubtaskDrop={handleSubtaskDrop}
               />
             ))}
+          </div>
+        )}
+
+        {/* Completed tasks section */}
+        {completedTasks.length > 0 && (
+          <div style={{ marginTop: '24px' }}>
+            <button
+              onClick={() => setShowCompleted(!showCompleted)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px 0',
+                width: '100%',
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                style={{
+                  transform: showCompleted ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s',
+                }}
+              >
+                <path d="M4 6L8 10L12 6" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#6b7280' }}>
+                Completed ({completedTasks.length})
+              </span>
+            </button>
+
+            {showCompleted && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                {completedTasks.map(task => (
+                  <div
+                    key={task.id}
+                    style={{
+                      background: '#1d1d1d',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255,255,255,0.04)',
+                      padding: '12px 14px',
+                      opacity: 0.7,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      {/* Completed checkmark */}
+                      <div
+                        style={{
+                          width: '22px',
+                          height: '22px',
+                          minWidth: '22px',
+                          borderRadius: '999px',
+                          background: '#22c55e',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginTop: '1px',
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                          <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+
+                      {/* Content */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span
+                          style={{
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            color: '#6b7280',
+                            textDecoration: 'line-through',
+                          }}
+                        >
+                          {task.title}
+                        </span>
+
+                        {/* Completion details */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px', fontSize: '11px', color: '#4b5563' }}>
+                          {task.completed_by_names && (
+                            <span>By: {task.completed_by_names}</span>
+                          )}
+                          {task.completed_at && (
+                            <span>{new Date(task.completed_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
+
+                        {task.completion_notes && (
+                          <p style={{ fontSize: '12px', color: '#4b5563', margin: '4px 0 0', fontStyle: 'italic' }}>
+                            {task.completion_notes}
+                          </p>
+                        )}
+
+                        {task.completion_photo_url && (
+                          <img
+                            src={task.completion_photo_url}
+                            alt="Completion photo"
+                            style={{
+                              marginTop: '6px',
+                              borderRadius: '6px',
+                              maxWidth: '120px',
+                              maxHeight: '80px',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Delete button */}
+                      <button
+                        onClick={() => {
+                          if (confirm('Remove this completed task?')) {
+                            handleDeleteTask(task.id)
+                          }
+                        }}
+                        title="Delete"
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: 'rgba(239,68,68,0.1)',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                          <path d="M2 4H14M5 4V3C5 2.44772 5.44772 2 6 2H10C10.5523 2 11 2.44772 11 3V4M6 7V12M10 7V12M3 4L4 14H12L13 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
