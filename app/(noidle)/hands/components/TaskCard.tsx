@@ -123,8 +123,27 @@ export default function TaskCard({
           )}
 
           {/* Meta row — icon-led compact items */}
-          {(task.nih_categories || task.time_estimate || task.nih_locations || task.point_of_contact) && (
+          {(task.nih_categories || task.time_estimate || task.nih_locations || task.point_of_contact || task.points > 0) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
+              {task.points > 0 && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#d71cd1',
+                  whiteSpace: 'nowrap',
+                  background: 'rgba(215,28,209,0.12)',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                    <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+                  </svg>
+                  {task.points} pts
+                </span>
+              )}
               {task.nih_categories && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: task.nih_categories.color, whiteSpace: 'nowrap' }}>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.8, flexShrink: 0 }}>

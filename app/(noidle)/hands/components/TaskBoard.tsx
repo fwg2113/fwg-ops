@@ -1,22 +1,32 @@
 'use client'
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import type { BoardData, NihTask, NihTeamMember } from '../types'
+import { useState, useMemo, useCallback, useRef } from 'react'
+import type { BoardData, NihTask, NihTeamMember, NihPrize } from '../types'
 import HandsLogo from './HandsLogo'
 import QuickAdd from './QuickAdd'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
 import CompleteModal from './CompleteModal'
 import EmptyState from './EmptyState'
+import Leaderboard from './Leaderboard'
+import PointsToast from './PointsToast'
+
+interface ToastData {
+  points: number
+  names: string[]
+}
 
 export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [tasks, setTasks] = useState<NihTask[]>(initialData.tasks)
-  const { categories, locations, teamMembers } = initialData
+  const { categories, locations } = initialData
+  const [teamMembers, setTeamMembers] = useState<NihTeamMember[]>(initialData.teamMembers)
+  const [prizes, setPrizes] = useState<NihPrize[]>(initialData.prizes)
 
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
   const [completingTask, setCompletingTask] = useState<NihTask | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [toast, setToast] = useState<ToastData | null>(null)
 
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null)
@@ -26,18 +36,16 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
 
   const [showCompleted, setShowCompleted] = useState(false)
 
-  // Separate into top-level and subtasks (hide completed top-level tasks)
   const topLevelTasks = useMemo(
     () => tasks.filter(t => !t.parent_id && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
     [tasks]
   )
 
-  // Completed top-level tasks
   const completedTasks = useMemo(
     () => tasks.filter(t => !t.parent_id && t.status === 'completed').sort((a, b) => {
       const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0
       const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0
-      return bTime - aTime // most recent first
+      return bTime - aTime
     }),
     [tasks]
   )
@@ -54,7 +62,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     return map
   }, [tasks])
 
-  // Refresh tasks from API
   const refreshTasks = useCallback(async () => {
     const res = await fetch('/api/noidle/tasks')
     if (res.ok) {
@@ -63,7 +70,17 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     }
   }, [])
 
-  // Persist new order to API
+  const refreshTeamMembers = useCallback(async () => {
+    const res = await fetch('/api/noidle/leaderboard')
+    if (res.ok) {
+      const leaderboardData = await res.json()
+      setTeamMembers(prev => prev.map(m => {
+        const updated = leaderboardData.find((l: NihTeamMember) => l.id === m.id)
+        return updated ? { ...m, total_points: updated.total_points } : m
+      }))
+    }
+  }, [])
+
   const persistOrder = useCallback(async (orderedIds: string[]) => {
     await fetch('/api/noidle/tasks/reorder', {
       method: 'POST',
@@ -72,7 +89,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     })
   }, [])
 
-  // Top-level task drag handlers
   const handleTaskDragStart = useCallback((taskId: string) => {
     dragContext.current = 'tasks'
     dragParentId.current = null
@@ -101,7 +117,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       const [moved] = reordered.splice(oldIndex, 1)
       reordered.splice(newIndex, 0, moved)
 
-      // Optimistic update
       const updatedTasks = tasks.map(t => {
         const idx = reordered.findIndex(r => r.id === t.id)
         if (idx !== -1) return { ...t, sort_order: idx }
@@ -121,7 +136,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     setDragOverId(null)
   }, [])
 
-  // Subtask drag handlers
   const handleSubtaskDragStart = useCallback((subtaskId: string, parentId: string) => {
     dragContext.current = 'subtasks'
     dragParentId.current = parentId
@@ -151,7 +165,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       const [moved] = reordered.splice(oldIndex, 1)
       reordered.splice(newIndex, 0, moved)
 
-      // Optimistic update
       const updatedTasks = tasks.map(t => {
         const idx = reordered.findIndex(r => r.id === t.id)
         if (idx !== -1) return { ...t, sort_order: idx }
@@ -224,11 +237,21 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         body: JSON.stringify({ notes, photo_url: photoUrl, completed_by_ids: completedByIds }),
       })
       if (res.ok) {
+        const result = await res.json()
+
+        if (result.points_awarded && result.points_total > 0) {
+          setToast({
+            points: result.points_total,
+            names: result.points_names || [],
+          })
+        }
+
         await refreshTasks()
+        await refreshTeamMembers()
         setCompletingTask(null)
       }
     },
-    [refreshTasks]
+    [refreshTasks, refreshTeamMembers]
   )
 
   const handleStatusToggle = useCallback(
@@ -257,7 +280,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [refreshTasks]
   )
 
-  // Subtask toggle — auto-trigger completion modal when all subtasks done
   const handleSubtaskToggle = useCallback(
     async (subtask: NihTask) => {
       const newStatus = subtask.status === 'completed' ? 'open' : 'completed'
@@ -279,7 +301,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           const freshTasks: NihTask[] = await freshRes.json()
           setTasks(freshTasks)
 
-          // Check if all sibling subtasks are now completed
           if (newStatus === 'completed' && subtask.parent_id) {
             const siblings = freshTasks.filter(t => t.parent_id === subtask.parent_id)
             const allDone = siblings.length > 0 && siblings.every(s => s.status === 'completed')
@@ -298,7 +319,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
 
   return (
     <div style={{ paddingBottom: '60px' }}>
-      {/* Pulse animation for in-progress status dot */}
       <style>{`@keyframes nih-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
 
       {/* Header */}
@@ -322,6 +342,15 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         </h1>
       </header>
 
+      {/* Leaderboard */}
+      <div style={{ paddingTop: '12px' }}>
+        <Leaderboard
+          teamMembers={teamMembers}
+          prizes={prizes}
+          onPrizesUpdate={setPrizes}
+        />
+      </div>
+
       {/* Quick Add */}
       <div style={{ padding: '14px 16px' }}>
         <QuickAdd onAdd={handleQuickAdd} />
@@ -333,7 +362,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
         ) : (
           <>
-            {/* Section label */}
             <div style={{
               fontSize: '12px',
               fontWeight: 600,
@@ -433,7 +461,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 }}
               >
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto' }}>
-                  {/* Content zone */}
                   <div style={{ padding: '14px 4px 14px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <div style={{
                       fontSize: '17px',
@@ -445,7 +472,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                       {task.title}
                     </div>
 
-                    {/* Meta: category + completed by */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
                       {task.nih_categories && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: task.nih_categories.color, whiteSpace: 'nowrap' }}>
@@ -465,7 +491,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                       )}
                     </div>
 
-                    {/* Completion photo + notes inline */}
                     {(task.completion_notes || task.completion_photo_url) && (
                       <div style={{
                         borderTop: '1px solid rgba(255,255,255,0.06)',
@@ -500,7 +525,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                     )}
                   </div>
 
-                  {/* Action strip — just edit for completed */}
                   <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
                     <button
                       onClick={() => setEditingTask(task)}
@@ -556,6 +580,15 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           teamMembers={teamMembers}
           onComplete={(notes, photoUrl, completedByIds) => handleCompleteTask(completingTask.id, notes, photoUrl, completedByIds)}
           onClose={() => setCompletingTask(null)}
+        />
+      )}
+
+      {/* Points toast */}
+      {toast && (
+        <PointsToast
+          points={toast.points}
+          names={toast.names}
+          onDone={() => setToast(null)}
         />
       )}
 
