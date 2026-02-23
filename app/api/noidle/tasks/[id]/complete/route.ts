@@ -9,6 +9,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Look up names for the selected team members
   let completedByNames: string | null = null
   let primaryCompleterId: string | null = null
+  const namesList: string[] = []
 
   if (completed_by_ids?.length) {
     primaryCompleterId = completed_by_ids[0]
@@ -17,12 +18,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .select('id, name')
       .in('id', completed_by_ids)
     if (members?.length) {
-      // Preserve selection order
       const nameMap = new Map(members.map(m => [m.id, m.name]))
-      completedByNames = completed_by_ids
-        .map((cid: string) => nameMap.get(cid))
-        .filter(Boolean)
-        .join(', ')
+      completed_by_ids.forEach((cid: string) => {
+        const name = nameMap.get(cid)
+        if (name) namesList.push(name)
+      })
+      completedByNames = namesList.join(', ')
     }
   }
 
@@ -45,5 +46,40 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(task)
+  // Distribute points to team members
+  let pointsPerPerson = 0
+
+  if (task.points > 0 && completed_by_ids?.length) {
+    const basePoints = Math.floor(task.points / completed_by_ids.length)
+    const remainder = task.points - basePoints * completed_by_ids.length
+
+    for (let i = 0; i < completed_by_ids.length; i++) {
+      const memberId = completed_by_ids[i]
+      const pts = basePoints + (i < remainder ? 1 : 0)
+
+      if (pts > 0) {
+        // Get current points then increment
+        const { data: member } = await supabase
+          .from('nih_team_members')
+          .select('total_points')
+          .eq('id', memberId)
+          .single()
+
+        await supabase
+          .from('nih_team_members')
+          .update({ total_points: (member?.total_points || 0) + pts })
+          .eq('id', memberId)
+      }
+    }
+
+    pointsPerPerson = basePoints + (remainder > 0 ? 1 : 0)
+  }
+
+  return NextResponse.json({
+    ...task,
+    points_awarded: task.points > 0 && completed_by_ids?.length > 0,
+    points_per_person: pointsPerPerson,
+    points_names: namesList,
+    points_total: task.points,
+  })
 }

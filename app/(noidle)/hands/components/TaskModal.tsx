@@ -45,6 +45,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
   const [timeEstimate, setTimeEstimate] = useState(task?.time_estimate || '')
   const [isProject, setIsProject] = useState(task?.is_project || false)
   const [pointOfContact, setPointOfContact] = useState(task?.point_of_contact || '')
+  const [points, setPoints] = useState(task?.points || 0)
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     task?.nih_task_assignees?.map(a => a.team_member_id || a.nih_team_members?.id).filter(Boolean) as string[] || []
   )
@@ -62,6 +63,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
       time_estimate: timeEstimate || null,
       is_project: isProject,
       point_of_contact: pointOfContact.trim() || null,
+      points,
       assignee_ids: assigneeIds,
     })
     setSaving(false)
@@ -181,6 +183,35 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* Points */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={labelStyle}>Points (0–25)</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <input
+              type="range"
+              min={0}
+              max={25}
+              value={points}
+              onChange={e => setPoints(Number(e.target.value))}
+              style={{
+                flex: 1,
+                accentColor: points > 0 ? '#d71cd1' : '#3f4451',
+                height: '6px',
+              }}
+            />
+            <span style={{
+              minWidth: '40px',
+              textAlign: 'center',
+              fontSize: '18px',
+              fontWeight: 700,
+              color: points > 0 ? '#d71cd1' : '#6b7280',
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {points}
+            </span>
           </div>
         </div>
 

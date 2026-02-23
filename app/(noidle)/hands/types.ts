@@ -4,7 +4,15 @@ export interface NihTeamMember {
   role: string
   avatar_color: string
   is_active: boolean
+  total_points: number
   created_at: string
+}
+
+export interface NihPrize {
+  id: string
+  position: number
+  prize_text: string
+  updated_at: string
 }
 
 export interface NihCategory {
@@ -44,6 +52,7 @@ export interface NihTask {
   completed_at: string | null
   completed_by: string | null
   completed_by_names: string | null
+  points: number
   created_by: string | null
   created_at: string
   updated_at: string
@@ -57,6 +66,7 @@ export interface BoardData {
   categories: NihCategory[]
   locations: NihLocation[]
   teamMembers: NihTeamMember[]
+  prizes: NihPrize[]
 }
 
 export type FilterState = {
