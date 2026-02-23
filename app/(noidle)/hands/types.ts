@@ -63,12 +63,25 @@ export interface NihTask {
   nih_task_assignees: NihTaskAssignee[]
 }
 
+export interface NihTaskCompletion {
+  id: string
+  task_id: string | null
+  task_title: string
+  completion_notes: string | null
+  completion_photo_url: string | null
+  completed_at: string
+  completed_by_names: string | null
+  points_awarded: number
+  created_at: string
+}
+
 export interface BoardData {
   tasks: NihTask[]
   categories: NihCategory[]
   locations: NihLocation[]
   teamMembers: NihTeamMember[]
   prizes: NihPrize[]
+  completions: NihTaskCompletion[]
 }
 
 export type FilterState = {

@@ -75,6 +75,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     pointsPerPerson = basePoints + (remainder > 0 ? 1 : 0)
   }
 
+  // Log this completion permanently in the completions history table
+  const completedAt = new Date().toISOString()
+  await supabase
+    .from('nih_task_completions')
+    .insert({
+      task_id: id,
+      task_title: task.title,
+      completion_notes: notes || null,
+      completion_photo_url: photo_url || null,
+      completed_at: completedAt,
+      completed_by_names: completedByNames,
+      points_awarded: task.points || 0,
+    })
+
   // If recurring, reset the task back to open for the next cycle
   let finalTask = task
   if (task.is_recurring) {
