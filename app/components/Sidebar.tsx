@@ -162,6 +162,7 @@ const icons: Record<string, React.ReactElement> = {
 export default function Sidebar() {
   const pathname = usePathname()
   const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number }>({ messages: 0, email: 0, payments: 0, actions: 0 })
+  const [handsStats, setHandsStats] = useState<{ availablePoints: number; leaders: { id: string; name: string; avatar_color: string; total_points: number }[] }>({ availablePoints: 0, leaders: [] })
 
   const fetchUnreadCounts = useCallback(async () => {
     try {
@@ -186,21 +187,34 @@ export default function Sidebar() {
     }
   }, [])
 
+  const fetchHandsStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/noidle/sidebar-stats')
+      const data = await res.json()
+      setHandsStats({ availablePoints: data.availablePoints || 0, leaders: data.leaders || [] })
+    } catch (err) {
+      console.error('Failed to fetch hands stats:', err)
+    }
+  }, [])
+
   useEffect(() => {
     fetchUnreadCounts()
+    fetchHandsStats()
     // Refresh every 60 seconds
     const interval = setInterval(fetchUnreadCounts, 60000)
+    const handsInterval = setInterval(fetchHandsStats, 120000)
     // Also refresh on window focus
-    const handleFocus = () => fetchUnreadCounts()
+    const handleFocus = () => { fetchUnreadCounts(); fetchHandsStats() }
     const handleUnreadChange = () => fetchUnreadCounts()
     window.addEventListener('focus', handleFocus)
     window.addEventListener('unread-counts-changed', handleUnreadChange)
     return () => {
       clearInterval(interval)
+      clearInterval(handsInterval)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('unread-counts-changed', handleUnreadChange)
     }
-  }, [fetchUnreadCounts])
+  }, [fetchUnreadCounts, fetchHandsStats])
 
   const handleLogout = () => {
     document.cookie = 'fwg_auth=; path=/; max-age=0'
@@ -259,6 +273,129 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav style={{ flex: 1, padding: '16px 0', overflowY: 'auto' }}>
+        {/* No Idle Hands Widget */}
+        <div style={{ padding: '0 16px 12px', marginBottom: '4px' }}>
+          <a
+            href="https://hands.frederickwraps.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              padding: '10px 12px',
+              background: 'linear-gradient(135deg, rgba(34,211,238,0.12), rgba(168,85,247,0.12), rgba(236,72,153,0.12))',
+              border: '1px solid rgba(168,85,247,0.2)',
+              borderRadius: '10px',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="url(#handGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <defs>
+                <linearGradient id="handGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#22d3ee" />
+                  <stop offset="50%" stopColor="#a855f7" />
+                  <stop offset="100%" stopColor="#ec4899" />
+                </linearGradient>
+              </defs>
+              <path d="M18 11V6a2 2 0 0 0-4 0v1" />
+              <path d="M14 10V4a2 2 0 0 0-4 0v6" />
+              <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
+              <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+            </svg>
+            <span style={{
+              fontSize: '13px',
+              fontWeight: 700,
+              background: 'linear-gradient(90deg, #22d3ee, #a855f7, #ec4899)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>
+              No Idle Hands
+            </span>
+            {handsStats.availablePoints > 0 && (
+              <span style={{
+                minWidth: '22px',
+                height: '20px',
+                padding: '0 6px',
+                borderRadius: '999px',
+                background: 'linear-gradient(90deg, #22d3ee, #a855f7, #ec4899)',
+                color: '#ffffff',
+                fontSize: '11px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1,
+              }}>
+                {handsStats.availablePoints} pts
+              </span>
+            )}
+          </a>
+          {handsStats.leaders.length > 0 && (
+            <div style={{ marginTop: '8px', padding: '0 4px' }}>
+              {handsStats.leaders.map((leader, i) => {
+                const rankColors = ['#fbbf24', '#94a3b8', '#cd7f32']
+                return (
+                  <div key={leader.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '4px 0',
+                  }}>
+                    <span style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '4px',
+                      background: rankColors[i],
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      color: '#000',
+                      flexShrink: 0,
+                    }}>
+                      {i + 1}
+                    </span>
+                    <span style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '999px',
+                      background: leader.avatar_color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      color: '#fff',
+                      flexShrink: 0,
+                    }}>
+                      {leader.name[0]}
+                    </span>
+                    <span style={{ flex: 1, fontSize: '12px', fontWeight: 500, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                      {leader.name}
+                    </span>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: 'linear-gradient(90deg, #22d3ee, #a855f7, #ec4899)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                    }}>
+                      {leader.total_points}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
         {navSections.map((section) => (
           <div key={section.title} style={{ marginBottom: '8px' }}>
             {section.title && (
