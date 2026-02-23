@@ -17,10 +17,6 @@ ALTER TABLE public.submissions
 ALTER TABLE public.submissions
   ADD COLUMN IF NOT EXISTS garment_supply TEXT;
 
--- Design size: small, medium, large, oversized, not_sure
-ALTER TABLE public.submissions
-  ADD COLUMN IF NOT EXISTS design_size TEXT;
-
 -- Digitizing status: have_file, needs_digitizing, not_sure
 ALTER TABLE public.submissions
   ADD COLUMN IF NOT EXISTS digitizing TEXT;

@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       cafe_wrap: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
       sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material', 'timeline'],
       signage_promo: ['contact_name', 'email', 'contact_method', 'quantity', 'timeline'],
-      embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'design_size', 'digitizing', 'timeline'],
+      embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'digitizing', 'timeline'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType]
     if (!required) {
@@ -284,7 +284,6 @@ export async function POST(request: NextRequest) {
         // ── Embroidery-specific columns ──
         embroidery_items: body.items || [],
         garment_supply: body.garment_supply || null,
-        design_size: body.design_size || null,
         digitizing: body.digitizing || null,
       })
       .select('id')
@@ -495,10 +494,6 @@ const EMBROIDERY_GARMENT_SUPPLY_LABELS: Record<string, string> = {
   customer_supplies: 'Customer providing garments',
   fwg_sources: 'FWG sourcing garments',
   not_sure: 'Not sure yet',
-}
-const EMBROIDERY_DESIGN_SIZE_LABELS: Record<string, string> = {
-  small: 'Small (under 4")', medium: 'Medium (4–7")', large: 'Large (7–12")',
-  oversized: 'Oversized (12"+)', not_sure: 'Not sure',
 }
 const EMBROIDERY_DIGITIZING_LABELS: Record<string, string> = {
   have_file: 'Has embroidery-ready file',
@@ -822,7 +817,6 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     projectSectionHTML += `
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Design Details')}
-      ${emailRow('Size', EMBROIDERY_DESIGN_SIZE_LABELS[body.design_size] || body.design_size)}
       ${emailRow('Digitizing', EMBROIDERY_DIGITIZING_LABELS[body.digitizing] || body.digitizing)}
     </table>`
 
