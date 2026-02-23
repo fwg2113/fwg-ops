@@ -123,7 +123,7 @@ export default function TaskCard({
           )}
 
           {/* Meta row — icon-led compact items */}
-          {(task.nih_categories || task.time_estimate || task.nih_locations || task.point_of_contact || task.points > 0) && (
+          {(task.nih_categories || task.time_estimate || task.nih_locations || task.point_of_contact || task.points > 0 || task.is_recurring) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
               {task.points > 0 && (
                 <span style={{
@@ -142,6 +142,29 @@ export default function TaskCard({
                     <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
                   </svg>
                   {task.points} pts
+                </span>
+              )}
+              {task.is_recurring && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#22d3ee',
+                  whiteSpace: 'nowrap',
+                  background: 'rgba(34,211,238,0.12)',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                    <path d="M2 8C2 4.7 4.7 2 8 2C10.2 2 12.1 3.3 13 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M14 8C14 11.3 11.3 14 8 14C5.8 14 3.9 12.7 3 10.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M13 2V5.2H9.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M3 14V10.8H6.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {task.recurring_days?.length === 7 ? 'Daily' :
+                    task.recurring_days?.length ? task.recurring_days.join(', ') : 'Recurring'}
                 </span>
               )}
               {task.nih_categories && (
