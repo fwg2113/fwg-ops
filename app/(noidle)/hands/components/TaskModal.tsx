@@ -49,7 +49,15 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     task?.nih_task_assignees?.map(a => a.team_member_id || a.nih_team_members?.id).filter(Boolean) as string[] || []
   )
+  const [isRecurring, setIsRecurring] = useState(task?.is_recurring || false)
+  const [recurringDays, setRecurringDays] = useState<string[]>(task?.recurring_days || [])
   const [saving, setSaving] = useState(false)
+
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+  const toggleDay = (day: string) => {
+    setRecurringDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  }
 
   const handleSubmit = async () => {
     if (!title.trim() || saving) return
@@ -65,6 +73,8 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
       point_of_contact: pointOfContact.trim() || null,
       points,
       assignee_ids: assigneeIds,
+      is_recurring: isRecurring,
+      recurring_days: isRecurring ? recurringDays : [],
     })
     setSaving(false)
   }
@@ -276,7 +286,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
         </div>
 
         {/* Is Project toggle */}
-        <div style={{ marginBottom: '24px' }}>
+        <div style={{ marginBottom: '16px' }}>
           <label
             style={{
               display: 'flex',
@@ -297,6 +307,71 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
             This is a project (has sub-tasks)
           </label>
         </div>
+
+        {/* Recurring toggle */}
+        <div style={{ marginBottom: isRecurring ? '8px' : '24px' }}>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              color: isRecurring ? '#22d3ee' : '#94a3b8',
+              minHeight: '44px',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={isRecurring}
+              onChange={e => setIsRecurring(e.target.checked)}
+              style={{ accentColor: '#22d3ee', width: '20px', height: '20px' }}
+            />
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 8C2 4.7 4.7 2 8 2C10.2 2 12.1 3.3 13 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M14 8C14 11.3 11.3 14 8 14C5.8 14 3.9 12.7 3 10.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M13 2V5.2H9.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 14V10.8H6.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Recurring task
+            </span>
+          </label>
+        </div>
+
+        {/* Day-of-week selector */}
+        {isRecurring && (
+          <div style={{ marginBottom: '24px' }}>
+            <label style={labelStyle}>Repeat On</label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {DAYS.map(day => {
+                const active = recurringDays.includes(day)
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDay(day)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 0',
+                      borderRadius: '10px',
+                      border: `2px solid ${active ? '#22d3ee' : '#3f4451'}`,
+                      background: active ? 'rgba(34,211,238,0.15)' : 'transparent',
+                      color: active ? '#22d3ee' : '#6b7280',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      minHeight: '44px',
+                    }}
+                  >
+                    {day}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: '8px' }}>
