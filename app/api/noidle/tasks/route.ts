@@ -15,7 +15,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { title, description, category_id, location_id, urgency, time_estimate, is_project, parent_id, point_of_contact, assignee_ids, points } = body
+  const { title, description, category_id, location_id, urgency, time_estimate, is_project, parent_id, point_of_contact, assignee_ids, points, is_recurring, recurring_days } = body
 
   if (!title?.trim()) {
     return NextResponse.json({ error: 'Title is required' }, { status: 400 })
@@ -44,6 +44,8 @@ export async function POST(req: Request) {
       parent_id: parent_id || null,
       point_of_contact: point_of_contact || null,
       points: points || 0,
+      is_recurring: is_recurring || false,
+      recurring_days: recurring_days || [],
       sort_order: nextSort,
     })
     .select()

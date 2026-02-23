@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import type { BoardData, NihTask, NihTeamMember, NihPrize } from '../types'
 import HandsLogo from './HandsLogo'
-import QuickAdd from './QuickAdd'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
 import CompleteModal from './CompleteModal'
@@ -37,7 +36,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [showCompleted, setShowCompleted] = useState(false)
 
   const topLevelTasks = useMemo(
-    () => tasks.filter(t => !t.parent_id && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
+    () => tasks.filter(t => !t.parent_id && t.status !== 'completed' && !t.is_recurring).sort((a, b) => a.sort_order - b.sort_order),
+    [tasks]
+  )
+
+  const recurringTasks = useMemo(
+    () => tasks.filter(t => !t.parent_id && t.is_recurring && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
     [tasks]
   )
 
@@ -179,18 +183,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [dragId, subtasksMap, tasks, persistOrder]
   )
 
-  const handleQuickAdd = useCallback(
-    async (title: string) => {
-      const res = await fetch('/api/noidle/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      })
-      if (res.ok) await refreshTasks()
-    },
-    [refreshTasks]
-  )
-
   const handleCreateTask = useCallback(
     async (data: Record<string, unknown>) => {
       const res = await fetch('/api/noidle/tasks', {
@@ -224,9 +216,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const handleDeleteTask = useCallback(
     async (id: string) => {
       const res = await fetch(`/api/noidle/tasks/${id}`, { method: 'DELETE' })
-      if (res.ok) await refreshTasks()
+      if (res.ok) {
+        await refreshTasks()
+        await refreshTeamMembers()
+      }
     },
-    [refreshTasks]
+    [refreshTasks, refreshTeamMembers]
   )
 
   const handleCompleteTask = useCallback(
@@ -335,9 +330,9 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           title="Add new task"
         >
-          <HandsLogo size={36} />
+          <HandsLogo size={72} />
         </button>
-        <h1 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
+        <h1 style={{ fontSize: '40px', fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
           No Idle Hands
         </h1>
       </header>
@@ -351,16 +346,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         />
       </div>
 
-      {/* Quick Add */}
-      <div style={{ padding: '14px 16px' }}>
-        <QuickAdd onAdd={handleQuickAdd} />
-      </div>
-
       {/* Task list */}
       <div style={{ padding: '0 16px', maxWidth: '960px', margin: '0 auto' }}>
-        {topLevelTasks.length === 0 ? (
+        {topLevelTasks.length === 0 && recurringTasks.length === 0 ? (
           <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
-        ) : (
+        ) : topLevelTasks.length > 0 && (
           <>
             <div style={{
               fontSize: '12px',
@@ -386,6 +376,63 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
             </div>
 
             {topLevelTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                subtasks={subtasksMap[task.id] || []}
+                onEdit={t => setEditingTask(t)}
+                onComplete={t => setCompletingTask(t)}
+                onDelete={handleDeleteTask}
+                onStatusToggle={handleStatusToggle}
+                onSubtaskToggle={handleSubtaskToggle}
+                onAddSubtask={handleAddSubtask}
+                isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
+                onDragStart={() => handleTaskDragStart(task.id)}
+                onDragOver={() => handleTaskDragOver(task.id)}
+                onDrop={() => handleTaskDrop(task.id)}
+                onDragEnd={handleDragEnd}
+                subtaskDragOverId={dragOverId}
+                onSubtaskDragStart={handleSubtaskDragStart}
+                onSubtaskDragOver={handleSubtaskDragOver}
+                onSubtaskDrop={handleSubtaskDrop}
+              />
+            ))}
+          </>
+        )}
+
+        {/* Recurring section */}
+        {recurringTasks.length > 0 && (
+          <>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: '#22d3ee',
+              padding: '20px 4px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M2 8C2 4.7 4.7 2 8 2C10.2 2 12.1 3.3 13 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M14 8C14 11.3 11.3 14 8 14C5.8 14 3.9 12.7 3 10.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M13 2V5.2H9.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 14V10.8H6.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Recurring
+              <span style={{
+                background: 'rgba(34,211,238,0.1)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}>
+                {recurringTasks.length}
+              </span>
+            </div>
+
+            {recurringTasks.map(task => (
               <TaskCard
                 key={task.id}
                 task={task}
@@ -539,12 +586,38 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         padding: 0,
-                        minHeight: '56px',
+                        minHeight: '40px',
                         color: '#6b7280',
                       }}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this task? Any points awarded will be removed.')) {
+                          handleDeleteTask(task.id)
+                        }
+                      }}
+                      title="Delete"
+                      style={{
+                        flex: 1,
+                        width: '54px',
+                        border: 'none',
+                        borderTop: '1px solid rgba(255,255,255,0.04)',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        minHeight: '40px',
+                        color: '#6b7280',
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 4H13M5.5 4V3C5.5 2.45 5.95 2 6.5 2H9.5C10.05 2 10.5 2.45 10.5 3V4M6.5 7V12M9.5 7V12M4.5 4L5 13C5 13.55 5.45 14 6 14H10C10.55 14 11 13.55 11 13L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </button>
                   </div>
