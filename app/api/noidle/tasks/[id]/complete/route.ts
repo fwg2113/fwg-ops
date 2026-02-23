@@ -75,32 +75,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     pointsPerPerson = basePoints + (remainder > 0 ? 1 : 0)
   }
 
-  // If recurring, reset the task back to open for the next cycle
-  let finalTask = task
-  if (task.is_recurring) {
-    const { data: resetTask } = await supabase
-      .from('nih_tasks')
-      .update({
-        status: 'open',
-        completion_notes: null,
-        completion_photo_url: null,
-        completed_at: null,
-        completed_by: null,
-        completed_by_names: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single()
-    if (resetTask) finalTask = resetTask
-  }
+  // Log every completion to the permanent completion log
+  await supabase.from('nih_completion_log').insert({
+    task_id: id,
+    task_title: task.title,
+    photo_url: photo_url || null,
+    completion_notes: notes || null,
+    completed_by_names: completedByNames,
+    completed_by_ids: completed_by_ids || [],
+    points_awarded: task.points || 0,
+    completed_at: new Date().toISOString(),
+  })
 
   return NextResponse.json({
-    ...finalTask,
+    ...task,
     points_awarded: task.points > 0 && completed_by_ids?.length > 0,
     points_per_person: pointsPerPerson,
     points_names: namesList,
     points_total: task.points,
-    was_recurring: task.is_recurring,
   })
 }

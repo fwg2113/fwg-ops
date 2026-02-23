@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function HandsPage() {
-  const [tasksRes, categoriesRes, locationsRes, teamRes, prizesRes] = await Promise.all([
+  const [tasksRes, categoriesRes, locationsRes, teamRes, prizesRes, logRes] = await Promise.all([
     supabase
       .from('nih_tasks')
       .select('*, nih_categories(*), nih_locations(*), nih_task_assignees(nih_team_members(*))')
@@ -15,6 +15,7 @@ export default async function HandsPage() {
     supabase.from('nih_locations').select('*').order('sort_order'),
     supabase.from('nih_team_members').select('*').eq('is_active', true).order('name'),
     supabase.from('nih_prizes').select('*').order('position', { ascending: true }),
+    supabase.from('nih_completion_log').select('*').order('completed_at', { ascending: false }).limit(200),
   ])
 
   const boardData: BoardData = {
@@ -23,6 +24,7 @@ export default async function HandsPage() {
     locations: locationsRes.data || [],
     teamMembers: teamRes.data || [],
     prizes: prizesRes.data || [],
+    completionLog: logRes.data || [],
   }
 
   return <TaskBoard initialData={boardData} />
