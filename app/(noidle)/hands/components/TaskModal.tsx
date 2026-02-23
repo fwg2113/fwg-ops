@@ -45,7 +45,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
   const [isProject, setIsProject] = useState(task?.is_project || false)
   const [pointOfContact, setPointOfContact] = useState(task?.point_of_contact || '')
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
-    task?.nih_task_assignees?.map(a => a.team_member_id) || []
+    task?.nih_task_assignees?.map(a => a.team_member_id || a.nih_team_members?.id).filter(Boolean) as string[] || []
   )
   const [saving, setSaving] = useState(false)
 
@@ -156,6 +156,10 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
           <div>
             <label style={labelStyle}>Urgency</label>
             <select value={urgency} onChange={e => setUrgency(e.target.value as NihTask['urgency'])} style={inputStyle}>
+<<<<<<< HEAD
+=======
+              {Object.entries(URGENCY_LABELS).map(([k, v]) => (
+>>>>>>> claude/summarize-project-requirements-KGMmi
                 <option key={k} value={k}>
                   {v}
                 </option>
