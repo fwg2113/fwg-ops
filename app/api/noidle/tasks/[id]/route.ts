@@ -4,7 +4,7 @@ import { supabase } from '../../../../lib/supabase'
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { title, description, category_id, location_id, urgency, time_estimate, status, is_project, point_of_contact, assignee_ids, completed_at, completion_notes, completed_by, points } = body
+  const { title, description, category_id, location_id, urgency, time_estimate, status, is_project, point_of_contact, assignee_ids, completed_at, completion_notes, completed_by, points, is_recurring, recurring_days } = body
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (title !== undefined) updates.title = title
@@ -20,6 +20,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (completion_notes !== undefined) updates.completion_notes = completion_notes
   if (completed_by !== undefined) updates.completed_by = completed_by || null
   if (points !== undefined) updates.points = points
+  if (is_recurring !== undefined) updates.is_recurring = is_recurring
+  if (recurring_days !== undefined) updates.recurring_days = recurring_days
 
   const { data: task, error } = await supabase
     .from('nih_tasks')

@@ -53,6 +53,8 @@ export interface NihTask {
   completed_by: string | null
   completed_by_names: string | null
   points: number
+  is_recurring: boolean
+  recurring_days: string[]
   created_by: string | null
   created_at: string
   updated_at: string
