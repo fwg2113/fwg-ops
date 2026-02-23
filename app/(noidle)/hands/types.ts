@@ -43,6 +43,7 @@ export interface NihTask {
   completion_photo_url: string | null
   completed_at: string | null
   completed_by: string | null
+  completed_by_names: string | null
   created_by: string | null
   created_at: string
   updated_at: string
