@@ -36,7 +36,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [showCompleted, setShowCompleted] = useState(false)
 
   const topLevelTasks = useMemo(
-    () => tasks.filter(t => !t.parent_id && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
+    () => tasks.filter(t => !t.parent_id && t.status !== 'completed' && !t.is_recurring).sort((a, b) => a.sort_order - b.sort_order),
+    [tasks]
+  )
+
+  const recurringTasks = useMemo(
+    () => tasks.filter(t => !t.parent_id && t.is_recurring && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
     [tasks]
   )
 
@@ -343,9 +348,9 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
 
       {/* Task list */}
       <div style={{ padding: '0 16px', maxWidth: '960px', margin: '0 auto' }}>
-        {topLevelTasks.length === 0 ? (
+        {topLevelTasks.length === 0 && recurringTasks.length === 0 ? (
           <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
-        ) : (
+        ) : topLevelTasks.length > 0 && (
           <>
             <div style={{
               fontSize: '12px',
@@ -371,6 +376,63 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
             </div>
 
             {topLevelTasks.map(task => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                subtasks={subtasksMap[task.id] || []}
+                onEdit={t => setEditingTask(t)}
+                onComplete={t => setCompletingTask(t)}
+                onDelete={handleDeleteTask}
+                onStatusToggle={handleStatusToggle}
+                onSubtaskToggle={handleSubtaskToggle}
+                onAddSubtask={handleAddSubtask}
+                isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
+                onDragStart={() => handleTaskDragStart(task.id)}
+                onDragOver={() => handleTaskDragOver(task.id)}
+                onDrop={() => handleTaskDrop(task.id)}
+                onDragEnd={handleDragEnd}
+                subtaskDragOverId={dragOverId}
+                onSubtaskDragStart={handleSubtaskDragStart}
+                onSubtaskDragOver={handleSubtaskDragOver}
+                onSubtaskDrop={handleSubtaskDrop}
+              />
+            ))}
+          </>
+        )}
+
+        {/* Recurring section */}
+        {recurringTasks.length > 0 && (
+          <>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: '#22d3ee',
+              padding: '20px 4px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M2 8C2 4.7 4.7 2 8 2C10.2 2 12.1 3.3 13 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M14 8C14 11.3 11.3 14 8 14C5.8 14 3.9 12.7 3 10.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M13 2V5.2H9.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 14V10.8H6.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Recurring
+              <span style={{
+                background: 'rgba(34,211,238,0.1)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}>
+                {recurringTasks.length}
+              </span>
+            </div>
+
+            {recurringTasks.map(task => (
               <TaskCard
                 key={task.id}
                 task={task}
