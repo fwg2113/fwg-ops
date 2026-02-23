@@ -83,7 +83,6 @@ type Submission = {
   // Embroidery-specific fields
   embroidery_items?: Array<{ product: string; placements?: string[]; quantity?: string; description?: string }>
   garment_supply?: string
-  design_size?: string
   digitizing?: string
 }
 
@@ -407,13 +406,6 @@ const EMBROIDERY_GARMENT_SUPPLY_LABELS: Record<string, string> = {
   'customer_supplies': 'Customer providing garments',
   'fwg_sources': 'FWG sourcing garments',
   'not_sure': 'Not sure yet',
-}
-const EMBROIDERY_DESIGN_SIZE_LABELS: Record<string, string> = {
-  'small': 'Small (under 4")',
-  'medium': 'Medium (4–7")',
-  'large': 'Large (7–12")',
-  'oversized': 'Oversized (12"+)',
-  'not_sure': 'Not sure',
 }
 const EMBROIDERY_DIGITIZING_LABELS: Record<string, string> = {
   'have_file': 'Has embroidery-ready file',
@@ -1174,12 +1166,6 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                     <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.sourcing_notes}</span>
                   </div>
                 )}
-
-                {/* Design Size */}
-                <div style={rowStyle}>
-                  <span style={labelStyle}>Design Size</span>
-                  <span style={valueStyle}>{EMBROIDERY_DESIGN_SIZE_LABELS[submission.design_size || ''] || submission.design_size || '-'}</span>
-                </div>
 
                 {/* Digitizing */}
                 <div style={rowStyle}>
