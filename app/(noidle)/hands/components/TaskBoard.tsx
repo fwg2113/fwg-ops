@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import type { BoardData, NihTask, NihTeamMember, NihPrize } from '../types'
 import HandsLogo from './HandsLogo'
-import QuickAdd from './QuickAdd'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
 import CompleteModal from './CompleteModal'
@@ -179,18 +178,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [dragId, subtasksMap, tasks, persistOrder]
   )
 
-  const handleQuickAdd = useCallback(
-    async (title: string) => {
-      const res = await fetch('/api/noidle/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      })
-      if (res.ok) await refreshTasks()
-    },
-    [refreshTasks]
-  )
-
   const handleCreateTask = useCallback(
     async (data: Record<string, unknown>) => {
       const res = await fetch('/api/noidle/tasks', {
@@ -349,11 +336,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           prizes={prizes}
           onPrizesUpdate={setPrizes}
         />
-      </div>
-
-      {/* Quick Add */}
-      <div style={{ padding: '14px 16px' }}>
-        <QuickAdd onAdd={handleQuickAdd} />
       </div>
 
       {/* Task list */}
