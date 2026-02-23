@@ -22,6 +22,7 @@ type Submission = {
   form_type?: string
   services?: string[]
   ppf_package?: string
+  timeline?: string
 }
 
 type Document = {
@@ -53,6 +54,7 @@ type PipelineCard = {
   status: string
   bucket?: string
   formType?: string
+  timeline?: string
 }
 
 type Props = {
@@ -145,7 +147,8 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
         date: sub.created_at,
         viewed: false,
         status: sub.status,
-        formType: subFormType
+        formType: subFormType,
+        timeline: sub.timeline
       }
 
       if (matchesSearch(card)) {
@@ -325,6 +328,16 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
     return { label: 'COMMERCIAL', bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }
   }
 
+  // Urgency helpers for sticker_label cards
+  const getStickerUrgency = (card: PipelineCard) => {
+    if (card.formType !== 'sticker_label' || !card.timeline) return null
+    const tl = card.timeline
+    if (tl === 'same_day') return { border: '2px solid #ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.5), 0 0 16px rgba(239,68,68,0.25)', animation: 'urgency-pulse 2s ease-in-out infinite', badge: '🚨 SAME DAY', badgeBg: '#ef4444', badgeColor: '#fff' }
+    if (tl === 'urgent') return { border: '2px solid #ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.35)', animation: '', badge: '🔴 URGENT', badgeBg: '#ef4444', badgeColor: '#fff' }
+    if (tl === 'rush') return { border: '2px solid #f97316', boxShadow: '', animation: '', badge: '🔶 RUSH', badgeBg: '#f97316', badgeColor: '#fff' }
+    return null
+  }
+
   const renderCard = (card: PipelineCard) => {
     const badgeStyle = getBadgeStyle(card.type)
     const badgeLabel = card.type === 'submission'
@@ -333,26 +346,30 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
         ? `QUOTE ${card.docNumber}`
         : `INVOICE ${card.docNumber}`
     const formBadge = card.type === 'submission' ? getFormTypeBadge(card.formType) : null
+    const urgency = getStickerUrgency(card)
 
     return (
       <div
         key={`${card.type}-${card.id}`}
         onClick={() => handleCardClick(card)}
+        className={urgency?.animation ? 'urgency-pulse-card' : undefined}
         style={{
           background: '#1d1d1d',
-          border: '1px solid rgba(148, 163, 184, 0.1)',
+          border: urgency?.border || '1px solid rgba(148, 163, 184, 0.1)',
           borderRadius: '10px',
           padding: '14px',
           cursor: 'pointer',
           transition: 'all 0.15s ease',
-          marginBottom: '10px'
+          marginBottom: '10px',
+          boxShadow: urgency?.boxShadow || undefined
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = '#d71cd1'
+          e.currentTarget.style.borderColor = urgency ? e.currentTarget.style.borderColor : '#d71cd1'
           e.currentTarget.style.transform = 'translateY(-2px)'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.1)'
+          e.currentTarget.style.borderColor = urgency ? '' : 'rgba(148, 163, 184, 0.1)'
+          if (urgency?.border) e.currentTarget.style.border = urgency.border
           e.currentTarget.style.transform = 'translateY(0)'
         }}
       >
@@ -382,6 +399,18 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
                 color: formBadge.color
               }}>
                 {formBadge.label}
+              </span>
+            )}
+            {urgency && (
+              <span style={{
+                padding: '3px 8px',
+                borderRadius: '4px',
+                fontSize: '10px',
+                fontWeight: 700,
+                background: urgency.badgeBg,
+                color: urgency.badgeColor
+              }}>
+                {urgency.badge}
               </span>
             )}
           </div>
@@ -461,6 +490,16 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+      {/* Urgency pulse animation for same_day sticker cards */}
+      <style>{`
+        @keyframes urgency-pulse-glow {
+          0%, 100% { box-shadow: 0 0 8px rgba(239,68,68,0.5), 0 0 16px rgba(239,68,68,0.25); }
+          50% { box-shadow: 0 0 14px rgba(239,68,68,0.7), 0 0 28px rgba(239,68,68,0.4); }
+        }
+        .urgency-pulse-card {
+          animation: urgency-pulse-glow 2s ease-in-out infinite;
+        }
+      `}</style>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1 style={{ color: '#f1f5f9', fontSize: '24px', fontWeight: 600 }}>Lead Pipeline</h1>
