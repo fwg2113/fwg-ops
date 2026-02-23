@@ -303,6 +303,13 @@ const STICKER_FINISH_LABELS: Record<string, string> = {
   'matte': 'Matte',
   'unsure': 'Not Sure',
 }
+const STICKER_TIMELINE_LABELS: Record<string, string> = {
+  'standard': 'Standard (5–7 business days)',
+  'rush': 'Rush (2–3 business days)',
+  'urgent': 'Urgent (24–48 hours)',
+  'same_day': 'Same Day — URGENT',
+  'flexible': 'No Rush — Flexible',
+}
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
 
@@ -911,7 +918,7 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 )}
                 {/* Design Files */}
                 {submission.service_details?.design_file_urls && submission.service_details.design_file_urls.length > 0 && (
-                  <div style={lastRowStyle}>
+                  <div style={rowStyle}>
                     <span style={labelStyle}>Design Files</span>
                     <span style={valueStyle}>
                       {submission.service_details.design_file_urls.map((url: string, i: number) => (
@@ -922,6 +929,20 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                     </span>
                   </div>
                 )}
+                {/* Timeline */}
+                <div style={lastRowStyle}>
+                  <span style={labelStyle}>Timeline</span>
+                  <span style={valueStyle}>
+                    {(() => {
+                      const tl = submission.timeline || ''
+                      const label = STICKER_TIMELINE_LABELS[tl] || tl || '-'
+                      if (tl === 'same_day') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🚨 {label}</span>
+                      if (tl === 'urgent') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔴 {label}</span>
+                      if (tl === 'rush') return <span style={{ background: '#f97316', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔶 {label}</span>
+                      return label
+                    })()}
+                  </span>
+                </div>
               </>
             ) : submission.form_type === 'cafe_wrap' ? (
               <>
@@ -1091,7 +1112,14 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           <div style={lastRowStyle}>
             <span style={labelStyle}>Timeline</span>
             <span style={valueStyle}>
-              {TIMELINE_LABELS[submission.timeline || ''] || submission.timeline || '-'}
+              {submission.form_type === 'sticker_label' ? (() => {
+                const tl = submission.timeline || ''
+                const label = STICKER_TIMELINE_LABELS[tl] || tl || '-'
+                if (tl === 'same_day') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🚨 {label}</span>
+                if (tl === 'urgent') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔴 {label}</span>
+                if (tl === 'rush') return <span style={{ background: '#f97316', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔶 {label}</span>
+                return label
+              })() : (TIMELINE_LABELS[submission.timeline || ''] || submission.timeline || '-')}
             </span>
           </div>
         </div>
