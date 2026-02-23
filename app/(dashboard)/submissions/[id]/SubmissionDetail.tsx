@@ -80,6 +80,11 @@ type Submission = {
   finish?: string
   // Signage/promo-specific fields
   signage_types?: string[]
+  // Embroidery-specific fields
+  embroidery_items?: Array<{ product: string; placements?: string[]; quantity?: string; description?: string }>
+  garment_supply?: string
+  design_size?: string
+  digitizing?: string
 }
 
 // Icons as components
@@ -256,6 +261,7 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   'cafe_wrap': 'Café Equipment Wrap',
   'sticker_label': 'Stickers & Labels',
   'signage_promo': 'Signage & Promo',
+  'embroidery': 'Embroidery',
 }
 
 // ─── Café-specific labels ───
@@ -355,6 +361,66 @@ const SIGNAGE_TYPE_LABELS: Record<string, string> = {
   'frosted_etched': 'Frosted & etched glass vinyl',
 }
 const SIGNAGE_TIMELINE_LABELS: Record<string, string> = {
+  'same_day': '🚨 Same Day — URGENT',
+  'urgent': '🔴 Urgent (24–48 hrs)',
+  'rush': '🔶 Rush (2–3 days)',
+  'standard': 'Standard (5–7 days)',
+  '30_days': 'Within 30 days',
+  '30_60_days': '30–60 days',
+  '60_90_days': '60–90+ days',
+  'flexible': 'No Rush — Flexible',
+}
+
+// ─── Embroidery labels ───
+const EMBROIDERY_PRODUCT_LABELS: Record<string, string> = {
+  'polos': 'Polo Shirts',
+  'hats': 'Hats / Caps',
+  'hoodies': 'Hoodies / Sweaters',
+  'jackets': 'Jackets',
+  'bags': 'Bags / Totes',
+  'aprons': 'Aprons / Workwear',
+  'blankets': 'Blankets / Towels',
+  'other_product': 'Other',
+}
+const EMBROIDERY_PLACEMENT_LABELS: Record<string, string> = {
+  'left_chest': 'Left Chest',
+  'right_chest': 'Right Chest',
+  'center_chest': 'Center Chest',
+  'full_back': 'Full Back',
+  'upper_back': 'Upper Back',
+  'sleeve': 'Sleeve(s)',
+  'collar_nape': 'Collar / Nape',
+  'hood': 'Hood',
+  'hat_front': 'Hat Front',
+  'hat_side': 'Hat Side',
+  'hat_back': 'Hat Back',
+  'front': 'Front',
+  'back': 'Back',
+  'strap': 'Strap',
+  'pocket': 'Pocket',
+  'full_front': 'Full Front',
+  'corner': 'Corner',
+  'center': 'Center',
+  'other_custom': 'Other / Custom',
+}
+const EMBROIDERY_GARMENT_SUPPLY_LABELS: Record<string, string> = {
+  'customer_supplies': 'Customer providing garments',
+  'fwg_sources': 'FWG sourcing garments',
+  'not_sure': 'Not sure yet',
+}
+const EMBROIDERY_DESIGN_SIZE_LABELS: Record<string, string> = {
+  'small': 'Small (under 4")',
+  'medium': 'Medium (4–7")',
+  'large': 'Large (7–12")',
+  'oversized': 'Oversized (12"+)',
+  'not_sure': 'Not sure',
+}
+const EMBROIDERY_DIGITIZING_LABELS: Record<string, string> = {
+  'have_file': 'Has embroidery-ready file',
+  'needs_digitizing': 'Needs digitizing',
+  'not_sure': 'Not sure',
+}
+const EMBROIDERY_TIMELINE_LABELS: Record<string, string> = {
   'same_day': '🚨 Same Day — URGENT',
   'urgent': '🔴 Urgent (24–48 hrs)',
   'rush': '🔶 Rush (2–3 days)',
@@ -625,8 +691,8 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 fontSize: '10px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : submission.form_type === 'sticker_label' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : submission.form_type === 'sticker_label' ? '#a855f7' : '#3b82f6',
+                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : submission.form_type === 'sticker_label' ? 'rgba(168, 85, 247, 0.15)' : submission.form_type === 'embroidery' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : submission.form_type === 'sticker_label' ? '#a855f7' : submission.form_type === 'embroidery' ? '#ec4899' : '#3b82f6',
               }}>
                 {FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}
               </span>
@@ -751,11 +817,11 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
         {/* Vehicle & Project (or Equipment & Details for café) */}
         <div style={sectionStyle}>
           <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
-            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : submission.form_type === 'sticker_label' ? 'Sticker Details' : 'Vehicle & Project'}
+            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : submission.form_type === 'sticker_label' ? 'Sticker Details' : submission.form_type === 'embroidery' ? 'Embroidery Details' : 'Vehicle & Project'}
           </div>
 
-          {/* Café wraps and sticker/label skip vehicle display entirely */}
-          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
+          {/* Café wraps, sticker/label, and embroidery skip vehicle display entirely */}
+          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' || submission.form_type === 'embroidery' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
             <>
               <div style={rowStyle}>
                 <span style={labelStyle}>Vehicles</span>
@@ -1058,6 +1124,106 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                   </span>
                 </div>
               </>
+            ) : submission.form_type === 'embroidery' ? (
+              <>
+                {/* Embroidery items */}
+                {submission.embroidery_items && submission.embroidery_items.length > 0 ? (
+                  <>
+                    <div style={rowStyle}>
+                      <span style={labelStyle}>Products</span>
+                      <span style={valueStyle}>{submission.embroidery_items.length} product{submission.embroidery_items.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    {submission.embroidery_items.map((item: any, idx: number) => (
+                      <div key={idx} style={{
+                        background: '#1d1d1d',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        marginTop: '8px',
+                        fontSize: '13px'
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#f1f5f9', marginBottom: '4px' }}>
+                          {EMBROIDERY_PRODUCT_LABELS[item.product] || item.product?.replace(/_/g, ' ') || 'Unknown'}
+                        </div>
+                        {item.product === 'other_product' && item.description ? (
+                          <div style={{ color: '#94a3b8' }}>{item.description}</div>
+                        ) : item.placements && item.placements.length > 0 ? (
+                          <div style={{ color: '#94a3b8' }}>
+                            {item.placements.map((p: string) => EMBROIDERY_PLACEMENT_LABELS[p] || p.replace(/_/g, ' ')).join(', ')}
+                          </div>
+                        ) : null}
+                        {item.quantity && (
+                          <div style={{ color: '#64748b', fontSize: '12px', marginTop: '2px' }}>Qty: {item.quantity}</div>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div style={rowStyle}><span style={labelStyle}>Products</span><span style={valueStyle}>-</span></div>
+                )}
+
+                {/* Garment Supply */}
+                <div style={{ ...rowStyle, marginTop: '8px' }}>
+                  <span style={labelStyle}>Garment Supply</span>
+                  <span style={valueStyle}>{EMBROIDERY_GARMENT_SUPPLY_LABELS[submission.garment_supply || ''] || submission.garment_supply || '-'}</span>
+                </div>
+
+                {/* Sourcing Notes */}
+                {submission.service_details?.sourcing_notes && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Sourcing Notes</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.sourcing_notes}</span>
+                  </div>
+                )}
+
+                {/* Design Size */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Design Size</span>
+                  <span style={valueStyle}>{EMBROIDERY_DESIGN_SIZE_LABELS[submission.design_size || ''] || submission.design_size || '-'}</span>
+                </div>
+
+                {/* Digitizing */}
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Digitizing</span>
+                  <span style={valueStyle}>{EMBROIDERY_DIGITIZING_LABELS[submission.digitizing || ''] || submission.digitizing || '-'}</span>
+                </div>
+
+                {/* Design Files */}
+                {submission.service_details?.design_file_urls && submission.service_details.design_file_urls.length > 0 && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Design Files</span>
+                    <span style={valueStyle}>
+                      {submission.service_details.design_file_urls.map((url: string, i: number) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ ...linkStyle, marginLeft: i > 0 ? '8px' : 0 }}>
+                          File {i + 1}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
+                )}
+
+                {/* Project Notes */}
+                {submission.service_details?.notes && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Project Notes</span>
+                    <span style={{ ...valueStyle, maxWidth: '60%' }}>{submission.service_details.notes}</span>
+                  </div>
+                )}
+
+                {/* Timeline */}
+                <div style={lastRowStyle}>
+                  <span style={labelStyle}>Timeline</span>
+                  <span style={valueStyle}>
+                    {(() => {
+                      const tl = submission.timeline || ''
+                      const label = EMBROIDERY_TIMELINE_LABELS[tl] || tl || '-'
+                      if (tl === 'same_day') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🚨 {label}</span>
+                      if (tl === 'urgent') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔴 {label}</span>
+                      if (tl === 'rush') return <span style={{ background: '#f97316', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔶 {label}</span>
+                      return label
+                    })()}
+                  </span>
+                </div>
+              </>
             ) : submission.form_type === 'cafe_wrap' ? (
               <>
                 {/* Equipment list from service_details.equipment array */}
@@ -1226,9 +1392,9 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           <div style={lastRowStyle}>
             <span style={labelStyle}>Timeline</span>
             <span style={valueStyle}>
-              {submission.form_type === 'sticker_label' || submission.form_type === 'signage_promo' ? (() => {
+              {submission.form_type === 'sticker_label' || submission.form_type === 'signage_promo' || submission.form_type === 'embroidery' ? (() => {
                 const tl = submission.timeline || ''
-                const tlLabels = submission.form_type === 'signage_promo' ? SIGNAGE_TIMELINE_LABELS : STICKER_TIMELINE_LABELS
+                const tlLabels = submission.form_type === 'embroidery' ? EMBROIDERY_TIMELINE_LABELS : submission.form_type === 'signage_promo' ? SIGNAGE_TIMELINE_LABELS : STICKER_TIMELINE_LABELS
                 const label = tlLabels[tl] || tl || '-'
                 if (tl === 'same_day') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🚨 {label}</span>
                 if (tl === 'urgent') return <span style={{ background: '#ef4444', color: '#fff', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', fontSize: '13px' }}>🔴 {label}</span>
