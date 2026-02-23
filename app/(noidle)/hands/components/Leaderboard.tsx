@@ -47,7 +47,9 @@ export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate }: Lea
 
   return (
     <div style={{
-      margin: '0 16px 8px',
+      maxWidth: '960px',
+      margin: '0 auto 8px',
+      padding: '0',
       background: '#1a1a1c',
       borderRadius: '14px',
       border: '1px solid rgba(255,255,255,0.06)',
