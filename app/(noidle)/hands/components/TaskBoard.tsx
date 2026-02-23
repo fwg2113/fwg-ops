@@ -16,6 +16,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
   const [completingTask, setCompletingTask] = useState<NihTask | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null)
@@ -296,46 +297,66 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   )
 
   return (
-    <div>
+    <div style={{ paddingBottom: '60px' }}>
+      {/* Pulse animation for in-progress status dot */}
+      <style>{`@keyframes nih-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+
       {/* Header */}
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '0 auto' }}>
-          <button
-            onClick={() => setShowTaskModal(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            title="Add new task"
-          >
-            <HandsLogo size={44} />
-          </button>
-          <span style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em' }}>
-            No Idle Hands
-          </span>
-        </div>
+      <header style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '10px',
+        padding: '18px 16px 14px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <button
+          onClick={() => setShowTaskModal(true)}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+          title="Add new task"
+        >
+          <HandsLogo size={36} />
+        </button>
+        <h1 style={{ fontSize: '20px', fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
+          No Idle Hands
+        </h1>
       </header>
 
-      {/* Main content */}
-      <div style={{ padding: '16px', maxWidth: '960px', margin: '0 auto' }}>
+      {/* Quick Add */}
+      <div style={{ padding: '14px 16px' }}>
         <QuickAdd onAdd={handleQuickAdd} />
+      </div>
 
+      {/* Task list */}
+      <div style={{ padding: '0 16px', maxWidth: '960px', margin: '0 auto' }}>
         {topLevelTasks.length === 0 ? (
           <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+          <>
+            {/* Section label */}
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: '#6b7280',
+              padding: '16px 4px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              Open
+              <span style={{
+                background: 'rgba(255,255,255,0.06)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}>
+                {topLevelTasks.length}
+              </span>
+            </div>
+
             {topLevelTasks.map(task => (
               <TaskCard
                 key={task.id}
@@ -358,152 +379,155 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onSubtaskDrop={handleSubtaskDrop}
               />
             ))}
-          </div>
+          </>
         )}
 
-        {/* Completed tasks section */}
+        {/* Completed section */}
         {completedTasks.length > 0 && (
-          <div style={{ marginTop: '24px' }}>
+          <>
             <button
               onClick={() => setShowCompleted(!showCompleted)}
               style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: '#6b7280',
+                padding: '20px 4px 10px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                padding: '8px 0',
                 width: '100%',
+                fontFamily: 'inherit',
               }}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                style={{
-                  transform: showCompleted ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                }}
-              >
-                <path d="M4 6L8 10L12 6" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+                style={{ transform: showCompleted ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: '#6b7280' }}>
-                Completed ({completedTasks.length})
+              Completed
+              <span style={{
+                background: 'rgba(255,255,255,0.06)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}>
+                {completedTasks.length}
               </span>
             </button>
 
-            {showCompleted && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
-                {completedTasks.map(task => (
-                  <div
-                    key={task.id}
-                    style={{
-                      background: '#1d1d1d',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(255,255,255,0.04)',
-                      padding: '12px 14px',
-                      opacity: 0.7,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                      {/* Completed checkmark */}
-                      <div
-                        style={{
-                          width: '22px',
-                          height: '22px',
-                          minWidth: '22px',
-                          borderRadius: '999px',
-                          background: '#22c55e',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginTop: '1px',
-                        }}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                          <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
+            {showCompleted && completedTasks.map(task => (
+              <div
+                key={task.id}
+                style={{
+                  background: '#1a1a1c',
+                  borderRadius: '14px',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  marginBottom: '10px',
+                  overflow: 'hidden',
+                  opacity: 0.45,
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto' }}>
+                  {/* Content zone */}
+                  <div style={{ padding: '14px 4px 14px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <div style={{
+                      fontSize: '17px',
+                      fontWeight: 600,
+                      lineHeight: '1.35',
+                      color: '#6b7280',
+                      textDecoration: 'line-through',
+                    }}>
+                      {task.title}
+                    </div>
 
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span
-                          style={{
-                            fontSize: '14px',
-                            fontWeight: 500,
-                            color: '#6b7280',
-                            textDecoration: 'line-through',
-                          }}
-                        >
-                          {task.title}
+                    {/* Meta: category + completed by */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
+                      {task.nih_categories && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: task.nih_categories.color, whiteSpace: 'nowrap' }}>
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.8, flexShrink: 0 }}>
+                            <circle cx="8" cy="8" r="5" stroke="currentColor" strokeWidth="1.5" />
+                          </svg>
+                          {task.nih_categories.name}
                         </span>
+                      )}
+                      {task.completed_by_names && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 500, color: '#6b7280', whiteSpace: 'nowrap' }}>
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.5, flexShrink: 0 }}>
+                            <path d="M3 8L7 12L13 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          {task.completed_by_names}
+                        </span>
+                      )}
+                    </div>
 
-                        {/* Completion details */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px', fontSize: '11px', color: '#4b5563' }}>
-                          {task.completed_by_names && (
-                            <span>By: {task.completed_by_names}</span>
-                          )}
-                          {task.completed_at && (
-                            <span>{new Date(task.completed_at).toLocaleDateString()}</span>
-                          )}
-                        </div>
-
-                        {task.completion_notes && (
-                          <p style={{ fontSize: '12px', color: '#4b5563', margin: '4px 0 0', fontStyle: 'italic' }}>
-                            {task.completion_notes}
-                          </p>
-                        )}
-
+                    {/* Completion photo + notes inline */}
+                    {(task.completion_notes || task.completion_photo_url) && (
+                      <div style={{
+                        borderTop: '1px solid rgba(255,255,255,0.06)',
+                        marginTop: '10px',
+                        paddingTop: '10px',
+                        display: 'flex',
+                        gap: '10px',
+                        alignItems: 'flex-start',
+                      }}>
                         {task.completion_photo_url && (
                           <img
                             src={task.completion_photo_url}
                             alt="Completion photo"
+                            onClick={() => setLightboxUrl(task.completion_photo_url)}
                             style={{
-                              marginTop: '8px',
-                              borderRadius: '8px',
-                              width: '100%',
-                              maxHeight: '200px',
+                              width: '48px',
+                              height: '48px',
                               objectFit: 'cover',
-                              border: '1px solid rgba(255,255,255,0.06)',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(255,255,255,0.08)',
+                              flexShrink: 0,
+                              cursor: 'pointer',
                             }}
                           />
                         )}
+                        {task.completion_notes && (
+                          <span style={{ fontSize: '13px', color: '#6b7280', lineHeight: '1.4' }}>
+                            {task.completion_notes}
+                          </span>
+                        )}
                       </div>
-
-                      {/* Delete button */}
-                      <button
-                        onClick={() => {
-                          if (confirm('Remove this completed task?')) {
-                            handleDeleteTask(task.id)
-                          }
-                        }}
-                        title="Delete"
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          background: 'rgba(239,68,68,0.1)',
-                          color: '#ef4444',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: 0,
-                        }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                          <path d="M2 4H14M5 4V3C5 2.44772 5.44772 2 6 2H10C10.5523 2 11 2.44772 11 3V4M6 7V12M10 7V12M3 4L4 14H12L13 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                    </div>
+                    )}
                   </div>
-                ))}
+
+                  {/* Action strip — just edit for completed */}
+                  <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
+                    <button
+                      onClick={() => setEditingTask(task)}
+                      title="View"
+                      style={{
+                        flex: 1,
+                        width: '54px',
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        minHeight: '56px',
+                        color: '#6b7280',
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
+            ))}
+          </>
         )}
       </div>
 
@@ -533,6 +557,35 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           onComplete={(notes, photoUrl, completedByIds) => handleCompleteTask(completingTask.id, notes, photoUrl, completedByIds)}
           onClose={() => setCompletingTask(null)}
         />
+      )}
+
+      {/* Photo lightbox */}
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '20px',
+            cursor: 'pointer',
+          }}
+        >
+          <img
+            src={lightboxUrl}
+            alt="Completion photo"
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+            }}
+          />
+        </div>
       )}
     </div>
   )

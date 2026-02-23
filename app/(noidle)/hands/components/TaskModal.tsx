@@ -14,10 +14,10 @@ interface TaskModalProps {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: '12px',
+  fontSize: '13px',
   fontWeight: 500,
   color: '#94a3b8',
-  marginBottom: '4px',
+  marginBottom: '6px',
   display: 'block',
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
@@ -27,12 +27,13 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   background: '#282a30',
   border: '1px solid #3f4451',
-  borderRadius: '8px',
-  padding: '10px 12px',
-  fontSize: '14px',
+  borderRadius: '10px',
+  padding: '12px 14px',
+  fontSize: '16px',
   color: '#f1f5f9',
   outline: 'none',
   boxSizing: 'border-box',
+  minHeight: '48px',
 }
 
 export default function TaskModal({ task, categories, locations, teamMembers, onSave, onClose }: TaskModalProps) {
@@ -75,28 +76,35 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.6)',
+        background: 'rgba(0,0,0,0.7)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '24px',
       }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div
         style={{
           background: '#1d1d1d',
-          borderRadius: '16px',
+          borderRadius: '20px 20px 0 0',
           border: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: 'none',
           width: '100%',
           maxWidth: '520px',
-          maxHeight: '85vh',
+          maxHeight: '92vh',
           overflow: 'auto',
-          padding: '24px',
+          padding: '20px',
+          paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
-        <h2 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 20px', color: '#f1f5f9' }}>
+        {/* Pull indicator */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+          <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: '#3f4451' }} />
+        </div>
+
+        <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '0 0 20px', color: '#f1f5f9' }}>
           {task ? 'Edit Task' : 'New Task'}
         </h2>
 
@@ -121,7 +129,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
             onChange={e => setDescription(e.target.value)}
             placeholder="Details, notes, context..."
             rows={3}
-            style={{ ...inputStyle, resize: 'vertical' }}
+            style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
           />
         </div>
 
@@ -179,7 +187,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
         {/* Assignees */}
         <div style={{ marginBottom: '16px' }}>
           <label style={labelStyle}>Assign To</label>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {teamMembers.map(m => {
               const selected = assigneeIds.includes(m.id)
               return (
@@ -189,27 +197,28 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '5px 10px',
+                    gap: '8px',
+                    padding: '8px 14px',
                     borderRadius: '999px',
-                    border: `1.5px solid ${selected ? m.avatar_color : '#3f4451'}`,
+                    border: `2px solid ${selected ? m.avatar_color : '#3f4451'}`,
                     background: selected ? m.avatar_color + '22' : 'transparent',
                     color: selected ? m.avatar_color : '#94a3b8',
-                    fontSize: '12px',
+                    fontSize: '15px',
                     fontWeight: 500,
                     cursor: 'pointer',
+                    minHeight: '44px',
                   }}
                 >
                   <span
                     style={{
-                      width: '18px',
-                      height: '18px',
+                      width: '24px',
+                      height: '24px',
                       borderRadius: '999px',
                       background: m.avatar_color,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '9px',
+                      fontSize: '11px',
                       fontWeight: 700,
                       color: '#fff',
                     }}
@@ -241,34 +250,37 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '10px',
               cursor: 'pointer',
-              fontSize: '13px',
+              fontSize: '16px',
               color: '#94a3b8',
+              minHeight: '44px',
             }}
           >
             <input
               type="checkbox"
               checked={isProject}
               onChange={e => setIsProject(e.target.checked)}
-              style={{ accentColor: '#22d3ee' }}
+              style={{ accentColor: '#22d3ee', width: '20px', height: '20px' }}
             />
             This is a project (has sub-tasks)
           </label>
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={onClose}
             style={{
+              flex: 1,
               background: 'none',
               border: '1px solid #3f4451',
-              borderRadius: '8px',
-              padding: '8px 20px',
-              fontSize: '14px',
+              borderRadius: '12px',
+              padding: '14px',
+              fontSize: '16px',
               color: '#94a3b8',
               cursor: 'pointer',
+              minHeight: '48px',
             }}
           >
             Cancel
@@ -277,15 +289,17 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
             onClick={handleSubmit}
             disabled={!title.trim() || saving}
             style={{
+              flex: 2,
               background: title.trim() ? '#d71cd1' : '#3f4451',
               border: 'none',
-              borderRadius: '8px',
-              padding: '8px 20px',
-              fontSize: '14px',
+              borderRadius: '12px',
+              padding: '14px',
+              fontSize: '16px',
               fontWeight: 600,
               color: '#fff',
               cursor: title.trim() ? 'pointer' : 'default',
               opacity: saving ? 0.6 : 1,
+              minHeight: '48px',
             }}
           >
             {saving ? 'Saving...' : task ? 'Save Changes' : 'Create Task'}
