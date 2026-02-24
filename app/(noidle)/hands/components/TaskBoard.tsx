@@ -10,6 +10,7 @@ import EmptyState from './EmptyState'
 import Leaderboard from './Leaderboard'
 import PointsToast from './PointsToast'
 import PhotoGallery from './PhotoGallery'
+import PinModal from './PinModal'
 
 interface ToastData {
   points: number
@@ -29,6 +30,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastData | null>(null)
   const [showGallery, setShowGallery] = useState(false)
+  const [showPinModal, setShowPinModal] = useState(false)
 
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null)
@@ -372,7 +374,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}>
         <button
-          onClick={() => setShowTaskModal(true)}
+          onClick={() => setShowPinModal(true)}
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           title="Add new task"
         >
@@ -395,7 +397,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       {/* Task list */}
       <div style={{ padding: '0 16px', maxWidth: '960px', margin: '0 auto' }}>
         {topLevelTasks.length === 0 && recurringTasks.length === 0 ? (
-          <EmptyState onAddTask={() => setShowTaskModal(true)} hasFilters={false} />
+          <EmptyState onAddTask={() => setShowPinModal(true)} hasFilters={false} />
         ) : topLevelTasks.length > 0 && (
           <>
             <div style={{
@@ -830,6 +832,17 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           </>
         )}
       </div>
+
+      {/* PIN modal for adding tasks */}
+      {showPinModal && (
+        <PinModal
+          onSuccess={() => {
+            setShowPinModal(false)
+            setShowTaskModal(true)
+          }}
+          onClose={() => setShowPinModal(false)}
+        />
+      )}
 
       {/* Modals */}
       {(showTaskModal || editingTask) && (
