@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import type { BoardData, NihTask, NihTeamMember, NihPrize, NihTaskCompletion } from '../types'
+import type { BoardData, NihTask, NihTeamMember, NihPrize, NihCompletionLog } from '../types'
 import HandsLogo from './HandsLogo'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
@@ -21,7 +21,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const { categories, locations } = initialData
   const [teamMembers, setTeamMembers] = useState<NihTeamMember[]>(initialData.teamMembers)
   const [prizes, setPrizes] = useState<NihPrize[]>(initialData.prizes)
-  const [completions, setCompletions] = useState<NihTaskCompletion[]>(initialData.completions)
+  const [completionLog, setCompletionLog] = useState<NihCompletionLog[]>(initialData.completionLog)
 
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
@@ -88,11 +88,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     }
   }, [])
 
-  const refreshCompletions = useCallback(async () => {
-    const res = await fetch('/api/noidle/completions')
+  const refreshCompletionLog = useCallback(async () => {
+    const res = await fetch('/api/noidle/completion-log')
     if (res.ok) {
       const data = await res.json()
-      setCompletions(data)
+      setCompletionLog(data)
     }
   }, [])
 
@@ -278,11 +278,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
 
         await refreshTasks()
         await refreshTeamMembers()
-        await refreshCompletions()
+        await refreshCompletionLog()
         setCompletingTask(null)
       }
     },
-    [refreshTasks, refreshTeamMembers, refreshCompletions]
+    [refreshTasks, refreshTeamMembers, refreshCompletionLog]
   )
 
   const handleStatusToggle = useCallback(
@@ -350,9 +350,9 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
 
   const handleDeleteCompletion = useCallback(
     async (id: string) => {
-      const res = await fetch(`/api/noidle/completions/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/noidle/completion-log/${id}`, { method: 'DELETE' })
       if (res.ok) {
-        setCompletions(prev => prev.filter(c => c.id !== id))
+        setCompletionLog(prev => prev.filter(c => c.id !== id))
       }
     },
     []
@@ -504,7 +504,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         )}
 
         {/* Completed section — shows completion history records + legacy completed tasks */}
-        {(completions.length > 0 || completedTasks.length > 0) && (
+        {(completionLog.length > 0 || completedTasks.length > 0) && (
           <>
             <div style={{
               display: 'flex',
@@ -542,12 +542,12 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                   fontSize: '11px',
                   fontWeight: 600,
                 }}>
-                  {completions.length || completedTasks.length}
+                  {completionLog.length || completedTasks.length}
                 </span>
               </button>
 
               {/* Gallery button */}
-              {completions.some(c => c.completion_photo_url) && (
+              {completionLog.some(c => c.photo_url) && (
                 <button
                   onClick={() => setShowGallery(true)}
                   style={{
@@ -578,7 +578,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
             {showCompleted && (
               <>
                 {/* Completion history records */}
-                {completions.map(completion => (
+                {completionLog.map(completion => (
                   <div
                     key={`completion-${completion.id}`}
                     style={{
@@ -632,7 +632,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                         )}
                       </div>
 
-                      {(completion.completion_notes || completion.completion_photo_url) && (
+                      {(completion.completion_notes || completion.photo_url) && (
                         <div style={{
                           borderTop: '1px solid rgba(255,255,255,0.06)',
                           marginTop: '10px',
@@ -641,11 +641,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                           gap: '10px',
                           alignItems: 'flex-start',
                         }}>
-                          {completion.completion_photo_url && (
+                          {completion.photo_url && (
                             <img
-                              src={completion.completion_photo_url}
+                              src={completion.photo_url}
                               alt="Completion photo"
-                              onClick={() => setLightboxUrl(completion.completion_photo_url)}
+                              onClick={() => setLightboxUrl(completion.photo_url)}
                               style={{
                                 width: '48px',
                                 height: '48px',
@@ -871,7 +871,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       {/* Photo gallery */}
       {showGallery && (
         <PhotoGallery
-          completions={completions}
+          completionLog={completionLog}
           onDelete={handleDeleteCompletion}
           onClose={() => setShowGallery(false)}
         />

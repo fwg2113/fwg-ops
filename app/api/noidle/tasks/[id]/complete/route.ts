@@ -75,19 +75,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     pointsPerPerson = basePoints + (remainder > 0 ? 1 : 0)
   }
 
-  // Log this completion permanently in the completions history table
-  const completedAt = new Date().toISOString()
-  await supabase
-    .from('nih_task_completions')
-    .insert({
-      task_id: id,
-      task_title: task.title,
-      completion_notes: notes || null,
-      completion_photo_url: photo_url || null,
-      completed_at: completedAt,
-      completed_by_names: completedByNames,
-      points_awarded: task.points || 0,
-    })
+  // Log this completion permanently in the completion log
+  await supabase.from('nih_completion_log').insert({
+    task_id: id,
+    task_title: task.title,
+    photo_url: photo_url || null,
+    completion_notes: notes || null,
+    completed_by_names: completedByNames,
+    completed_by_ids: completed_by_ids || [],
+    points_awarded: task.points || 0,
+    completed_at: new Date().toISOString(),
+  })
 
   return NextResponse.json({
     ...task,

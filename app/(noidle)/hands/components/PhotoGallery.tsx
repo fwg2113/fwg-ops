@@ -1,19 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import type { NihTaskCompletion } from '../types'
+import type { NihCompletionLog } from '../types'
 
 interface PhotoGalleryProps {
-  completions: NihTaskCompletion[]
+  completionLog: NihCompletionLog[]
   onDelete: (id: string) => Promise<void>
   onClose: () => void
 }
 
-export default function PhotoGallery({ completions, onDelete, onClose }: PhotoGalleryProps) {
+export default function PhotoGallery({ completionLog, onDelete, onClose }: PhotoGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
-  const photosOnly = completions.filter(c => c.completion_photo_url)
+  const photosOnly = completionLog.filter(c => c.photo_url)
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this photo from the gallery? This cannot be undone.')) return
@@ -159,7 +159,7 @@ export default function PhotoGallery({ completions, onDelete, onClose }: PhotoGa
                 }}
               >
                 <img
-                  src={completion.completion_photo_url!}
+                  src={completion.photo_url!}
                   alt={completion.task_title}
                   onClick={() => setLightboxIndex(idx)}
                   style={{
