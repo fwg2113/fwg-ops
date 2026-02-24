@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import { BUILTIN_SOUNDS, playSound, playCustomSound, type SoundOption } from '../../lib/notificationSounds'
 
@@ -193,6 +193,7 @@ export default function SettingsView({
   calendarConnected,
   gmailConnected,
   initialCallSettings,
+  initialCallGreetingUrl,
   initialTemplates,
   initialTaskStatuses,
   initialTaskPriorities,
@@ -211,6 +212,7 @@ export default function SettingsView({
   calendarConnected: boolean
   gmailConnected: boolean
   initialCallSettings: CallSetting[]
+  initialCallGreetingUrl: string | null
   initialTemplates: ProductionTemplate[]
   initialTaskStatuses: TaskStatus[]
   initialTaskPriorities: TaskPriority[]
@@ -235,6 +237,17 @@ export default function SettingsView({
   const [newPhone, setNewPhone] = useState({ name: '', phone: '', sip_uri: '' })
   const [editingSipId, setEditingSipId] = useState<string | null>(null)
   const [editingSipValue, setEditingSipValue] = useState('')
+  // Call greeting recorder state
+  const [greetingUrl, setGreetingUrl] = useState<string | null>(initialCallGreetingUrl)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [greetingUploading, setGreetingUploading] = useState(false)
+  const [greetingPlaying, setGreetingPlaying] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<{ templateId: string; task: TemplateTask } | null>(null)
   const [addingTask, setAddingTask] = useState<string | null>(null)
@@ -699,6 +712,160 @@ export default function SettingsView({
       return `(${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`
     }
     return phone
+  }
+
+  // --- Call Greeting Functions ---
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm'
+      })
+      mediaRecorderRef.current = mediaRecorder
+      chunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        if (timerRef.current) clearInterval(timerRef.current)
+
+        const webmBlob = new Blob(chunksRef.current, { type: 'audio/webm' })
+
+        // Convert webm to wav for Twilio compatibility
+        try {
+          const wavBlob = await convertToWav(webmBlob)
+          await uploadGreeting(wavBlob, 'greeting.wav')
+        } catch (err) {
+          console.error('Conversion failed, uploading webm:', err)
+          await uploadGreeting(webmBlob, 'greeting.webm')
+        }
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+      setRecordingTime(0)
+      timerRef.current = setInterval(() => {
+        setRecordingTime(t => t + 1)
+      }, 1000)
+    } catch (err) {
+      alert('Microphone access denied. Please allow microphone access to record a greeting.')
+      console.error('Mic error:', err)
+    }
+  }, [])
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setIsRecording(false)
+    if (timerRef.current) clearInterval(timerRef.current)
+  }, [])
+
+  const convertToWav = async (blob: Blob): Promise<Blob> => {
+    const audioContext = new AudioContext()
+    const arrayBuffer = await blob.arrayBuffer()
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+
+    const numChannels = 1
+    const sampleRate = audioBuffer.sampleRate
+    const samples = audioBuffer.getChannelData(0)
+    const buffer = new ArrayBuffer(44 + samples.length * 2)
+    const view = new DataView(buffer)
+
+    // WAV header
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+    }
+    writeString(0, 'RIFF')
+    view.setUint32(4, 36 + samples.length * 2, true)
+    writeString(8, 'WAVE')
+    writeString(12, 'fmt ')
+    view.setUint32(16, 16, true)
+    view.setUint16(20, 1, true)
+    view.setUint16(22, numChannels, true)
+    view.setUint32(24, sampleRate, true)
+    view.setUint32(28, sampleRate * numChannels * 2, true)
+    view.setUint16(32, numChannels * 2, true)
+    view.setUint16(34, 16, true)
+    writeString(36, 'data')
+    view.setUint32(40, samples.length * 2, true)
+
+    // PCM samples
+    let offset = 44
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]))
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
+      offset += 2
+    }
+
+    audioContext.close()
+    return new Blob([buffer], { type: 'audio/wav' })
+  }
+
+  const uploadGreeting = async (blob: Blob, filename: string) => {
+    setGreetingUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', new File([blob], filename, { type: blob.type }))
+
+      const res = await fetch('/api/settings/call-greeting', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.url) {
+        setGreetingUrl(data.url)
+      } else {
+        alert('Upload failed: ' + (data.error || 'Unknown error'))
+      }
+    } catch (err) {
+      console.error('Upload error:', err)
+      alert('Upload failed')
+    }
+    setGreetingUploading(false)
+  }
+
+  const handleGreetingFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await uploadGreeting(file, file.name)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const deleteGreeting = async () => {
+    if (!confirm('Remove custom greeting? Calls will use the default robot voice.')) return
+    try {
+      await fetch('/api/settings/call-greeting', { method: 'DELETE' })
+      setGreetingUrl(null)
+      if (audioRef.current) {
+        audioRef.current.pause()
+        setGreetingPlaying(false)
+      }
+    } catch (err) {
+      console.error('Delete error:', err)
+    }
+  }
+
+  const toggleGreetingPlayback = () => {
+    if (!greetingUrl) return
+    if (!audioRef.current) {
+      audioRef.current = new Audio(greetingUrl)
+      audioRef.current.onended = () => setGreetingPlaying(false)
+    }
+    if (greetingPlaying) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setGreetingPlaying(false)
+    } else {
+      audioRef.current.src = greetingUrl
+      audioRef.current.play()
+      setGreetingPlaying(true)
+    }
   }
 
   const togglePhoneEnabled = async (id: string, enabled: boolean) => {
@@ -3129,6 +3296,240 @@ export default function SettingsView({
                 </Fragment>
               )) : (
                 <p style={{ color: '#64748b', padding: '20px', textAlign: 'center' }}>No team phones configured</p>
+              )}
+            </div>
+          </div>
+
+          {/* Call Greeting Recorder */}
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Call Greeting</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+                Record or upload a custom voice greeting callers hear when they call. Must say "press 1" to connect.
+              </p>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              {greetingUrl ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '14px 16px',
+                    background: '#282a30',
+                    borderRadius: '8px'
+                  }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: '#d71cd1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                        <line x1="8" y1="23" x2="16" y2="23"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 500, margin: '0 0 2px 0' }}>Custom Greeting Active</p>
+                      <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>Callers hear your recorded message</p>
+                    </div>
+                    <button
+                      onClick={toggleGreetingPlayback}
+                      style={{
+                        padding: '8px 14px',
+                        background: greetingPlaying ? '#ef4444' : 'rgba(215, 28, 209, 0.15)',
+                        border: greetingPlaying ? 'none' : '1px solid rgba(215, 28, 209, 0.3)',
+                        borderRadius: '6px',
+                        color: greetingPlaying ? 'white' : '#d71cd1',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      {greetingPlaying ? (
+                        <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Stop</>
+                      ) : (
+                        <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> Play</>
+                      )}
+                    </button>
+                    <button
+                      onClick={deleteGreeting}
+                      style={{
+                        padding: '8px 14px',
+                        background: 'transparent',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: '6px',
+                        color: '#ef4444',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <p style={{ color: '#64748b', fontSize: '12px', margin: 0, padding: '0 4px' }}>
+                    To re-record, remove the current greeting first, then record or upload a new one.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{
+                    padding: '20px',
+                    background: '#282a30',
+                    borderRadius: '8px',
+                    textAlign: 'center',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    {greetingUploading ? (
+                      <>
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '50%',
+                          border: '3px solid rgba(215, 28, 209, 0.2)',
+                          borderTopColor: '#d71cd1',
+                          animation: 'spin 1s linear infinite'
+                        }} />
+                        <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Uploading greeting...</p>
+                        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+                      </>
+                    ) : isRecording ? (
+                      <>
+                        <div style={{
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: '50%',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          animation: 'pulse-ring 1.5s ease-in-out infinite'
+                        }}>
+                          <div style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '4px',
+                            background: '#ef4444'
+                          }} />
+                        </div>
+                        <style>{`@keyframes pulse-ring { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3) } 50% { box-shadow: 0 0 0 12px rgba(239,68,68,0) } }`}</style>
+                        <p style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 500, margin: 0 }}>
+                          Recording... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+                        </p>
+                        <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+                          Say something like: "Thanks for calling Frederick Wraps. Press 1 to be connected."
+                        </p>
+                        <button
+                          onClick={stopRecording}
+                          style={{
+                            padding: '10px 24px',
+                            background: '#ef4444',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: 'white',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            marginTop: '4px'
+                          }}
+                        >
+                          Stop Recording
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '50%',
+                          background: 'rgba(215, 28, 209, 0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d71cd1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                          </svg>
+                        </div>
+                        <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                          No custom greeting set — using default robot voice
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                          <button
+                            onClick={startRecording}
+                            style={{
+                              padding: '10px 20px',
+                              background: '#d71cd1',
+                              border: 'none',
+                              borderRadius: '8px',
+                              color: 'white',
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            </svg>
+                            Record Greeting
+                          </button>
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{
+                              padding: '10px 20px',
+                              background: 'transparent',
+                              border: '1px solid rgba(148, 163, 184, 0.2)',
+                              borderRadius: '8px',
+                              color: '#94a3b8',
+                              fontSize: '14px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                              <polyline points="17,8 12,3 7,8"/>
+                              <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Upload File
+                          </button>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+                            onChange={handleGreetingFileUpload}
+                            style={{ display: 'none' }}
+                          />
+                        </div>
+                        <p style={{ color: '#475569', fontSize: '12px', margin: 0 }}>
+                          MP3, WAV, or OGG — max 5MB. Make sure to say "press 1" in your message.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
