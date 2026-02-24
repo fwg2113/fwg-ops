@@ -81,6 +81,21 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     }
   }, [])
 
+  const refreshCompletionLog = useCallback(async () => {
+    const res = await fetch('/api/noidle/completion-log')
+    if (res.ok) {
+      const data = await res.json()
+      setCompletionLog(data)
+    }
+  }, [])
+
+  const handleDeleteLogEntry = useCallback(async (logId: string) => {
+    const res = await fetch(`/api/noidle/completion-log/${logId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCompletionLog(prev => prev.filter(e => e.id !== logId))
+    }
+  }, [])
+
   const refreshTeamMembers = useCallback(async () => {
     const res = await fetch('/api/noidle/leaderboard')
     if (res.ok) {
@@ -89,14 +104,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         const updated = leaderboardData.find((l: NihTeamMember) => l.id === m.id)
         return updated ? { ...m, total_points: updated.total_points } : m
       }))
-    }
-  }, [])
-
-  const refreshCompletionLog = useCallback(async () => {
-    const res = await fetch('/api/noidle/completion-log')
-    if (res.ok) {
-      const data = await res.json()
-      setCompletionLog(data)
     }
   }, [])
 
@@ -907,6 +914,180 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 ))}
               </>
             )}
+          </>
+        )}
+      {/* Photo Gallery */}
+        {completionLog.some(e => e.photo_url) && (
+          <>
+            <button
+              onClick={() => setShowGallery(!showGallery)}
+              style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: '#d71cd1',
+                padding: '20px 4px 10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                width: '100%',
+                fontFamily: 'inherit',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+                style={{ transform: showGallery ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="6" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.5" />
+                <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M8 6L9 3H15L16 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Photo Gallery
+              <span style={{
+                background: 'rgba(215,28,209,0.1)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}>
+                {completionLog.filter(e => e.photo_url).length}
+              </span>
+            </button>
+
+            {showGallery && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '8px',
+                marginBottom: '16px',
+              }}>
+                {completionLog.filter(e => e.photo_url).map(entry => (
+                  <div key={entry.id} style={{ position: 'relative', aspectRatio: '1', borderRadius: '12px', overflow: 'hidden', background: '#1a1a1c', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <img
+                      src={entry.photo_url!}
+                      alt={entry.task_title}
+                      onClick={() => setLightboxUrl(entry.photo_url)}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+                      padding: '24px 8px 8px',
+                    }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#fff', lineHeight: '1.3' }}>{entry.task_title}</div>
+                      {entry.completed_by_names && (
+                        <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '2px' }}>{entry.completed_by_names}</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this photo from the gallery?')) {
+                          handleDeleteLogEntry(entry.id)
+                        }
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '6px',
+                        right: '6px',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '999px',
+                        background: 'rgba(0,0,0,0.6)',
+                        border: 'none',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        opacity: 0.6,
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Completion History */}
+        {completionLog.length > 0 && (
+          <>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: '#6b7280',
+              padding: '16px 4px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2L8 8.5L12 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              Activity Log
+              <span style={{
+                background: 'rgba(255,255,255,0.06)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}>
+                {completionLog.length}
+              </span>
+            </div>
+
+            {completionLog.slice(0, 20).map(entry => (
+              <div
+                key={entry.id}
+                style={{
+                  background: '#1a1a1c',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  marginBottom: '6px',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  opacity: 0.7,
+                }}
+              >
+                {entry.photo_url && (
+                  <img
+                    src={entry.photo_url}
+                    alt=""
+                    onClick={() => setLightboxUrl(entry.photo_url)}
+                    style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#9ca3af', textDecoration: 'line-through' }}>{entry.task_title}</div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                    {entry.completed_by_names && <span>{entry.completed_by_names} · </span>}
+                    {new Date(entry.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {entry.points_awarded > 0 && <span style={{ color: '#d71cd1', fontWeight: 600 }}> · +{entry.points_awarded}pts</span>}
+                  </div>
+                  {entry.completion_notes && (
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{entry.completion_notes}</div>
+                  )}
+                </div>
+              </div>
+            ))}
           </>
         )}
       </div>
