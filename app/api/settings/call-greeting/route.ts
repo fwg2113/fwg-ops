@@ -11,39 +11,49 @@ const S3 = new S3Client({
   },
 })
 
-// GET - get current active greeting URL
-export async function GET() {
+// GET - get current active greeting URL (optionally filtered by greeting_type)
+export async function GET(request: Request) {
   try {
-    // First check greeting_recordings table for active recording
+    const { searchParams } = new URL(request.url)
+    const greetingType = searchParams.get('type') || 'main'
+
+    // Check greeting_recordings table for active recording of this type
     const { data: activeRecording } = await supabase
       .from('greeting_recordings')
       .select('url')
       .eq('is_active', true)
+      .eq('greeting_type', greetingType)
       .maybeSingle()
 
     if (activeRecording?.url) {
       return NextResponse.json({ url: activeRecording.url })
     }
 
-    // Fall back to legacy settings key
-    const { data } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'call_greeting_url')
-      .maybeSingle()
+    // Fall back to legacy settings key (only for main greeting)
+    if (greetingType === 'main') {
+      const { data } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'call_greeting_url')
+        .maybeSingle()
 
-    return NextResponse.json({ url: data?.value || null })
+      return NextResponse.json({ url: data?.value || null })
+    }
+
+    return NextResponse.json({ url: null })
   } catch {
     return NextResponse.json({ url: null })
   }
 }
 
 // POST - upload a new greeting audio and save to recording library
+// Accepts optional 'greeting_type' form field: 'main' (default) or a category key
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const name = formData.get('name') as string || 'Recorded Greeting'
+    const greetingType = formData.get('greeting_type') as string || 'main'
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -77,11 +87,12 @@ export async function POST(request: Request) {
 
     const publicUrl = `${process.env.R2_PUBLIC_URL}/${key}`
 
-    // Deactivate all existing recordings
+    // Deactivate existing recordings of the same type
     await supabase
       .from('greeting_recordings')
       .update({ is_active: false })
       .eq('is_active', true)
+      .eq('greeting_type', greetingType)
 
     // Save to greeting_recordings library and set as active
     const { data: recording, error: recError } = await supabase
@@ -91,6 +102,7 @@ export async function POST(request: Request) {
         url: publicUrl,
         r2_key: key,
         is_active: true,
+        greeting_type: greetingType,
       })
       .select()
       .single()
@@ -106,14 +118,18 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - deactivate (no active greeting, revert to TTS)
-export async function DELETE() {
+// DELETE - deactivate greeting of a given type (revert to TTS)
+export async function DELETE(request: Request) {
   try {
-    // Deactivate all recordings (don't delete them - they stay in the library)
+    const { searchParams } = new URL(request.url)
+    const greetingType = searchParams.get('type') || 'main'
+
+    // Deactivate recordings of this type (don't delete them - they stay in the library)
     await supabase
       .from('greeting_recordings')
       .update({ is_active: false })
       .eq('is_active', true)
+      .eq('greeting_type', greetingType)
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
