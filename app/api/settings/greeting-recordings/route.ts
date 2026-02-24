@@ -99,11 +99,19 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Missing recording id' }, { status: 400 })
     }
 
-    // If setting active, deactivate all others first
+    // If setting active, first get the recording to know its greeting_type
     if (is_active) {
+      const { data: rec } = await supabase
+        .from('greeting_recordings')
+        .select('greeting_type')
+        .eq('id', id)
+        .single()
+
+      // Deactivate other recordings of the same type
       await supabase
         .from('greeting_recordings')
         .update({ is_active: false })
+        .eq('greeting_type', rec?.greeting_type || 'main')
         .neq('id', id)
     }
 

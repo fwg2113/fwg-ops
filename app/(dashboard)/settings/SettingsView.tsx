@@ -161,8 +161,16 @@ type GreetingRecording = {
   url: string
   r2_key: string
   is_active: boolean
+  greeting_type: string
   created_at: string
 }
+
+const IVR_CATEGORIES = [
+  { key: 'vehicle-wraps-ppf', digit: '1', label: 'Vehicle Wraps & PPF', defaultMessage: 'Great, one of our vehicle wrap specialists will be right with you.' },
+  { key: 'stickers-signage', digit: '2', label: 'Stickers & Signage', defaultMessage: 'Great, one of our signage specialists will be right with you.' },
+  { key: 'apparel', digit: '3', label: 'Embroidery & Custom Apparel', defaultMessage: 'Great, one of our apparel specialists will be right with you.' },
+  { key: 'general', digit: '0', label: 'General Inquiry', defaultMessage: 'One moment please while we connect you.' },
+] as const
 
 type NotificationSettings = {
   sound_enabled: boolean
@@ -264,6 +272,25 @@ export default function SettingsView({
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const categoryFileInputRef = useRef<HTMLInputElement | null>(null)
+  // Per-category greeting state
+  const [categoryGreetings, setCategoryGreetings] = useState<Record<string, GreetingRecording | null>>(() => {
+    const map: Record<string, GreetingRecording | null> = {}
+    for (const cat of IVR_CATEGORIES) {
+      const rec = initialGreetingRecordings.find(r => r.greeting_type === cat.key && r.is_active) || null
+      map[cat.key] = rec
+    }
+    return map
+  })
+  const [categoryRecordingTarget, setCategoryRecordingTarget] = useState<string | null>(null)
+  const [isCategoryRecording, setIsCategoryRecording] = useState(false)
+  const [categoryRecordingTime, setCategoryRecordingTime] = useState(0)
+  const [categoryUploading, setCategoryUploading] = useState<string | null>(null)
+  const [categoryPlayingKey, setCategoryPlayingKey] = useState<string | null>(null)
+  const categoryMediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const categoryChunksRef = useRef<Blob[]>([])
+  const categoryTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const categoryAudioRef = useRef<HTMLAudioElement | null>(null)
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<{ templateId: string; task: TemplateTask } | null>(null)
   const [addingTask, setAddingTask] = useState<string | null>(null)
@@ -956,6 +983,127 @@ export default function SettingsView({
       audioRef.current.play()
       setGreetingPlaying(true)
       setPlayingRecordingId(null)
+    }
+  }
+
+  // --- Per-Category Greeting Functions ---
+  const startCategoryRecording = useCallback(async (categoryKey: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm'
+      })
+      categoryMediaRecorderRef.current = mediaRecorder
+      categoryChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) categoryChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        if (categoryTimerRef.current) clearInterval(categoryTimerRef.current)
+
+        const webmBlob = new Blob(categoryChunksRef.current, { type: 'audio/webm' })
+
+        try {
+          const wavBlob = await convertToWav(webmBlob)
+          await uploadCategoryGreeting(categoryKey, wavBlob, 'greeting.wav')
+        } catch (err) {
+          console.error('Conversion failed, uploading webm:', err)
+          await uploadCategoryGreeting(categoryKey, webmBlob, 'greeting.webm')
+        }
+      }
+
+      mediaRecorder.start()
+      setCategoryRecordingTarget(categoryKey)
+      setIsCategoryRecording(true)
+      setCategoryRecordingTime(0)
+      categoryTimerRef.current = setInterval(() => {
+        setCategoryRecordingTime(t => t + 1)
+      }, 1000)
+    } catch (err) {
+      alert('Microphone access denied. Please allow microphone access to record a greeting.')
+      console.error('Mic error:', err)
+    }
+  }, [])
+
+  const stopCategoryRecording = useCallback(() => {
+    if (categoryMediaRecorderRef.current && categoryMediaRecorderRef.current.state !== 'inactive') {
+      categoryMediaRecorderRef.current.stop()
+    }
+    setIsCategoryRecording(false)
+    if (categoryTimerRef.current) clearInterval(categoryTimerRef.current)
+  }, [])
+
+  const uploadCategoryGreeting = async (categoryKey: string, blob: Blob, filename: string) => {
+    setCategoryUploading(categoryKey)
+    try {
+      const catInfo = IVR_CATEGORIES.find(c => c.key === categoryKey)
+      const formData = new FormData()
+      formData.append('file', new File([blob], filename, { type: blob.type }))
+      formData.append('name', `${catInfo?.label || categoryKey} Greeting`)
+      formData.append('greeting_type', categoryKey)
+
+      const res = await fetch('/api/settings/call-greeting', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.url && data.recording) {
+        setCategoryGreetings(prev => ({ ...prev, [categoryKey]: data.recording }))
+        // Also add to main recordings list
+        setGreetingRecordings(prev => [data.recording, ...prev])
+      } else {
+        alert('Upload failed: ' + (data.error || 'Unknown error'))
+      }
+    } catch (err) {
+      console.error('Category greeting upload error:', err)
+      alert('Upload failed')
+    }
+    setCategoryUploading(null)
+    setCategoryRecordingTarget(null)
+  }
+
+  const handleCategoryFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, categoryKey: string) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await uploadCategoryGreeting(categoryKey, file, file.name)
+    if (categoryFileInputRef.current) categoryFileInputRef.current.value = ''
+  }
+
+  const deactivateCategoryGreeting = async (categoryKey: string) => {
+    const catInfo = IVR_CATEGORIES.find(c => c.key === categoryKey)
+    if (!confirm(`Deactivate ${catInfo?.label} greeting? Callers will hear the default voice.`)) return
+    try {
+      await fetch(`/api/settings/call-greeting?type=${categoryKey}`, { method: 'DELETE' })
+      setCategoryGreetings(prev => ({ ...prev, [categoryKey]: null }))
+      // Update recordings list
+      setGreetingRecordings(prev => prev.map(r => r.greeting_type === categoryKey ? { ...r, is_active: false } : r))
+      if (categoryPlayingKey === categoryKey && categoryAudioRef.current) {
+        categoryAudioRef.current.pause()
+        setCategoryPlayingKey(null)
+      }
+    } catch (err) {
+      console.error('Deactivate category greeting error:', err)
+    }
+  }
+
+  const toggleCategoryPlayback = (categoryKey: string, url: string) => {
+    if (!categoryAudioRef.current) {
+      categoryAudioRef.current = new Audio(url)
+      categoryAudioRef.current.onended = () => setCategoryPlayingKey(null)
+    }
+    if (categoryPlayingKey === categoryKey) {
+      categoryAudioRef.current.pause()
+      categoryAudioRef.current.currentTime = 0
+      setCategoryPlayingKey(null)
+    } else {
+      categoryAudioRef.current.src = url
+      categoryAudioRef.current.play()
+      setCategoryPlayingKey(categoryKey)
     }
   }
 
@@ -3725,6 +3873,211 @@ export default function SettingsView({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Per-Category Response Greetings */}
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', margin: '0 0 4px 0' }}>Menu Option Greetings</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
+                Customize the message callers hear after selecting a menu option. By default a robot voice is used — record your own for a personal touch.
+              </p>
+            </div>
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {IVR_CATEGORIES.map((cat) => {
+                const activeRec = categoryGreetings[cat.key]
+                const isRecordingThis = isCategoryRecording && categoryRecordingTarget === cat.key
+                const isUploadingThis = categoryUploading === cat.key
+                const isPlayingThis = categoryPlayingKey === cat.key
+
+                return (
+                  <div
+                    key={cat.key}
+                    style={{
+                      padding: '14px 16px',
+                      background: '#282a30',
+                      borderRadius: '8px',
+                      border: activeRec ? '1px solid rgba(215, 28, 209, 0.2)' : '1px solid transparent'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: activeRec || isRecordingThis || isUploadingThis ? '10px' : '0' }}>
+                      <span style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '6px',
+                        background: 'rgba(215, 28, 209, 0.12)',
+                        color: '#d71cd1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        flexShrink: 0
+                      }}>
+                        {cat.digit}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 500, margin: 0 }}>{cat.label}</p>
+                        <p style={{ color: '#475569', fontSize: '11px', margin: '2px 0 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {activeRec ? 'Custom recording active' : `Default: "${cat.defaultMessage}"`}
+                        </p>
+                      </div>
+                      {/* Action buttons */}
+                      {!isRecordingThis && !isUploadingThis && (
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          {activeRec && (
+                            <>
+                              <button
+                                onClick={() => toggleCategoryPlayback(cat.key, activeRec.url)}
+                                style={{
+                                  padding: '5px 10px',
+                                  background: isPlayingThis ? '#ef4444' : 'rgba(148, 163, 184, 0.1)',
+                                  border: 'none',
+                                  borderRadius: '5px',
+                                  color: isPlayingThis ? 'white' : '#94a3b8',
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                {isPlayingThis ? (
+                                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Stop</>
+                                ) : (
+                                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> Play</>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => deactivateCategoryGreeting(cat.key)}
+                                style={{
+                                  padding: '5px 8px',
+                                  background: 'transparent',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  borderRadius: '5px',
+                                  color: '#ef4444',
+                                  fontSize: '11px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => startCategoryRecording(cat.key)}
+                            style={{
+                              padding: '5px 10px',
+                              background: 'rgba(215, 28, 209, 0.12)',
+                              border: '1px solid rgba(215, 28, 209, 0.25)',
+                              borderRadius: '5px',
+                              color: '#d71cd1',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontWeight: 500
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            </svg>
+                            Record
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCategoryRecordingTarget(cat.key)
+                              categoryFileInputRef.current?.click()
+                            }}
+                            style={{
+                              padding: '5px 10px',
+                              background: 'transparent',
+                              border: '1px solid rgba(148, 163, 184, 0.2)',
+                              borderRadius: '5px',
+                              color: '#94a3b8',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                              <polyline points="17,8 12,3 7,8"/>
+                              <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Upload
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recording in progress */}
+                    {isRecordingThis && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                        <div style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: '#ef4444',
+                          animation: 'pulse-ring 1.5s ease-in-out infinite',
+                          flexShrink: 0
+                        }} />
+                        <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>
+                          Recording... {Math.floor(categoryRecordingTime / 60)}:{(categoryRecordingTime % 60).toString().padStart(2, '0')}
+                        </span>
+                        <button
+                          onClick={stopCategoryRecording}
+                          style={{
+                            marginLeft: 'auto',
+                            padding: '5px 12px',
+                            background: '#ef4444',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: 'white',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Stop
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Uploading */}
+                    {isUploadingThis && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                        <div style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          border: '2px solid rgba(215, 28, 209, 0.2)',
+                          borderTopColor: '#d71cd1',
+                          animation: 'spin 1s linear infinite',
+                          flexShrink: 0
+                        }} />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>Uploading...</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <input
+                ref={categoryFileInputRef}
+                type="file"
+                accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+                onChange={(e) => {
+                  if (categoryRecordingTarget) {
+                    handleCategoryFileUpload(e, categoryRecordingTarget)
+                  }
+                }}
+                style={{ display: 'none' }}
+              />
             </div>
           </div>
 
