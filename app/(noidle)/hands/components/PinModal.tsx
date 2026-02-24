@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 const CORRECT_PIN = '8888'
 
@@ -14,28 +14,27 @@ export default function PinModal({ onSuccess, onClose }: PinModalProps) {
   const [error, setError] = useState(false)
   const [shaking, setShaking] = useState(false)
 
+  // Check PIN after state update, not during
+  useEffect(() => {
+    if (pin.length === 4) {
+      if (pin === CORRECT_PIN) {
+        onSuccess()
+      } else {
+        setError(true)
+        setShaking(true)
+        setTimeout(() => {
+          setShaking(false)
+          setPin('')
+          setError(false)
+        }, 600)
+      }
+    }
+  }, [pin, onSuccess])
+
   const handleDigit = useCallback((digit: string) => {
     setError(false)
-    setPin(prev => {
-      const next = prev + digit
-      if (next.length === 4) {
-        if (next === CORRECT_PIN) {
-          onSuccess()
-          return next
-        } else {
-          setError(true)
-          setShaking(true)
-          setTimeout(() => {
-            setShaking(false)
-            setPin('')
-            setError(false)
-          }, 600)
-          return next
-        }
-      }
-      return next
-    })
-  }, [onSuccess])
+    setPin(prev => prev.length < 4 ? prev + digit : prev)
+  }, [])
 
   const handleDelete = useCallback(() => {
     setError(false)
