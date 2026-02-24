@@ -27,6 +27,8 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
   const [completingTask, setCompletingTask] = useState<NihTask | null>(null)
+  const [completingSubtask, setCompletingSubtask] = useState<NihTask | null>(null)
+  const [completingParentAutoComplete, setCompletingParentAutoComplete] = useState<NihTask | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastData | null>(null)
   const [showGallery, setShowGallery] = useState(false)
@@ -302,52 +304,99 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   )
 
   const handleAddSubtask = useCallback(
-    async (parentId: string, title: string) => {
+    async (parentId: string, title: string, points: number) => {
       const res = await fetch('/api/noidle/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, parent_id: parentId }),
+        body: JSON.stringify({ title, parent_id: parentId, points }),
       })
       if (res.ok) await refreshTasks()
     },
     [refreshTasks]
   )
 
+  // Toggle a completed subtask back to open (uncomplete)
   const handleSubtaskToggle = useCallback(
     async (subtask: NihTask) => {
-      const newStatus = subtask.status === 'completed' ? 'open' : 'completed'
-      const updates: Record<string, unknown> = { status: newStatus }
-      if (newStatus === 'completed') {
-        updates.completed_at = new Date().toISOString()
-      } else {
-        updates.completed_at = null
-        updates.completion_notes = null
-      }
       const res = await fetch(`/api/noidle/tasks/${subtask.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({ status: 'open', completed_at: null, completion_notes: null }),
+      })
+      if (res.ok) await refreshTasks()
+    },
+    [refreshTasks]
+  )
+
+  // Open CompleteModal for a subtask (when checking it off)
+  const handleSubtaskCompleteStart = useCallback(
+    (subtask: NihTask) => {
+      setCompletingSubtask(subtask)
+    },
+    []
+  )
+
+  // Actually complete a subtask via the complete API (points, photo, team members)
+  const handleSubtaskComplete = useCallback(
+    async (subtaskId: string, notes: string, photoUrl: string | null, completedByIds: string[]) => {
+      const res = await fetch(`/api/noidle/tasks/${subtaskId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes, photo_url: photoUrl, completed_by_ids: completedByIds }),
       })
       if (res.ok) {
-        const freshRes = await fetch('/api/noidle/tasks')
-        if (freshRes.ok) {
-          const freshTasks: NihTask[] = await freshRes.json()
-          setTasks(freshTasks)
+        const result = await res.json()
 
-          if (newStatus === 'completed' && subtask.parent_id) {
+        if (result.points_awarded && result.points_total > 0) {
+          setToast({
+            points: result.points_total,
+            names: result.points_names || [],
+          })
+        }
+
+        const subtask = completingSubtask
+        setCompletingSubtask(null)
+
+        await refreshTasks()
+        await refreshTeamMembers()
+        await refreshCompletionLog()
+
+        // Check if all sibling subtasks are now done → auto-complete parent
+        if (subtask?.parent_id) {
+          const freshRes = await fetch('/api/noidle/tasks')
+          if (freshRes.ok) {
+            const freshTasks: NihTask[] = await freshRes.json()
+            setTasks(freshTasks)
             const siblings = freshTasks.filter(t => t.parent_id === subtask.parent_id)
             const allDone = siblings.length > 0 && siblings.every(s => s.status === 'completed')
             if (allDone) {
               const parent = freshTasks.find(t => t.id === subtask.parent_id)
               if (parent && parent.status !== 'completed') {
-                setCompletingTask(parent)
+                setCompletingParentAutoComplete(parent)
               }
             }
           }
         }
       }
     },
-    []
+    [completingSubtask, refreshTasks, refreshTeamMembers, refreshCompletionLog]
+  )
+
+  // Auto-complete a parent task (photo only, no points — points were on subtasks)
+  const handleParentAutoComplete = useCallback(
+    async (parentId: string, notes: string, photoUrl: string | null) => {
+      const res = await fetch(`/api/noidle/tasks/${parentId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes, photo_url: photoUrl, completed_by_ids: [] }),
+      })
+      if (res.ok) {
+        await refreshTasks()
+        await refreshCompletionLog()
+        setCompletingParentAutoComplete(null)
+      }
+    },
+    [refreshTasks, refreshCompletionLog]
   )
 
   const handleDeleteCompletion = useCallback(
@@ -433,6 +482,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onDelete={handleDeleteTask}
                 onStatusToggle={handleStatusToggle}
                 onSubtaskToggle={handleSubtaskToggle}
+                onSubtaskComplete={handleSubtaskCompleteStart}
                 onAddSubtask={handleAddSubtask}
                 isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
                 onDragStart={() => handleTaskDragStart(task.id)}
@@ -490,6 +540,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onDelete={handleDeleteTask}
                 onStatusToggle={handleStatusToggle}
                 onSubtaskToggle={handleSubtaskToggle}
+                onSubtaskComplete={handleSubtaskCompleteStart}
                 onAddSubtask={handleAddSubtask}
                 isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
                 onDragStart={() => handleTaskDragStart(task.id)}
@@ -869,6 +920,27 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           teamMembers={teamMembers}
           onComplete={(notes, photoUrl, completedByIds) => handleCompleteTask(completingTask.id, notes, photoUrl, completedByIds)}
           onClose={() => setCompletingTask(null)}
+        />
+      )}
+
+      {/* Subtask completion modal */}
+      {completingSubtask && (
+        <CompleteModal
+          task={completingSubtask}
+          teamMembers={teamMembers}
+          onComplete={(notes, photoUrl, completedByIds) => handleSubtaskComplete(completingSubtask.id, notes, photoUrl, completedByIds)}
+          onClose={() => setCompletingSubtask(null)}
+        />
+      )}
+
+      {/* Parent auto-complete modal (photo only, no points) */}
+      {completingParentAutoComplete && (
+        <CompleteModal
+          task={completingParentAutoComplete}
+          teamMembers={teamMembers}
+          skipPoints
+          onComplete={(notes, photoUrl) => handleParentAutoComplete(completingParentAutoComplete.id, notes, photoUrl)}
+          onClose={() => setCompletingParentAutoComplete(null)}
         />
       )}
 

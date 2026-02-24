@@ -196,34 +196,43 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
           </div>
         </div>
 
-        {/* Points */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={labelStyle}>Points (0–25)</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <input
-              type="range"
-              min={0}
-              max={25}
-              value={points}
-              onChange={e => setPoints(Number(e.target.value))}
-              style={{
-                flex: 1,
-                accentColor: points > 0 ? '#d71cd1' : '#3f4451',
-                height: '6px',
-              }}
-            />
-            <span style={{
-              minWidth: '40px',
-              textAlign: 'center',
-              fontSize: '18px',
-              fontWeight: 700,
-              color: points > 0 ? '#d71cd1' : '#6b7280',
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {points}
+        {/* Points — hidden for projects (points go on subtasks instead) */}
+        {!isProject && (
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>Points (0–25)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <input
+                type="range"
+                min={0}
+                max={25}
+                value={points}
+                onChange={e => setPoints(Number(e.target.value))}
+                style={{
+                  flex: 1,
+                  accentColor: points > 0 ? '#d71cd1' : '#3f4451',
+                  height: '6px',
+                }}
+              />
+              <span style={{
+                minWidth: '40px',
+                textAlign: 'center',
+                fontSize: '18px',
+                fontWeight: 700,
+                color: points > 0 ? '#d71cd1' : '#6b7280',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {points}
+              </span>
+            </div>
+          </div>
+        )}
+        {isProject && (
+          <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(215,28,209,0.06)', borderRadius: '10px', border: '1px solid rgba(215,28,209,0.15)' }}>
+            <span style={{ fontSize: '13px', color: '#d71cd1', fontWeight: 500 }}>
+              Points are set per sub-task for projects
             </span>
           </div>
-        </div>
+        )}
 
         {/* Assignees */}
         <div style={{ marginBottom: '16px' }}>
@@ -301,7 +310,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
             <input
               type="checkbox"
               checked={isProject}
-              onChange={e => setIsProject(e.target.checked)}
+              onChange={e => { setIsProject(e.target.checked); if (e.target.checked) setPoints(0) }}
               style={{ accentColor: '#22d3ee', width: '20px', height: '20px' }}
             />
             This is a project (has sub-tasks)

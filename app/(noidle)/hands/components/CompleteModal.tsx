@@ -6,11 +6,12 @@ import type { NihTask, NihTeamMember } from '../types'
 interface CompleteModalProps {
   task: NihTask
   teamMembers: NihTeamMember[]
+  skipPoints?: boolean
   onComplete: (notes: string, photoUrl: string | null, completedByIds: string[]) => Promise<void>
   onClose: () => void
 }
 
-export default function CompleteModal({ task, teamMembers, onComplete, onClose }: CompleteModalProps) {
+export default function CompleteModal({ task, teamMembers, skipPoints, onComplete, onClose }: CompleteModalProps) {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -122,9 +123,14 @@ export default function CompleteModal({ task, teamMembers, onComplete, onClose }
           </div>
           <div style={{ minWidth: 0 }}>
             <h2 style={{ fontSize: '17px', fontWeight: 600, margin: 0, color: '#f1f5f9' }}>
-              Job Complete
+              {skipPoints ? 'All Sub-Tasks Done!' : task.parent_id ? 'Sub-Task Complete' : 'Job Complete'}
             </h2>
             <p style={{ fontSize: '13px', color: '#6b7280', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</p>
+            {task.points > 0 && !skipPoints && (
+              <p style={{ fontSize: '12px', color: '#d71cd1', margin: '2px 0 0', fontWeight: 600 }}>
+                {task.points} pts
+              </p>
+            )}
           </div>
         </div>
 
@@ -231,65 +237,73 @@ export default function CompleteModal({ task, teamMembers, onComplete, onClose }
           </p>
         )}
 
-        {/* Who completed — team member pills */}
-        <div style={{ marginBottom: '16px' }}>
-          <label
-            style={{
-              fontSize: '12px',
-              fontWeight: 500,
-              color: '#94a3b8',
-              marginBottom: '8px',
-              display: 'block',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}
-          >
-            Who completed this?
-          </label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {teamMembers.map(m => {
-              const selected = completedByIds.includes(m.id)
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => toggleMember(m.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '999px',
-                    border: `2px solid ${selected ? m.avatar_color : '#3f4451'}`,
-                    background: selected ? m.avatar_color + '22' : 'transparent',
-                    color: selected ? m.avatar_color : '#94a3b8',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                  }}
-                >
-                  <span
+        {/* Who completed — team member pills (hidden for auto-complete parent) */}
+        {!skipPoints && (
+          <div style={{ marginBottom: '16px' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                fontWeight: 500,
+                color: '#94a3b8',
+                marginBottom: '8px',
+                display: 'block',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              Who completed this?
+            </label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {teamMembers.map(m => {
+                const selected = completedByIds.includes(m.id)
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => toggleMember(m.id)}
                     style={{
-                      width: '22px',
-                      height: '22px',
-                      borderRadius: '999px',
-                      background: m.avatar_color,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      color: '#fff',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '999px',
+                      border: `2px solid ${selected ? m.avatar_color : '#3f4451'}`,
+                      background: selected ? m.avatar_color + '22' : 'transparent',
+                      color: selected ? m.avatar_color : '#94a3b8',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      minHeight: '44px',
                     }}
                   >
-                    {m.name[0]}
-                  </span>
-                  {m.name}
-                </button>
-              )
-            })}
+                    <span
+                      style={{
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '999px',
+                        background: m.avatar_color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        color: '#fff',
+                      }}
+                    >
+                      {m.name[0]}
+                    </span>
+                    {m.name}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
+
+        {skipPoints && (
+          <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px', lineHeight: 1.5 }}>
+            All sub-tasks are complete. Points have already been awarded. Add an optional photo of the finished project.
+          </p>
+        )}
 
         {/* Notes */}
         <div style={{ marginBottom: '20px' }}>
@@ -361,7 +375,7 @@ export default function CompleteModal({ task, teamMembers, onComplete, onClose }
               minHeight: '48px',
             }}
           >
-            {saving ? 'Completing...' : uploading ? 'Uploading...' : 'Mark Complete'}
+            {saving ? 'Completing...' : uploading ? 'Uploading...' : skipPoints ? 'Complete Project' : 'Mark Complete'}
           </button>
         </div>
       </div>
