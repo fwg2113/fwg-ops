@@ -12,7 +12,8 @@ interface TaskCardProps {
   onDelete: (id: string) => void
   onStatusToggle: (task: NihTask) => void
   onSubtaskToggle: (subtask: NihTask) => void
-  onAddSubtask: (parentId: string, title: string) => void
+  onSubtaskComplete: (subtask: NihTask) => void
+  onAddSubtask: (parentId: string, title: string, points: number) => void
   isDragOver?: boolean
   onDragStart?: () => void
   onDragOver?: () => void
@@ -32,6 +33,7 @@ export default function TaskCard({
   onDelete,
   onStatusToggle,
   onSubtaskToggle,
+  onSubtaskComplete,
   onAddSubtask,
   isDragOver,
   onDragStart,
@@ -45,6 +47,7 @@ export default function TaskCard({
 }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [newSubtask, setNewSubtask] = useState('')
+  const [newSubtaskPoints, setNewSubtaskPoints] = useState(0)
 
   const isCompleted = task.status === 'completed'
   const isInProgress = task.status === 'in_progress'
@@ -370,7 +373,13 @@ export default function TaskCard({
               }}
             >
               <button
-                onClick={() => onSubtaskToggle(sub)}
+                onClick={() => {
+                  if (sub.status === 'completed') {
+                    onSubtaskToggle(sub)
+                  } else {
+                    onSubtaskComplete(sub)
+                  }
+                }}
                 style={{
                   width: '22px',
                   height: '22px',
@@ -397,9 +406,30 @@ export default function TaskCard({
                 lineHeight: '1.35',
                 color: sub.status === 'completed' ? '#6b7280' : '#e2e8f0',
                 textDecoration: sub.status === 'completed' ? 'line-through' : 'none',
+                flex: 1,
               }}>
                 {sub.title}
               </span>
+              {sub.points > 0 && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: sub.status === 'completed' ? '#6b7280' : '#d71cd1',
+                  whiteSpace: 'nowrap',
+                  background: sub.status === 'completed' ? 'rgba(255,255,255,0.04)' : 'rgba(215,28,209,0.12)',
+                  padding: '2px 7px',
+                  borderRadius: '6px',
+                  flexShrink: 0,
+                }}>
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                    <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+                  </svg>
+                  {sub.points}
+                </span>
+              )}
             </div>
           ))}
           {/* Add sub-task */}
@@ -407,8 +437,9 @@ export default function TaskCard({
             onSubmit={e => {
               e.preventDefault()
               if (newSubtask.trim()) {
-                onAddSubtask(task.id, newSubtask.trim())
+                onAddSubtask(task.id, newSubtask.trim(), newSubtaskPoints)
                 setNewSubtask('')
+                setNewSubtaskPoints(0)
               }
             }}
             style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', marginTop: '4px' }}
@@ -433,6 +464,36 @@ export default function TaskCard({
                 outline: 'none',
               }}
             />
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flexShrink: 0,
+            }}>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: newSubtaskPoints > 0 ? '#d71cd1' : '#4b5563' }}>
+                <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+              </svg>
+              <input
+                type="number"
+                min={0}
+                max={25}
+                value={newSubtaskPoints}
+                onChange={e => setNewSubtaskPoints(Math.max(0, Math.min(25, Number(e.target.value))))}
+                style={{
+                  width: '36px',
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '6px',
+                  padding: '4px 6px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: newSubtaskPoints > 0 ? '#d71cd1' : '#6b7280',
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                  textAlign: 'center',
+                }}
+              />
+            </div>
           </form>
         </div>
       )}
