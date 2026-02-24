@@ -75,7 +75,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     pointsPerPerson = basePoints + (remainder > 0 ? 1 : 0)
   }
 
-  // Log this completion permanently in the completion log
+  // Log every completion to the permanent completion log
   await supabase.from('nih_completion_log').insert({
     task_id: id,
     task_title: task.title,
