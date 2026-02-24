@@ -14,6 +14,8 @@ interface TaskCardProps {
   onSubtaskToggle: (subtask: NihTask) => void
   onSubtaskComplete: (subtask: NihTask) => void
   onAddSubtask: (parentId: string, title: string, points: number) => void
+  onEditSubtask: (subtaskId: string, title: string, points: number) => void
+  onDeleteSubtask: (subtaskId: string) => void
   isDragOver?: boolean
   onDragStart?: () => void
   onDragOver?: () => void
@@ -35,6 +37,8 @@ export default function TaskCard({
   onSubtaskToggle,
   onSubtaskComplete,
   onAddSubtask,
+  onEditSubtask,
+  onDeleteSubtask,
   isDragOver,
   onDragStart,
   onDragOver,
@@ -48,6 +52,9 @@ export default function TaskCard({
   const [expanded, setExpanded] = useState(false)
   const [newSubtask, setNewSubtask] = useState('')
   const [newSubtaskPoints, setNewSubtaskPoints] = useState(0)
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editPoints, setEditPoints] = useState(0)
 
   const isCompleted = task.status === 'completed'
   const isInProgress = task.status === 'in_progress'
@@ -344,8 +351,9 @@ export default function TaskCard({
           {subtasks.map(sub => (
             <div
               key={sub.id}
-              draggable
+              draggable={editingSubtaskId !== sub.id}
               onDragStart={e => {
+                if (editingSubtaskId === sub.id) return
                 e.stopPropagation()
                 e.dataTransfer.effectAllowed = 'move'
                 e.dataTransfer.setData('text/plain', sub.id)
@@ -372,63 +380,235 @@ export default function TaskCard({
                 transition: 'background 0.15s',
               }}
             >
-              <button
-                onClick={() => {
-                  if (sub.status === 'completed') {
-                    onSubtaskToggle(sub)
-                  } else {
-                    onSubtaskComplete(sub)
-                  }
-                }}
-                style={{
-                  width: '22px',
-                  height: '22px',
-                  minWidth: '22px',
-                  borderRadius: '6px',
-                  border: `2px solid ${sub.status === 'completed' ? '#22c55e' : '#4b5563'}`,
-                  background: sub.status === 'completed' ? '#22c55e' : 'transparent',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {sub.status === 'completed' && (
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                    <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
-              <span style={{
-                fontSize: '15px',
-                lineHeight: '1.35',
-                color: sub.status === 'completed' ? '#6b7280' : '#e2e8f0',
-                textDecoration: sub.status === 'completed' ? 'line-through' : 'none',
-                flex: 1,
-              }}>
-                {sub.title}
-              </span>
-              {sub.points > 0 && (
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: sub.status === 'completed' ? '#6b7280' : '#d71cd1',
-                  whiteSpace: 'nowrap',
-                  background: sub.status === 'completed' ? 'rgba(255,255,255,0.04)' : 'rgba(215,28,209,0.12)',
-                  padding: '2px 7px',
-                  borderRadius: '6px',
-                  flexShrink: 0,
-                }}>
-                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                    <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
-                  </svg>
-                  {sub.points}
-                </span>
+              {editingSubtaskId === sub.id ? (
+                /* Inline edit mode */
+                <form
+                  onSubmit={e => {
+                    e.preventDefault()
+                    if (editTitle.trim()) {
+                      onEditSubtask(sub.id, editTitle.trim(), editPoints)
+                      setEditingSubtaskId(null)
+                    }
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}
+                >
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={e => setEditTitle(e.target.value)}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(34,211,238,0.3)',
+                      borderRadius: '8px',
+                      padding: '8px 10px',
+                      fontSize: '15px',
+                      color: '#e2e8f0',
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: editPoints > 0 ? '#d71cd1' : '#4b5563' }}>
+                      <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+                    </svg>
+                    <input
+                      type="number"
+                      min={0}
+                      max={25}
+                      value={editPoints}
+                      onChange={e => setEditPoints(Math.max(0, Math.min(25, Number(e.target.value))))}
+                      style={{
+                        width: '36px',
+                        background: 'transparent',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '6px',
+                        padding: '4px 6px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: editPoints > 0 ? '#d71cd1' : '#6b7280',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        textAlign: 'center',
+                      }}
+                    />
+                  </div>
+                  {/* Save */}
+                  <button
+                    type="submit"
+                    disabled={!editTitle.trim()}
+                    style={{
+                      flexShrink: 0,
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: editTitle.trim() ? '#22c55e' : 'rgba(255,255,255,0.06)',
+                      color: editTitle.trim() ? '#fff' : '#4b5563',
+                      cursor: editTitle.trim() ? 'pointer' : 'default',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                    title="Save"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8L7 12L13 4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  {/* Cancel */}
+                  <button
+                    type="button"
+                    onClick={() => setEditingSubtaskId(null)}
+                    style={{
+                      flexShrink: 0,
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'rgba(255,255,255,0.06)',
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                    title="Cancel"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  {/* Delete */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Delete this subtask?')) {
+                        onDeleteSubtask(sub.id)
+                        setEditingSubtaskId(null)
+                      }
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'rgba(239,68,68,0.1)',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                    title="Delete subtask"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 4H13M5.5 4V3C5.5 2.45 5.95 2 6.5 2H9.5C10.05 2 10.5 2.45 10.5 3V4M6.5 7V12M9.5 7V12M4.5 4L5 13C5 13.55 5.45 14 6 14H10C10.55 14 11 13.55 11 13L11.5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </form>
+              ) : (
+                /* Normal display mode */
+                <>
+                  <button
+                    onClick={() => {
+                      if (sub.status === 'completed') {
+                        onSubtaskToggle(sub)
+                      } else {
+                        onSubtaskComplete(sub)
+                      }
+                    }}
+                    style={{
+                      width: '22px',
+                      height: '22px',
+                      minWidth: '22px',
+                      borderRadius: '6px',
+                      border: `2px solid ${sub.status === 'completed' ? '#22c55e' : '#4b5563'}`,
+                      background: sub.status === 'completed' ? '#22c55e' : 'transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {sub.status === 'completed' && (
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 8L7 12L13 4" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </button>
+                  <span
+                    onClick={() => {
+                      setEditingSubtaskId(sub.id)
+                      setEditTitle(sub.title)
+                      setEditPoints(sub.points)
+                    }}
+                    style={{
+                      fontSize: '15px',
+                      lineHeight: '1.35',
+                      color: sub.status === 'completed' ? '#6b7280' : '#e2e8f0',
+                      textDecoration: sub.status === 'completed' ? 'line-through' : 'none',
+                      flex: 1,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {sub.title}
+                  </span>
+                  {sub.points > 0 && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: sub.status === 'completed' ? '#6b7280' : '#d71cd1',
+                      whiteSpace: 'nowrap',
+                      background: sub.status === 'completed' ? 'rgba(255,255,255,0.04)' : 'rgba(215,28,209,0.12)',
+                      padding: '2px 7px',
+                      borderRadius: '6px',
+                      flexShrink: 0,
+                    }}>
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                        <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+                      </svg>
+                      {sub.points}
+                    </span>
+                  )}
+                  {/* Edit button */}
+                  <button
+                    onClick={() => {
+                      setEditingSubtaskId(sub.id)
+                      setEditTitle(sub.title)
+                      setEditPoints(sub.points)
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      width: '26px',
+                      height: '26px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#4b5563',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                    title="Edit subtask"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                      <path d="M11.5 1.5L14.5 4.5L5 14H2V11L11.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </>
               )}
             </div>
           ))}
