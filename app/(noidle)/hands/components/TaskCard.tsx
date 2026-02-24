@@ -494,6 +494,29 @@ export default function TaskCard({
                 }}
               />
             </div>
+            <button
+              type="submit"
+              disabled={!newSubtask.trim()}
+              style={{
+                flexShrink: 0,
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                border: 'none',
+                background: newSubtask.trim() ? '#22d3ee' : 'rgba(255,255,255,0.06)',
+                color: newSubtask.trim() ? '#000' : '#4b5563',
+                cursor: newSubtask.trim() ? 'pointer' : 'default',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                transition: 'all 0.15s',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+            </button>
           </form>
         </div>
       )}
