@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import type { BoardData, NihTask, NihTeamMember, NihPrize, NihTaskCompletion } from '../types'
 import HandsLogo from './HandsLogo'
 import TaskCard from './TaskCard'
@@ -95,6 +95,30 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       setCompletions(data)
     }
   }, [])
+
+  // Auto-reset recurring tasks on page load
+  useEffect(() => {
+    const resetRecurring = async () => {
+      const res = await fetch('/api/noidle/tasks/reset-recurring', { method: 'POST' })
+      if (res.ok) {
+        const result = await res.json()
+        if (result.reset > 0) {
+          await refreshTasks()
+        }
+      }
+    }
+    resetRecurring()
+  }, [refreshTasks])
+
+  const handleManualReset = useCallback(
+    async (taskId: string) => {
+      const res = await fetch(`/api/noidle/tasks/${taskId}/reset`, { method: 'POST' })
+      if (res.ok) {
+        await refreshTasks()
+      }
+    },
+    [refreshTasks]
+  )
 
   const persistOrder = useCallback(async (orderedIds: string[]) => {
     await fetch('/api/noidle/tasks/reorder', {
@@ -644,8 +668,8 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                   </div>
                 ))}
 
-                {/* Legacy completed tasks without completion records */}
-                {completions.length === 0 && completedTasks.map(task => (
+                {/* Completed tasks (including recurring tasks awaiting reset) */}
+                {completedTasks.map(task => (
                   <div
                     key={task.id}
                     style={{
@@ -723,6 +747,32 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
+                        {task.is_recurring && (
+                          <button
+                            onClick={() => handleManualReset(task.id)}
+                            title="Reset task — make available again"
+                            style={{
+                              flex: 1,
+                              width: '54px',
+                              border: 'none',
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                              minHeight: '40px',
+                              color: '#22d3ee',
+                            }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+                              <path d="M2 8C2 4.7 4.7 2 8 2C10.2 2 12.1 3.3 13 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                              <path d="M14 8C14 11.3 11.3 14 8 14C5.8 14 3.9 12.7 3 10.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                              <path d="M13 2V5.2H9.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M3 14V10.8H6.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        )}
                         <button
                           onClick={() => setEditingTask(task)}
                           title="View"
@@ -730,6 +780,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                             flex: 1,
                             width: '54px',
                             border: 'none',
+                            borderTop: task.is_recurring ? '1px solid rgba(255,255,255,0.04)' : 'none',
                             background: 'transparent',
                             cursor: 'pointer',
                             display: 'flex',

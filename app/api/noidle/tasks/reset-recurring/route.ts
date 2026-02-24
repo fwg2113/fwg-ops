@@ -6,18 +6,28 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 /**
  * POST /api/noidle/tasks/reset-recurring
  * Resets completed recurring tasks that are scheduled for today back to 'open'.
- * Intended to be called by a daily cron job at midnight (or start of day).
+ * Only resets tasks that were completed BEFORE today (so same-day completions are preserved).
+ * Called automatically on page load and can also be triggered by a cron job.
  */
 export async function POST() {
-  const today = DAY_NAMES[new Date().getDay()]
+  const now = new Date()
+  const today = DAY_NAMES[now.getDay()]
 
-  // Find recurring tasks that were completed and are scheduled for today
+  // Start of today in ISO format (midnight local server time)
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+
+  // Find recurring tasks that:
+  // 1. Are marked as recurring
+  // 2. Are currently completed
+  // 3. Are scheduled for today
+  // 4. Were completed BEFORE today (not same-day completions)
   const { data: tasks, error } = await supabase
     .from('nih_tasks')
     .select('id')
     .eq('is_recurring', true)
     .eq('status', 'completed')
     .contains('recurring_days', [today])
+    .lt('completed_at', startOfToday)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
