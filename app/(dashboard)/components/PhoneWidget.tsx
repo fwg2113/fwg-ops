@@ -5,12 +5,19 @@ import { supabase } from '../../lib/supabase'
 
 type WidgetState = 'initializing' | 'ready' | 'incoming' | 'calling' | 'active' | 'error'
 
+const CALL_CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+  'vehicle-wraps-ppf': { label: 'Wraps & PPF', color: '#3b82f6' },
+  'stickers-signage': { label: 'Stickers & Signage', color: '#8b5cf6' },
+  'apparel': { label: 'Apparel', color: '#f59e0b' },
+  'general': { label: 'General', color: '#64748b' },
+}
+
 export default function PhoneWidget() {
   const [state, setState] = useState<WidgetState>('initializing')
   const [expanded, setExpanded] = useState(false)
   const [muted, setMuted] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
-  const [callerInfo, setCallerInfo] = useState<{ from: string; name?: string }>({ from: '' })
+  const [callerInfo, setCallerInfo] = useState<{ from: string; name?: string; categoryKey?: string; categoryLabel?: string }>({ from: '' })
   const [dialNumber, setDialNumber] = useState('')
 
   const deviceRef = useRef<any>(null)
@@ -158,8 +165,12 @@ export default function PhoneWidget() {
           const from = call.parameters.From || ''
           const name = await lookupCaller(from)
 
+          // Read IVR category from custom parameters (set in /api/voice/menu TwiML)
+          const categoryKey = call.customParameters?.get?.('categoryKey') || undefined
+          const categoryLabel = call.customParameters?.get?.('categoryLabel') || undefined
+
           if (mounted) {
-            setCallerInfo({ from, name: name || undefined })
+            setCallerInfo({ from, name: name || undefined, categoryKey, categoryLabel })
             setState('incoming')
             setExpanded(true)
             startRingtone()
@@ -384,11 +395,27 @@ export default function PhoneWidget() {
                 {callerInfo.name || formatPhone(callerInfo.from)}
               </h3>
               {callerInfo.name && (
-                <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 20px 0' }}>
+                <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 8px 0' }}>
                   {formatPhone(callerInfo.from)}
                 </p>
               )}
-              {!callerInfo.name && <div style={{ height: '20px' }} />}
+              {callerInfo.categoryKey && CALL_CATEGORY_LABELS[callerInfo.categoryKey] ? (
+                <span style={{
+                  display: 'inline-block',
+                  padding: '3px 10px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  marginBottom: '16px',
+                  background: `${CALL_CATEGORY_LABELS[callerInfo.categoryKey].color}20`,
+                  color: CALL_CATEGORY_LABELS[callerInfo.categoryKey].color,
+                  border: `1px solid ${CALL_CATEGORY_LABELS[callerInfo.categoryKey].color}30`
+                }}>
+                  {CALL_CATEGORY_LABELS[callerInfo.categoryKey].label}
+                </span>
+              ) : (
+                !callerInfo.name && <div style={{ height: '16px' }} />
+              )}
               <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
                 <button
                   onClick={declineCall}
@@ -502,6 +529,21 @@ export default function PhoneWidget() {
               <h3 style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: 700, margin: '0 0 4px 0' }}>
                 {callerInfo.name || formatPhone(callerInfo.from)}
               </h3>
+              {callerInfo.categoryKey && CALL_CATEGORY_LABELS[callerInfo.categoryKey] && (
+                <span style={{
+                  display: 'inline-block',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  marginBottom: '4px',
+                  background: `${CALL_CATEGORY_LABELS[callerInfo.categoryKey].color}20`,
+                  color: CALL_CATEGORY_LABELS[callerInfo.categoryKey].color,
+                  border: `1px solid ${CALL_CATEGORY_LABELS[callerInfo.categoryKey].color}30`
+                }}>
+                  {CALL_CATEGORY_LABELS[callerInfo.categoryKey].label}
+                </span>
+              )}
               <p style={{ color: '#94a3b8', fontSize: '24px', fontFamily: 'monospace', margin: '4px 0 24px 0' }}>
                 {formatDuration(callDuration)}
               </p>
