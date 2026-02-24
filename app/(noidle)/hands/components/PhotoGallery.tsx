@@ -406,7 +406,7 @@ export default function PhotoGallery({ completionLog, onDelete, onClose }: Photo
           )}
 
           <img
-            src={currentPhotos[lightboxIndex].completion_photo_url!}
+            src={currentPhotos[lightboxIndex].photo_url!}
             alt={currentPhotos[lightboxIndex].task_title}
             onClick={e => e.stopPropagation()}
             style={{
