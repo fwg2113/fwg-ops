@@ -32,6 +32,14 @@ type Call = {
   created_at: string
   read?: boolean
   archived?: boolean
+  category?: string | null
+}
+
+const CALL_CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+  'vehicle-wraps-ppf': { label: 'Wraps & PPF', color: '#3b82f6' },
+  'stickers-signage': { label: 'Stickers & Signage', color: '#8b5cf6' },
+  'apparel': { label: 'Apparel', color: '#f59e0b' },
+  'general': { label: 'General', color: '#64748b' },
 }
 
 const MESSAGE_TEMPLATES = [
@@ -1462,6 +1470,21 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                     {call.answered_by && <span>• {call.answered_by}</span>}
                     {call.duration > 0 && <span>• {Math.floor(call.duration / 60)}:{String(call.duration % 60).padStart(2, '0')}</span>}
                   </div>
+                  {call.category && CALL_CATEGORY_LABELS[call.category] && (
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      marginTop: '4px',
+                      background: `${CALL_CATEGORY_LABELS[call.category].color}20`,
+                      color: CALL_CATEGORY_LABELS[call.category].color,
+                      border: `1px solid ${CALL_CATEGORY_LABELS[call.category].color}30`
+                    }}>
+                      {CALL_CATEGORY_LABELS[call.category].label}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1607,6 +1630,23 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
                   <div>
                     <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px 0' }}>Answered By</p>
                     <p style={{ color: '#f1f5f9', fontSize: '14px', margin: 0 }}>{selectedCall.answered_by}</p>
+                  </div>
+                )}
+                {selectedCall.category && CALL_CATEGORY_LABELS[selectedCall.category] && (
+                  <div>
+                    <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 4px 0' }}>Category</p>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      background: `${CALL_CATEGORY_LABELS[selectedCall.category].color}20`,
+                      color: CALL_CATEGORY_LABELS[selectedCall.category].color,
+                      border: `1px solid ${CALL_CATEGORY_LABELS[selectedCall.category].color}30`
+                    }}>
+                      {CALL_CATEGORY_LABELS[selectedCall.category].label}
+                    </span>
                   </div>
                 )}
               </div>
