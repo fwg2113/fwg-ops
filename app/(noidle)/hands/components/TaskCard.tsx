@@ -16,6 +16,7 @@ interface TaskCardProps {
   onAddSubtask: (parentId: string, title: string, points: number) => void
   onEditSubtask: (subtaskId: string, title: string, points: number) => void
   onDeleteSubtask: (subtaskId: string) => void
+  onRequestPin: (callback: () => void) => void
   isDragOver?: boolean
   onDragStart?: () => void
   onDragOver?: () => void
@@ -39,6 +40,7 @@ export default function TaskCard({
   onAddSubtask,
   onEditSubtask,
   onDeleteSubtask,
+  onRequestPin,
   isDragOver,
   onDragStart,
   onDragOver,
@@ -55,6 +57,7 @@ export default function TaskCard({
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editPoints, setEditPoints] = useState(0)
+  const [subtaskUnlocked, setSubtaskUnlocked] = useState(false)
 
   const isCompleted = task.status === 'completed'
   const isInProgress = task.status === 'in_progress'
@@ -321,7 +324,7 @@ export default function TaskCard({
             </button>
           )}
           <button
-            onClick={() => onEdit(task)}
+            onClick={() => onRequestPin(() => onEdit(task))}
             title="Edit task"
             style={{
               flex: 1,
@@ -546,9 +549,18 @@ export default function TaskCard({
                   </button>
                   <span
                     onClick={() => {
-                      setEditingSubtaskId(sub.id)
-                      setEditTitle(sub.title)
-                      setEditPoints(sub.points)
+                      if (subtaskUnlocked) {
+                        setEditingSubtaskId(sub.id)
+                        setEditTitle(sub.title)
+                        setEditPoints(sub.points)
+                      } else {
+                        onRequestPin(() => {
+                          setSubtaskUnlocked(true)
+                          setEditingSubtaskId(sub.id)
+                          setEditTitle(sub.title)
+                          setEditPoints(sub.points)
+                        })
+                      }
                     }}
                     style={{
                       fontSize: '15px',
@@ -584,9 +596,18 @@ export default function TaskCard({
                   {/* Edit button */}
                   <button
                     onClick={() => {
-                      setEditingSubtaskId(sub.id)
-                      setEditTitle(sub.title)
-                      setEditPoints(sub.points)
+                      if (subtaskUnlocked) {
+                        setEditingSubtaskId(sub.id)
+                        setEditTitle(sub.title)
+                        setEditPoints(sub.points)
+                      } else {
+                        onRequestPin(() => {
+                          setSubtaskUnlocked(true)
+                          setEditingSubtaskId(sub.id)
+                          setEditTitle(sub.title)
+                          setEditPoints(sub.points)
+                        })
+                      }
                     }}
                     style={{
                       flexShrink: 0,
@@ -613,91 +634,120 @@ export default function TaskCard({
             </div>
           ))}
           {/* Add sub-task */}
-          <form
-            onSubmit={e => {
-              e.preventDefault()
-              if (newSubtask.trim()) {
-                onAddSubtask(task.id, newSubtask.trim(), newSubtaskPoints)
-                setNewSubtask('')
-                setNewSubtaskPoints(0)
-              }
-            }}
-            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', marginTop: '4px' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-              <path d="M8 3V13M3 8H13" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <input
-              type="text"
-              value={newSubtask}
-              onChange={e => setNewSubtask(e.target.value)}
-              placeholder="Add a sub-task..."
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-                padding: '10px 0',
-                fontSize: '15px',
-                color: '#e2e8f0',
-                fontFamily: 'inherit',
-                outline: 'none',
+          {subtaskUnlocked ? (
+            <form
+              onSubmit={e => {
+                e.preventDefault()
+                if (newSubtask.trim()) {
+                  onAddSubtask(task.id, newSubtask.trim(), newSubtaskPoints)
+                  setNewSubtask('')
+                  setNewSubtaskPoints(0)
+                }
               }}
-            />
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              flexShrink: 0,
-            }}>
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: newSubtaskPoints > 0 ? '#d71cd1' : '#4b5563' }}>
-                <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0', marginTop: '4px' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M8 3V13M3 8H13" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" />
               </svg>
               <input
-                type="number"
-                min={0}
-                max={25}
-                value={newSubtaskPoints}
-                onChange={e => setNewSubtaskPoints(Math.max(0, Math.min(25, Number(e.target.value))))}
+                type="text"
+                value={newSubtask}
+                onChange={e => setNewSubtask(e.target.value)}
+                placeholder="Add a sub-task..."
                 style={{
-                  width: '36px',
+                  flex: 1,
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '6px',
-                  padding: '4px 6px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: newSubtaskPoints > 0 ? '#d71cd1' : '#6b7280',
+                  border: 'none',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  padding: '10px 0',
+                  fontSize: '15px',
+                  color: '#e2e8f0',
                   fontFamily: 'inherit',
                   outline: 'none',
-                  textAlign: 'center',
                 }}
               />
-            </div>
-            <button
-              type="submit"
-              disabled={!newSubtask.trim()}
-              style={{
-                flexShrink: 0,
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                border: 'none',
-                background: newSubtask.trim() ? '#22d3ee' : 'rgba(255,255,255,0.06)',
-                color: newSubtask.trim() ? '#000' : '#4b5563',
-                cursor: newSubtask.trim() ? 'pointer' : 'default',
+              <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
-                transition: 'all 0.15s',
+                gap: '4px',
+                flexShrink: 0,
+              }}>
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ color: newSubtaskPoints > 0 ? '#d71cd1' : '#4b5563' }}>
+                  <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+                </svg>
+                <input
+                  type="number"
+                  min={0}
+                  max={25}
+                  value={newSubtaskPoints}
+                  onChange={e => setNewSubtaskPoints(Math.max(0, Math.min(25, Number(e.target.value))))}
+                  style={{
+                    width: '36px',
+                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    padding: '4px 6px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: newSubtaskPoints > 0 ? '#d71cd1' : '#6b7280',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    textAlign: 'center',
+                  }}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!newSubtask.trim()}
+                style={{
+                  flexShrink: 0,
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: newSubtask.trim() ? '#22d3ee' : 'rgba(255,255,255,0.06)',
+                  color: newSubtask.trim() ? '#000' : '#4b5563',
+                  cursor: newSubtask.trim() ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => onRequestPin(() => setSubtaskUnlocked(true))}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 0',
+                marginTop: '4px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                color: '#4b5563',
+                fontSize: '14px',
+                width: '100%',
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M8 11V7C8 4.8 9.8 3 12 3C14.2 3 16 4.8 16 7V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              Add sub-task...
             </button>
-          </form>
+          )}
         </div>
       )}
     </div>

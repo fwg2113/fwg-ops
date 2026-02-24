@@ -17,6 +17,8 @@ interface ToastData {
   names: string[]
 }
 
+type PinCallback = () => void
+
 export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [tasks, setTasks] = useState<NihTask[]>(initialData.tasks)
   const { categories, locations } = initialData
@@ -33,6 +35,19 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [toast, setToast] = useState<ToastData | null>(null)
   const [showGallery, setShowGallery] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
+  const pinCallbackRef = useRef<PinCallback | null>(null)
+
+  const handleRequestPin = useCallback((callback: PinCallback) => {
+    pinCallbackRef.current = callback
+    setShowPinModal(true)
+  }, [])
+
+  const handlePointsUpdate = useCallback((updatedMembers: NihTeamMember[]) => {
+    setTeamMembers(prev => prev.map(m => {
+      const updated = updatedMembers.find((u: NihTeamMember) => u.id === m.id)
+      return updated ? { ...m, total_points: updated.total_points } : m
+    }))
+  }, [])
 
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null)
@@ -453,7 +468,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}>
         <button
-          onClick={() => setShowPinModal(true)}
+          onClick={() => handleRequestPin(() => setShowTaskModal(true))}
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           title="Add new task"
         >
@@ -470,13 +485,14 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           teamMembers={teamMembers}
           prizes={prizes}
           onPrizesUpdate={setPrizes}
+          onPointsUpdate={handlePointsUpdate}
         />
       </div>
 
       {/* Task list */}
       <div style={{ padding: '0 16px', maxWidth: '960px', margin: '0 auto' }}>
         {topLevelTasks.length === 0 && recurringTasks.length === 0 ? (
-          <EmptyState onAddTask={() => setShowPinModal(true)} hasFilters={false} />
+          <EmptyState onAddTask={() => handleRequestPin(() => setShowTaskModal(true))} hasFilters={false} />
         ) : topLevelTasks.length > 0 && (
           <>
             <div style={{
@@ -516,6 +532,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onAddSubtask={handleAddSubtask}
                 onEditSubtask={handleEditSubtask}
                 onDeleteSubtask={handleDeleteSubtask}
+                onRequestPin={handleRequestPin}
                 isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
                 onDragStart={() => handleTaskDragStart(task.id)}
                 onDragOver={() => handleTaskDragOver(task.id)}
@@ -576,6 +593,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onAddSubtask={handleAddSubtask}
                 onEditSubtask={handleEditSubtask}
                 onDeleteSubtask={handleDeleteSubtask}
+                onRequestPin={handleRequestPin}
                 isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
                 onDragStart={() => handleTaskDragStart(task.id)}
                 onDragOver={() => handleTaskDragOver(task.id)}
@@ -1092,14 +1110,23 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         )}
       </div>
 
-      {/* PIN modal for adding tasks */}
+      {/* PIN modal — used for add task, edit task, subtask operations */}
       {showPinModal && (
         <PinModal
           onSuccess={() => {
             setShowPinModal(false)
-            setShowTaskModal(true)
+            const cb = pinCallbackRef.current
+            if (cb) {
+              pinCallbackRef.current = null
+              cb()
+            } else {
+              setShowTaskModal(true)
+            }
           }}
-          onClose={() => setShowPinModal(false)}
+          onClose={() => {
+            setShowPinModal(false)
+            pinCallbackRef.current = null
+          }}
         />
       )}
 
