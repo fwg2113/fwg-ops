@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
 
+// Legacy screen route — kept for backwards compatibility with any in-flight calls.
+// New calls use /api/voice/menu instead.
 export async function POST(request: Request) {
   try {
     const url = new URL(request.url)
@@ -11,7 +13,7 @@ export async function POST(request: Request) {
     const formData = await request.formData()
     const digits = formData.get('Digits') as string
 
-    console.log('Screen result:', { callSid, digits, from })
+    console.log('Screen result (legacy):', { callSid, digits, from })
 
     // Caller pressed 1 - they're a real person, connect them
     if (digits === '1') {

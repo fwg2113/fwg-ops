@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { supabase } from '../../../lib/supabase'
 
-const SETTINGS_KEY = 'call_greeting_url'
-
 const S3 = new S3Client({
   region: 'auto',
   endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -13,13 +11,25 @@ const S3 = new S3Client({
   },
 })
 
-// GET - get current greeting URL
+// GET - get current active greeting URL
 export async function GET() {
   try {
+    // First check greeting_recordings table for active recording
+    const { data: activeRecording } = await supabase
+      .from('greeting_recordings')
+      .select('url')
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (activeRecording?.url) {
+      return NextResponse.json({ url: activeRecording.url })
+    }
+
+    // Fall back to legacy settings key
     const { data } = await supabase
       .from('settings')
       .select('value')
-      .eq('key', SETTINGS_KEY)
+      .eq('key', 'call_greeting_url')
       .maybeSingle()
 
     return NextResponse.json({ url: data?.value || null })
@@ -28,11 +38,12 @@ export async function GET() {
   }
 }
 
-// POST - upload a new greeting audio
+// POST - upload a new greeting audio and save to recording library
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
+    const name = formData.get('name') as string || 'Recorded Greeting'
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -48,28 +59,6 @@ export async function POST(request: Request) {
     // Max 5MB
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json({ error: 'File too large. Max 5MB.' }, { status: 400 })
-    }
-
-    // Delete old greeting from R2 if exists
-    const { data: existing } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', SETTINGS_KEY)
-      .maybeSingle()
-
-    if (existing?.value) {
-      try {
-        const oldUrl = typeof existing.value === 'string' ? existing.value : ''
-        const oldKey = oldUrl.split('/').slice(-2).join('/')
-        if (oldKey.startsWith('call-greetings/')) {
-          await S3.send(new DeleteObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: oldKey,
-          }))
-        }
-      } catch (e) {
-        console.error('Failed to delete old greeting:', e)
-      }
     }
 
     const bytes = await file.arrayBuffer()
@@ -88,55 +77,43 @@ export async function POST(request: Request) {
 
     const publicUrl = `${process.env.R2_PUBLIC_URL}/${key}`
 
-    // Save URL to settings
-    const { error } = await supabase
-      .from('settings')
-      .upsert({
-        key: SETTINGS_KEY,
-        value: publicUrl,
-      }, { onConflict: 'key' })
+    // Deactivate all existing recordings
+    await supabase
+      .from('greeting_recordings')
+      .update({ is_active: false })
+      .eq('is_active', true)
 
-    if (error) {
-      return NextResponse.json({ error: 'Save failed: ' + error.message }, { status: 500 })
+    // Save to greeting_recordings library and set as active
+    const { data: recording, error: recError } = await supabase
+      .from('greeting_recordings')
+      .insert({
+        name,
+        url: publicUrl,
+        r2_key: key,
+        is_active: true,
+      })
+      .select()
+      .single()
+
+    if (recError) {
+      return NextResponse.json({ error: 'Save failed: ' + recError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, url: publicUrl })
+    return NextResponse.json({ success: true, url: publicUrl, recording })
   } catch (err: any) {
     console.error('Greeting upload error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
-// DELETE - remove greeting and revert to TTS
+// DELETE - deactivate (no active greeting, revert to TTS)
 export async function DELETE() {
   try {
-    // Get current URL to delete from R2
-    const { data: existing } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', SETTINGS_KEY)
-      .maybeSingle()
-
-    if (existing?.value) {
-      try {
-        const oldUrl = typeof existing.value === 'string' ? existing.value : ''
-        const oldKey = oldUrl.split('/').slice(-2).join('/')
-        if (oldKey.startsWith('call-greetings/')) {
-          await S3.send(new DeleteObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: oldKey,
-          }))
-        }
-      } catch (e) {
-        console.error('Failed to delete from R2:', e)
-      }
-    }
-
-    // Remove from settings
+    // Deactivate all recordings (don't delete them - they stay in the library)
     await supabase
-      .from('settings')
-      .delete()
-      .eq('key', SETTINGS_KEY)
+      .from('greeting_recordings')
+      .update({ is_active: false })
+      .eq('is_active', true)
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

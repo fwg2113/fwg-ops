@@ -131,6 +131,12 @@ export default async function SettingsPage() {
     .eq('key', 'call_greeting_url')
     .maybeSingle()
 
+  // Greeting recordings library
+  const { data: greetingRecordings } = await supabase
+    .from('greeting_recordings')
+    .select('*')
+    .order('created_at', { ascending: false })
+
   const calendarConnected = !!calendarSettings?.value
   const gmailConnected = !!gmailSettings?.value
 
@@ -143,6 +149,7 @@ export default async function SettingsPage() {
       gmailConnected={gmailConnected}
       initialCallSettings={callSettings || []}
       initialCallGreetingUrl={callGreeting?.value || null}
+      initialGreetingRecordings={greetingRecordings || []}
       initialTemplates={templates || []}
       initialTaskStatuses={taskStatuses || []}
       initialTaskPriorities={taskPriorities || []}
