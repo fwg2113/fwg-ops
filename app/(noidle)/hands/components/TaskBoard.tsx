@@ -315,6 +315,29 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [refreshTasks]
   )
 
+  const handleEditSubtask = useCallback(
+    async (subtaskId: string, title: string, points: number) => {
+      const res = await fetch(`/api/noidle/tasks/${subtaskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, points }),
+      })
+      if (res.ok) await refreshTasks()
+    },
+    [refreshTasks]
+  )
+
+  const handleDeleteSubtask = useCallback(
+    async (subtaskId: string) => {
+      const res = await fetch(`/api/noidle/tasks/${subtaskId}`, { method: 'DELETE' })
+      if (res.ok) {
+        await refreshTasks()
+        await refreshTeamMembers()
+      }
+    },
+    [refreshTasks, refreshTeamMembers]
+  )
+
   // Toggle a completed subtask back to open (uncomplete)
   const handleSubtaskToggle = useCallback(
     async (subtask: NihTask) => {
@@ -484,6 +507,8 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onSubtaskToggle={handleSubtaskToggle}
                 onSubtaskComplete={handleSubtaskCompleteStart}
                 onAddSubtask={handleAddSubtask}
+                onEditSubtask={handleEditSubtask}
+                onDeleteSubtask={handleDeleteSubtask}
                 isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
                 onDragStart={() => handleTaskDragStart(task.id)}
                 onDragOver={() => handleTaskDragOver(task.id)}
@@ -542,6 +567,8 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 onSubtaskToggle={handleSubtaskToggle}
                 onSubtaskComplete={handleSubtaskCompleteStart}
                 onAddSubtask={handleAddSubtask}
+                onEditSubtask={handleEditSubtask}
+                onDeleteSubtask={handleDeleteSubtask}
                 isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
                 onDragStart={() => handleTaskDragStart(task.id)}
                 onDragOver={() => handleTaskDragOver(task.id)}
