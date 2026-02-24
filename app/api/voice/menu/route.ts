@@ -24,6 +24,11 @@ const CATEGORY_MAP: Record<string, { key: string; label: string; message: string
   },
 }
 
+// XML-escape helper for embedding values in TwiML
+function xmlEscape(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export async function POST(request: Request) {
   try {
     const url = new URL(request.url)
@@ -57,6 +62,19 @@ export async function POST(request: Request) {
         .eq('call_sid', callSid)
     }
 
+    // Check for a custom per-category greeting recording
+    const { data: categoryGreeting } = await supabase
+      .from('greeting_recordings')
+      .select('url')
+      .eq('greeting_type', category.key)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    // Use custom recording if available, otherwise TTS
+    const categoryMessageTwiml = categoryGreeting?.url
+      ? `<Play>${categoryGreeting.url}</Play>`
+      : `<Say voice="alice">${xmlEscape(category.message)}</Say>`
+
     // Fetch team phones
     const { data: teamPhones } = await supabase
       .from('call_settings')
@@ -74,6 +92,7 @@ export async function POST(request: Request) {
 
     // Build dial targets with whisper URL so answering team member hears the category
     const whisperUrl = `https://fwg-ops.vercel.app/api/voice/whisper?category=${encodeURIComponent(category.label)}`
+    const safeLabel = xmlEscape(category.label)
     const numbers = teamPhones.map(p => `<Number url="${whisperUrl}">${p.phone}</Number>`).join('\n    ')
     const sipUris = teamPhones
       .filter(p => p.sip_uri)
@@ -83,9 +102,13 @@ export async function POST(request: Request) {
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">${category.message}</Say>
+  ${categoryMessageTwiml}
   <Dial callerId="${to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
-    <Client url="${whisperUrl}">ops-dashboard</Client>
+    <Client url="${whisperUrl}">
+      <Identity>ops-dashboard</Identity>
+      <Parameter name="categoryKey" value="${category.key}" />
+      <Parameter name="categoryLabel" value="${safeLabel}" />
+    </Client>
     ${numbers}
     ${sipUris}
   </Dial>

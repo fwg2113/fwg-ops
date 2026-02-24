@@ -51,11 +51,12 @@ export async function POST(request: Request) {
       return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })
     }
 
-    // Fetch active greeting recording from the library
+    // Fetch active main greeting recording from the library
     const { data: activeGreeting } = await supabase
       .from('greeting_recordings')
       .select('url')
       .eq('is_active', true)
+      .eq('greeting_type', 'main')
       .maybeSingle()
 
     // Fall back to legacy single greeting setting
