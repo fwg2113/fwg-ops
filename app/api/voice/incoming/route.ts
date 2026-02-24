@@ -23,13 +23,27 @@ export async function POST(request: Request) {
 
     console.log('Insert error:', insertError)
 
+    // Check for custom voice greeting
+    const { data: greetingSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'call_greeting_url')
+      .maybeSingle()
+
+    const greetingUrl = greetingSetting?.value || null
+
     // Screen the call - ask caller to press 1 to filter out robocalls
     const screenUrl = `https://fwg-ops.vercel.app/api/voice/screen?callSid=${callSid}&amp;from=${encodeURIComponent(from)}&amp;to=${encodeURIComponent(to)}`
+
+    // Use custom recording if available, otherwise fall back to TTS
+    const greetingTwiml = greetingUrl
+      ? `<Play>${greetingUrl}</Play>`
+      : `<Say voice="alice">Thank you for calling Frederick Wraps and Graphics. To be connected, please press 1.</Say>`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather numDigits="1" action="${screenUrl}" timeout="5">
-    <Say voice="alice">Thank you for calling Frederick Wraps and Graphics. To be connected, please press 1.</Say>
+    ${greetingTwiml}
   </Gather>
   <Hangup/>
 </Response>`
