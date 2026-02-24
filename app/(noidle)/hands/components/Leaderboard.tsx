@@ -2,6 +2,7 @@
 
 import type { NihTeamMember, NihPrize } from '../types'
 import { useState } from 'react'
+import PinModal from './PinModal'
 
 interface LeaderboardProps {
   teamMembers: NihTeamMember[]
@@ -17,6 +18,7 @@ export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate }: Lea
   const [editingPrizes, setEditingPrizes] = useState(false)
   const [prizeTexts, setPrizeTexts] = useState(prizes.map(p => p.prize_text))
   const [savingPrizes, setSavingPrizes] = useState(false)
+  const [showPinModal, setShowPinModal] = useState(false)
 
   // Only show members with points, sorted by total_points desc
   const ranked = teamMembers
@@ -218,10 +220,7 @@ export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate }: Lea
             </div>
             {!editingPrizes ? (
               <button
-                onClick={() => {
-                  setPrizeTexts(prizes.map(p => p.prize_text))
-                  setEditingPrizes(true)
-                }}
+                onClick={() => setShowPinModal(true)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -342,6 +341,18 @@ export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate }: Lea
             ))}
           </div>
         </div>
+      )}
+
+      {/* PIN modal for editing prizes */}
+      {showPinModal && (
+        <PinModal
+          onSuccess={() => {
+            setShowPinModal(false)
+            setPrizeTexts(prizes.map(p => p.prize_text))
+            setEditingPrizes(true)
+          }}
+          onClose={() => setShowPinModal(false)}
+        />
       )}
     </div>
   )
