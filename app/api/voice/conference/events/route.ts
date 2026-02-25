@@ -80,12 +80,7 @@ export async function POST(request: Request) {
           }
         }
 
-        // Build whisper: "Transfer from [agent]. Customer: [name], [phone]."
-        const agentName = callRecord.answered_by || 'a team member'
-        const callerDisplay = customerName
-          ? `${customerName}, ${callRecord.caller_phone}`
-          : callRecord.caller_phone || 'unknown caller'
-        const whisperMessage = `Transfer from ${agentName}. Customer: ${callerDisplay}.`
+        const whisperMessage = 'Call Transfer Request'
 
         // Call the transfer target
         const twilioNumber = process.env.TWILIO_PHONE_NUMBER
