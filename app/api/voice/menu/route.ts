@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 <Response>
   ${categoryMessageTwiml}
   <Dial callerId="${from}" timeout="40" answerOnBridge="true" action="${actionUrl}">
-    <Client url="${whisperUrl}" statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">
+    <Client statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">
       <Identity>ops-dashboard</Identity>
       <Parameter name="categoryKey" value="${category.key}" />
       <Parameter name="categoryLabel" value="${safeLabel}" />
