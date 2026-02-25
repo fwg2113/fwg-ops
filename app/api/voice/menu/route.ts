@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${categoryMessageTwiml}
-  <Dial callerId="${to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
+  <Dial callerId="${from}" timeout="40" answerOnBridge="true" action="${actionUrl}">
     <Client url="${whisperUrl}" statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">
       <Identity>ops-dashboard</Identity>
       <Parameter name="categoryKey" value="${category.key}" />
