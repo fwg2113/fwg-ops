@@ -70,6 +70,9 @@ interface POHistory {
 // Selection state: { lineItemId -> { size -> quantity } }
 type SelectionState = Record<string, Record<string, number>>
 
+// Inventory lookup: "STYLE:Color:Size" -> { total, warehouses }
+type InventoryMap = Record<string, { total: number; warehouses: { name: string; qty: number }[] }>
+
 export default function PurchaseOrdersPage() {
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create')
   const [groups, setGroups] = useState<DocumentGroup[]>([])
@@ -81,6 +84,9 @@ export default function PurchaseOrdersPage() {
   const [expandedPO, setExpandedPO] = useState<string | null>(null)
   const [validationResult, setValidationResult] = useState<any>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [inventoryMap, setInventoryMap] = useState<InventoryMap>({})
+  const [checkingInventory, setCheckingInventory] = useState(false)
+  const [inventoryChecked, setInventoryChecked] = useState(false)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type })
@@ -111,6 +117,44 @@ export default function PurchaseOrdersPage() {
       console.error('Failed to fetch PO history:', error)
     }
   }, [])
+
+  // Check inventory for all unique styles in the current groups
+  const checkInventory = useCallback(async () => {
+    if (groups.length === 0) return
+
+    // Extract unique style numbers
+    const styles = [...new Set(groups.flatMap(g => g.items.map(i => i.style)))]
+    if (styles.length === 0) return
+
+    setCheckingInventory(true)
+    try {
+      const res = await fetch('/api/purchase-orders/check-inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ styles }),
+      })
+      const data = await res.json()
+      if (data.inventory) {
+        setInventoryMap(data.inventory)
+        setInventoryChecked(true)
+        showToast(`Stock checked for ${styles.length} style${styles.length !== 1 ? 's' : ''}`, 'success')
+      } else {
+        showToast(data.error || 'Failed to check inventory', 'error')
+      }
+    } catch (error) {
+      console.error('Inventory check failed:', error)
+      showToast('Failed to check inventory', 'error')
+    } finally {
+      setCheckingInventory(false)
+    }
+  }, [groups])
+
+  // Look up inventory for a specific style/color/size
+  const getStockLevel = (style: string, color: string, size: string): { total: number; warehouses: { name: string; qty: number }[] } | null => {
+    if (!inventoryChecked) return null
+    const key = `${style.toUpperCase()}:${color}:${size}`
+    return inventoryMap[key] || null
+  }
 
   useEffect(() => {
     fetchAggregateItems()
@@ -416,8 +460,26 @@ export default function PurchaseOrdersPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ fontSize: '13px', color: '#64748b' }}>
               {loading ? 'Loading...' : `${groups.reduce((s, g) => s + g.items.length, 0)} SanMar items across ${groups.length} invoices`}
+              {inventoryChecked && (
+                <span style={{ marginLeft: '8px', color: '#22c55e', fontSize: '12px' }}>
+                  Stock checked
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={checkInventory}
+                disabled={checkingInventory || loading || groups.length === 0}
+                style={{
+                  padding: '6px 12px', borderRadius: '6px',
+                  border: inventoryChecked ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(34,211,238,0.3)',
+                  background: inventoryChecked ? 'rgba(34,197,94,0.1)' : 'rgba(34,211,238,0.1)',
+                  color: checkingInventory ? '#64748b' : inventoryChecked ? '#86efac' : '#22d3ee',
+                  fontSize: '12px', fontWeight: 600, cursor: checkingInventory ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {checkingInventory ? 'Checking...' : inventoryChecked ? 'Re-check Stock' : 'Check Stock'}
+              </button>
               <button
                 onClick={selectAll}
                 style={{
@@ -428,7 +490,7 @@ export default function PurchaseOrdersPage() {
                 Select All
               </button>
               <button
-                onClick={() => { fetchAggregateItems(); setLoading(true) }}
+                onClick={() => { fetchAggregateItems(); setLoading(true); setInventoryChecked(false); setInventoryMap({}) }}
                 style={{
                   padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(148,163,184,0.2)',
                   background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer',
@@ -566,7 +628,7 @@ export default function PurchaseOrdersPage() {
                           </div>
                         </div>
 
-                        {/* Total qty / cost */}
+                        {/* Total qty / cost + stock indicator */}
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>
                             {item.totalQty} units
@@ -574,6 +636,24 @@ export default function PurchaseOrdersPage() {
                           <div style={{ fontSize: '12px', color: '#64748b' }}>
                             ${item.totalWholesale.toFixed(2)}
                           </div>
+                          {inventoryChecked && (() => {
+                            const activeSizes = Object.keys(item.sizes).filter(s => item.sizes[s].qty > 0)
+                            let allGood = true
+                            let anyIssue = false
+                            for (const s of activeSizes) {
+                              const stock = getStockLevel(item.style, item.color, s)
+                              if (stock === null) { allGood = false; break }
+                              if (stock.total < item.sizes[s].qty) { allGood = false; anyIssue = true }
+                            }
+                            return (
+                              <div style={{
+                                fontSize: '10px', fontWeight: 600, marginTop: '2px',
+                                color: anyIssue ? '#fcd34d' : allGood ? '#86efac' : '#94a3b8',
+                              }}>
+                                {anyIssue ? 'Low stock' : allGood ? 'In stock' : 'Partial data'}
+                              </div>
+                            )
+                          })()}
                         </div>
 
                         {/* Previous order badges */}
@@ -598,13 +678,17 @@ export default function PurchaseOrdersPage() {
                           const sizeData = item.sizes[sizeName]
                           const selectedQty = selectedSizes[sizeName]
                           const isEditing = isSelected
+                          const stock = getStockLevel(item.style, item.color, sizeName)
+                          const requestedQty = selectedQty || sizeData.qty
+                          const isLowStock = stock !== null && stock.total < requestedQty
+                          const isOutOfStock = stock !== null && stock.total === 0
 
                           return (
                             <div key={sizeName} style={{
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
                               padding: '4px 8px', borderRadius: '6px', minWidth: '50px',
-                              background: selectedQty ? 'rgba(34,211,238,0.1)' : 'rgba(30,30,30,0.5)',
-                              border: selectedQty ? '1px solid rgba(34,211,238,0.2)' : '1px solid rgba(148,163,184,0.08)',
+                              background: isOutOfStock ? 'rgba(220,38,38,0.08)' : isLowStock ? 'rgba(245,158,11,0.08)' : selectedQty ? 'rgba(34,211,238,0.1)' : 'rgba(30,30,30,0.5)',
+                              border: isOutOfStock ? '1px solid rgba(220,38,38,0.2)' : isLowStock ? '1px solid rgba(245,158,11,0.2)' : selectedQty ? '1px solid rgba(34,211,238,0.2)' : '1px solid rgba(148,163,184,0.08)',
                             }}>
                               <span style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>
                                 {sizeName}
@@ -631,6 +715,17 @@ export default function PurchaseOrdersPage() {
                               <span style={{ fontSize: '10px', color: '#64748b' }}>
                                 ${sizeData.wholesale?.toFixed(2) || '0.00'}
                               </span>
+                              {stock !== null && (
+                                <span
+                                  title={stock.warehouses.length > 0 ? stock.warehouses.map(w => `${w.name}: ${w.qty}`).join('\n') : 'No stock'}
+                                  style={{
+                                    fontSize: '9px', fontWeight: 700, marginTop: '1px',
+                                    color: isOutOfStock ? '#fca5a5' : isLowStock ? '#fcd34d' : '#86efac',
+                                  }}
+                                >
+                                  {stock.total.toLocaleString()} avail
+                                </span>
+                              )}
                             </div>
                           )
                         })}
