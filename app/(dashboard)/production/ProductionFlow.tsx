@@ -695,7 +695,7 @@ export default function ProductionFlow({ initialJobs, initialTasks }: Production
               color: '#f1f5f9',
               fontSize: '14px',
               flex: 1,
-              minWidth: '250px',
+              minWidth: '150px',
               maxWidth: '350px'
             }}
           />
