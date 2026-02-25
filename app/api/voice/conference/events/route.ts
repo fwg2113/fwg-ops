@@ -91,7 +91,7 @@ export async function POST(request: Request) {
           try {
             const targetCall = await createCall({
               to: callRecord.transfer_target_phone,
-              from: twilioNumber,
+              from: callRecord.caller_phone || twilioNumber,
               url: targetJoinUrl,
               statusCallback: `https://fwg-ops.vercel.app/api/voice/transfer/target-status?callSid=${callSid}`,
               statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
