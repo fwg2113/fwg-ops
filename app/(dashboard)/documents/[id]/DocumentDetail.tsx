@@ -3573,7 +3573,9 @@ export default function DocumentDetail({
                                                   sizesObj[s.sizeName] = {
                                                     qty: existingSize?.qty || 0,
                                                     price: retailPrice,
-                                                    wholesale: wholesalePrice
+                                                    wholesale: wholesalePrice,
+                                                    inventoryKey: s.inventoryKey || undefined,
+                                                    sizeIndex: s.sizeIndex || undefined,
                                                   }
                                                 })
 
@@ -3584,6 +3586,7 @@ export default function DocumentDetail({
                                                     custom_fields: {
                                                       ...li.custom_fields,
                                                       color: newColor,
+                                                      catalog_color: selectedColor.catalogColor || undefined,
                                                       color_hex: selectedColor.colorHex || undefined,
                                                       color_swatch_url: selectedColor.colorSwatchUrl || undefined,
                                                       sizes: sizesObj,
