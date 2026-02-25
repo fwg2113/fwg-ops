@@ -34,17 +34,18 @@ export async function POST(request: Request) {
       }
 
       // Ring browser clients, team phones, and SIP endpoints simultaneously
-      const numbers = teamPhones.map(p => `<Number>${p.phone}</Number>`).join('\n    ')
+      const statusUrl = `https://fwg-ops.vercel.app/api/voice/status?callSid=${callSid}`
+      const numbers = teamPhones.map(p => `<Number statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.phone}</Number>`).join('\n    ')
       const sipUris = teamPhones
         .filter(p => p.sip_uri)
-        .map(p => `<Sip>${p.sip_uri}</Sip>`)
+        .map(p => `<Sip statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.sip_uri}</Sip>`)
         .join('\n    ')
       const actionUrl = `https://fwg-ops.vercel.app/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
-    <Client>ops-dashboard</Client>
+    <Client statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">ops-dashboard</Client>
     ${numbers}
     ${sipUris}
   </Dial>
