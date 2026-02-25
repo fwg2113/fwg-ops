@@ -4664,27 +4664,27 @@ export default function DocumentDetail({
       
 
       {/* Sticky Footer */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '20px 24px', background: 'linear-gradient(to top, #111111 60%, transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '20px 24px', background: 'linear-gradient(to top, #111111 60%, transparent)', display: 'flex', alignItems: 'center', gap: '12px', zIndex: 100 }}>
         <ActionButton onClick={() => router.back()} variant="secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
           Back
         </ActionButton>
-        <button 
-          onClick={handleSaveAll} 
-          disabled={saving} 
-          style={{ 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '12px 28px', 
-            background: 'linear-gradient(135deg, #d71cd1, #38c2f0)', 
-            border: 'none', 
-            borderRadius: '8px', 
-            color: 'white', 
-            fontSize: '15px', 
-            fontWeight: 600, 
-            cursor: 'pointer', 
-            opacity: saving ? 0.7 : 1, 
+        <button
+          onClick={handleSaveAll}
+          disabled={saving}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 28px',
+            background: 'linear-gradient(135deg, #d71cd1, #38c2f0)',
+            border: 'none',
+            borderRadius: '8px',
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            opacity: saving ? 0.7 : 1,
             boxShadow: '0 0 20px rgba(215, 28, 209, 0.4)',
             transition: 'all 0.2s ease',
             transform: 'scale(1)'
