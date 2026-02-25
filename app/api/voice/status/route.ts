@@ -8,12 +8,13 @@ export async function POST(request: Request) {
   
   const formData = await request.formData()
   const callStatus = formData.get('CallStatus') as string
+  const childCallSid = formData.get('CallSid') as string // This child leg's SID
   const to = formData.get('To') as string // The team member's phone
   const duration = formData.get('CallDuration') as string
-  
-  console.log('Call status update:', { callSid, callStatus, to, duration })
 
-  // If this leg was answered, record who answered
+  console.log('Call status update:', { callSid, childCallSid, callStatus, to, duration })
+
+  // If this leg was answered, record who answered and their call SID (for warm transfer)
   if (callStatus === 'in-progress' || callStatus === 'answered') {
     // Find team member name
     const { data: teamMember } = await supabase
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
         .from('calls')
         .update({
           answered_by: teamMember.name,
+          agent_call_sid: childCallSid,
           status: 'in-progress'
         })
         .eq('call_sid', callSid)
