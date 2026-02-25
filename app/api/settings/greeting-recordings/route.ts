@@ -101,18 +101,36 @@ export async function PUT(request: Request) {
 
     // If setting active, first get the recording to know its greeting_type
     if (is_active) {
-      const { data: rec } = await supabase
+      const { data: rec, error: recErr } = await supabase
         .from('greeting_recordings')
         .select('greeting_type')
         .eq('id', id)
         .single()
 
-      // Deactivate other recordings of the same type
-      await supabase
-        .from('greeting_recordings')
-        .update({ is_active: false })
-        .eq('greeting_type', rec?.greeting_type || 'main')
-        .neq('id', id)
+      if (!recErr) {
+        // Deactivate other recordings of the same type
+        const { error: deactErr } = await supabase
+          .from('greeting_recordings')
+          .update({ is_active: false })
+          .eq('greeting_type', rec?.greeting_type || 'main')
+          .neq('id', id)
+
+        if (deactErr?.message?.includes('greeting_type')) {
+          // Column doesn't exist — deactivate all others
+          await supabase
+            .from('greeting_recordings')
+            .update({ is_active: false })
+            .eq('is_active', true)
+            .neq('id', id)
+        }
+      } else {
+        // greeting_type column may not exist — deactivate all others
+        await supabase
+          .from('greeting_recordings')
+          .update({ is_active: false })
+          .eq('is_active', true)
+          .neq('id', id)
+      }
     }
 
     const updates: Record<string, any> = {}

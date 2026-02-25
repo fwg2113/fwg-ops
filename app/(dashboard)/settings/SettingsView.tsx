@@ -877,13 +877,40 @@ export default function SettingsView({
   const uploadGreeting = async (blob: Blob, filename: string) => {
     setGreetingUploading(true)
     try {
-      const formData = new FormData()
-      formData.append('file', new File([blob], filename, { type: blob.type }))
-      formData.append('name', greetingName.trim() || 'Recorded Greeting')
+      // Step 1: Get presigned URL for direct R2 upload
+      const presignRes = await fetch('/api/settings/call-greeting/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, contentType: blob.type }),
+      })
+      const presignData = await presignRes.json()
+      if (!presignRes.ok || !presignData.presignedUrl) {
+        alert('Upload failed: ' + (presignData.error || 'Could not get upload URL'))
+        setGreetingUploading(false)
+        return
+      }
 
+      // Step 2: Upload directly to R2 (bypasses serverless body limit)
+      const uploadRes = await fetch(presignData.presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': blob.type || 'audio/mpeg' },
+        body: blob,
+      })
+      if (!uploadRes.ok) {
+        alert('Upload failed: Could not upload file')
+        setGreetingUploading(false)
+        return
+      }
+
+      // Step 3: Save metadata to DB
       const res = await fetch('/api/settings/call-greeting', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: presignData.publicUrl,
+          r2Key: presignData.r2Key,
+          name: greetingName.trim() || 'Recorded Greeting',
+        }),
       })
       const data = await res.json()
       if (data.url && data.recording) {
@@ -1066,19 +1093,46 @@ export default function SettingsView({
     setCategoryUploading(categoryKey)
     try {
       const catInfo = IVR_CATEGORIES.find(c => c.key === categoryKey)
-      const formData = new FormData()
-      formData.append('file', new File([blob], filename, { type: blob.type }))
-      formData.append('name', `${catInfo?.label || categoryKey} Greeting`)
-      formData.append('greeting_type', categoryKey)
 
+      // Step 1: Get presigned URL
+      const presignRes = await fetch('/api/settings/call-greeting/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, contentType: blob.type }),
+      })
+      const presignData = await presignRes.json()
+      if (!presignRes.ok || !presignData.presignedUrl) {
+        alert('Upload failed: ' + (presignData.error || 'Could not get upload URL'))
+        setCategoryUploading(null)
+        return
+      }
+
+      // Step 2: Upload directly to R2
+      const uploadRes = await fetch(presignData.presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': blob.type || 'audio/mpeg' },
+        body: blob,
+      })
+      if (!uploadRes.ok) {
+        alert('Upload failed: Could not upload file')
+        setCategoryUploading(null)
+        return
+      }
+
+      // Step 3: Save metadata to DB
       const res = await fetch('/api/settings/call-greeting', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: presignData.publicUrl,
+          r2Key: presignData.r2Key,
+          name: `${catInfo?.label || categoryKey} Greeting`,
+          greeting_type: categoryKey,
+        }),
       })
       const data = await res.json()
       if (data.url && data.recording) {
         setCategoryGreetings(prev => ({ ...prev, [categoryKey]: data.recording }))
-        // Also add to main recordings list
         setGreetingRecordings(prev => [data.recording, ...prev])
       } else {
         alert('Upload failed: ' + (data.error || 'Unknown error'))
