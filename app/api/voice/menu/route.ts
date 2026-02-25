@@ -63,12 +63,18 @@ export async function POST(request: Request) {
     }
 
     // Check for a custom per-category greeting recording
-    const { data: categoryGreeting } = await supabase
+    let categoryGreeting: { url: string } | null = null
+    const { data: catGreetData, error: catGreetErr } = await supabase
       .from('greeting_recordings')
       .select('url')
       .eq('greeting_type', category.key)
       .eq('is_active', true)
       .maybeSingle()
+
+    if (!catGreetErr) {
+      categoryGreeting = catGreetData
+    }
+    // If greeting_type column doesn't exist, categoryGreeting stays null → TTS fallback
 
     // Use custom recording if available, otherwise TTS
     const categoryMessageTwiml = categoryGreeting?.url
