@@ -3589,6 +3589,7 @@ export default function DocumentDetail({
                                                       catalog_color: selectedColor.catalogColor || undefined,
                                                       color_hex: selectedColor.colorHex || undefined,
                                                       color_swatch_url: selectedColor.colorSwatchUrl || undefined,
+                                                      product_image_url: selectedColor.frontImage || selectedColor.colorImages?.[0] || undefined,
                                                       sizes: sizesObj,
                                                       enabled_sizes: selectedColor.sizes.map((s: any) => s.sizeName)
                                                     }

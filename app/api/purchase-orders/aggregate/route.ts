@@ -103,6 +103,7 @@ export async function GET() {
         catalogColor?: string
         description: string
         category: string
+        imageUrl?: string
         sizes: Record<string, { qty: number; price: number; wholesale: number; inventoryKey?: number; sizeIndex?: number }>
         totalQty: number
         totalWholesale: number
@@ -135,6 +136,7 @@ export async function GET() {
         catalogColor: cf.catalog_color,
         description: li.description,
         category: li.category || '',
+        imageUrl: cf.product_image_url || undefined,
         sizes,
         totalQty,
         totalWholesale,
