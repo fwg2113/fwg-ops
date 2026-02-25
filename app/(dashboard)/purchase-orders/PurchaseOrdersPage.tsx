@@ -18,6 +18,7 @@ interface AggregateItem {
   catalogColor?: string
   description: string
   category: string
+  imageUrl?: string
   sizes: Record<string, SizeData>
   totalQty: number
   totalWholesale: number
@@ -39,11 +40,15 @@ interface DocumentGroup {
 interface POHistoryItem {
   id: string
   purchase_order_id: string
+  source_document_id?: string
+  source_line_item_id?: string
   style: string
   color: string
   catalog_color: string
   size: string
   quantity: number
+  inventory_key?: number
+  size_index?: number
   wholesale_price: number
   line_cost: number
   warehouse_name: string
@@ -308,6 +313,53 @@ export default function PurchaseOrdersPage() {
     } catch (error) {
       console.error('PO status update error:', error)
       showToast('Failed to update PO status', 'error')
+    }
+  }
+
+  // Resubmit a failed PO by rebuilding the payload from its items
+  const handleResubmit = async (po: POHistory) => {
+    if (po.items.length === 0) {
+      showToast('No items found on this PO', 'error')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const submitItems = po.items.map(item => ({
+        lineItemId: item.source_line_item_id || item.id,
+        documentId: item.source_document_id || '',
+        documentNumber: item.source_document_number || '',
+        customerName: item.customer_name || '',
+        style: item.style,
+        color: item.catalog_color || item.color,
+        catalogColor: item.catalog_color || item.color,
+        size: item.size,
+        quantity: item.quantity,
+        inventoryKey: item.inventory_key,
+        sizeIndex: item.size_index,
+        wholesalePrice: Number(item.wholesale_price) || 0,
+      }))
+
+      const res = await fetch('/api/purchase-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: submitItems }),
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        showToast(`New PO ${data.poNumber} submitted successfully!`, 'success')
+        // Mark the old PO as cancelled
+        await updatePOStatus(po.id, 'cancelled')
+        fetchHistory()
+      } else {
+        showToast(data.message || data.error || 'Resubmission failed', 'error')
+      }
+    } catch (error) {
+      console.error('Resubmit error:', error)
+      showToast('Failed to resubmit PO', 'error')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -651,6 +703,19 @@ export default function PurchaseOrdersPage() {
                           )}
                         </div>
 
+                        {/* Product thumbnail */}
+                        {item.imageUrl && (
+                          <img
+                            src={item.imageUrl}
+                            alt={`${item.style} ${item.color}`}
+                            style={{
+                              width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover',
+                              border: '1px solid rgba(148,163,184,0.15)', flexShrink: 0,
+                              background: '#fff',
+                            }}
+                          />
+                        )}
+
                         {/* Item info */}
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -860,34 +925,49 @@ export default function PurchaseOrdersPage() {
                         </div>
                       )}
                       {/* Status update buttons */}
-                      {po.status !== 'cancelled' && (
-                        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
-                          {(['confirmed', 'shipped', 'delivered', 'cancelled'] as const)
-                            .filter(s => s !== po.status)
-                            .map(newStatus => {
-                              const btnColors: Record<string, { border: string; color: string; bg: string }> = {
-                                confirmed: { border: 'rgba(59,130,246,0.3)', color: '#93c5fd', bg: 'rgba(59,130,246,0.1)' },
-                                shipped: { border: 'rgba(168,85,247,0.3)', color: '#c4b5fd', bg: 'rgba(168,85,247,0.1)' },
-                                delivered: { border: 'rgba(34,197,94,0.3)', color: '#86efac', bg: 'rgba(34,197,94,0.1)' },
-                                cancelled: { border: 'rgba(220,38,38,0.3)', color: '#fca5a5', bg: 'rgba(220,38,38,0.1)' },
-                              }
-                              const bc = btnColors[newStatus] || btnColors.confirmed
-                              return (
-                                <button
-                                  key={newStatus}
-                                  onClick={(e) => { e.stopPropagation(); updatePOStatus(po.id, newStatus) }}
-                                  style={{
-                                    padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
-                                    border: `1px solid ${bc.border}`, background: bc.bg, color: bc.color,
-                                    cursor: 'pointer', textTransform: 'capitalize',
-                                  }}
-                                >
-                                  Mark {newStatus}
-                                </button>
-                              )
-                            })}
-                        </div>
-                      )}
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                        {po.status === 'error' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleResubmit(po) }}
+                            disabled={submitting}
+                            style={{
+                              padding: '4px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                              border: '1px solid rgba(34,211,238,0.4)', background: 'rgba(34,211,238,0.15)', color: '#22d3ee',
+                              cursor: submitting ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {submitting ? 'Resubmitting...' : 'Retry Submission'}
+                          </button>
+                        )}
+                        {po.status !== 'cancelled' && po.status !== 'delivered' && (
+                          <>
+                            {(['confirmed', 'shipped', 'delivered', 'cancelled'] as const)
+                              .filter(s => s !== po.status)
+                              .map(newStatus => {
+                                const btnColors: Record<string, { border: string; color: string; bg: string }> = {
+                                  confirmed: { border: 'rgba(59,130,246,0.3)', color: '#93c5fd', bg: 'rgba(59,130,246,0.1)' },
+                                  shipped: { border: 'rgba(168,85,247,0.3)', color: '#c4b5fd', bg: 'rgba(168,85,247,0.1)' },
+                                  delivered: { border: 'rgba(34,197,94,0.3)', color: '#86efac', bg: 'rgba(34,197,94,0.1)' },
+                                  cancelled: { border: 'rgba(220,38,38,0.3)', color: '#fca5a5', bg: 'rgba(220,38,38,0.1)' },
+                                }
+                                const bc = btnColors[newStatus] || btnColors.confirmed
+                                return (
+                                  <button
+                                    key={newStatus}
+                                    onClick={(e) => { e.stopPropagation(); updatePOStatus(po.id, newStatus) }}
+                                    style={{
+                                      padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                                      border: `1px solid ${bc.border}`, background: bc.bg, color: bc.color,
+                                      cursor: 'pointer', textTransform: 'capitalize',
+                                    }}
+                                  >
+                                    Mark {newStatus}
+                                  </button>
+                                )
+                              })}
+                          </>
+                        )}
+                      </div>
                       <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
                         <thead>
                           <tr style={{ color: '#64748b', textTransform: 'uppercase', fontSize: '10px', fontWeight: 600 }}>
@@ -910,7 +990,20 @@ export default function PurchaseOrdersPage() {
                               <td style={{ padding: '6px 8px', color: '#22d3ee', textAlign: 'right' }}>${Number(item.line_cost || 0).toFixed(2)}</td>
                               <td style={{ padding: '6px 8px', color: '#64748b' }}>{item.warehouse_name || '-'}</td>
                               <td style={{ padding: '6px 8px', color: '#64748b' }}>
-                                {item.source_document_number} {item.customer_name && `(${item.customer_name})`}
+                                {item.source_document_id ? (
+                                  <a
+                                    href={`/documents/${item.source_document_id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ color: '#22d3ee', textDecoration: 'none' }}
+                                    onMouseEnter={(e) => { (e.target as HTMLElement).style.textDecoration = 'underline' }}
+                                    onMouseLeave={(e) => { (e.target as HTMLElement).style.textDecoration = 'none' }}
+                                  >
+                                    {item.source_document_number || 'View'}
+                                  </a>
+                                ) : (
+                                  item.source_document_number
+                                )}
+                                {item.customer_name && ` (${item.customer_name})`}
                               </td>
                             </tr>
                           ))}
