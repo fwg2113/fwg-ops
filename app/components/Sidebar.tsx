@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 
 const navSections = [
@@ -167,6 +167,8 @@ const icons: Record<string, React.ReactElement> = {
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number }>({ messages: 0, email: 0, payments: 0, actions: 0 })
   const [handsStats, setHandsStats] = useState<{ availablePoints: number; leaders: { id: string; name: string; avatar_color: string; total_points: number }[] }>({ availablePoints: 0, leaders: [] })
 
@@ -243,9 +245,6 @@ export default function Sidebar() {
       borderRight: '1px solid rgba(255,255,255,0.08)',
       display: 'flex',
       flexDirection: 'column',
-      position: 'fixed',
-      left: 0,
-      top: 0
     }}>
       {/* Logo Header */}
       <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -266,7 +265,7 @@ export default function Sidebar() {
               <circle cx="18.5" cy="18.5" r="2.5"></circle>
             </svg>
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>
               Frederick <span style={gradientStyle}>Wraps</span>
             </div>
@@ -274,6 +273,38 @@ export default function Sidebar() {
               Operations Hub
             </div>
           </div>
+          <button
+            onClick={() => {
+              setIsRefreshing(true)
+              router.refresh()
+              setTimeout(() => setIsRefreshing(false), 800)
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#6b7280',
+              padding: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '6px',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#22d3ee' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = '#6b7280' }}
+            aria-label="Refresh page"
+            title="Refresh page"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
+              width: 18,
+              height: 18,
+              animation: isRefreshing ? 'spin 0.6s linear infinite' : 'none',
+            }}>
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+          </button>
         </div>
       </div>
 
