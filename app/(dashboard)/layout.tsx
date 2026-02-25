@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Sidebar from '../components/Sidebar'
 import NotificationManager from '../components/NotificationManager'
@@ -14,7 +14,9 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -30,11 +32,41 @@ export default function DashboardLayout({
     return () => window.removeEventListener('keydown', handleEscape)
   }, [])
 
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [sidebarOpen])
+
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    router.refresh()
+    setTimeout(() => setIsRefreshing(false), 800)
+  }
+
   return (
     <>
       <style jsx global>{`
-        /* Mobile header */
+        /* Desktop sidebar - fixed position */
+        .dashboard-sidebar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          z-index: 1001;
+          transition: transform 0.3s ease;
+        }
+
+        /* Mobile header - hidden on desktop */
         .mobile-header {
+          display: none !important;
+        }
+
+        /* Sidebar overlay - hidden on desktop */
+        .sidebar-overlay {
           display: none;
         }
 
@@ -51,24 +83,20 @@ export default function DashboardLayout({
             display: flex !important;
           }
           .dashboard-sidebar {
-            position: fixed !important;
-            left: -260px !important;
-            z-index: 1001 !important;
-            transition: left 0.3s ease !important;
+            transform: translateX(-100%);
           }
           .dashboard-sidebar.open {
-            left: 0 !important;
+            transform: translateX(0);
           }
           .sidebar-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 1000;
-            backdrop-filter: blur(2px);
+            display: block;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
           }
           .sidebar-overlay.open {
-            display: block;
+            opacity: 1;
+            pointer-events: auto;
           }
           .dashboard-main {
             margin-left: 0 !important;
@@ -104,7 +132,6 @@ export default function DashboardLayout({
             height: '56px',
             background: '#111111',
             borderBottom: '1px solid rgba(255,255,255,0.08)',
-            display: 'none',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 16px',
@@ -174,13 +201,44 @@ export default function DashboardLayout({
               }}>Ops</span>
             </span>
           </div>
-          <div style={{ width: '40px' }} /> {/* Spacer for centering */}
+          {/* Refresh button (mobile) */}
+          <button
+            onClick={handleRefresh}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#6b7280',
+              padding: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'color 0.2s',
+            }}
+            aria-label="Refresh page"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
+              width: 20,
+              height: 20,
+              animation: isRefreshing ? 'spin 0.6s linear infinite' : 'none',
+            }}>
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+          </button>
         </div>
 
         {/* Sidebar Overlay (mobile) */}
         <div
           className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`}
           onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            zIndex: 1000,
+            backdropFilter: 'blur(2px)',
+          }}
         />
 
         {/* Sidebar */}
