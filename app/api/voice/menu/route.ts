@@ -92,11 +92,12 @@ export async function POST(request: Request) {
 
     // Build dial targets with whisper URL so answering team member hears the category
     const whisperUrl = `https://fwg-ops.vercel.app/api/voice/whisper?category=${encodeURIComponent(category.label)}`
+    const statusUrl = `https://fwg-ops.vercel.app/api/voice/status?callSid=${callSid}`
     const safeLabel = xmlEscape(category.label)
-    const numbers = teamPhones.map(p => `<Number url="${whisperUrl}">${p.phone}</Number>`).join('\n    ')
+    const numbers = teamPhones.map(p => `<Number url="${whisperUrl}" statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.phone}</Number>`).join('\n    ')
     const sipUris = teamPhones
       .filter(p => p.sip_uri)
-      .map(p => `<Sip url="${whisperUrl}">${p.sip_uri}</Sip>`)
+      .map(p => `<Sip url="${whisperUrl}" statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.sip_uri}</Sip>`)
       .join('\n    ')
     const actionUrl = `https://fwg-ops.vercel.app/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
 
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
 <Response>
   ${categoryMessageTwiml}
   <Dial callerId="${to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
-    <Client url="${whisperUrl}">
+    <Client url="${whisperUrl}" statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">
       <Identity>ops-dashboard</Identity>
       <Parameter name="categoryKey" value="${category.key}" />
       <Parameter name="categoryLabel" value="${safeLabel}" />

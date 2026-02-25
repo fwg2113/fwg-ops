@@ -16,18 +16,52 @@ export async function POST(request: Request) {
 
   // If this leg was answered, record who answered and their call SID (for warm transfer)
   if (callStatus === 'in-progress' || callStatus === 'answered') {
-    // Find team member name
-    const { data: teamMember } = await supabase
-      .from('call_settings')
-      .select('name')
-      .eq('phone', to)
-      .single()
+    // Find team member name - try phone first, then SIP URI
+    let teamMember: { name: string } | null = null
 
-    if (teamMember) {
+    if (to?.startsWith('sip:')) {
+      const { data } = await supabase
+        .from('call_settings')
+        .select('name')
+        .eq('sip_uri', to)
+        .single()
+      teamMember = data
+    }
+
+    if (!teamMember && to) {
+      const { data } = await supabase
+        .from('call_settings')
+        .select('name')
+        .eq('phone', to)
+        .single()
+      teamMember = data
+    }
+
+    // Also try matching by client identity (browser-based calls)
+    if (!teamMember && to?.startsWith('client:')) {
+      // Browser client — just mark the call as in-progress
+      await supabase
+        .from('calls')
+        .update({
+          answered_by: 'Dashboard',
+          agent_call_sid: childCallSid,
+          status: 'in-progress'
+        })
+        .eq('call_sid', callSid)
+    } else if (teamMember) {
       await supabase
         .from('calls')
         .update({
           answered_by: teamMember.name,
+          agent_call_sid: childCallSid,
+          status: 'in-progress'
+        })
+        .eq('call_sid', callSid)
+    } else if (to) {
+      // Unknown target but still answered — mark in-progress
+      await supabase
+        .from('calls')
+        .update({
           agent_call_sid: childCallSid,
           status: 'in-progress'
         })
