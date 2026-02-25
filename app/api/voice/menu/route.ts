@@ -96,21 +96,23 @@ export async function POST(request: Request) {
       return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })
     }
 
-    // Build dial targets with whisper URL so answering team member hears the category
-    const whisperUrl = `https://fwg-ops.vercel.app/api/voice/whisper?category=${encodeURIComponent(category.label)}`
+    // Build dial targets — match the proven screen route pattern exactly
     const statusUrl = `https://fwg-ops.vercel.app/api/voice/status?callSid=${callSid}`
     const safeLabel = xmlEscape(category.label)
-    const numbers = teamPhones.map(p => `<Number url="${whisperUrl}" statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.phone}</Number>`).join('\n    ')
+    // Use the business Twilio number (to) as callerId, NOT the caller's number (from).
+    // Using the caller's number can cause Twilio to reject outbound legs.
+    const dialCallerId = to || from
+    const numbers = teamPhones.map(p => `<Number statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.phone}</Number>`).join('\n    ')
     const sipUris = teamPhones
       .filter(p => p.sip_uri)
-      .map(p => `<Sip url="${whisperUrl}" statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.sip_uri}</Sip>`)
+      .map(p => `<Sip statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.sip_uri}</Sip>`)
       .join('\n    ')
     const actionUrl = `https://fwg-ops.vercel.app/api/voice/complete?callSid=${callSid}&amp;from=${encodeURIComponent(from)}`
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${categoryMessageTwiml}
-  <Dial callerId="${from}" timeout="40" answerOnBridge="true" action="${actionUrl}">
+  <Dial callerId="${dialCallerId}" timeout="40" answerOnBridge="true" action="${actionUrl}">
     <Client statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">
       <Identity>ops-dashboard</Identity>
       <Parameter name="categoryKey" value="${category.key}" />
