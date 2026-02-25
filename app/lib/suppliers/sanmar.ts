@@ -173,6 +173,7 @@ export class SanMarClient {
   // Production WSDL endpoints
   private productInfoUrl = 'https://ws.sanmar.com:8080/SanMarWebService/SanMarProductInfoServicePort?wsdl'
   private inventoryUrl = 'https://ws.sanmar.com:8080/SanMarWebService/SanMarWebServicePort?wsdl'
+  private poUrl = 'https://ws.sanmar.com:8080/SanMarWebService/SanMarPOServicePort?wsdl'
 
   constructor() {
     this.customerNumber = process.env.SANMAR_CUSTOMER_NUMBER || ''
@@ -586,6 +587,197 @@ export class SanMarClient {
       supplier: 'sanmar',
       styleID: style,
       items,
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Purchase Order Methods
+  // --------------------------------------------------------------------------
+
+  /**
+   * Pre-submit validation: checks inventory availability at closest warehouse.
+   * Does NOT submit the order — use submitPO() after validation.
+   *
+   * Uses: getPreSubmitInfo SOAP method on SanMarPOServicePort
+   */
+  async getPreSubmitInfo(params: {
+    poNum: string
+    shipAddress1: string
+    shipAddress2?: string
+    shipCity: string
+    shipState: string
+    shipZip: string
+    shipMethod: string
+    shipEmail?: string
+    shipTo?: string
+    residence?: string
+    attention?: string
+    items: Array<{
+      style: string
+      color: string
+      size: string
+      quantity: number
+      inventoryKey?: number
+      sizeIndex?: number
+    }>
+  }): Promise<{
+    success: boolean
+    message: string
+    items: Array<{
+      style: string
+      color: string
+      size: string
+      quantity: number
+      inventoryKey?: number
+      sizeIndex?: number
+      whseNo?: string
+      available: boolean
+      message: string
+    }>
+  }> {
+    const detailItems = params.items.map(item => `
+      <webServicePoDetailList>
+        <color>${item.color}</color>
+        <errorOccured>?</errorOccured>
+        <inventoryKey>${item.inventoryKey || ''}</inventoryKey>
+        <message>?</message>
+        <poId>?</poId>
+        <quantity>${item.quantity}</quantity>
+        <size>${item.size}</size>
+        <sizeIndex>${item.sizeIndex || ''}</sizeIndex>
+        <style>${item.style}</style>
+        <whseNo>?</whseNo>
+      </webServicePoDetailList>`).join('')
+
+    const soapBody = `<web:getPreSubmitInfo>
+      <arg0>
+        <attention>${params.attention || ''}</attention>
+        <internalMessage>?</internalMessage>
+        <notes>?</notes>
+        <poNum>${params.poNum}</poNum>
+        <poSenderId>?</poSenderId>
+        <residence>${params.residence || 'N'}</residence>
+        <department>?</department>
+        <shipAddress1>${params.shipAddress1}</shipAddress1>
+        <shipAddress2>${params.shipAddress2 || ''}</shipAddress2>
+        <shipCity>${params.shipCity}</shipCity>
+        <shipEmail>${params.shipEmail || ''}</shipEmail>
+        <shipMethod>${params.shipMethod}</shipMethod>
+        <shipState>${params.shipState}</shipState>
+        <shipTo>${params.shipTo || ''}</shipTo>
+        <shipZip>${params.shipZip}</shipZip>
+        ${detailItems}
+      </arg0>
+      ${this.authXml()}
+    </web:getPreSubmitInfo>`
+
+    try {
+      const responseXml = await this.soapRequest(this.poUrl, soapBody)
+
+      const errorOccurred = xmlValue(responseXml, 'errorOccurred')
+      const message = xmlValue(responseXml, 'message') || ''
+
+      // Parse detail list responses
+      const detailBlocks = xmlAll(responseXml, 'webServicePoDetailList')
+      const items = detailBlocks.map(block => ({
+        style: xmlValue(block, 'style'),
+        color: decodeXml(xmlValue(block, 'color')),
+        size: xmlValue(block, 'size'),
+        quantity: parseInt(xmlValue(block, 'quantity'), 10) || 0,
+        inventoryKey: parseInt(xmlValue(block, 'inventoryKey'), 10) || undefined,
+        sizeIndex: parseInt(xmlValue(block, 'sizeIndex'), 10) || undefined,
+        whseNo: xmlValue(block, 'whseNo') || undefined,
+        available: xmlValue(block, 'errorOccured') !== 'true',
+        message: decodeXml(xmlValue(block, 'message')),
+      }))
+
+      return {
+        success: errorOccurred !== 'true',
+        message: decodeXml(message),
+        items,
+      }
+    } catch (error) {
+      console.error('SanMar getPreSubmitInfo failed:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Submit a purchase order to SanMar for processing.
+   * Call getPreSubmitInfo() first to validate inventory.
+   *
+   * Uses: submitPO SOAP method on SanMarPOServicePort
+   */
+  async submitPO(params: {
+    poNum: string
+    shipAddress1: string
+    shipAddress2?: string
+    shipCity: string
+    shipState: string
+    shipZip: string
+    shipMethod: string
+    shipEmail?: string
+    shipTo?: string
+    residence?: string
+    attention?: string
+    items: Array<{
+      style: string
+      color: string
+      size: string
+      quantity: number
+      inventoryKey?: number
+      sizeIndex?: number
+    }>
+  }): Promise<{
+    success: boolean
+    message: string
+    rawResponse: string
+  }> {
+    const detailItems = params.items.map(item => `
+      <webServicePoDetailList>
+        <inventoryKey>${item.inventoryKey || ''}</inventoryKey>
+        <sizeIndex>${item.sizeIndex || ''}</sizeIndex>
+        <style>${item.style}</style>
+        <color>${item.color}</color>
+        <size>${item.size}</size>
+        <quantity>${item.quantity}</quantity>
+        <whseNo />
+      </webServicePoDetailList>`).join('')
+
+    const soapBody = `<web:submitPO>
+      <arg0>
+        <attention>${params.attention || ''}</attention>
+        <notes />
+        <poNum>${params.poNum}</poNum>
+        <shipTo>${params.shipTo || ''}</shipTo>
+        <shipAddress1>${params.shipAddress1}</shipAddress1>
+        <shipAddress2>${params.shipAddress2 || ''}</shipAddress2>
+        <shipCity>${params.shipCity}</shipCity>
+        <shipState>${params.shipState}</shipState>
+        <shipZip>${params.shipZip}</shipZip>
+        <shipMethod>${params.shipMethod}</shipMethod>
+        <shipEmail>${params.shipEmail || ''}</shipEmail>
+        <residence>${params.residence || 'N'}</residence>
+        <department />
+        ${detailItems}
+      </arg0>
+      ${this.authXml()}
+    </web:submitPO>`
+
+    try {
+      const responseXml = await this.soapRequest(this.poUrl, soapBody)
+
+      const errorOccurred = xmlValue(responseXml, 'errorOccurred')
+      const message = decodeXml(xmlValue(responseXml, 'message') || '')
+
+      return {
+        success: errorOccurred !== 'true',
+        message,
+        rawResponse: responseXml,
+      }
+    } catch (error) {
+      console.error('SanMar submitPO failed:', error)
+      throw error
     }
   }
 
