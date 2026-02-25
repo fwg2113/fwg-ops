@@ -52,12 +52,25 @@ export async function POST(request: Request) {
     }
 
     // Fetch active main greeting recording from the library
-    const { data: activeGreeting } = await supabase
+    let activeGreeting: { url: string } | null = null
+    const { data: greetData, error: greetErr } = await supabase
       .from('greeting_recordings')
       .select('url')
       .eq('is_active', true)
       .eq('greeting_type', 'main')
       .maybeSingle()
+
+    if (!greetErr) {
+      activeGreeting = greetData
+    } else {
+      // greeting_type column may not exist — try without it
+      const { data: fallbackGreet } = await supabase
+        .from('greeting_recordings')
+        .select('url')
+        .eq('is_active', true)
+        .maybeSingle()
+      activeGreeting = fallbackGreet
+    }
 
     // Fall back to legacy single greeting setting
     let greetingUrl = activeGreeting?.url || null
