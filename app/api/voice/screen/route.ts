@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
+  <Dial callerId="${from || to}" timeout="40" answerOnBridge="true" action="${actionUrl}">
     <Client statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">ops-dashboard</Client>
     ${numbers}
     ${sipUris}
