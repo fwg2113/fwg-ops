@@ -568,24 +568,48 @@ export default function SettingsView({
     pricing: {} as Record<string, { price_min: number; price_max: number; typical_price: number }>
   })
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'categories', label: 'Categories' },
-    { key: 'materials', label: 'Materials' },
-    { key: 'buckets', label: 'Pipeline Buckets' },
-    { key: 'production', label: 'Production Templates' },
-    { key: 'workflows', label: 'Customer Workflows' },
-    { key: 'statuses', label: 'Task Statuses' },
-    { key: 'priorities', label: 'Task Priorities' },
-    { key: 'estimator', label: 'Estimator Config' },
-    { key: 'qty-tiers', label: 'Qty Tiers' },
-    { key: 'dtf-pricing', label: 'DTF Pricing' },
-    { key: 'embroidery-markup', label: 'Emb. Markup' },
-    { key: 'embroidery-fee', label: 'Emb. Fee' },
-    { key: 'automations', label: 'Automations' },
-    { key: 'notifications', label: 'Notifications' },
-    { key: 'calls', label: 'Call Forwarding' },
-    { key: 'integrations', label: 'Integrations' }
+  const tabGroups: { group: string; tabs: { key: Tab; label: string }[] }[] = [
+    {
+      group: 'Services',
+      tabs: [
+        { key: 'categories', label: 'Categories' },
+        { key: 'materials', label: 'Materials' },
+        { key: 'buckets', label: 'Pipeline Buckets' },
+      ]
+    },
+    {
+      group: 'Production',
+      tabs: [
+        { key: 'production', label: 'Production Templates' },
+        { key: 'workflows', label: 'Customer Workflows' },
+        { key: 'statuses', label: 'Task Statuses' },
+        { key: 'priorities', label: 'Task Priorities' },
+      ]
+    },
+    {
+      group: 'Pricing',
+      tabs: [
+        { key: 'estimator', label: 'Estimator Config' },
+        { key: 'qty-tiers', label: 'Qty Tiers' },
+        { key: 'dtf-pricing', label: 'DTF Pricing' },
+        { key: 'embroidery-markup', label: 'Emb. Markup' },
+        { key: 'embroidery-fee', label: 'Emb. Fee' },
+      ]
+    },
+    {
+      group: 'System',
+      tabs: [
+        { key: 'automations', label: 'Automations' },
+        { key: 'notifications', label: 'Notifications' },
+        { key: 'calls', label: 'Call Forwarding' },
+        { key: 'integrations', label: 'Integrations' },
+      ]
+    },
   ]
+
+  const tabs = tabGroups.flatMap(g => g.tabs)
+
+  const activeGroup = tabGroups.find(g => g.tabs.some(t => t.key === activeTab))?.group || 'Services'
 
   const addVehicleCategory = async () => {
     if (!newVehicle.category_key.trim() || !newVehicle.label.trim()) {
@@ -1559,26 +1583,86 @@ export default function SettingsView({
     <div style={{ fontFamily: 'system-ui, sans-serif' }}>
       <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '24px' }}>Settings</h1>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: '10px 20px',
-              background: activeTab === tab.key ? '#d71cd1' : '#1d1d1d',
-              border: 'none',
-              borderRadius: '8px',
-              color: activeTab === tab.key ? 'white' : '#94a3b8',
-              fontSize: '14px',
-              fontWeight: activeTab === tab.key ? '600' : '400',
-              cursor: 'pointer'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Mobile Tab Selector */}
+      <div className="settings-tabs-mobile" style={{ display: 'none', marginBottom: '24px' }}>
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value as Tab)}
+          style={{
+            width: '100%',
+            padding: '12px 16px',
+            background: '#1d1d1d',
+            border: '1px solid rgba(148, 163, 184, 0.2)',
+            borderRadius: '8px',
+            color: '#f1f5f9',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            appearance: 'none',
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 16px center',
+          }}
+        >
+          {tabGroups.map((group) => (
+            <optgroup key={group.group} label={group.group}>
+              {group.tabs.map((tab) => (
+                <option key={tab.key} value={tab.key}>{tab.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {/* Desktop Tabs - grouped */}
+      <div className="settings-tabs-desktop" style={{ marginBottom: '24px' }}>
+        {/* Group tabs */}
+        <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
+          {tabGroups.map((group) => {
+            const isGroupActive = group.group === activeGroup
+            return (
+              <button
+                key={group.group}
+                onClick={() => setActiveTab(group.tabs[0].key)}
+                style={{
+                  padding: '8px 16px',
+                  background: isGroupActive ? 'rgba(215, 28, 209, 0.15)' : 'transparent',
+                  border: isGroupActive ? '1px solid rgba(215, 28, 209, 0.4)' : '1px solid rgba(148, 163, 184, 0.1)',
+                  borderRadius: '8px',
+                  color: isGroupActive ? '#d71cd1' : '#64748b',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {group.group}
+              </button>
+            )
+          })}
+        </div>
+        {/* Sub-tabs for active group */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {tabGroups.find(g => g.group === activeGroup)?.tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '10px 20px',
+                background: activeTab === tab.key ? '#d71cd1' : '#1d1d1d',
+                border: 'none',
+                borderRadius: '8px',
+                color: activeTab === tab.key ? 'white' : '#94a3b8',
+                fontSize: '14px',
+                fontWeight: activeTab === tab.key ? '600' : '400',
+                cursor: 'pointer'
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Categories Tab */}
