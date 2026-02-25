@@ -88,10 +88,23 @@ export async function POST(request: Request) {
           const confName = `call-${callSid}`
           const targetJoinUrl = `https://fwg-ops.vercel.app/api/voice/conference/join?conf=${encodeURIComponent(confName)}&role=target&callSid=${callSid}&whisper=${encodeURIComponent(whisperMessage)}`
 
+          // Look up SIP URI for the transfer target so we can show customer's caller ID
+          const { data: targetSettings } = await supabase
+            .from('call_settings')
+            .select('sip_uri')
+            .eq('phone', callRecord.transfer_target_phone)
+            .eq('enabled', true)
+            .maybeSingle()
+
+          // If target has a SIP URI, call via SIP — Twilio allows any From for SIP calls,
+          // so we can show the customer's phone number as the caller ID.
+          const targetTo = targetSettings?.sip_uri || callRecord.transfer_target_phone
+          const targetFrom = targetSettings?.sip_uri ? (callRecord.caller_phone || twilioNumber) : twilioNumber
+
           try {
             const targetCall = await createCall({
-              to: callRecord.transfer_target_phone,
-              from: callRecord.caller_phone || twilioNumber,
+              to: targetTo,
+              from: targetFrom,
               url: targetJoinUrl,
               statusCallback: `https://fwg-ops.vercel.app/api/voice/transfer/target-status?callSid=${callSid}`,
               statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
