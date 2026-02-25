@@ -755,8 +755,11 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
         background: '#111111',
         border: '1px solid rgba(148, 163, 184, 0.2)',
         borderRadius: '16px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch'
       }}>
+      <div style={{ minWidth: '600px' }}>
         <div style={{
           display: 'grid',
           gridTemplateColumns: '2fr 1.5fr 1fr 1fr 100px',
@@ -826,6 +829,7 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
             {loading ? 'Loading...' : 'No customers found'}
           </div>
         )}
+      </div>
       </div>
 
       {/* Lightbox Modal */}
@@ -1513,7 +1517,7 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
             </div>
             
             <form onSubmit={handleAddSubmit} style={{ padding: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>First Name</label>
                   <input type="text" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
@@ -1529,7 +1533,7 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
                 <input type="text" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>Email</label>
                   <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
@@ -1621,7 +1625,7 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
             </div>
             
             <form onSubmit={handleEditSubmit} style={{ padding: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>First Name</label>
                   <input type="text" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
@@ -1637,7 +1641,7 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
                 <input type="text" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>Email</label>
                   <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148, 163, 184, 0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px' }} />
@@ -1704,7 +1708,9 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '400px',
+            width: '100%',
+            maxWidth: '400px',
+            margin: '16px',
             overflow: 'hidden'
           }}>
             <div style={{
@@ -1853,7 +1859,9 @@ export default function CustomerList({ initialCustomers, totalCount }: { initial
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '700px',
+            width: '100%',
+            maxWidth: '700px',
+            margin: '16px',
             maxHeight: '80vh',
             overflow: 'hidden',
             display: 'flex',

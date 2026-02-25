@@ -2106,7 +2106,9 @@ export default function SettingsView({
               <div style={{
                 background: '#1d1d1d',
                 borderRadius: '16px',
-                width: '500px',
+                width: '100%',
+                maxWidth: '500px',
+                margin: '16px',
                 overflow: 'hidden'
               }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2233,7 +2235,9 @@ export default function SettingsView({
               <div style={{
                 background: '#1d1d1d',
                 borderRadius: '16px',
-                width: '500px',
+                width: '100%',
+                maxWidth: '500px',
+                margin: '16px',
                 overflow: 'hidden'
               }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2342,7 +2346,7 @@ export default function SettingsView({
           {linkingTemplate && linkingTemplate.type === 'production' && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
               onClick={() => setLinkingTemplate(null)}>
-              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '440px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '440px', margin: '16px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Link Category</h3>
                   <button onClick={() => setLinkingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
@@ -2579,7 +2583,7 @@ export default function SettingsView({
           {/* Edit Workflow Step Modal */}
           {editingWorkflowStep && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '500px', margin: '16px', overflow: 'hidden' }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Edit Workflow Step</h3>
                   <button onClick={() => setEditingWorkflowStep(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
@@ -2675,7 +2679,7 @@ export default function SettingsView({
           {/* Add Workflow Step Modal */}
           {addingWorkflowStep && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '500px', margin: '16px', overflow: 'hidden' }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Workflow Step</h3>
                   <button onClick={() => { setAddingWorkflowStep(null); setNewWorkflowStep({ step_key: '', label: '', description: '', instructions: '', default_priority: 'MEDIUM', auto_complete_on_status: '' }) }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
@@ -2759,7 +2763,7 @@ export default function SettingsView({
           {linkingTemplate && linkingTemplate.type === 'customer' && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
               onClick={() => setLinkingTemplate(null)}>
-              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '440px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '440px', margin: '16px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Link Category</h3>
                   <button onClick={() => setLinkingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
@@ -2810,7 +2814,9 @@ export default function SettingsView({
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '500px',
+            width: '100%',
+            maxWidth: '500px',
+            margin: '16px',
             overflow: 'hidden'
           }}>
             <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2918,7 +2924,9 @@ export default function SettingsView({
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '500px',
+            width: '100%',
+            maxWidth: '500px',
+            margin: '16px',
             overflow: 'hidden'
           }}>
             <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3027,7 +3035,9 @@ export default function SettingsView({
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '500px',
+            width: '100%',
+            maxWidth: '500px',
+            margin: '16px',
             overflow: 'hidden'
           }}>
             <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3123,7 +3133,9 @@ export default function SettingsView({
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '500px',
+            width: '100%',
+            maxWidth: '500px',
+            margin: '16px',
             overflow: 'hidden'
           }}>
             <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -4194,7 +4206,9 @@ export default function SettingsView({
               <div style={{
                 background: '#1d1d1d',
                 borderRadius: '16px',
-                width: '400px',
+                width: '100%',
+                maxWidth: '400px',
+                margin: '16px',
                 overflow: 'hidden'
               }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -4602,7 +4616,7 @@ export default function SettingsView({
           {/* Add Vehicle Modal */}
           {addingVehicle && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '600px', maxHeight: '90vh', overflow: 'auto' }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '600px', margin: '16px', maxHeight: '90vh', overflow: 'auto' }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#1d1d1d', zIndex: 1 }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Add Vehicle Category</h3>
                   <button onClick={() => setAddingVehicle(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>x</button>
@@ -4688,7 +4702,7 @@ export default function SettingsView({
           {/* Edit Vehicle Modal */}
           {editingVehicle && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '500px', margin: '16px', overflow: 'hidden' }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Edit Vehicle Category</h3>
                   <button onClick={() => setEditingVehicle(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>x</button>
@@ -4736,7 +4750,7 @@ export default function SettingsView({
           {/* Edit Pricing Modal */}
           {editingPricing && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '450px', overflow: 'hidden' }}>
+              <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '450px', margin: '16px', overflow: 'hidden' }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid rgba(148, 163, 184, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: '0 0 4px 0' }}>Edit Pricing</h3>
@@ -5762,7 +5776,7 @@ export default function SettingsView({
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ display: 'block', color: '#d71cd1', fontSize: '14px', marginBottom: '10px', fontWeight: 600 }}>Message Alert Sound</label>
                       <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays when there are unread SMS messages</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                         {BUILTIN_SOUNDS.map(sound => (
                           <button
                             key={sound.key}
@@ -5829,7 +5843,7 @@ export default function SettingsView({
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ display: 'block', color: '#3b82f6', fontSize: '14px', marginBottom: '10px', fontWeight: 600 }}>Email Alert Sound</label>
                       <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays when there are unread emails</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                         {BUILTIN_SOUNDS.map(sound => (
                           <button
                             key={sound.key}
@@ -5896,7 +5910,7 @@ export default function SettingsView({
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ display: 'block', color: '#22c55e', fontSize: '14px', marginBottom: '10px', fontWeight: 600 }}>Payment Alert Sound</label>
                       <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays once when a new payment is received (does not repeat)</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
                         {BUILTIN_SOUNDS.map(sound => (
                           <button
                             key={sound.key}
@@ -6315,7 +6329,7 @@ export default function SettingsView({
       {creatingTemplate && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setCreatingTemplate(null)}>
-          <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '500px', margin: '16px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Create {creatingTemplate === 'production' ? 'Production' : 'Customer Workflow'} Template</h3>
               <button onClick={() => setCreatingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
@@ -6376,7 +6390,7 @@ export default function SettingsView({
       {editingTemplate && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setEditingTemplate(null)}>
-          <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '500px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: '#1d1d1d', borderRadius: '16px', width: '100%', maxWidth: '500px', margin: '16px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ color: '#f1f5f9', fontSize: '18px', margin: 0 }}>Rename Template</h3>
               <button onClick={() => setEditingTemplate(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>

@@ -111,6 +111,41 @@ export default function DashboardLayout({
           .settings-tabs-desktop {
             display: none !important;
           }
+
+          /* Messages: stack conversation list and chat panel */
+          .messages-split-view {
+            flex-direction: column !important;
+            height: auto !important;
+            min-height: calc(100vh - 180px);
+          }
+          .messages-convo-list {
+            width: 100% !important;
+            max-height: 50vh;
+          }
+          .messages-chat-panel {
+            min-height: 300px;
+          }
+
+          /* Email: stack sidebar and content */
+          .email-layout {
+            flex-direction: column !important;
+          }
+          .email-sidebar {
+            width: 100% !important;
+            flex-direction: row !important;
+            overflow-x: auto !important;
+            flex-shrink: 0 !important;
+          }
+          .email-sidebar > div:first-child {
+            display: none !important;
+          }
+
+          /* Kanban: enable horizontal scroll */
+          .kanban-container {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 8px;
+          }
         }
 
         @media (max-width: 480px) {
