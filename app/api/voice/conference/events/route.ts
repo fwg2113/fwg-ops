@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '../../../../lib/supabase'
-import { findConference, holdParticipant, createCall } from '../../../../lib/twilio'
+import { holdParticipant, createCall, hangupCall } from '../../../../lib/twilio'
 
 /**
  * Conference status callback webhook.
@@ -20,9 +20,8 @@ export async function POST(request: Request) {
     const event = formData.get('StatusCallbackEvent') as string
     const conferenceSid = formData.get('ConferenceSid') as string
     const participantCallSid = formData.get('CallSid') as string
-    const friendlyName = formData.get('FriendlyName') as string
 
-    console.log('Conference event:', { event, callSid, conferenceSid, participantCallSid, friendlyName })
+    console.log('Conference event:', { event, callSid, conferenceSid, participantCallSid })
 
     if (!callSid) {
       return new NextResponse('OK', { status: 200 })
@@ -48,13 +47,6 @@ export async function POST(request: Request) {
         return new NextResponse('OK', { status: 200 })
       }
 
-      // Count current participants
-      const conf = await findConference(friendlyName)
-      if (!conf) {
-        console.log('Conference not found:', friendlyName)
-        return new NextResponse('OK', { status: 200 })
-      }
-
       // When transfer_status is 'initiating' and the CALLER just joined
       // (not the agent who joins first) → Hold the caller and call the transfer target
       if (callRecord.transfer_status === 'initiating' && participantCallSid !== callRecord.agent_call_sid) {
@@ -68,7 +60,11 @@ export async function POST(request: Request) {
         })
 
         // Hold the caller
-        await holdParticipant(conferenceSid, callerCallSid, true)
+        try {
+          await holdParticipant(conferenceSid, callerCallSid, true)
+        } catch (e) {
+          console.error('Failed to hold caller:', e)
+        }
 
         // Look up customer name for the whisper
         let customerName: string | null = null
@@ -94,26 +90,46 @@ export async function POST(request: Request) {
         // Call the transfer target
         const twilioNumber = process.env.TWILIO_PHONE_NUMBER
         if (callRecord.transfer_target_phone && twilioNumber) {
-          const targetJoinUrl = `https://fwg-ops.vercel.app/api/voice/conference/join?conf=${encodeURIComponent(friendlyName)}&role=target&callSid=${callSid}&whisper=${encodeURIComponent(whisperMessage)}`
+          const confName = `call-${callSid}`
+          const targetJoinUrl = `https://fwg-ops.vercel.app/api/voice/conference/join?conf=${encodeURIComponent(confName)}&role=target&callSid=${callSid}&whisper=${encodeURIComponent(whisperMessage)}`
 
-          const targetCall = await createCall({
-            to: callRecord.transfer_target_phone,
-            from: twilioNumber,
-            url: targetJoinUrl,
-            statusCallback: `https://fwg-ops.vercel.app/api/voice/transfer/target-status?callSid=${callSid}`,
-            statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-          })
-
-          // Store target call SID and update status
-          await supabase
-            .from('calls')
-            .update({
-              transfer_status: 'connecting',
-              transfer_target_call_sid: targetCall.sid,
+          try {
+            const targetCall = await createCall({
+              to: callRecord.transfer_target_phone,
+              from: twilioNumber,
+              url: targetJoinUrl,
+              statusCallback: `https://fwg-ops.vercel.app/api/voice/transfer/target-status?callSid=${callSid}`,
+              statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
             })
-            .eq('call_sid', callSid)
 
-          console.log('Transfer target call created:', targetCall.sid)
+            // Store target call SID and update status
+            await supabase
+              .from('calls')
+              .update({
+                transfer_status: 'connecting',
+                transfer_target_call_sid: targetCall.sid,
+              })
+              .eq('call_sid', callSid)
+
+            console.log('Transfer target call created:', targetCall.sid)
+          } catch (e) {
+            console.error('Failed to call transfer target:', e)
+            // Unhold the caller so they can still talk to the agent
+            try {
+              await holdParticipant(conferenceSid, callerCallSid, false)
+            } catch (e2) {
+              console.error('Failed to unhold caller after target call failure:', e2)
+            }
+            await supabase
+              .from('calls')
+              .update({ transfer_status: null, transfer_target_phone: null, transfer_target_name: null })
+              .eq('call_sid', callSid)
+          }
+        } else {
+          console.error('Cannot call transfer target: missing phone or TWILIO_PHONE_NUMBER env var', {
+            targetPhone: callRecord.transfer_target_phone,
+            hasTwilioNumber: !!twilioNumber,
+          })
         }
       }
 
@@ -124,6 +140,34 @@ export async function POST(request: Request) {
           .from('calls')
           .update({ transfer_status: 'briefing' })
           .eq('call_sid', callSid)
+      }
+    }
+
+    // Handle agent leaving the conference before transfer is complete
+    if (event === 'participant-leave') {
+      const { data: callRecord } = await supabase
+        .from('calls')
+        .select('transfer_status, agent_call_sid, call_sid, transfer_target_call_sid')
+        .eq('call_sid', callSid)
+        .maybeSingle()
+
+      if (callRecord && participantCallSid === callRecord.agent_call_sid) {
+        // Agent left the conference
+        const status = callRecord.transfer_status
+        if (status === 'initiating' || status === 'connecting') {
+          // Transfer wasn't completed — clean up: hang up target, unhold caller
+          console.log('Agent left during incomplete transfer, cleaning up')
+          if (callRecord.transfer_target_call_sid) {
+            try { await hangupCall(callRecord.transfer_target_call_sid) } catch (e) { /* may already be gone */ }
+          }
+          try {
+            await holdParticipant(conferenceSid, callRecord.call_sid, false)
+          } catch (e) { /* caller might not be held */ }
+          await supabase
+            .from('calls')
+            .update({ transfer_status: null, transfer_target_phone: null, transfer_target_name: null, transfer_target_call_sid: null })
+            .eq('call_sid', callSid)
+        }
       }
     }
 
