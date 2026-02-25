@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       // Get the current call record to determine transfer state
       const { data: callRecord } = await supabase
         .from('calls')
-        .select('transfer_status, transfer_target_phone, agent_call_sid, call_sid')
+        .select('transfer_status, transfer_target_phone, agent_call_sid, call_sid, answered_by, caller_phone')
         .eq('call_sid', callSid)
         .maybeSingle()
 
@@ -70,10 +70,31 @@ export async function POST(request: Request) {
         // Hold the caller
         await holdParticipant(conferenceSid, callerCallSid, true)
 
+        // Look up customer name for the whisper
+        let customerName: string | null = null
+        const cleanPhone = (callRecord.caller_phone || '').replace(/\D/g, '')
+        if (cleanPhone) {
+          const { data: match } = await supabase
+            .from('customer_phones')
+            .select('customers(name)')
+            .or(`phone.ilike.%${cleanPhone.slice(-10)}%`)
+            .limit(1)
+          if (match && match.length > 0 && match[0].customers) {
+            customerName = (match[0].customers as any).name
+          }
+        }
+
+        // Build whisper: "Transfer from [agent]. Customer: [name], [phone]."
+        const agentName = callRecord.answered_by || 'a team member'
+        const callerDisplay = customerName
+          ? `${customerName}, ${callRecord.caller_phone}`
+          : callRecord.caller_phone || 'unknown caller'
+        const whisperMessage = `Transfer from ${agentName}. Customer: ${callerDisplay}.`
+
         // Call the transfer target
         const twilioNumber = process.env.TWILIO_PHONE_NUMBER
         if (callRecord.transfer_target_phone && twilioNumber) {
-          const targetJoinUrl = `https://fwg-ops.vercel.app/api/voice/conference/join?conf=${encodeURIComponent(friendlyName)}&role=target&callSid=${callSid}&whisper=${encodeURIComponent('Incoming transfer from Frederick Wraps.')}`
+          const targetJoinUrl = `https://fwg-ops.vercel.app/api/voice/conference/join?conf=${encodeURIComponent(friendlyName)}&role=target&callSid=${callSid}&whisper=${encodeURIComponent(whisperMessage)}`
 
           const targetCall = await createCall({
             to: callRecord.transfer_target_phone,

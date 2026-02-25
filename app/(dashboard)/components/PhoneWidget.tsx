@@ -20,6 +20,21 @@ interface ActiveDbCall {
   created_at: string
 }
 
+interface RecentCall {
+  id: string
+  call_sid: string
+  direction: string
+  caller_phone: string
+  receiver_phone: string
+  answered_by: string | null
+  status: string
+  duration: number
+  category: string | null
+  customer_name: string | null
+  phone: string
+  created_at: string
+}
+
 interface TeamMember {
   name: string
   phone: string
@@ -49,6 +64,10 @@ export default function PhoneWidget() {
 
   // Active calls from DB (for calls answered on other devices)
   const [activeDbCalls, setActiveDbCalls] = useState<ActiveDbCall[]>([])
+
+  // Recent call history
+  const [recentCalls, setRecentCalls] = useState<RecentCall[]>([])
+  const [recentLoaded, setRecentLoaded] = useState(false)
 
   const deviceRef = useRef<any>(null)
   const activeCallRef = useRef<any>(null)
@@ -167,6 +186,18 @@ export default function PhoneWidget() {
       .eq('enabled', true)
       .order('ring_order', { ascending: true })
     if (data) setTeamMembers(data)
+  }, [])
+
+  // Fetch recent call history
+  const loadRecentCalls = useCallback(async () => {
+    try {
+      const res = await fetch('/api/voice/recent')
+      const { calls } = await res.json()
+      setRecentCalls(calls || [])
+      setRecentLoaded(true)
+    } catch (e) {
+      console.error('Failed to load recent calls:', e)
+    }
   }, [])
 
   // Poll for active calls from DB (for calls answered on other devices)
@@ -303,6 +334,13 @@ export default function PhoneWidget() {
       device?.destroy()
     }
   }, [lookupCaller, startRingtone, stopRingtone, loadTwilioSDK, loadTeamMembers, pollActiveCalls])
+
+  // Load recent calls when expanded in ready state
+  useEffect(() => {
+    if (expanded && state === 'ready' && activeDbCalls.length === 0) {
+      loadRecentCalls()
+    }
+  }, [expanded, state, activeDbCalls.length, loadRecentCalls])
 
   const answerCall = () => {
     if (activeCallRef.current) {
@@ -886,18 +924,16 @@ export default function PhoneWidget() {
             </div>
           )}
 
-          {/* Ready state - quick dial */}
+          {/* Ready state - quick dial + call history */}
           {state === 'ready' && !hasDbCall && (
-            <div style={{ padding: '20px' }}>
-              <p style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Quick Dial
-              </p>
-              <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ padding: '16px', maxHeight: '480px', overflowY: 'auto' }}>
+              {/* Quick Dial */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
                 <input
                   type="tel"
                   value={dialNumber}
                   onChange={(e) => setDialNumber(e.target.value)}
-                  placeholder="Enter phone number..."
+                  placeholder="Dial a number..."
                   onKeyDown={(e) => { if (e.key === 'Enter' && dialNumber.trim()) makeCall(dialNumber) }}
                   style={{
                     flex: 1, padding: '10px 14px', background: '#111111',
@@ -909,7 +945,7 @@ export default function PhoneWidget() {
                   onClick={() => makeCall(dialNumber)}
                   disabled={!dialNumber.trim()}
                   style={{
-                    padding: '10px 16px',
+                    padding: '10px 14px',
                     background: dialNumber.trim() ? '#22c55e' : '#282a30',
                     border: 'none', borderRadius: '8px',
                     cursor: dialNumber.trim() ? 'pointer' : 'not-allowed',
@@ -921,6 +957,149 @@ export default function PhoneWidget() {
                   </svg>
                 </button>
               </div>
+
+              {/* Transfer page link */}
+              <a
+                href="/transfer"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  padding: '10px', marginBottom: '14px',
+                  background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
+                  borderRadius: '8px', color: '#3b82f6', fontSize: '13px', fontWeight: 600,
+                  textDecoration: 'none', cursor: 'pointer',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+                  <polyline points="15 14 20 9 15 4" />
+                  <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+                </svg>
+                Open Transfer Page
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+
+              {/* Recent Calls */}
+              <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 600, margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Recent Calls
+              </p>
+              {!recentLoaded ? (
+                <p style={{ color: '#4b5563', fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>Loading...</p>
+              ) : recentCalls.length === 0 ? (
+                <p style={{ color: '#4b5563', fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>No recent calls</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {recentCalls.map((call) => {
+                    const isInbound = call.direction === 'inbound'
+                    const displayName = call.customer_name || formatPhone(call.phone || '')
+                    const statusColor = call.status === 'completed' ? '#22c55e' :
+                                       call.status === 'missed' ? '#ef4444' :
+                                       call.status === 'voicemail' ? '#f59e0b' :
+                                       call.status === 'in-progress' ? '#3b82f6' : '#64748b'
+                    const statusLabel = call.status === 'in-progress' ? 'Active' :
+                                       call.status.charAt(0).toUpperCase() + call.status.slice(1)
+                    const timeAgo = (() => {
+                      const diff = Date.now() - new Date(call.created_at).getTime()
+                      const mins = Math.floor(diff / 60000)
+                      if (mins < 1) return 'Just now'
+                      if (mins < 60) return `${mins}m ago`
+                      const hrs = Math.floor(mins / 60)
+                      if (hrs < 24) return `${hrs}h ago`
+                      const days = Math.floor(hrs / 24)
+                      return `${days}d ago`
+                    })()
+
+                    return (
+                      <div
+                        key={call.id}
+                        style={{
+                          padding: '10px',
+                          borderRadius: '8px',
+                          background: '#161618',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                        }}
+                      >
+                        {/* Direction icon */}
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%',
+                          background: isInbound ? 'rgba(59, 130, 246, 0.12)' : 'rgba(139, 92, 246, 0.12)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>
+                          {isInbound ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5">
+                              <polyline points="16 17 21 12 16 7" />
+                              <line x1="21" y1="12" x2="9" y2="12" />
+                              <path d="M3 19V5" />
+                            </svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2.5">
+                              <polyline points="8 17 3 12 8 7" />
+                              <line x1="3" y1="12" x2="15" y2="12" />
+                              <path d="M21 19V5" />
+                            </svg>
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '13px', fontWeight: 600, color: '#e2e8f0',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+                          }}>
+                            {displayName}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <span style={{ color: statusColor }}>{statusLabel}</span>
+                            <span>·</span>
+                            <span>{timeAgo}</span>
+                            {call.answered_by && (
+                              <>
+                                <span>·</span>
+                                <span>{call.answered_by}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {/* Action buttons */}
+                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                          <button
+                            onClick={() => makeCall(call.phone)}
+                            title="Call"
+                            style={{
+                              width: '30px', height: '30px', borderRadius: '6px',
+                              background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
+                              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                            </svg>
+                          </button>
+                          <a
+                            href={`/messages?phone=${encodeURIComponent(call.phone)}`}
+                            title="Message"
+                            style={{
+                              width: '30px', height: '30px', borderRadius: '6px',
+                              background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
+                          </a>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
