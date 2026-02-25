@@ -141,6 +141,28 @@ export async function holdParticipant(conferenceSid: string, callSid: string, ho
   return res.json()
 }
 
+/** Set endConferenceOnExit on a conference participant */
+export async function setEndConferenceOnExit(conferenceSid: string, callSid: string, endOnExit: boolean) {
+  const { accountSid } = getCredentials()
+  const res = await fetch(
+    `${TWILIO_API_BASE}/Accounts/${accountSid}/Conferences/${conferenceSid}/Participants/${callSid}.json`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ EndConferenceOnExit: endOnExit ? 'true' : 'false' }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json()
+    console.error('Twilio setEndConferenceOnExit error:', err)
+    throw new Error(err.message || 'Failed to update participant')
+  }
+  return res.json()
+}
+
 /** Remove a participant from a conference */
 export async function removeParticipant(conferenceSid: string, callSid: string) {
   const { accountSid } = getCredentials()

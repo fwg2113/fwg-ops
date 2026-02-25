@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '../../../../lib/supabase'
-import { holdParticipant, removeParticipant } from '../../../../lib/twilio'
+import { holdParticipant, removeParticipant, setEndConferenceOnExit } from '../../../../lib/twilio'
 
 /**
  * Complete the warm transfer.
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     const { data: callRecord, error } = await supabase
       .from('calls')
-      .select('conference_sid, agent_call_sid, call_sid, transfer_status, transfer_target_name')
+      .select('conference_sid, agent_call_sid, call_sid, transfer_status, transfer_target_name, transfer_target_call_sid')
       .eq('call_sid', callSid)
       .maybeSingle()
 
@@ -58,7 +58,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Update the call record
+    // 3. Let the transfer target end the conference when they hang up
+    if (callRecord.transfer_target_call_sid) {
+      try {
+        await setEndConferenceOnExit(callRecord.conference_sid, callRecord.transfer_target_call_sid, true)
+      } catch (e) {
+        console.log('Could not set endConferenceOnExit on target:', e)
+      }
+    }
+
+    // 4. Update the call record
     await supabase
       .from('calls')
       .update({
