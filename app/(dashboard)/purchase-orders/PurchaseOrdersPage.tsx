@@ -75,8 +75,8 @@ interface POHistory {
 // Selection state: { lineItemId -> { size -> quantity } }
 type SelectionState = Record<string, Record<string, number>>
 
-// Inventory lookup: "STYLE:Color:Size" -> { total, warehouses }
-type InventoryMap = Record<string, { total: number; warehouses: { name: string; qty: number }[] }>
+// Inventory lookup: "STYLE:Color:Size" -> { total, warehouses, recommended }
+type InventoryMap = Record<string, { total: number; warehouses: { name: string; qty: number }[]; recommended?: string | null }>
 
 export default function PurchaseOrdersPage() {
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create')
@@ -92,6 +92,14 @@ export default function PurchaseOrdersPage() {
   const [inventoryMap, setInventoryMap] = useState<InventoryMap>({})
   const [checkingInventory, setCheckingInventory] = useState(false)
   const [inventoryChecked, setInventoryChecked] = useState(false)
+  const [historyFilter, setHistoryFilter] = useState<string>('all')
+  // Manual product add state
+  const [showManualAdd, setShowManualAdd] = useState(false)
+  const [manualStyle, setManualStyle] = useState('')
+  const [manualLoading, setManualLoading] = useState(false)
+  const [manualProduct, setManualProduct] = useState<any>(null)
+  const [manualColor, setManualColor] = useState<string>('')
+  const [manualError, setManualError] = useState('')
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type })
@@ -349,8 +357,10 @@ export default function PurchaseOrdersPage() {
 
       if (data.success) {
         showToast(`New PO ${data.poNumber} submitted successfully!`, 'success')
-        // Mark the old PO as cancelled
-        await updatePOStatus(po.id, 'cancelled')
+        // Only cancel old PO if it was in error state (reorders keep the original)
+        if (po.status === 'error') {
+          await updatePOStatus(po.id, 'cancelled')
+        }
         fetchHistory()
       } else {
         showToast(data.message || data.error || 'Resubmission failed', 'error')
@@ -361,6 +371,86 @@ export default function PurchaseOrdersPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Look up a SanMar product by style number
+  const lookupManualProduct = async () => {
+    if (!manualStyle.trim()) return
+    setManualLoading(true)
+    setManualError('')
+    setManualProduct(null)
+    setManualColor('')
+    try {
+      const res = await fetch(`/api/suppliers/sanmar/product/${encodeURIComponent(manualStyle.trim())}`)
+      const data = await res.json()
+      if (data.success && data.data) {
+        setManualProduct(data.data)
+      } else {
+        setManualError(data.error || 'Product not found')
+      }
+    } catch (error) {
+      setManualError('Failed to look up product')
+    } finally {
+      setManualLoading(false)
+    }
+  }
+
+  // Add manual product to the groups as a "Manual" document group
+  const addManualProduct = () => {
+    if (!manualProduct || !manualColor) return
+    const colorData = manualProduct.colors?.find((c: any) => c.colorName === manualColor)
+    if (!colorData || !colorData.sizes) return
+
+    const manualId = `manual-${Date.now()}`
+    const sizes: Record<string, SizeData> = {}
+    for (const s of colorData.sizes) {
+      sizes[s.sizeName] = {
+        qty: 0,
+        price: 0,
+        wholesale: s.wholesalePrice || 0,
+        inventoryKey: s.inventoryKey || undefined,
+        sizeIndex: s.sizeIndex || undefined,
+      }
+    }
+
+    const newItem: AggregateItem = {
+      lineItemId: manualId,
+      style: manualProduct.styleName || manualStyle,
+      color: manualColor,
+      catalogColor: colorData.catalogColor || manualColor,
+      description: `${manualProduct.brandName || ''} ${manualProduct.styleName || manualStyle} - Manual Add`.trim(),
+      category: 'APPAREL',
+      imageUrl: colorData.frontImage || colorData.colorImages?.[0] || undefined,
+      sizes,
+      totalQty: 0,
+      totalWholesale: 0,
+      previousOrders: [],
+    }
+
+    // Check if a "Manual Items" group already exists
+    const manualGroupIdx = groups.findIndex(g => g.document.id === 'manual')
+    if (manualGroupIdx >= 0) {
+      const updated = [...groups]
+      updated[manualGroupIdx] = {
+        ...updated[manualGroupIdx],
+        items: [...updated[manualGroupIdx].items, newItem],
+      }
+      setGroups(updated)
+    } else {
+      setGroups(prev => [{
+        document: { id: 'manual', doc_number: 'Manual Items', doc_type: 'manual', customer_name: 'Ad-hoc / Team', status: 'manual', created_at: new Date().toISOString() },
+        items: [newItem],
+      }, ...prev])
+    }
+
+    // Auto-select the new item (with 0 qtys so user fills them in)
+    setSelection(prev => ({ ...prev, [manualId]: {} }))
+
+    showToast(`${manualProduct.styleName} - ${manualColor} added. Set quantities below.`, 'info')
+    setManualProduct(null)
+    setManualStyle('')
+    setManualColor('')
+    setShowManualAdd(false)
   }
 
   // Check if a line item has been fully ordered (all sizes covered by a submitted/confirmed/shipped/delivered PO)
@@ -415,6 +505,23 @@ export default function PurchaseOrdersPage() {
 
   const { totalUnits, totalCost, lineCount } = getSelectionTotals()
   const freeShipping = totalCost >= 200
+
+  // Check for split-warehouse sourcing across selected items
+  const getWarehouseWarning = (): { isSplit: boolean; warehouses: string[] } => {
+    if (!inventoryChecked || Object.keys(selection).length === 0) return { isSplit: false, warehouses: [] }
+    const warehouseSet = new Set<string>()
+    for (const [lineItemId, sizes] of Object.entries(selection)) {
+      const item = findItem(lineItemId)
+      if (!item) continue
+      for (const sizeName of Object.keys(sizes)) {
+        const stock = getStockLevel(item.style, item.color, sizeName)
+        if (stock?.recommended) warehouseSet.add(stock.recommended)
+      }
+    }
+    const warehouses = Array.from(warehouseSet)
+    return { isSplit: warehouses.length > 1, warehouses }
+  }
+  const warehouseWarning = getWarehouseWarning()
 
   const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL', 'OSFA', 'OSFM']
   const sortSizes = (sizes: string[]) => {
@@ -514,6 +621,17 @@ export default function PurchaseOrdersPage() {
                     {freeShipping ? 'FREE (UPS Ground)' : `$${(200 - totalCost).toFixed(2)} to free`}
                   </div>
                 </div>
+                {warehouseWarning.isSplit && (
+                  <div style={{
+                    padding: '6px 12px', borderRadius: '8px',
+                    background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#fcd34d' }}>Split Warehouse</div>
+                    <div style={{ fontSize: '10px', color: '#fbbf24' }}>
+                      {warehouseWarning.warehouses.join(', ')}
+                    </div>
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -574,6 +692,17 @@ export default function PurchaseOrdersPage() {
                 Select All
               </button>
               <button
+                onClick={() => setShowManualAdd(v => !v)}
+                style={{
+                  padding: '6px 12px', borderRadius: '6px',
+                  border: showManualAdd ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(168,85,247,0.2)',
+                  background: showManualAdd ? 'rgba(168,85,247,0.15)' : 'transparent',
+                  color: '#c4b5fd', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                + Add Product
+              </button>
+              <button
                 onClick={() => { fetchAggregateItems(); setLoading(true); setInventoryChecked(false); setInventoryMap({}) }}
                 style={{
                   padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(148,163,184,0.2)',
@@ -584,6 +713,83 @@ export default function PurchaseOrdersPage() {
               </button>
             </div>
           </div>
+
+          {/* Manual product add panel */}
+          {showManualAdd && (
+            <div style={{
+              background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.2)',
+              borderRadius: '10px', padding: '16px', marginBottom: '16px',
+            }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#c4b5fd', marginBottom: '10px' }}>
+                Add product by style number
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="Style # (e.g. PC61, ST350)"
+                  value={manualStyle}
+                  onChange={e => setManualStyle(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === 'Enter' && lookupManualProduct()}
+                  style={{
+                    flex: 1, maxWidth: '200px', padding: '8px 12px', borderRadius: '6px',
+                    border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(0,0,0,0.3)',
+                    color: '#f1f5f9', fontSize: '13px', outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={lookupManualProduct}
+                  disabled={manualLoading || !manualStyle.trim()}
+                  style={{
+                    padding: '8px 16px', borderRadius: '6px', border: 'none',
+                    background: 'rgba(168,85,247,0.3)', color: '#e9d5ff', fontSize: '13px',
+                    fontWeight: 600, cursor: manualLoading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {manualLoading ? 'Looking up...' : 'Look Up'}
+                </button>
+              </div>
+              {manualError && (
+                <div style={{ fontSize: '12px', color: '#fca5a5', marginBottom: '8px' }}>{manualError}</div>
+              )}
+              {manualProduct && (
+                <div>
+                  <div style={{ fontSize: '13px', color: '#e2e8f0', marginBottom: '8px' }}>
+                    <strong>{manualProduct.brandName}</strong> {manualProduct.styleName}
+                    {manualProduct.baseCategory && <span style={{ color: '#94a3b8' }}> — {manualProduct.baseCategory}</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>Color:</span>
+                    <select
+                      value={manualColor}
+                      onChange={e => setManualColor(e.target.value)}
+                      style={{
+                        padding: '6px 10px', borderRadius: '6px',
+                        border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(0,0,0,0.3)',
+                        color: '#f1f5f9', fontSize: '12px',
+                      }}
+                    >
+                      <option value="">Select color...</option>
+                      {manualProduct.colors?.map((c: any) => (
+                        <option key={c.colorName} value={c.colorName}>{c.colorName}</option>
+                      ))}
+                    </select>
+                    {manualColor && (
+                      <button
+                        onClick={addManualProduct}
+                        style={{
+                          padding: '6px 14px', borderRadius: '6px', border: 'none',
+                          background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                          color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                        }}
+                      >
+                        Add to PO
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Validation result */}
           {validationResult && (
@@ -643,9 +849,20 @@ export default function PurchaseOrdersPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>
-                      {group.document.doc_number || 'Invoice'}
-                    </span>
+                    {group.document.id === 'manual' ? (
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#c4b5fd' }}>
+                        {group.document.doc_number}
+                      </span>
+                    ) : (
+                      <a
+                        href={`/documents/${group.document.id}`}
+                        style={{ fontSize: '14px', fontWeight: 600, color: '#22d3ee', textDecoration: 'none' }}
+                        onMouseEnter={(e) => { (e.target as HTMLElement).style.textDecoration = 'underline' }}
+                        onMouseLeave={(e) => { (e.target as HTMLElement).style.textDecoration = 'none' }}
+                      >
+                        {group.document.doc_number || 'Invoice'}
+                      </a>
+                    )}
                     <span style={{ fontSize: '12px', color: '#64748b' }}>
                       {group.document.customer_name}
                     </span>
@@ -838,6 +1055,11 @@ export default function PurchaseOrdersPage() {
                                   {stock.total.toLocaleString()} avail
                                 </span>
                               )}
+                              {stock?.recommended && !isOutOfStock && (
+                                <span style={{ fontSize: '8px', color: '#64748b', marginTop: '1px' }}>
+                                  {stock.recommended === 'Robbinsville' ? 'NJ' : stock.recommended}
+                                </span>
+                              )}
                             </div>
                           )
                         })}
@@ -852,6 +1074,31 @@ export default function PurchaseOrdersPage() {
       ) : (
         /* History Tab */
         <div>
+          {/* Status filter chips */}
+          {poHistory.length > 0 && (
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {['all', 'submitted', 'confirmed', 'shipped', 'delivered', 'error', 'cancelled'].map(status => {
+                const count = status === 'all' ? poHistory.length : poHistory.filter(po => po.status === status).length
+                if (count === 0 && status !== 'all') return null
+                const isActive = historyFilter === status
+                return (
+                  <button
+                    key={status}
+                    onClick={() => setHistoryFilter(status)}
+                    style={{
+                      padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+                      border: isActive ? '1px solid rgba(34,211,238,0.4)' : '1px solid rgba(148,163,184,0.15)',
+                      background: isActive ? 'rgba(34,211,238,0.15)' : 'transparent',
+                      color: isActive ? '#22d3ee' : '#94a3b8',
+                      cursor: 'pointer', textTransform: 'capitalize',
+                    }}
+                  >
+                    {status} ({count})
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {poHistory.length === 0 ? (
             <div style={{
               textAlign: 'center', padding: '60px',
@@ -863,7 +1110,7 @@ export default function PurchaseOrdersPage() {
               </div>
             </div>
           ) : (
-            poHistory.map(po => {
+            poHistory.filter(po => historyFilter === 'all' || po.status === historyFilter).map(po => {
               const isExpanded = expandedPO === po.id
               const statusColors: Record<string, { bg: string; text: string }> = {
                 submitted: { bg: 'rgba(34,197,94,0.15)', text: '#86efac' },
@@ -937,6 +1184,19 @@ export default function PurchaseOrdersPage() {
                             }}
                           >
                             {submitting ? 'Resubmitting...' : 'Retry Submission'}
+                          </button>
+                        )}
+                        {po.status !== 'error' && po.status !== 'draft' && po.items.length > 0 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleResubmit(po) }}
+                            disabled={submitting}
+                            style={{
+                              padding: '4px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                              border: '1px solid rgba(168,85,247,0.3)', background: 'rgba(168,85,247,0.1)', color: '#c4b5fd',
+                              cursor: submitting ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {submitting ? 'Creating...' : 'Reorder'}
                           </button>
                         )}
                         {po.status !== 'cancelled' && po.status !== 'delivered' && (

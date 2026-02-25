@@ -3565,7 +3565,7 @@ export default function DocumentDetail({
                                                 const markupPercent = getDTFMarkupPercent(totalQty || 1)
                                                 const markupMultiplier = markupPercent / 100
 
-                                                const sizesObj: Record<string, { qty: number; price: number; wholesale: number }> = {}
+                                                const sizesObj: Record<string, { qty: number; price: number; wholesale: number; inventoryKey?: number; sizeIndex?: number }> = {}
                                                 selectedColor.sizes.forEach((s: any) => {
                                                   const existingSize = (af.sizes || {})[s.sizeName]
                                                   const wholesalePrice = s.wholesalePrice || 0
