@@ -304,6 +304,47 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * PATCH /api/purchase-orders
+ *
+ * Updates a purchase order's status.
+ * Body: { id: string, status: string, notes?: string }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const { id, status, notes } = await request.json()
+
+    if (!id || !status) {
+      return NextResponse.json({ error: 'id and status are required' }, { status: 400 })
+    }
+
+    const validStatuses = ['draft', 'submitted', 'confirmed', 'shipped', 'delivered', 'cancelled', 'error']
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 })
+    }
+
+    const update: Record<string, any> = { status }
+    if (notes !== undefined) update.notes = notes
+
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .update(update)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating purchase order:', error)
+      return NextResponse.json({ error: 'Failed to update purchase order' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, order: data })
+  } catch (error) {
+    console.error('Purchase order PATCH error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 function getWarehouseName(whseNo: string): string {
   const names: Record<string, string> = {
     '1': 'Seattle', '2': 'Cincinnati', '3': 'Dallas', '4': 'Reno',
