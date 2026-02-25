@@ -199,11 +199,12 @@ export default function PurchaseOrdersPage() {
     })
   }
 
-  // Select all items
+  // Select all items (skips fully-ordered items)
   const selectAll = () => {
     const newSelection: SelectionState = {}
     for (const group of groups) {
       for (const item of group.items) {
+        if (isFullyOrdered(item)) continue
         const sizes: Record<string, number> = {}
         for (const [sizeName, sizeData] of Object.entries(item.sizes)) {
           if (sizeData.qty > 0) {
@@ -287,6 +288,37 @@ export default function PurchaseOrdersPage() {
     }
 
     return submitItems
+  }
+
+  // Update PO status
+  const updatePOStatus = async (poId: string, newStatus: string) => {
+    try {
+      const res = await fetch('/api/purchase-orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: poId, status: newStatus }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast(`PO updated to ${newStatus}`, 'success')
+        fetchHistory()
+      } else {
+        showToast(data.error || 'Failed to update', 'error')
+      }
+    } catch (error) {
+      console.error('PO status update error:', error)
+      showToast('Failed to update PO status', 'error')
+    }
+  }
+
+  // Check if a line item has been fully ordered (all sizes covered by a submitted/confirmed/shipped/delivered PO)
+  const isFullyOrdered = (item: AggregateItem): boolean => {
+    if (item.previousOrders.length === 0) return false
+    const successStatuses = ['submitted', 'confirmed', 'shipped', 'delivered']
+    const orderedQty = item.previousOrders
+      .filter(po => successStatuses.includes(po.status))
+      .reduce((sum, po) => sum + po.quantity, 0)
+    return orderedQty >= item.totalQty
   }
 
   // Submit the PO
@@ -583,6 +615,7 @@ export default function PurchaseOrdersPage() {
                   const isSelected = !!selection[item.lineItemId]
                   const selectedSizes = selection[item.lineItemId] || {}
                   const sizeNames = sortSizes(Object.keys(item.sizes).filter(s => item.sizes[s].qty > 0))
+                  const fullyOrdered = isFullyOrdered(item)
 
                   return (
                     <div
@@ -590,22 +623,28 @@ export default function PurchaseOrdersPage() {
                       style={{
                         padding: '12px 16px',
                         borderBottom: '1px solid rgba(148,163,184,0.05)',
-                        background: isSelected ? 'rgba(34,211,238,0.04)' : 'transparent',
-                        transition: 'background 0.15s ease',
+                        background: fullyOrdered ? 'rgba(34,197,94,0.03)' : isSelected ? 'rgba(34,211,238,0.04)' : 'transparent',
+                        opacity: fullyOrdered ? 0.5 : 1,
+                        transition: 'background 0.15s ease, opacity 0.15s ease',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                         {/* Checkbox */}
                         <div
-                          onClick={() => toggleItem(item)}
+                          onClick={() => !fullyOrdered && toggleItem(item)}
                           style={{
-                            width: '20px', height: '20px', borderRadius: '4px', cursor: 'pointer',
-                            border: isSelected ? '2px solid #22d3ee' : '2px solid rgba(148,163,184,0.3)',
-                            background: isSelected ? '#22d3ee' : 'transparent',
+                            width: '20px', height: '20px', borderRadius: '4px',
+                            cursor: fullyOrdered ? 'default' : 'pointer',
+                            border: fullyOrdered ? '2px solid rgba(34,197,94,0.3)' : isSelected ? '2px solid #22d3ee' : '2px solid rgba(148,163,184,0.3)',
+                            background: fullyOrdered ? 'rgba(34,197,94,0.2)' : isSelected ? '#22d3ee' : 'transparent',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                           }}
                         >
-                          {isSelected && (
+                          {fullyOrdered ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#86efac" strokeWidth="3" style={{ width: 14, height: 14 }}>
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          ) : isSelected && (
                             <svg viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="3" style={{ width: 14, height: 14 }}>
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
@@ -658,12 +697,20 @@ export default function PurchaseOrdersPage() {
 
                         {/* Previous order badges */}
                         {item.previousOrders.length > 0 && (
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {fullyOrdered && (
+                              <span style={{
+                                fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px',
+                                background: 'rgba(34,197,94,0.2)', color: '#4ade80',
+                              }}>
+                                Ordered
+                              </span>
+                            )}
                             {item.previousOrders.map((po, i) => (
                               <span key={i} style={{
                                 fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px',
-                                background: po.status === 'submitted' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
-                                color: po.status === 'submitted' ? '#86efac' : '#fcd34d',
+                                background: po.status === 'submitted' ? 'rgba(34,197,94,0.15)' : po.status === 'error' ? 'rgba(220,38,38,0.15)' : 'rgba(245,158,11,0.15)',
+                                color: po.status === 'submitted' ? '#86efac' : po.status === 'error' ? '#fca5a5' : '#fcd34d',
                               }}>
                                 {po.po_number} ({po.quantity})
                               </span>
@@ -810,6 +857,35 @@ export default function PurchaseOrdersPage() {
                       {po.supplier_confirmation && (
                         <div style={{ fontSize: '12px', color: '#86efac', marginBottom: '8px' }}>
                           Confirmation: {po.supplier_confirmation}
+                        </div>
+                      )}
+                      {/* Status update buttons */}
+                      {po.status !== 'cancelled' && (
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                          {(['confirmed', 'shipped', 'delivered', 'cancelled'] as const)
+                            .filter(s => s !== po.status)
+                            .map(newStatus => {
+                              const btnColors: Record<string, { border: string; color: string; bg: string }> = {
+                                confirmed: { border: 'rgba(59,130,246,0.3)', color: '#93c5fd', bg: 'rgba(59,130,246,0.1)' },
+                                shipped: { border: 'rgba(168,85,247,0.3)', color: '#c4b5fd', bg: 'rgba(168,85,247,0.1)' },
+                                delivered: { border: 'rgba(34,197,94,0.3)', color: '#86efac', bg: 'rgba(34,197,94,0.1)' },
+                                cancelled: { border: 'rgba(220,38,38,0.3)', color: '#fca5a5', bg: 'rgba(220,38,38,0.1)' },
+                              }
+                              const bc = btnColors[newStatus] || btnColors.confirmed
+                              return (
+                                <button
+                                  key={newStatus}
+                                  onClick={(e) => { e.stopPropagation(); updatePOStatus(po.id, newStatus) }}
+                                  style={{
+                                    padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                                    border: `1px solid ${bc.border}`, background: bc.bg, color: bc.color,
+                                    cursor: 'pointer', textTransform: 'capitalize',
+                                  }}
+                                >
+                                  Mark {newStatus}
+                                </button>
+                              )
+                            })}
                         </div>
                       )}
                       <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
