@@ -637,7 +637,7 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
       </div>
 
       {/* Kanban Lanes */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '10px' }}>
+      <div className="kanban-container" style={{ display: 'flex', gap: '16px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '10px', WebkitOverflowScrolling: 'touch' }}>
         {renderLane('New Leads', lanes.newLeads, 'newLeads')}
         {renderLane('Action Needed', lanes.action, 'action')}
         {renderLane('Waiting', lanes.waiting, 'waiting')}

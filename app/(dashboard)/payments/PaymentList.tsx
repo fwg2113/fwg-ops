@@ -209,7 +209,7 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '24px' }}>
         <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '16px', border: '1px solid rgba(148,163,184,0.1)' }}>
           <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Total Received</div>
           <div style={{ color: '#22c55e', fontSize: '24px', fontWeight: 700 }}>${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
@@ -277,7 +277,8 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
           <div style={{ fontSize: '13px' }}>Adjust your filters or record a payment on an invoice</div>
         </div>
       ) : (
-        <div style={{ background: '#1d1d1d', borderRadius: '12px', border: '1px solid rgba(148,163,184,0.1)', overflow: 'hidden' }}>
+        <div style={{ background: '#1d1d1d', borderRadius: '12px', border: '1px solid rgba(148,163,184,0.1)', overflow: 'hidden', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ minWidth: '640px' }}>
           {/* Table Header */}
           <div style={{
             display: 'grid',
@@ -394,6 +395,7 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
               </div>
             )
           })}
+          </div>
         </div>
       )}
     </div>

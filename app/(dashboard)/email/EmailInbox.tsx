@@ -468,9 +468,9 @@ export default function EmailInbox() {
       </div>
 
       {/* Body: sidebar + main */}
-      <div style={{flex:1,display:'flex',overflow:'hidden',width:'100%'}}>
+      <div className="email-layout" style={{flex:1,display:'flex',overflow:'hidden',width:'100%'}}>
         {/* Sidebar */}
-        <div style={{width:'200px',background:'#f6f8fc',borderRight:'1px solid #e0e0e0',display:'flex',flexDirection:'column',flexShrink:0,overflow:'hidden'}}>
+        <div className="email-sidebar" style={{width:'200px',background:'#f6f8fc',borderRight:'1px solid #e0e0e0',display:'flex',flexDirection:'column',flexShrink:0,overflow:'hidden'}}>
           <div style={{padding:'10px 10px 6px'}}>
             <button onClick={openCompose} style={{width:'100%',padding:'10px 16px',background:'#c2e7ff',border:'none',borderRadius:'14px',color:'#001d35',fontSize:'13px',fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',boxShadow:'0 1px 2px rgba(0,0,0,0.06)'}}>
               <I d={P.compose} sz={16}/> Compose

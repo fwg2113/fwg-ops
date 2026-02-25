@@ -193,7 +193,7 @@ export default function AnalyticsDashboard({ completedTasks, productionJobs }: A
       </div>
 
       {/* Overview Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', marginBottom: '32px' }}>
         <div style={{
           background: '#111111',
           border: '1px solid rgba(148, 163, 184, 0.2)',

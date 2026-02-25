@@ -788,9 +788,9 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
       </div>
 
       {activeView === 'messages' ? (
-      <div style={{ display: 'flex', gap: '16px', height: 'calc(100% - 52px)' }}>
+      <div className="messages-split-view" style={{ display: 'flex', gap: '16px', height: 'calc(100% - 52px)' }}>
         {/* Conversation List */}
-        <div style={{
+        <div className="messages-convo-list" style={{
           width: '340px',
           background: '#111111',
           border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -947,7 +947,7 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
         </div>
 
         {/* Chat Panel */}
-        <div style={{
+        <div className="messages-chat-panel" style={{
           flex: 1,
           background: '#111111',
           border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -1552,7 +1552,9 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '500px',
+            width: '100%',
+            maxWidth: '500px',
+            margin: '16px',
             maxHeight: '90vh',
             overflow: 'hidden',
             display: 'flex',
@@ -1922,7 +1924,9 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '500px',
+            width: '100%',
+            maxWidth: '500px',
+            margin: '16px',
             maxHeight: '80vh',
             overflow: 'hidden',
             display: 'flex',
@@ -2218,7 +2222,9 @@ export default function MessageList({ initialMessages, initialCalls = [] }: { in
           <div style={{
             background: '#1d1d1d',
             borderRadius: '16px',
-            width: '450px',
+            width: '100%',
+            maxWidth: '450px',
+            margin: '16px',
             maxHeight: '80vh',
             overflow: 'hidden',
             display: 'flex',

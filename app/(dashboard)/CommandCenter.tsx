@@ -787,7 +787,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
         borderRadius: '16px', padding: '20px', marginBottom: '20px'
       }}>
         <div style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', marginBottom: '16px' }}>Snapshot</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
           {[
             { value: data.metrics.monthlyRevenue, label: `${new Date().toLocaleString('default', { month: 'short' })} Revenue`, color: '#d71cd1' },
             { value: data.metrics.commissionPool, label: 'Commission Pool', color: '#d71cd1' },
@@ -813,7 +813,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {data.categoryBreakdown.map(cat => (
               <div key={cat.category} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '120px', fontSize: '13px', color: '#94a3b8', flexShrink: 0 }}>{formatCategoryLabel(cat.category)}</div>
+                <div style={{ minWidth: '80px', maxWidth: '120px', fontSize: '13px', color: '#94a3b8', flexShrink: 0 }}>{formatCategoryLabel(cat.category)}</div>
                 <div style={{ flex: 1, height: '20px', background: '#1d1d1d', borderRadius: '4px', overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${(cat.amount / maxCategoryValue) * 100}%`, background: 'linear-gradient(90deg, #d71cd1, #8b5cf6)', borderRadius: '4px', transition: 'width 0.4s ease' }} />
                 </div>
@@ -828,7 +828,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       {showArchiveModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setShowArchiveModal(null)}>
-          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '400px', padding: '24px' }}
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '400px', padding: '24px', margin: '16px' }}
             onClick={e => e.stopPropagation()}>
             <h3 style={{ color: '#f1f5f9', fontSize: '18px', marginBottom: '16px' }}>
               Archive {showArchiveModal.type === 'submission' ? 'Submission' : 'Document'}
@@ -868,7 +868,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       {showAddTaskModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setShowAddTaskModal(false)}>
-          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '500px' }}
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '500px', margin: '16px' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
               <div style={{ fontSize: '18px', fontWeight: 600, color: '#f1f5f9' }}>Add Task</div>
@@ -914,7 +914,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       {showTaskDetailModal && selectedTask && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={() => setShowTaskDetailModal(false)}>
-          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '500px' }}
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '500px', margin: '16px' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
               <div style={{ fontSize: '18px', fontWeight: 600, color: '#f1f5f9' }}>Task Details</div>
@@ -969,12 +969,13 @@ function ActionQueueRow({ item, stateConfig, typeConfig, onClick, onComplete, on
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: '12px',
+        display: 'flex', alignItems: 'center', gap: '10px',
         padding: '12px 14px', margin: '0 0 4px',
         background: hovered ? 'rgba(148,163,184,0.05)' : 'transparent',
         borderRadius: '10px', cursor: 'pointer',
         border: `1px solid ${hovered ? `${stateConfig.color}30` : 'transparent'}`,
-        transition: 'all 0.15s ease'
+        transition: 'all 0.15s ease',
+        flexWrap: 'wrap'
       }}
     >
       {/* Complete button */}

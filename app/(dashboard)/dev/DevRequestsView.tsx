@@ -570,7 +570,7 @@ export default function DevRequestsView({ initialRequests }: { initialRequests: 
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '24px' }}>
         <StatCard label="Open" value={stats.open} color="#f59e0b" />
         <StatCard label="In Progress" value={stats.in_progress} color="#06b6d4" />
         <StatCard label="Resolved" value={stats.resolved} color="#22c55e" />
