@@ -479,6 +479,39 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         </h1>
       </header>
 
+      {/* Total Available Points */}
+      {(() => {
+        const openTasks = tasks.filter(t => t.status !== 'completed')
+        const totalPts = openTasks.reduce((sum, t) => sum + (t.points || 0), 0)
+        if (totalPts <= 0) return null
+        return (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '10px 16px 0',
+          }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: '#d71cd1',
+              background: 'rgba(215,28,209,0.12)',
+              padding: '4px 12px',
+              borderRadius: '8px',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+              </svg>
+              {totalPts} pts available
+            </span>
+          </div>
+        )
+      })()}
+
       {/* Leaderboard */}
       <div style={{ paddingTop: '12px' }}>
         <Leaderboard
