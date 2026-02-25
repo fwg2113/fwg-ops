@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 
 interface ActiveCall {
   call_sid: string
@@ -154,23 +155,35 @@ export default function TransferPage() {
     }}>
       {/* Header */}
       <div style={{
-        padding: '16px 20px',
+        padding: '12px 16px',
         borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
       }}>
+        <Link href="/" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '36px', height: '36px', borderRadius: '10px',
+          background: 'rgba(215, 28, 209, 0.15)',
+          textDecoration: 'none', flexShrink: 0,
+          WebkitTapHighlightColor: 'transparent',
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d71cd1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+        </Link>
         <div style={{
           width: '36px', height: '36px', borderRadius: '10px',
           background: 'rgba(59, 130, 246, 0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
             <polyline points="15 14 20 9 15 4" />
             <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
           </svg>
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>Call Transfer</h1>
           <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Frederick Wraps</p>
         </div>
