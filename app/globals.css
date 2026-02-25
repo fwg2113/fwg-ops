@@ -45,3 +45,36 @@ input[type="number"] {
   -moz-appearance: textfield !important;
   appearance: textfield !important;
 }
+
+/* ===== Dashboard Responsive Overrides ===== */
+
+/* Prevent horizontal overflow on all pages */
+html, body {
+  overflow-x: hidden;
+}
+
+/* Responsive text scaling on small screens */
+@media (max-width: 768px) {
+  /* Scale down page headings */
+  .dashboard-main h1 {
+    font-size: 22px !important;
+  }
+
+  /* Make tables scroll horizontally inside their containers */
+  .dashboard-main table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure flex containers don't overflow */
+  .dashboard-main > div {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-main h1 {
+    font-size: 20px !important;
+  }
+}
