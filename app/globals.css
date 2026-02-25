@@ -46,6 +46,12 @@ input[type="number"] {
   appearance: textfield !important;
 }
 
+/* ===== Animations ===== */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ===== Dashboard Responsive Overrides ===== */
 
 /* Prevent horizontal overflow on all pages */
