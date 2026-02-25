@@ -59,26 +59,40 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Responsive text scaling on small screens */
+/* ===== Mobile (max-width: 768px) ===== */
 @media (max-width: 768px) {
   /* Scale down page headings */
   .dashboard-main h1 {
     font-size: 22px !important;
   }
 
-  /* Make tables scroll horizontally inside their containers */
+  /* Make tables scroll horizontally */
   .dashboard-main table {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Ensure flex containers don't overflow */
+  /* Prevent child overflow */
   .dashboard-main > div {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Cap all fixed-width modals to screen width */
+  .dashboard-main div[style*="position: fixed"],
+  .dashboard-main div[style*="position:fixed"] {
+    max-width: 100vw !important;
+  }
+
+  /* Force grid children to not overflow */
+  .dashboard-main [style*="display: grid"],
+  .dashboard-main [style*="display:grid"] {
     max-width: 100%;
   }
 }
 
+/* ===== Small mobile (max-width: 480px) ===== */
 @media (max-width: 480px) {
   .dashboard-main h1 {
     font-size: 20px !important;

@@ -380,7 +380,7 @@ export default function DocumentList({
         overflowX: 'auto',
         WebkitOverflowScrolling: 'touch'
       }}>
-        <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
               <th style={{ padding: '14px 16px', textAlign: 'left', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>

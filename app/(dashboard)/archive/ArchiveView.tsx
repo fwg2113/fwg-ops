@@ -120,7 +120,7 @@ export default function ArchiveView({ completedDocs, coldDocs, archivedSubs }: {
             onChange={e => setSearch(e.target.value)}
             style={{
               padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)',
-              background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px', width: '240px'
+              background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px', width: '100%', maxWidth: '240px'
             }}
           />
         </div>
