@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSanMarClient } from '../../../lib/suppliers/sanmar'
 
+// Warehouse proximity order from NJ (#5 Robbinsville)
+// NJ → Richmond → Cincinnati → Jacksonville → Dallas → Minneapolis → Phoenix → Reno → Seattle
+const WAREHOUSE_PROXIMITY = [
+  'Robbinsville', 'Richmond', 'Cincinnati', 'Jacksonville',
+  'Dallas', 'Minneapolis', 'Phoenix', 'Reno', 'Seattle',
+]
+
+function getWarehouseRank(name: string): number {
+  const idx = WAREHOUSE_PROXIMITY.indexOf(name)
+  return idx >= 0 ? idx : 999
+}
+
 /**
  * POST /api/purchase-orders/check-inventory
  *
  * Batch-checks SanMar inventory for multiple styles.
  * Accepts unique style numbers, fetches inventory in parallel,
- * returns a lookup map keyed by "style:color:size" → { total, warehouses }.
+ * returns a lookup map keyed by "style:color:size" → { total, warehouses, recommended }.
+ *
+ * Warehouses are sorted by proximity from NJ (Robbinsville).
+ * The recommended warehouse is the closest one with sufficient stock.
  *
  * Body: { styles: string[] }
- * Response: { inventory: Record<string, { total: number, warehouses: { name: string, qty: number }[] }> }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,8 +43,12 @@ export async function POST(request: NextRequest) {
       uniqueStyles.map(style => client.getInventory(style))
     )
 
-    // Build the lookup map: "STYLE:COLOR:SIZE" → { total, warehouses }
-    const inventory: Record<string, { total: number; warehouses: { name: string; qty: number }[] }> = {}
+    // Build the lookup map: "STYLE:COLOR:SIZE" → { total, warehouses, recommended }
+    const inventory: Record<string, {
+      total: number
+      warehouses: { name: string; qty: number }[]
+      recommended: string | null
+    }> = {}
 
     for (let i = 0; i < uniqueStyles.length; i++) {
       const result = results[i]
@@ -38,17 +56,20 @@ export async function POST(request: NextRequest) {
 
       const productInventory = result.value
       for (const item of productInventory.items) {
-        // Normalize the key: uppercase style, original color/size
         const key = `${uniqueStyles[i].toUpperCase()}:${item.colorName}:${item.sizeName}`
 
         const warehouses = item.inventory
           .filter(w => w.qty > 0)
           .map(w => ({ name: w.warehouse, qty: w.qty }))
-          .sort((a, b) => b.qty - a.qty) // Highest stock first
+          .sort((a, b) => getWarehouseRank(a.name) - getWarehouseRank(b.name))
+
+        // Recommended: closest warehouse with any stock
+        const recommended = warehouses.length > 0 ? warehouses[0].name : null
 
         inventory[key] = {
           total: item.totalQty,
           warehouses,
+          recommended,
         }
       }
     }
