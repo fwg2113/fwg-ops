@@ -163,9 +163,18 @@ export default function PurchaseOrdersPage() {
   }, [groups])
 
   // Look up inventory for a specific style/color/size
-  const getStockLevel = (style: string, color: string, size: string): { total: number; warehouses: { name: string; qty: number }[]; recommended?: string | null } | null => {
+  // Tries catalogColor first (SanMar's internal name), then falls back to display color
+  const getStockLevel = (style: string, color: string, size: string, catalogColor?: string): { total: number; warehouses: { name: string; qty: number }[]; recommended?: string | null } | null => {
     if (!inventoryChecked) return null
-    const key = `${style.toUpperCase()}:${color.trim().toLowerCase()}:${size.trim()}`
+    const styleUp = style.toUpperCase()
+    const sizeTrimmed = size.trim()
+    // Try catalogColor first (more likely to match SanMar inventory naming)
+    if (catalogColor) {
+      const catKey = `${styleUp}:${catalogColor.trim().toLowerCase()}:${sizeTrimmed}`
+      if (inventoryMap[catKey]) return inventoryMap[catKey]
+    }
+    // Fallback to display color
+    const key = `${styleUp}:${color.trim().toLowerCase()}:${sizeTrimmed}`
     return inventoryMap[key] || null
   }
 
@@ -453,6 +462,22 @@ export default function PurchaseOrdersPage() {
     setShowManualAdd(false)
   }
 
+  // Remove a manually-added item from the groups and selection
+  const removeItem = (lineItemId: string) => {
+    setGroups(prev => {
+      const updated = prev.map(g => ({
+        ...g,
+        items: g.items.filter(i => i.lineItemId !== lineItemId),
+      })).filter(g => g.items.length > 0)
+      return updated
+    })
+    setSelection(prev => {
+      const next = { ...prev }
+      delete next[lineItemId]
+      return next
+    })
+  }
+
   // Check if a line item has been fully ordered (all sizes covered by a submitted/confirmed/shipped/delivered PO)
   const isFullyOrdered = (item: AggregateItem): boolean => {
     if (item.previousOrders.length === 0) return false
@@ -514,7 +539,7 @@ export default function PurchaseOrdersPage() {
       const item = findItem(lineItemId)
       if (!item) continue
       for (const sizeName of Object.keys(sizes)) {
-        const stock = getStockLevel(item.style, item.color, sizeName)
+        const stock = getStockLevel(item.style, item.color, sizeName, item.catalogColor)
         if (stock?.recommended) warehouseSet.add(stock.recommended)
       }
     }
@@ -883,7 +908,8 @@ export default function PurchaseOrdersPage() {
                 {group.items.map(item => {
                   const isSelected = !!selection[item.lineItemId]
                   const selectedSizes = selection[item.lineItemId] || {}
-                  const sizeNames = sortSizes(Object.keys(item.sizes).filter(s => item.sizes[s].qty > 0))
+                  const isManual = item.lineItemId.startsWith('manual-')
+                  const sizeNames = sortSizes(Object.keys(item.sizes).filter(s => isManual || item.sizes[s].qty > 0))
                   const fullyOrdered = isFullyOrdered(item)
 
                   return (
@@ -962,7 +988,7 @@ export default function PurchaseOrdersPage() {
                             let allGood = true
                             let anyIssue = false
                             for (const s of activeSizes) {
-                              const stock = getStockLevel(item.style, item.color, s)
+                              const stock = getStockLevel(item.style, item.color, s, item.catalogColor)
                               if (stock === null) { allGood = false; break }
                               if (stock.total < item.sizes[s].qty) { allGood = false; anyIssue = true }
                             }
@@ -999,6 +1025,21 @@ export default function PurchaseOrdersPage() {
                             ))}
                           </div>
                         )}
+
+                        {/* Remove button for manual items */}
+                        {isManual && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeItem(item.lineItemId) }}
+                            title="Remove this product"
+                            style={{
+                              padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(220,38,38,0.3)',
+                              background: 'rgba(220,38,38,0.1)', color: '#fca5a5', fontSize: '11px',
+                              fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
 
                       {/* Size breakdown (always visible, editable when selected) */}
@@ -1006,8 +1047,8 @@ export default function PurchaseOrdersPage() {
                         {sizeNames.map(sizeName => {
                           const sizeData = item.sizes[sizeName]
                           const selectedQty = selectedSizes[sizeName]
-                          const isEditing = isSelected
-                          const stock = getStockLevel(item.style, item.color, sizeName)
+                          const isEditing = isSelected || isManual
+                          const stock = getStockLevel(item.style, item.color, sizeName, item.catalogColor)
                           const requestedQty = selectedQty || sizeData.qty
                           const isLowStock = stock !== null && stock.total < requestedQty
                           const isOutOfStock = stock !== null && stock.total === 0
@@ -1026,7 +1067,7 @@ export default function PurchaseOrdersPage() {
                                 <input
                                   type="number"
                                   min="0"
-                                  max={sizeData.qty * 2}
+                                  max={isManual ? 9999 : sizeData.qty * 2}
                                   value={selectedQty || 0}
                                   onChange={e => updateSizeQty(item.lineItemId, sizeName, parseInt(e.target.value, 10) || 0)}
                                   style={{
