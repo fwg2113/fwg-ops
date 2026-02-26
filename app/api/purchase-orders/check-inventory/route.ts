@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
       const productInventory = result.value
       for (const item of productInventory.items) {
-        const key = `${uniqueStyles[i].toUpperCase()}:${item.colorName}:${item.sizeName}`
+        const key = `${uniqueStyles[i].toUpperCase()}:${item.colorName.trim().toLowerCase()}:${item.sizeName.trim()}`
 
         const warehouses = item.inventory
           .filter(w => w.qty > 0)
