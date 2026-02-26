@@ -32,7 +32,7 @@ const navSections = [
   {
     title: 'PURCHASING',
     items: [
-      { href: '/purchase-orders', label: 'Purchase', labelGradient: 'Orders', icon: 'truck' },
+      { href: '/purchase-orders', label: 'Purchase', labelGradient: 'Orders', icon: 'truck', badgeKey: 'purchase-orders' },
     ]
   },
   {
@@ -183,19 +183,20 @@ export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number }>({ messages: 0, email: 0, payments: 0, actions: 0 })
+  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number; 'purchase-orders': number }>({ messages: 0, email: 0, payments: 0, actions: 0, 'purchase-orders': 0 })
   const [handsStats, setHandsStats] = useState<{ availablePoints: number; leaders: { id: string; name: string; avatar_color: string; total_points: number }[] }>({ availablePoints: 0, leaders: [] })
 
   const fetchUnreadCounts = useCallback(async () => {
     try {
-      const [msgRes, emailRes, payRes, actionsRes] = await Promise.all([
+      const [msgRes, emailRes, payRes, actionsRes, poRes] = await Promise.all([
         fetch('/api/messages/unread-count'),
         fetch('/api/gmail/unread-count'),
         fetch('/api/payments/unread-count'),
         fetch('/api/customer-actions/count'),
+        fetch('/api/purchase-orders/active-count'),
       ])
-      const [msgData, emailData, payData, actionsData] = await Promise.all([
-        msgRes.json(), emailRes.json(), payRes.json(), actionsRes.json(),
+      const [msgData, emailData, payData, actionsData, poData] = await Promise.all([
+        msgRes.json(), emailRes.json(), payRes.json(), actionsRes.json(), poRes.json(),
       ])
 
       setUnreadCounts({
@@ -203,6 +204,7 @@ export default function Sidebar() {
         email: emailData.count || 0,
         payments: payData.count || 0,
         actions: actionsData.count || 0,
+        'purchase-orders': poData.count || 0,
       })
     } catch (err) {
       console.error('Failed to fetch unread counts:', err)
@@ -483,7 +485,7 @@ export default function Sidebar() {
                       height: '20px',
                       padding: '0 6px',
                       borderRadius: '999px',
-                      background: ('badgeKey' in item && item.badgeKey === 'payments') ? '#16a34a' : ('badgeKey' in item && item.badgeKey === 'actions') ? '#06b6d4' : '#d71cd1',
+                      background: ('badgeKey' in item && item.badgeKey === 'payments') ? '#16a34a' : ('badgeKey' in item && item.badgeKey === 'actions') ? '#06b6d4' : ('badgeKey' in item && item.badgeKey === 'purchase-orders') ? '#a855f7' : '#d71cd1',
                       color: '#ffffff',
                       fontSize: '11px',
                       fontWeight: 700,
