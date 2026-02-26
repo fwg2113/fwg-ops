@@ -165,7 +165,7 @@ export default function PurchaseOrdersPage() {
   // Look up inventory for a specific style/color/size
   const getStockLevel = (style: string, color: string, size: string): { total: number; warehouses: { name: string; qty: number }[]; recommended?: string | null } | null => {
     if (!inventoryChecked) return null
-    const key = `${style.toUpperCase()}:${color}:${size}`
+    const key = `${style.toUpperCase()}:${color.trim().toLowerCase()}:${size.trim()}`
     return inventoryMap[key] || null
   }
 
