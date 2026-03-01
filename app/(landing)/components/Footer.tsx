@@ -23,7 +23,9 @@ export default function Footer() {
             >
               {BUSINESS.phone}
             </a>
-            <p>{BUSINESS.hours}</p>
+            {BUSINESS.hours.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
           </div>
         </div>
 
