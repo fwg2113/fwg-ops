@@ -24,7 +24,7 @@ export default function ServiceCard({ title, description, imageAlt, image }: Pro
   const idx = title.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % GRADIENTS.length
 
   return (
-    <div className="bg-fwg-card rounded-xl overflow-hidden">
+    <div className="bg-zinc-800 rounded-xl overflow-hidden">
       <div className="aspect-[16/10] relative">
         {image ? (
           <ImageWithFallback
@@ -43,7 +43,7 @@ export default function ServiceCard({ title, description, imageAlt, image }: Pro
 
       <div className="p-5">
         <h3 className="text-white font-bold text-lg mb-2">{title}</h3>
-        <p className="text-fwg-text-muted text-sm leading-relaxed">{description}</p>
+        <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
       </div>
     </div>
   )
