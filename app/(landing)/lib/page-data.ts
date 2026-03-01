@@ -17,7 +17,7 @@ export const BUSINESS = {
     state: 'MD',
     zip: '21704',
   },
-  hours: `Mon–Fri 8 AM – 5 PM\nSaturday 9 AM – 2 PM`,
+  hours: ['Mon–Fri 8 AM – 5 PM', 'Saturday 9 AM – 2 PM'],
   url: 'https://frederickwraps.com',
 }
 
