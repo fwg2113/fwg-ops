@@ -1,5 +1,5 @@
 // ─── Google Ads Offline Conversion Upload ───
-// Uses the Google Ads REST API (v18) to upload click conversions.
+// Uses the Google Ads REST API (v20) to upload click conversions.
 // Requires OAuth2 credentials + developer token in env vars.
 
 const GOOGLE_ADS_API_VERSION = 'v20'
