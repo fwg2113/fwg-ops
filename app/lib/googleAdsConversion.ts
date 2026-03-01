@@ -2,7 +2,7 @@
 // Uses the Google Ads REST API (v18) to upload click conversions.
 // Requires OAuth2 credentials + developer token in env vars.
 
-const GOOGLE_ADS_API_VERSION = 'v18'
+const GOOGLE_ADS_API_VERSION = 'v20'
 
 interface ConversionResult {
   ok: boolean
