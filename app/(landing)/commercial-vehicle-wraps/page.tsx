@@ -41,15 +41,15 @@ export default async function CommercialVehicleWrapsPage() {
       <SocialProofBar />
 
       {/* 3. Services Grid */}
-      <section className="py-16 bg-gray-900">
+      <section className="py-16 bg-gradient-to-b from-fwg-charcoal to-fwg-panel">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-white text-center mb-4">
             Our Commercial Wrap Services
           </h2>
-          <p className="text-gray-400 text-center mb-10 max-w-2xl mx-auto">
+          <p className="text-fwg-text-muted text-center mb-10 max-w-2xl mx-auto">
             From single trucks to full fleets — we handle every type of commercial vehicle.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {page.services.map((s, i) => (
               <ServiceCard key={s.title} {...s} image={images.services[i]} />
             ))}
@@ -61,12 +61,12 @@ export default async function CommercialVehicleWrapsPage() {
       <VideoSection />
 
       {/* 5. Before/After Gallery */}
-      <section className="py-16 bg-gray-900">
+      <section className="py-16 bg-fwg-charcoal">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-white text-center mb-4">
             Before &amp; After
           </h2>
-          <p className="text-gray-400 text-center mb-10">
+          <p className="text-fwg-text-muted text-center mb-10">
             Drag the slider to see the transformation.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -86,12 +86,12 @@ export default async function CommercialVehicleWrapsPage() {
       <TrustSection />
 
       {/* 7. Testimonials */}
-      <section className="py-16 bg-gray-800">
+      <section className="py-16 bg-fwg-page">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-white text-center mb-10">
             What Our Clients Say
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {TESTIMONIALS.map(t => (
               <TestimonialCard key={t.name} {...t} />
             ))}
@@ -100,12 +100,12 @@ export default async function CommercialVehicleWrapsPage() {
       </section>
 
       {/* 8. Final CTA */}
-      <section className="py-16 bg-gray-950">
+      <section className="py-16 bg-gradient-to-b from-fwg-black to-fwg-charcoal">
         <div className="max-w-lg mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold text-white mb-3">
             Ready to Transform Your Fleet?
           </h2>
-          <p className="text-gray-400 mb-8">
+          <p className="text-fwg-text-muted mb-8">
             Get a free, no-obligation quote for your commercial vehicle wrap project.
           </p>
           <LeadForm

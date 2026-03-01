@@ -1,22 +1,22 @@
 // ─── Social Proof Bar ───
-// Horizontal strip below hero. Light background.
+// Horizontal strip below hero. Light background with two-tone card effect.
 // "Trusted by 500+ businesses" + star rating + certification badges.
 
 export default function SocialProofBar() {
   return (
-    <section className="bg-gray-100 py-4">
+    <section className="bg-white py-4 border-y border-fwg-border">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
           {/* Trust statement */}
           <div className="flex items-center gap-2">
-            <span className="text-gray-900 font-semibold text-sm">
+            <span className="text-fwg-text font-semibold text-sm">
               Trusted by 500+ Businesses
             </span>
             <div className="flex gap-0.5" aria-label="5 star rating">
               {[...Array(5)].map((_, i) => (
                 <svg
                   key={i}
-                  className="w-4 h-4 text-yellow-500"
+                  className="w-4 h-4 text-fwg-gold"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                   aria-hidden="true"
@@ -28,17 +28,17 @@ export default function SocialProofBar() {
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px h-6 bg-gray-300" />
+          <div className="hidden sm:block w-px h-6 bg-fwg-border" />
 
           {/* Certification badges — replace with real badge images */}
           <div className="flex items-center gap-4">
             {/* 3M badge placeholder */}
-            <div className="h-8 px-3 bg-gray-200 rounded flex items-center justify-center">
-              <span className="text-gray-600 text-xs font-bold">3M Certified</span>
+            <div className="h-8 px-3 bg-fwg-surface rounded-lg flex items-center justify-center">
+              <span className="text-fwg-text-muted text-xs font-bold">3M Certified</span>
             </div>
             {/* Avery Dennison badge placeholder */}
-            <div className="h-8 px-3 bg-gray-200 rounded flex items-center justify-center">
-              <span className="text-gray-600 text-xs font-bold">Avery Dennison</span>
+            <div className="h-8 px-3 bg-fwg-surface rounded-lg flex items-center justify-center">
+              <span className="text-fwg-text-muted text-xs font-bold">Avery Dennison</span>
             </div>
           </div>
         </div>
