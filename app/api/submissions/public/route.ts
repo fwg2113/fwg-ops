@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
 import { generateSubmissionAction } from '@/app/lib/customer/actionGenerator'
+import { uploadClickConversion } from '@/app/lib/googleAdsConversion'
 
 // ─── CORS headers for cross-origin Shopify requests ───
 const CORS_HEADERS = {
@@ -316,6 +317,14 @@ export async function POST(request: NextRequest) {
       console.error('Failed to generate submission action:', err)
       // Non-blocking — submission is saved either way
     })
+
+    // ── Upload Google Ads offline conversion (non-blocking) ──
+    const gclid = body.gclid as string | undefined
+    if (gclid) {
+      uploadClickConversion(gclid, new Date()).catch(err => {
+        console.error('Google Ads conversion upload error:', err)
+      })
+    }
 
     // ── Send notification email (non-blocking) ──
     sendNotificationEmail(body, formType).catch(err => {
