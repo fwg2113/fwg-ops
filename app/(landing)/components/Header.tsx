@@ -13,21 +13,17 @@ const LOGO_URL =
 export default function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-black border-b border-zinc-700">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
         {/* Logo — NOT linked to homepage */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           <Image
             src={LOGO_URL}
             alt={BUSINESS.name}
-            width={36}
-            height={36}
-            className="h-9 w-auto object-contain"
+            width={140}
+            height={56}
+            className="h-14 w-auto object-contain"
             unoptimized
           />
-          <span className="text-white font-bold text-lg hidden sm:inline">
-            {BUSINESS.name}
-          </span>
-          <span className="text-white font-bold text-lg sm:hidden">FWG</span>
         </div>
 
         {/* Phone + CTA */}
