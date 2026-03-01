@@ -12,12 +12,12 @@ export const BUSINESS = {
   phone: '(240) 693-3715',
   phoneTel: 'tel:+12406933715',
   address: {
-    street: '5728 Industry Ln, Unit 8',
+    street: '4509 Metropolitan Ct STE D',
     city: 'Frederick',
     state: 'MD',
     zip: '21704',
   },
-  hours: 'Mon–Fri 8 AM – 5 PM',
+  hours: `Mon–Fri 8 AM – 5 PM\nSaturday 9 AM – 2 PM`,
   url: 'https://frederickwraps.com',
 }
 
