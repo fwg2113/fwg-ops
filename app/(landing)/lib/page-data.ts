@@ -115,7 +115,7 @@ export const PAGES: Record<string, PageContent> = {
         'Fleet Discounts Available',
       ],
       heroImageAlt: 'Commercial vehicle wrap by Frederick Wraps & Graphics',
-      heroImage: '/landing/hero/commercial.jpg',
+      heroImage: 'https://pub-fc53e761336c467eb14e978df4383491.r2.dev/commercial.jpg',
     },
     services: [
       {
