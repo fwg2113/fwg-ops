@@ -46,8 +46,8 @@ export default function CommercialVehicleWrapsPage() {
             From single trucks to full fleets — we handle every type of commercial vehicle.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {page.services.map(s => (
-              <ServiceCard key={s.title} {...s} />
+            {page.services.map((s, i) => (
+              <ServiceCard key={s.title} {...s} pageSlug="commercial-vehicle-wraps" index={i + 1} />
             ))}
           </div>
         </div>
@@ -67,7 +67,7 @@ export default function CommercialVehicleWrapsPage() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {BEFORE_AFTER.map((ba, i) => (
-              <BeforeAfterSlider key={i} {...ba} />
+              <BeforeAfterSlider key={i} {...ba} index={i + 1} />
             ))}
           </div>
         </div>

@@ -1,9 +1,11 @@
 import LeadForm from './LeadForm'
+import ImageWithFallback from './ImageWithFallback'
+import { R2_LANDING_BASE } from '../lib/page-data'
 
 // ─── Hero Section ───
 // Full-width background with dark gradient overlay.
-// Left: headline, subheadline, trust bullets, CTA.
-// Right (desktop) / below (mobile): Lead capture form.
+// Hero image loads automatically from R2 bucket: hero-{pageSlug}.jpg
+// If no image exists, shows a dark gradient fallback.
 
 type Props = {
   h1: string
@@ -11,7 +13,6 @@ type Props = {
   subheadline: string
   trustBullets: string[]
   heroImageAlt: string
-  heroImage?: string
   formOptions: { label: string; value: string }[]
   pageSlug: string
 }
@@ -22,23 +23,18 @@ export default function HeroSection({
   subheadline,
   trustBullets,
   heroImageAlt,
-  heroImage,
   formOptions,
   pageSlug,
 }: Props) {
   return (
     <section className="relative min-h-screen pt-16 flex items-center">
-      {/* Background */}
+      {/* Background — auto-loads hero-{pageSlug}.jpg from R2 bucket */}
       <div className="absolute inset-0">
-        {heroImage ? (
-          <img
-            src={heroImage}
-            alt={heroImageAlt}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950" />
-        )}
+        <ImageWithFallback
+          src={`${R2_LANDING_BASE}/hero-${pageSlug}.jpg`}
+          alt={heroImageAlt}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
         {/* Dark overlay so white text is readable over the photo */}
         <div className="absolute inset-0 bg-black/50" />
       </div>

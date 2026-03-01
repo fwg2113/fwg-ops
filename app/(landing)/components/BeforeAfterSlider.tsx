@@ -1,18 +1,24 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { R2_LANDING_BASE } from '../lib/page-data'
 
 // ─── Before/After Image Slider ───
 // Interactive draggable comparison slider.
-// Uses placeholder gradients — replace with real before/after photos.
+// Images load automatically from R2 bucket:
+//   before-{index}.jpg  and  after-{index}.jpg
+// If no images exist, shows gradient fallbacks.
 
 type Props = {
   beforeLabel: string
   afterLabel: string
+  index: number
 }
 
-export default function BeforeAfterSlider({ beforeLabel, afterLabel }: Props) {
+export default function BeforeAfterSlider({ beforeLabel, afterLabel, index }: Props) {
   const [position, setPosition] = useState(50)
+  const [beforeFailed, setBeforeFailed] = useState(false)
+  const [afterFailed, setAfterFailed] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
 
@@ -65,16 +71,38 @@ export default function BeforeAfterSlider({ beforeLabel, afterLabel }: Props) {
       }}
     >
       {/* After (background layer — full width) */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-800 to-blue-600 flex items-center justify-center p-4">
-        <span className="text-white/60 text-sm text-center font-medium">{afterLabel}</span>
+      <div className="absolute inset-0">
+        {afterFailed ? (
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-800 to-blue-600 flex items-center justify-center p-4">
+            <span className="text-white/60 text-sm text-center font-medium">{afterLabel}</span>
+          </div>
+        ) : (
+          <img
+            src={`${R2_LANDING_BASE}/after-${index}.jpg`}
+            alt={afterLabel}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setAfterFailed(true)}
+          />
+        )}
       </div>
 
       {/* Before (clip-path layer — reveals from left) */}
       <div
-        className="absolute inset-0 bg-gradient-to-br from-gray-600 to-gray-400 flex items-center justify-center p-4"
+        className="absolute inset-0"
         style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
       >
-        <span className="text-white/60 text-sm text-center font-medium">{beforeLabel}</span>
+        {beforeFailed ? (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-600 to-gray-400 flex items-center justify-center p-4">
+            <span className="text-white/60 text-sm text-center font-medium">{beforeLabel}</span>
+          </div>
+        ) : (
+          <img
+            src={`${R2_LANDING_BASE}/before-${index}.jpg`}
+            alt={beforeLabel}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setBeforeFailed(true)}
+          />
+        )}
       </div>
 
       {/* Slider handle */}
