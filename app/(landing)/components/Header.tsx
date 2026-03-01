@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { BUSINESS } from '../lib/page-data'
 
 const LOGO_URL =
-  'https://pub-fc53e761336c467eb14e978df4383491.r2.dev/assets/logo/logo.png'
+  'https://pub-fc53e761336c467eb14e978df4383491.r2.dev/assets/logo/FWG%20White%20Logo.svg'
 
 // ─── Sticky Header ───
 // Dark background, fixed on scroll.
