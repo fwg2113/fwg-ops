@@ -1,6 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import { BUSINESS } from '../lib/page-data'
+
+const LOGO_URL =
+  'https://pub-fc53e761336c467eb14e978df4383491.r2.dev/assets/logo/logo.png'
 
 // ─── Sticky Header ───
 // Dark background, fixed on scroll.
@@ -12,10 +16,14 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo — NOT linked to homepage */}
         <div className="flex items-center gap-2">
-          {/* Replace with actual logo image when ready */}
-          <div className="w-8 h-8 rounded-lg bg-[#CE0000] flex items-center justify-center text-white font-bold text-sm">
-            FW
-          </div>
+          <Image
+            src={LOGO_URL}
+            alt={BUSINESS.name}
+            width={36}
+            height={36}
+            className="h-9 w-auto object-contain"
+            unoptimized
+          />
           <span className="text-white font-bold text-lg hidden sm:inline">
             {BUSINESS.name}
           </span>
