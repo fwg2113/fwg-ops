@@ -27,7 +27,7 @@ export default function LandingLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="font-sans bg-fwg-black" style={{ scrollBehavior: 'smooth', fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
+    <div className="font-sans bg-black" style={{ scrollBehavior: 'smooth', fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
       {/* Inter font via CDN — loaded in head for landing pages */}
       {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link
