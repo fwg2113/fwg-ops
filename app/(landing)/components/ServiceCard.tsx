@@ -1,14 +1,20 @@
 // ─── Service Card ───
-// Displays a service with placeholder image, title, and description.
+// Displays a service with image, title, and description.
+// Image loads automatically from R2 bucket: service-{pageSlug}-{index}.jpg
+// If no image exists, shows a gradient fallback.
 // Cards are NOT clickable links.
+
+import ImageWithFallback from './ImageWithFallback'
+import { R2_LANDING_BASE } from '../lib/page-data'
 
 type Props = {
   title: string
   description: string
   imageAlt: string
+  pageSlug: string
+  index: number
 }
 
-// Deterministic gradient colors based on card index
 const GRADIENTS = [
   'from-blue-900 to-blue-700',
   'from-indigo-900 to-indigo-700',
@@ -16,21 +22,18 @@ const GRADIENTS = [
   'from-violet-900 to-violet-700',
 ]
 
-export default function ServiceCard({ title, description, imageAlt }: Props & { index?: number }) {
-  // Pick gradient based on title hash
-  const idx =
-    title.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) %
-    GRADIENTS.length
-
+export default function ServiceCard({ title, description, imageAlt, pageSlug, index }: Props) {
   return (
     <div className="bg-gray-800 rounded-xl overflow-hidden">
-      {/* Placeholder image — replace with next/image when real photos are ready */}
-      <div
-        className={`aspect-[16/10] bg-gradient-to-br ${GRADIENTS[idx]} flex items-center justify-center p-4`}
-      >
-        <span className="text-white/60 text-sm text-center font-medium">
-          {imageAlt}
-        </span>
+      {/* Auto-loads service-{pageSlug}-{index}.jpg from R2 bucket */}
+      <div className="aspect-[16/10] relative">
+        <ImageWithFallback
+          src={`${R2_LANDING_BASE}/service-${pageSlug}-${index}.jpg`}
+          alt={imageAlt}
+          className="absolute inset-0 w-full h-full object-cover"
+          fallbackGradient={GRADIENTS[index % GRADIENTS.length]}
+          fallbackLabel={imageAlt}
+        />
       </div>
 
       <div className="p-5">

@@ -47,8 +47,8 @@ export default function FleetWrapsPage() {
             Scalable fleet branding from 3 vehicles to 300+ — one point of contact.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {page.services.map(s => (
-              <ServiceCard key={s.title} {...s} />
+            {page.services.map((s, i) => (
+              <ServiceCard key={s.title} {...s} pageSlug="fleet-wraps" index={i + 1} />
             ))}
           </div>
         </div>
@@ -71,7 +71,7 @@ export default function FleetWrapsPage() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {BEFORE_AFTER.map((ba, i) => (
-              <BeforeAfterSlider key={i} {...ba} />
+              <BeforeAfterSlider key={i} {...ba} index={i + 1} />
             ))}
           </div>
         </div>
