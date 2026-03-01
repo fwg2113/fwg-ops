@@ -5,7 +5,7 @@ import { BUSINESS } from '../lib/page-data'
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-950 border-t border-gray-800 py-8">
+    <footer className="bg-black border-t border-zinc-700 py-8">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-gray-400 text-sm">
           <div>
@@ -29,7 +29,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-gray-500 text-xs">
+        <div className="mt-6 pt-4 border-t border-zinc-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-gray-500 text-xs">
           <p>&copy; {new Date().getFullYear()} {BUSINESS.name}. All rights reserved.</p>
           {/* Replace href with actual privacy policy URL when ready */}
           <a href="/privacy" className="hover:text-gray-300 transition-colors">

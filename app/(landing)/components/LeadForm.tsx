@@ -163,7 +163,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
           </svg>
         </div>
         <h3 className="text-gray-900 font-bold text-xl mb-2">Quote Request Received!</h3>
-        <p className="text-gray-600 text-sm">
+        <p className="text-gray-500 text-sm">
           Thank you! We&apos;ll be in touch within one business day with your free quote.
         </p>
       </div>
@@ -190,7 +190,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
       <div className="space-y-4">
         {/* Full Name */}
         <div>
-          <label htmlFor={`name-${variant}`} className="block text-gray-700 text-sm font-medium mb-1">
+          <label htmlFor={`name-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
             Full Name <span className="text-red-500">*</span>
           </label>
           <input
@@ -199,7 +199,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
             value={form.contact_name}
             onChange={e => update('contact_name', e.target.value)}
             placeholder="John Smith"
-            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
+            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
               errors.contact_name ? 'border-red-400' : 'border-gray-300'
             }`}
           />
@@ -208,7 +208,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
 
         {/* Company Name */}
         <div>
-          <label htmlFor={`company-${variant}`} className="block text-gray-700 text-sm font-medium mb-1">
+          <label htmlFor={`company-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
             Company Name <span className="text-red-500">*</span>
           </label>
           <input
@@ -217,7 +217,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
             value={form.business_name}
             onChange={e => update('business_name', e.target.value)}
             placeholder="Smith Plumbing LLC"
-            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
+            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
               errors.business_name ? 'border-red-400' : 'border-gray-300'
             }`}
           />
@@ -226,7 +226,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
 
         {/* Phone */}
         <div>
-          <label htmlFor={`phone-${variant}`} className="block text-gray-700 text-sm font-medium mb-1">
+          <label htmlFor={`phone-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
             Phone Number <span className="text-red-500">*</span>
           </label>
           <input
@@ -235,7 +235,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
             value={form.phone}
             onChange={e => update('phone', e.target.value)}
             placeholder="(240) 555-1234"
-            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
+            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
               errors.phone ? 'border-red-400' : 'border-gray-300'
             }`}
           />
@@ -244,7 +244,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
 
         {/* Email */}
         <div>
-          <label htmlFor={`email-${variant}`} className="block text-gray-700 text-sm font-medium mb-1">
+          <label htmlFor={`email-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
             Email <span className="text-red-500">*</span>
           </label>
           <input
@@ -253,7 +253,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
             value={form.email}
             onChange={e => update('email', e.target.value)}
             placeholder="john@smithplumbing.com"
-            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
+            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
               errors.email ? 'border-red-400' : 'border-gray-300'
             }`}
           />
@@ -262,14 +262,14 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
 
         {/* What do you need? */}
         <div>
-          <label htmlFor={`service-${variant}`} className="block text-gray-700 text-sm font-medium mb-1">
+          <label htmlFor={`service-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
             What do you need? <span className="text-red-500">*</span>
           </label>
           <select
             id={`service-${variant}`}
             value={form.coverage_type}
             onChange={e => update('coverage_type', e.target.value)}
-            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition appearance-none bg-white ${
+            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition appearance-none bg-white ${
               errors.coverage_type ? 'border-red-400' : 'border-gray-300'
             } ${form.coverage_type ? 'text-gray-900' : 'text-gray-400'}`}
           >
@@ -285,14 +285,14 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
 
         {/* How many vehicles? */}
         <div>
-          <label htmlFor={`vehicles-${variant}`} className="block text-gray-700 text-sm font-medium mb-1">
+          <label htmlFor={`vehicles-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
             How many vehicles? <span className="text-red-500">*</span>
           </label>
           <select
             id={`vehicles-${variant}`}
             value={form.vehicle_count}
             onChange={e => update('vehicle_count', e.target.value)}
-            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition appearance-none bg-white ${
+            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition appearance-none bg-white ${
               errors.vehicle_count ? 'border-red-400' : 'border-gray-300'
             } ${form.vehicle_count ? 'text-gray-900' : 'text-gray-400'}`}
           >
@@ -310,7 +310,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold text-base py-3 rounded-lg transition-colors"
+          className="w-full bg-[#CE0000] hover:bg-[#A30000] disabled:bg-[#CE0000]/50 text-white font-bold text-base py-3 rounded-lg transition-colors"
         >
           {submitting ? (
             <span className="flex items-center justify-center gap-2">

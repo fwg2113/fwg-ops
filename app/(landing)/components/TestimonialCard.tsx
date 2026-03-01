@@ -10,13 +10,13 @@ type Props = {
 
 export default function TestimonialCard({ quote, name, company }: Props) {
   return (
-    <div className="bg-gray-800 rounded-xl p-6 flex flex-col">
+    <div className="bg-zinc-800 rounded-xl p-6 flex flex-col">
       {/* Stars */}
       <div className="flex gap-1 mb-4" aria-label="5 out of 5 stars">
         {[...Array(5)].map((_, i) => (
           <svg
             key={i}
-            className="w-5 h-5 text-yellow-400"
+            className="w-5 h-5 text-amber-400"
             fill="currentColor"
             viewBox="0 0 20 20"
             aria-hidden="true"
@@ -27,19 +27,19 @@ export default function TestimonialCard({ quote, name, company }: Props) {
       </div>
 
       {/* Quote */}
-      <blockquote className="text-gray-300 text-sm leading-relaxed mb-4 flex-1">
+      <blockquote className="text-gray-200 text-sm leading-relaxed mb-4 flex-1">
         &ldquo;{quote}&rdquo;
       </blockquote>
 
       {/* Author */}
       <div className="flex items-center gap-3">
         {/* Photo placeholder — replace with real client photo */}
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white font-bold text-sm shrink-0">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#CE0000] to-[#A30000] flex items-center justify-center text-white font-bold text-sm shrink-0">
           {name.charAt(0)}
         </div>
         <div>
           <p className="text-white font-semibold text-sm">{name}</p>
-          <p className="text-gray-500 text-xs">{company}</p>
+          <p className="text-gray-400 text-xs">{company}</p>
         </div>
       </div>
     </div>
