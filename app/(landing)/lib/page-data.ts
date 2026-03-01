@@ -89,6 +89,7 @@ export type PageContent = {
     subheadline: string
     trustBullets: string[]
     heroImageAlt: string
+    heroImage?: string
   }
   services: ServiceItem[]
   formOptions: { label: string; value: string }[]
@@ -113,7 +114,8 @@ export const PAGES: Record<string, PageContent> = {
         'Free Design Consultation',
         'Fleet Discounts Available',
       ],
-      heroImageAlt: 'HERO: Your best commercial truck wrap photo',
+      heroImageAlt: 'Commercial vehicle wrap by Frederick Wraps & Graphics',
+      heroImage: '/landing/hero/commercial.jpg',
     },
     services: [
       {

@@ -11,6 +11,7 @@ type Props = {
   subheadline: string
   trustBullets: string[]
   heroImageAlt: string
+  heroImage?: string
   formOptions: { label: string; value: string }[]
   pageSlug: string
 }
@@ -21,19 +22,25 @@ export default function HeroSection({
   subheadline,
   trustBullets,
   heroImageAlt,
+  heroImage,
   formOptions,
   pageSlug,
 }: Props) {
   return (
     <section className="relative min-h-screen pt-16 flex items-center">
-      {/* Background gradient placeholder — replace with real hero image */}
-      <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950">
-        {/* Dark overlay for text readability when real image is added */}
-        <div className="absolute inset-0 bg-black/40" />
-        {/* Placeholder text — remove when real image is set */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-white/10 text-sm font-medium">{heroImageAlt}</span>
-        </div>
+      {/* Background */}
+      <div className="absolute inset-0">
+        {heroImage ? (
+          <img
+            src={heroImage}
+            alt={heroImageAlt}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950" />
+        )}
+        {/* Dark overlay so white text is readable over the photo */}
+        <div className="absolute inset-0 bg-black/50" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-12 md:py-20 w-full">
