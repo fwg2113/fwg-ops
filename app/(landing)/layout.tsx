@@ -9,7 +9,7 @@ import Footer from './components/Footer'
 // All landing pages are noindex (not for organic search).
 
 // GTM container ID — replace GTM-XXXXXXX with real ID when ready
-const GTM_ID = 'GTM-XXXXXXX'
+const GTM_ID = 'GTM-KVJQXMP4'
 
 export const viewport: Viewport = {
   width: 'device-width',
