@@ -1,21 +1,20 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { R2_LANDING_BASE } from '../lib/page-data'
 
 // ─── Before/After Image Slider ───
 // Interactive draggable comparison slider.
-// Images load automatically from R2 bucket:
-//   before-{index}.jpg  and  after-{index}.jpg
+// Image URLs are resolved server-side from the R2 bucket.
 // If no images exist, shows gradient fallbacks.
 
 type Props = {
   beforeLabel: string
   afterLabel: string
-  index: number
+  beforeImage?: string
+  afterImage?: string
 }
 
-export default function BeforeAfterSlider({ beforeLabel, afterLabel, index }: Props) {
+export default function BeforeAfterSlider({ beforeLabel, afterLabel, beforeImage, afterImage }: Props) {
   const [position, setPosition] = useState(50)
   const [beforeFailed, setBeforeFailed] = useState(false)
   const [afterFailed, setAfterFailed] = useState(false)
@@ -54,6 +53,9 @@ export default function BeforeAfterSlider({ beforeLabel, afterLabel, index }: Pr
     updatePosition(e.touches[0].clientX)
   }
 
+  const showBeforeImage = beforeImage && !beforeFailed
+  const showAfterImage = afterImage && !afterFailed
+
   return (
     <div
       ref={containerRef}
@@ -72,17 +74,17 @@ export default function BeforeAfterSlider({ beforeLabel, afterLabel, index }: Pr
     >
       {/* After (background layer — full width) */}
       <div className="absolute inset-0">
-        {afterFailed ? (
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-800 to-blue-600 flex items-center justify-center p-4">
-            <span className="text-white/60 text-sm text-center font-medium">{afterLabel}</span>
-          </div>
-        ) : (
+        {showAfterImage ? (
           <img
-            src={`${R2_LANDING_BASE}/after-${index}.jpg`}
+            src={afterImage}
             alt={afterLabel}
             className="absolute inset-0 w-full h-full object-cover"
             onError={() => setAfterFailed(true)}
           />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-800 to-blue-600 flex items-center justify-center p-4">
+            <span className="text-white/60 text-sm text-center font-medium">{afterLabel}</span>
+          </div>
         )}
       </div>
 
@@ -91,17 +93,17 @@ export default function BeforeAfterSlider({ beforeLabel, afterLabel, index }: Pr
         className="absolute inset-0"
         style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
       >
-        {beforeFailed ? (
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-600 to-gray-400 flex items-center justify-center p-4">
-            <span className="text-white/60 text-sm text-center font-medium">{beforeLabel}</span>
-          </div>
-        ) : (
+        {showBeforeImage ? (
           <img
-            src={`${R2_LANDING_BASE}/before-${index}.jpg`}
+            src={beforeImage}
             alt={beforeLabel}
             className="absolute inset-0 w-full h-full object-cover"
             onError={() => setBeforeFailed(true)}
           />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-600 to-gray-400 flex items-center justify-center p-4">
+            <span className="text-white/60 text-sm text-center font-medium">{beforeLabel}</span>
+          </div>
         )}
       </div>
 
@@ -112,7 +114,6 @@ export default function BeforeAfterSlider({ beforeLabel, afterLabel, index }: Pr
         onMouseDown={handleMouseDown}
         onTouchStart={handleMouseDown}
       >
-        {/* Handle circle */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
           <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />

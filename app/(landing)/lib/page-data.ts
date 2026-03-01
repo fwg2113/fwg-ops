@@ -4,11 +4,6 @@
 //  Update text, swap placeholder descriptions, etc.
 // =============================================
 
-// ─── R2 Bucket for Landing Page Images ───
-// All landing page images are served from this Cloudflare R2 bucket.
-// Upload photos to the fwg-landing bucket in Cloudflare and they
-// automatically appear on the site. See naming guide below.
-export const R2_LANDING_BASE = 'https://pub-fc53e761336c467eb14e978df4383491.r2.dev'
 
 // ─── Business Info (used in header, footer, JSON-LD) ───
 
