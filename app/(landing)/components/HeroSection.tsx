@@ -28,7 +28,7 @@ export default function HeroSection({
   pageSlug,
 }: Props) {
   return (
-    <section className="relative min-h-screen pt-16 flex items-center">
+    <section className="relative min-h-screen pt-20 flex items-center">
       {/* Background */}
       <div className="absolute inset-0">
         {heroImage ? (
