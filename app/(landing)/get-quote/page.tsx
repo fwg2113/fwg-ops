@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { PAGES, TESTIMONIALS, BEFORE_AFTER, buildJsonLd } from '../lib/page-data'
+import { getPageImages } from '../lib/get-landing-images'
 import HeroSection from '../components/HeroSection'
 import SocialProofBar from '../components/SocialProofBar'
 import ServiceCard from '../components/ServiceCard'
@@ -9,7 +10,8 @@ import TrustSection from '../components/TrustSection'
 import TestimonialCard from '../components/TestimonialCard'
 import LeadForm from '../components/LeadForm'
 
-const page = PAGES['get-quote']
+const SLUG = 'get-quote'
+const page = PAGES[SLUG]
 
 export const metadata: Metadata = {
   title: page.meta.title,
@@ -21,7 +23,8 @@ export const metadata: Metadata = {
   },
 }
 
-export default function GetQuotePage() {
+export default async function GetQuotePage() {
+  const images = await getPageImages(SLUG)
   const jsonLd = buildJsonLd(page.meta.description)
 
   return (
@@ -29,8 +32,9 @@ export default function GetQuotePage() {
       {/* 1. Hero + Form */}
       <HeroSection
         {...page.hero}
+        heroImage={images.hero}
         formOptions={page.formOptions}
-        pageSlug="get-quote"
+        pageSlug={SLUG}
       />
 
       {/* 2. Social Proof */}
@@ -47,7 +51,7 @@ export default function GetQuotePage() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {page.services.map((s, i) => (
-              <ServiceCard key={s.title} {...s} pageSlug="get-quote" index={i + 1} />
+              <ServiceCard key={s.title} {...s} image={images.services[i]} />
             ))}
           </div>
         </div>
@@ -67,7 +71,12 @@ export default function GetQuotePage() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {BEFORE_AFTER.map((ba, i) => (
-              <BeforeAfterSlider key={i} {...ba} index={i + 1} />
+              <BeforeAfterSlider
+                key={i}
+                {...ba}
+                beforeImage={images.beforeAfter[i]?.before}
+                afterImage={images.beforeAfter[i]?.after}
+              />
             ))}
           </div>
         </div>
@@ -101,7 +110,7 @@ export default function GetQuotePage() {
           </p>
           <LeadForm
             formOptions={page.formOptions}
-            pageSlug="get-quote"
+            pageSlug={SLUG}
             variant="cta"
           />
         </div>
