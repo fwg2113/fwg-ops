@@ -21,7 +21,7 @@ const ICONS = [
 
 export default function ProcessSteps({ steps }: { steps: Step[] }) {
   return (
-    <section className="py-16 bg-gray-800">
+    <section className="py-16 bg-zinc-900">
       <div className="max-w-5xl mx-auto px-4">
         <h2 className="text-3xl font-bold text-white text-center mb-12">
           Our Fleet Wrap Process
@@ -32,16 +32,16 @@ export default function ProcessSteps({ steps }: { steps: Step[] }) {
             <div key={s.step} className="relative text-center">
               {/* Connector line (desktop only, between cards) */}
               {i < steps.length - 1 && (
-                <div className="hidden md:block absolute top-7 left-[60%] w-[80%] h-0.5 bg-blue-600/30" />
+                <div className="hidden md:block absolute top-7 left-[60%] w-[80%] h-0.5 bg-[#CE0000]/30" />
               )}
 
               {/* Step circle */}
-              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-600 flex items-center justify-center text-white relative z-10">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[#CE0000] flex items-center justify-center text-white relative z-10">
                 {ICONS[i]}
               </div>
 
               {/* Step number */}
-              <p className="text-blue-400 text-xs font-semibold mb-1">
+              <p className="text-red-500 text-xs font-semibold mb-1">
                 STEP {s.step}
               </p>
 

@@ -14,17 +14,17 @@ type Props = {
 }
 
 const GRADIENTS = [
-  'from-blue-900 to-blue-700',
-  'from-indigo-900 to-indigo-700',
-  'from-cyan-900 to-cyan-700',
-  'from-violet-900 to-violet-700',
+  'from-red-950 to-red-900',
+  'from-rose-950 to-red-950',
+  'from-stone-900 to-red-950',
+  'from-neutral-900 via-red-950 to-neutral-800',
 ]
 
 export default function ServiceCard({ title, description, imageAlt, image }: Props) {
   const idx = title.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % GRADIENTS.length
 
   return (
-    <div className="bg-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-zinc-800 rounded-xl overflow-hidden">
       <div className="aspect-[16/10] relative">
         {image ? (
           <ImageWithFallback
