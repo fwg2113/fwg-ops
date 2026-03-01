@@ -8,12 +8,12 @@ import { BUSINESS } from '../lib/page-data'
 
 export default function Header() {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-gray-950 border-b border-gray-800">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-fwg-black border-b border-fwg-border-dark">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo — NOT linked to homepage */}
         <div className="flex items-center gap-2">
           {/* Replace with actual logo image when ready */}
-          <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+          <div className="w-8 h-8 rounded-lg bg-fwg-red flex items-center justify-center text-white font-bold text-sm">
             FW
           </div>
           <span className="text-white font-bold text-lg hidden sm:inline">
@@ -27,7 +27,7 @@ export default function Header() {
           {/* Phone — always visible */}
           <a
             href={BUSINESS.phoneTel}
-            className="flex items-center gap-2 text-white hover:text-blue-400 transition-colors"
+            className="flex items-center gap-2 text-white hover:text-fwg-red-light transition-colors"
           >
             {/* Phone icon */}
             <svg
@@ -52,7 +52,7 @@ export default function Header() {
           {/* CTA button — scrolls to form */}
           <a
             href="#quote-form"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+            className="bg-fwg-red hover:bg-fwg-red-dark text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             Get a Quote
           </a>

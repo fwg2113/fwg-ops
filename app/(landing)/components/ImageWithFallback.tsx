@@ -19,7 +19,7 @@ export default function ImageWithFallback({
   src,
   alt,
   className = '',
-  fallbackGradient = 'from-gray-900 via-gray-800 to-gray-950',
+  fallbackGradient = 'from-fwg-charcoal via-fwg-card to-fwg-black',
   fallbackLabel,
 }: Props) {
   const [failed, setFailed] = useState(false)
