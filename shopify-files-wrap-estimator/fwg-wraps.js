@@ -940,7 +940,8 @@
       timeline: state.timeline,
       budget_range: state.budgetRange
     };
-    
+    FWG_ATTR_FORM.attach(data);
+
     try {
   const response = await fetch(`${CONFIG.apiUrl}/api/estimator/submit`, {
     method: 'POST',

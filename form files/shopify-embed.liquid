@@ -1366,6 +1366,7 @@ additional_info: formData.additional_info,
 source_page: formData.source_page,
 user_agent: formData.user_agent
 };
+FWG_ATTR_FORM.attach(payload);
 return fetch(FWG_CONFIG.API_URL + '/api/submissions/public', {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' },
