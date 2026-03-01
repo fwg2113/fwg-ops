@@ -4,7 +4,7 @@
 
 export default function TrustSection() {
   return (
-    <section className="py-16 bg-gradient-to-b from-black to-zinc-900">
+    <section className="py-16 bg-zinc-900">
       <div className="max-w-6xl mx-auto px-4">
         <h2 className="text-3xl font-bold text-white text-center mb-12">
           Why Frederick Wraps & Graphics?

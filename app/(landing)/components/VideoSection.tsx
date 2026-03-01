@@ -5,14 +5,14 @@
 
 export default function VideoSection() {
   return (
-    <section className="py-16 bg-neutral-950">
+    <section className="py-16 bg-zinc-900">
       <div className="max-w-4xl mx-auto px-4">
         <h2 className="text-3xl font-bold text-white text-center mb-8">
           See Our Work in Action
         </h2>
 
         {/* Video placeholder — replace with real embed */}
-        <div className="relative aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-zinc-900 to-black">
+        <div className="relative aspect-video rounded-xl overflow-hidden bg-black">
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             {/* Play button */}
             <div className="w-16 h-16 rounded-full bg-[#CE0000]/90 flex items-center justify-center mb-4">
