@@ -822,7 +822,7 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
           </div>
 
           {/* Café wraps, sticker/label, and embroidery skip vehicle display entirely */}
-          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' || submission.form_type === 'embroidery' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
+          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' || submission.form_type === 'embroidery' || submission.form_type === 'ad_landing' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
             <>
               <div style={rowStyle}>
                 <span style={labelStyle}>Vehicles</span>
