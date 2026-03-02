@@ -1,28 +1,24 @@
 'use client'
 
 import { useState, useEffect, useRef, type FormEvent } from 'react'
-import { VEHICLE_COUNT_OPTIONS } from '../lib/page-data'
 
 // ─── Lead Capture Form ───
 // Reusable form used in hero section and final CTA.
 // Captures attribution (gclid, UTM) from URL on mount.
 // Submits to /api/submissions/public with form_type='ad_landing'.
 
-type FormOption = { label: string; value: string }
-
 type Props = {
-  formOptions: FormOption[]
   pageSlug: string
   variant?: 'hero' | 'cta'
 }
 
 type FormState = {
   contact_name: string
-  business_name: string
   phone: string
   email: string
-  coverage_type: string
-  vehicle_count: string
+  business_name: string
+  vehicle_description: string
+  project_details: string
 }
 
 type Attribution = {
@@ -40,14 +36,14 @@ type Attribution = {
 
 const INITIAL_FORM: FormState = {
   contact_name: '',
-  business_name: '',
   phone: '',
   email: '',
-  coverage_type: '',
-  vehicle_count: '',
+  business_name: '',
+  vehicle_description: '',
+  project_details: '',
 }
 
-export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Props) {
+export default function LeadForm({ pageSlug, variant = 'hero' }: Props) {
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -84,7 +80,6 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
     const errs: Partial<Record<keyof FormState, string>> = {}
 
     if (!form.contact_name.trim()) errs.contact_name = 'Name is required'
-    if (!form.business_name.trim()) errs.business_name = 'Company name is required'
     if (!form.phone.trim()) {
       errs.phone = 'Phone number is required'
     } else if (form.phone.replace(/\D/g, '').length < 10) {
@@ -95,8 +90,6 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
       errs.email = 'Enter a valid email address'
     }
-    if (!form.coverage_type) errs.coverage_type = 'Please select a service'
-    if (!form.vehicle_count) errs.vehicle_count = 'Please select vehicle count'
 
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -114,12 +107,12 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
       const payload = {
         form_type: 'ad_landing',
         contact_name: form.contact_name.trim(),
-        business_name: form.business_name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
         contact_method: 'phone',
-        coverage_type: form.coverage_type,
-        vehicle_count: form.vehicle_count,
+        business_name: form.business_name.trim() || undefined,
+        vehicle_description: form.vehicle_description.trim() || undefined,
+        additional_info: form.project_details.trim() || undefined,
         source_page: `/${pageSlug}`,
         user_agent: navigator.userAgent,
         ...attrRef.current,
@@ -198,7 +191,7 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
             type="text"
             value={form.contact_name}
             onChange={e => update('contact_name', e.target.value)}
-            placeholder="John Smith"
+            placeholder="e.g. John Smith"
             className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
               errors.contact_name ? 'border-red-400' : 'border-gray-300'
             }`}
@@ -206,35 +199,17 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
           {errors.contact_name && <p className="text-red-500 text-xs mt-1">{errors.contact_name}</p>}
         </div>
 
-        {/* Company Name */}
-        <div>
-          <label htmlFor={`company-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
-            Company Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            id={`company-${variant}`}
-            type="text"
-            value={form.business_name}
-            onChange={e => update('business_name', e.target.value)}
-            placeholder="Smith Plumbing LLC"
-            className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
-              errors.business_name ? 'border-red-400' : 'border-gray-300'
-            }`}
-          />
-          {errors.business_name && <p className="text-red-500 text-xs mt-1">{errors.business_name}</p>}
-        </div>
-
         {/* Phone */}
         <div>
           <label htmlFor={`phone-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
-            Phone Number <span className="text-red-500">*</span>
+            Phone <span className="text-red-500">*</span>
           </label>
           <input
             id={`phone-${variant}`}
             type="tel"
             value={form.phone}
             onChange={e => update('phone', e.target.value)}
-            placeholder="(240) 555-1234"
+            placeholder="e.g. (240) 555-1234"
             className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
               errors.phone ? 'border-red-400' : 'border-gray-300'
             }`}
@@ -242,17 +217,17 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
           {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
         </div>
 
-        {/* Email */}
+        {/* Email Address */}
         <div>
           <label htmlFor={`email-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
-            Email <span className="text-red-500">*</span>
+            Email Address <span className="text-red-500">*</span>
           </label>
           <input
             id={`email-${variant}`}
             type="email"
             value={form.email}
             onChange={e => update('email', e.target.value)}
-            placeholder="john@smithplumbing.com"
+            placeholder="e.g. john@smithplumbing.com"
             className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition ${
               errors.email ? 'border-red-400' : 'border-gray-300'
             }`}
@@ -260,50 +235,49 @@ export default function LeadForm({ formOptions, pageSlug, variant = 'hero' }: Pr
           {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
         </div>
 
-        {/* What do you need? */}
+        {/* Business Name */}
         <div>
-          <label htmlFor={`service-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
-            What do you need? <span className="text-red-500">*</span>
+          <label htmlFor={`business-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
+            Business Name
           </label>
-          <select
-            id={`service-${variant}`}
-            value={form.coverage_type}
-            onChange={e => update('coverage_type', e.target.value)}
-            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition appearance-none bg-white ${
-              errors.coverage_type ? 'border-red-400' : 'border-gray-300'
-            } ${form.coverage_type ? 'text-gray-900' : 'text-gray-400'}`}
-          >
-            <option value="">Select a service...</option>
-            {formOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {errors.coverage_type && <p className="text-red-500 text-xs mt-1">{errors.coverage_type}</p>}
+          <input
+            id={`business-${variant}`}
+            type="text"
+            value={form.business_name}
+            onChange={e => update('business_name', e.target.value)}
+            placeholder="e.g. Smith Plumbing LLC"
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition"
+          />
         </div>
 
-        {/* How many vehicles? */}
+        {/* Vehicle Description */}
         <div>
-          <label htmlFor={`vehicles-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
-            How many vehicles? <span className="text-red-500">*</span>
+          <label htmlFor={`vehicle-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
+            Vehicle Description
           </label>
-          <select
-            id={`vehicles-${variant}`}
-            value={form.vehicle_count}
-            onChange={e => update('vehicle_count', e.target.value)}
-            className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition appearance-none bg-white ${
-              errors.vehicle_count ? 'border-red-400' : 'border-gray-300'
-            } ${form.vehicle_count ? 'text-gray-900' : 'text-gray-400'}`}
-          >
-            <option value="">Select...</option>
-            {VEHICLE_COUNT_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {errors.vehicle_count && <p className="text-red-500 text-xs mt-1">{errors.vehicle_count}</p>}
+          <input
+            id={`vehicle-${variant}`}
+            type="text"
+            value={form.vehicle_description}
+            onChange={e => update('vehicle_description', e.target.value)}
+            placeholder="e.g. 2024 Ford Transit 250 (white)"
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition"
+          />
+        </div>
+
+        {/* Project Details */}
+        <div>
+          <label htmlFor={`details-${variant}`} className="block text-gray-900 text-sm font-medium mb-1">
+            Project Details
+          </label>
+          <textarea
+            id={`details-${variant}`}
+            value={form.project_details}
+            onChange={e => update('project_details', e.target.value)}
+            placeholder="e.g. Looking for a full wrap on our work van with logo, phone number, and website. We have artwork ready."
+            rows={3}
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-gray-900 placeholder:text-gray-400 text-sm focus:ring-2 focus:ring-[#CE0000] focus:border-transparent outline-none transition resize-none"
+          />
         </div>
 
         {/* Submit */}

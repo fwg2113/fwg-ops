@@ -33,7 +33,6 @@ export default async function GetQuotePage() {
       <HeroSection
         {...page.hero}
         heroImage={images.hero}
-        formOptions={page.formOptions}
         pageSlug={SLUG}
       />
 
@@ -109,7 +108,6 @@ export default async function GetQuotePage() {
             Tell us about your project and get a free, no-obligation quote.
           </p>
           <LeadForm
-            formOptions={page.formOptions}
             pageSlug={SLUG}
             variant="cta"
           />

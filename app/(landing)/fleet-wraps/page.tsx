@@ -34,7 +34,6 @@ export default async function FleetWrapsPage() {
       <HeroSection
         {...page.hero}
         heroImage={images.hero}
-        formOptions={page.formOptions}
         pageSlug={SLUG}
       />
 
@@ -113,7 +112,6 @@ export default async function FleetWrapsPage() {
             Get fleet pricing for 3 or more vehicles — one project manager for the entire job.
           </p>
           <LeadForm
-            formOptions={page.formOptions}
             pageSlug={SLUG}
             variant="cta"
           />

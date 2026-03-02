@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     // ── Validate required fields (varies by form type) ──
     const REQUIRED_BY_FORM_TYPE: Record<string, string[]> = {
-      ad_landing: ["contact_name", "business_name", "email", "phone", "coverage_type", "vehicle_count"],
+      ad_landing: ["contact_name", "email", "phone"],
       commercial_wrap: ['business_name', 'contact_name', 'email', 'phone', 'contact_method', 'coverage_type', 'artwork_status', 'timeline'],
       automotive_styling: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
       ppf: ['contact_name', 'email', 'phone', 'contact_method', 'ppf_package', 'timeline'],
