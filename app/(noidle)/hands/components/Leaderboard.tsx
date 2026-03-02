@@ -1,6 +1,6 @@
 'use client'
 
-import type { NihTeamMember, NihPrize } from '../types'
+import type { NihTeamMember, NihPrize, NihWeeklyWinner } from '../types'
 import { useState } from 'react'
 import PinModal from './PinModal'
 
@@ -9,12 +9,14 @@ interface LeaderboardProps {
   prizes: NihPrize[]
   onPrizesUpdate: (prizes: NihPrize[]) => void
   onPointsUpdate: (members: NihTeamMember[]) => void
+  weeklyWinners: NihWeeklyWinner[]
+  onWeeklyReset: (winners: any, updatedMembers: any) => void
 }
 
 const RANK_COLORS = ['#fbbf24', '#94a3b8', '#cd7f32'] // gold, silver, bronze
 const RANK_LABELS = ['1st', '2nd', '3rd']
 
-export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate, onPointsUpdate }: LeaderboardProps) {
+export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate, onPointsUpdate, weeklyWinners, onWeeklyReset }: LeaderboardProps) {
   const [showPrizes, setShowPrizes] = useState(true)
   const [editingPrizes, setEditingPrizes] = useState(false)
   const [prizeTexts, setPrizeTexts] = useState(prizes.map(p => p.prize_text))

@@ -83,6 +83,7 @@ export interface BoardData {
   teamMembers: NihTeamMember[]
   prizes: NihPrize[]
   completionLog: NihCompletionLog[]
+  weeklyWinners: NihWeeklyWinner[]
 }
 
 export type FilterState = {
@@ -129,3 +130,14 @@ export const TIME_ESTIMATES = [
   'Full day',
   'Multi-day',
 ]
+
+export interface NihWeeklyWinner {
+  id: string
+  week_start: string
+  position: number
+  team_member_id: string
+  team_member_name: string
+  points: number
+  prize_text: string | null
+  created_at: string
+}
