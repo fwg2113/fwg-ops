@@ -33,7 +33,6 @@ export default async function CommercialVehicleWrapsPage() {
       <HeroSection
         {...page.hero}
         heroImage={images.hero}
-        formOptions={page.formOptions}
         pageSlug={SLUG}
       />
 
@@ -109,7 +108,6 @@ export default async function CommercialVehicleWrapsPage() {
             Get a free, no-obligation quote for your commercial vehicle wrap project.
           </p>
           <LeadForm
-            formOptions={page.formOptions}
             pageSlug={SLUG}
             variant="cta"
           />

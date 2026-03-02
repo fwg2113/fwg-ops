@@ -33,7 +33,6 @@ export default async function VehicleLetteringGraphicsPage() {
       <HeroSection
         {...page.hero}
         heroImage={images.hero}
-        formOptions={page.formOptions}
         pageSlug={SLUG}
       />
 
@@ -109,7 +108,6 @@ export default async function VehicleLetteringGraphicsPage() {
             Get a free quote for professional vehicle lettering and graphics.
           </p>
           <LeadForm
-            formOptions={page.formOptions}
             pageSlug={SLUG}
             variant="cta"
           />
