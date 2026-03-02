@@ -30,26 +30,44 @@ export const VEHICLE_COUNT_OPTIONS = [
   { label: '10+', value: '10+' },
 ]
 
-// ─── Shared testimonials (replace with real ones later) ───
+// ─── Shared testimonials ───
 
 export const TESTIMONIALS = [
   {
     quote:
-      'The wrap on our delivery fleet has been incredible for brand recognition. Every vehicle is a moving billboard — we get calls daily from people who saw our trucks on the road.',
-    name: 'Mike R.',
-    company: 'R&R Plumbing',
+      'They did an awesome job on my food trailer. Fast turnaround time and it looks great. Thanks for the great job!',
+    name: 'Chris Moreland',
+    company: 'Açaí For Me',
   },
   {
     quote:
-      'Professional work from start to finish. Our box truck wrap looks amazing and has held up through two winters already. Highly recommend Frederick Wraps.',
-    name: 'Sarah T.',
-    company: 'Frederick Catering Co.',
+      'Great customer service and fast scheduling. They've completed multiple vehicle lettering jobs as well as custom apparel for us. Highly recommend!',
+    name: 'Karen May',
+    company: "May's Heating & Air",
   },
   {
     quote:
-      'Turned our plain white vans into rolling billboards. The design team nailed our brand and the install was flawless. Best marketing investment we\'ve made.',
-    name: 'James K.',
-    company: 'DMV Electric',
+      'I am very happy with the work they did for me — the results speak for themselves!',
+    name: 'Jorge Velasquez',
+    company: "Mayta's Peruvian Cuisine",
+  },
+  {
+    quote:
+      'Frederick Wraps and Graphics is hands down my favorite wraps and graphic company! They are the only ones I trust with bringing my vision to reality and have ALWAYS far exceeded my expectations. Joe, Sharon and the rest of the team are so knowledgeable, helpful, and simply great people whose main objective is to help you meet your business goals. I recommend them for ALL your wrap and graphic needs.',
+    name: 'Bobby Waters',
+    company: "B-Dub's Island Soul",
+  },
+  {
+    quote:
+      'Planning the design went smoothly and their work turned out great. Highly recommend — will be back for future work.',
+    name: 'Bruce Shankle II',
+    company: 'Shankles Optimum Security',
+  },
+  {
+    quote:
+      'The folks at Frederick Wraps and Graphics are very nice and responsive. I had them make some vinyl lettering for a business sign and they did it the same day at a reasonable price. Would definitely recommend!',
+    name: 'Dennis Thomas',
+    company: 'Urbana Dryer Vent Cleaning',
   },
 ]
 
