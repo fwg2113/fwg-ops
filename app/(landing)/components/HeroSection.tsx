@@ -41,7 +41,7 @@ export default function HeroSection({
           <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-black" />
         )}
         {/* Dark overlay so white text is readable over the photo */}
-        <div className="absolute inset-0 bg-black/60" />
+        <div className="absolute inset-0 bg-black/75" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-12 md:py-20 w-full">
