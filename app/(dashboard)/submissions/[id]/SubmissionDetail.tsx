@@ -1330,6 +1330,45 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                   </div>
                 )}
               </>
+            ) : submission.form_type === 'ad_landing' ? (
+              <>
+                {submission.vehicle_description && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Vehicle</span>
+                    <span style={{...valueStyle, maxWidth: '60%'}}>{submission.vehicle_description}</span>
+                  </div>
+                )}
+                {submission.additional_info && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Project Details</span>
+                    <span style={{...valueStyle, maxWidth: '60%'}}>{submission.additional_info}</span>
+                  </div>
+                )}
+                {submission.source_page && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Landing Page</span>
+                    <span style={valueStyle}>{submission.source_page}</span>
+                  </div>
+                )}
+                {submission.utm_campaign && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Campaign</span>
+                    <span style={valueStyle}>{submission.utm_campaign}</span>
+                  </div>
+                )}
+                {submission.utm_term && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Keyword</span>
+                    <span style={valueStyle}>{submission.utm_term}</span>
+                  </div>
+                )}
+                {submission.gclid && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>GCLID</span>
+                    <span style={valueStyle}>✓ Captured</span>
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div style={rowStyle}>
