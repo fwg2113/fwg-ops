@@ -43,6 +43,7 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/vehicle-lettering-graphics') ||
     pathname.startsWith('/fleet-wraps') ||
     pathname.startsWith('/get-quote') ||
+    pathname.startsWith('/thank-you') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon')
   ) {
