@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import type { BoardData, NihTask, NihTeamMember, NihPrize, NihCompletionLog } from '../types'
+import type { BoardData, NihTask, NihTeamMember, NihPrize, NihCompletionLog, NihWeeklyWinner } from '../types'
 import HandsLogo from './HandsLogo'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
@@ -25,6 +25,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [teamMembers, setTeamMembers] = useState<NihTeamMember[]>(initialData.teamMembers)
   const [prizes, setPrizes] = useState<NihPrize[]>(initialData.prizes)
   const [completionLog, setCompletionLog] = useState<NihCompletionLog[]>(initialData.completionLog)
+  const [weeklyWinners, setWeeklyWinners] = useState<NihWeeklyWinner[]>(initialData.weeklyWinners)
 
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<NihTask | null>(null)
@@ -519,6 +520,14 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           prizes={prizes}
           onPrizesUpdate={setPrizes}
           onPointsUpdate={handlePointsUpdate}
+          weeklyWinners={weeklyWinners}
+          onWeeklyReset={(winners, updatedMembers) => {
+            setWeeklyWinners(winners)
+            setTeamMembers(prev => prev.map(m => {
+              const updated = updatedMembers.find((u: NihTeamMember) => u.id === m.id)
+              return updated ? { ...m, total_points: updated.total_points } : m
+            }))
+          }}
         />
       </div>
 
