@@ -221,6 +221,7 @@ export async function POST(request: NextRequest) {
         logo_urls: body.logo_urls || [],
         budget: body.budget || null,
         additional_info: body.additional_info || null,
+        vehicle_description: body.vehicle_description || null,
         source_page: body.source_page || null,
         user_agent: body.user_agent || request.headers.get('user-agent') || null,
 
@@ -879,6 +880,22 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
         <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.notes}</td></tr>
       </table>`
     }
+  } else if (formType === 'ad_landing') {
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Project Details')}
+      ${body.vehicle_description ? emailRow('Vehicle', body.vehicle_description) : ''}
+      ${body.additional_info ? `<tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.additional_info}</td></tr>` : ''}
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Ad Attribution')}
+      ${emailRow('Landing Page', body.source_page || '—')}
+      ${body.utm_source ? emailRow('Source', body.utm_source) : ''}
+      ${body.utm_medium ? emailRow('Medium', body.utm_medium) : ''}
+      ${body.utm_campaign ? emailRow('Campaign', body.utm_campaign) : ''}
+      ${body.utm_term ? emailRow('Keyword', body.utm_term) : ''}
+      ${body.gclid ? emailRow('GCLID', '✓ Captured') : ''}
+    </table>`
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -950,6 +967,10 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     } else {
       emailSubject = `New Embroidery Inquiry — ${body.contact_name} (${itemCount} product${itemCount !== 1 ? 's' : ''})`
     }
+  } else if (formType === 'ad_landing') {
+    emailTitle = 'New Landing Page Inquiry'
+    const lp = body.source_page || 'landing page'
+    emailSubject = `🎯 Ad Lead — ${body.contact_name}${body.business_name ? ` (${body.business_name})` : ''} — ${lp}`
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
@@ -985,12 +1006,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${emailRow('Phone', `<a href="tel:${body.phone}" style="color:#2B5EA7;">${body.phone}</a>`)}
       ${emailRow('Preferred', body.contact_method)}
     </table>
-    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'ad_landing' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Vehicle Details')}
       ${vehicleHTML}
     </table>` : ''}
     ${projectSectionHTML}
-    ${formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'ad_landing' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Timeline & Budget')}
       ${emailRow('Timeline', TIMELINE_LABELS[body.timeline] || body.timeline)}
       ${body.budget ? emailRow('Budget', BUDGET_LABELS[body.budget] || body.budget) : ''}
