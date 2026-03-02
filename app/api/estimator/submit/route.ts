@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
+import { uploadClickConversion } from '@/app/lib/googleAdsConversion'
 
 // CORS headers for cross-origin requests from Shopify
 const corsHeaders = {
@@ -58,6 +59,18 @@ export async function POST(request: Request) {
         timeline: data.timeline || null,
         budget_range: data.budget_range || null,
         notes: data.notes || null,
+        // ── Ad attribution (first-touch, set by Shopify cookie script) ──
+        gclid: data.gclid || null,
+        gbraid: data.gbraid || null,
+        wbraid: data.wbraid || null,
+        utm_source: data.utm_source || null,
+        utm_medium: data.utm_medium || null,
+        utm_campaign: data.utm_campaign || null,
+        utm_content: data.utm_content || null,
+        utm_term: data.utm_term || null,
+        landing_page: data.landing_page || null,
+        referrer: data.referrer || null,
+        user_agent: data.user_agent || request.headers.get('user-agent') || null,
       })
       .select()
       .single()
@@ -71,6 +84,16 @@ export async function POST(request: Request) {
     }
 
     console.log('Submission created:', submission.id)
+
+    // =========================================================================
+    // 1b. Upload Google Ads offline conversion (non-blocking)
+    // =========================================================================
+    const gclid = data.gclid as string | undefined
+    if (gclid) {
+      uploadClickConversion(gclid, new Date()).catch(err => {
+        console.error('Google Ads conversion upload error:', err)
+      })
+    }
 
     // =========================================================================
     // 2. Find or create customer
