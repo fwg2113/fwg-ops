@@ -35,37 +35,37 @@ export const VEHICLE_COUNT_OPTIONS = [
 export const TESTIMONIALS = [
   {
     quote:
-      'They did an awesome job on my food trailer. Fast turnaround time and it looks great. Thanks for the great job!',
+      'They did an awesome job on my food trailer. Fast turn around time and it looks great. Thanks for the great job.',
     name: 'Chris Moreland',
     company: 'Açaí For Me',
   },
   {
     quote:
-      'Great customer service and fast scheduling. They've completed multiple vehicle lettering jobs as well as custom apparel for us. Highly recommend!',
+      'Great customer service. Fast scheduling. They have completed multiple vehicle lettering as well as custom apparel for us. Highly recommend',
     name: 'Karen May',
     company: "May's Heating & Air",
   },
   {
     quote:
-      'I am very happy with the work they did for me — the results speak for themselves!',
+      'I am very happy with the work they did for me see the picture',
     name: 'Jorge Velasquez',
     company: "Mayta's Peruvian Cuisine",
   },
   {
     quote:
-      'Frederick Wraps and Graphics is hands down my favorite wraps and graphic company! They are the only ones I trust with bringing my vision to reality and have ALWAYS far exceeded my expectations. Joe, Sharon and the rest of the team are so knowledgeable, helpful, and simply great people whose main objective is to help you meet your business goals. I recommend them for ALL your wrap and graphic needs.',
+      "As the owner of B-Dub's Island Soul Foodtruck and Catering Co, Frederick Wraps and Graphics is hands down my favorite wraps and graphic company!!! They are the only ones I trust with bringing my vision to reality and have ALWAYS far exceeded my expectations. Joe, Sharon and the rest of the team are so knowledgeable, helpful and simply down right GREAT people, who's main objective is to help you meet your business goals by enhancing, spotlighting and bringing awareness to your brand. I recommend them for ALL your wrap and graphic needs",
     name: 'Bobby Waters',
     company: "B-Dub's Island Soul",
   },
   {
     quote:
-      'Planning the design went smoothly and their work turned out great. Highly recommend — will be back for future work.',
+      'Planning the design went smoothly. Their work turned out great. Highly recommend. Will be back for future work.',
     name: 'Bruce Shankle II',
     company: 'Shankles Optimum Security',
   },
   {
     quote:
-      'The folks at Frederick Wraps and Graphics are very nice and responsive. I had them make some vinyl lettering for a business sign and they did it the same day at a reasonable price. Would definitely recommend!',
+      'The folks at Frederick Wrap and Graphics are very nice and responsive. I had them make some small vinyl lettering for a business sign in Frederick and they did it the same day for as reasonable price. I would definitely recommend this business!',
     name: 'Dennis Thomas',
     company: 'Urbana Dryer Vent Cleaning',
   },
