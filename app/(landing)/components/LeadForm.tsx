@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
 
 // ─── Lead Capture Form ───
 // Reusable form used in hero section and final CTA.
@@ -44,10 +45,10 @@ const INITIAL_FORM: FormState = {
 }
 
 export default function LeadForm({ pageSlug, variant = 'hero' }: Props) {
+  const router = useRouter()
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const attrRef = useRef<Attribution>({})
 
@@ -129,7 +130,8 @@ export default function LeadForm({ pageSlug, variant = 'hero' }: Props) {
         throw new Error(data.error || 'Submission failed')
       }
 
-      setSubmitted(true)
+      router.push('/thank-you')
+      return
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong'
       setSubmitError(message + '. Please try again or call us directly.')
@@ -141,26 +143,6 @@ export default function LeadForm({ pageSlug, variant = 'hero' }: Props) {
   const update = (field: keyof FormState, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
-  }
-
-  // ── Success state ──
-  if (submitted) {
-    return (
-      <div
-        id={variant === 'hero' ? 'quote-form' : undefined}
-        className="bg-white rounded-2xl shadow-xl p-8 text-center"
-      >
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-          <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h3 className="text-gray-900 font-bold text-xl mb-2">Quote Request Received!</h3>
-        <p className="text-gray-500 text-sm">
-          Thank you! We&apos;ll be in touch within one business day with your free quote.
-        </p>
-      </div>
-    )
   }
 
   // ── Form ──
