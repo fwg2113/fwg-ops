@@ -1,6 +1,6 @@
 // ─── Social Proof Bar ───
 // Horizontal strip below hero. Light background with two-tone card effect.
-// "Trusted by 700+ businesses" + star rating.
+// "12+ Years in Business" + star rating.
 
 export default function SocialProofBar() {
   return (
@@ -10,7 +10,7 @@ export default function SocialProofBar() {
           {/* Trust statement */}
           <div className="flex items-center gap-2">
             <span className="text-gray-900 font-semibold text-sm">
-              Trusted by 700+ Businesses
+              12+ Years in Business
             </span>
             <div className="flex gap-0.5" aria-label="5 star rating">
               {[...Array(5)].map((_, i) => (

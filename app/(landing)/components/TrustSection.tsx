@@ -19,8 +19,8 @@ export default function TrustSection() {
               </svg>
             </div>
             <h3 className="text-white font-bold text-xl mb-3">Experience</h3>
-            <p className="text-3xl font-bold text-[#CE0000] mb-2">700+</p>
-            <p className="text-gray-200 text-sm mb-1">Vehicles Wrapped</p>
+            <p className="text-3xl font-bold text-[#CE0000] mb-2">12+</p>
+            <p className="text-gray-200 text-sm mb-1">Years in Business</p>
             <p className="text-gray-400 text-xs">
               Years of experience serving Frederick, MD and the surrounding area.
             </p>
