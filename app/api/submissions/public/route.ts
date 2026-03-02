@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
 import { generateSubmissionAction } from '@/app/lib/customer/actionGenerator'
+import { uploadClickConversion } from '@/app/lib/googleAdsConversion'
 
 // ─── CORS headers for cross-origin Shopify requests ───
 const CORS_HEADERS = {
@@ -220,7 +221,19 @@ export async function POST(request: NextRequest) {
         budget: body.budget || null,
         additional_info: body.additional_info || null,
         source_page: body.source_page || null,
-        user_agent: body.user_agent || null,
+        user_agent: body.user_agent || request.headers.get('user-agent') || null,
+
+        // ── Ad attribution (first-touch, set by Shopify cookie script) ──
+        gclid: body.gclid || null,
+        gbraid: body.gbraid || null,
+        wbraid: body.wbraid || null,
+        utm_source: body.utm_source || null,
+        utm_medium: body.utm_medium || null,
+        utm_campaign: body.utm_campaign || null,
+        utm_content: body.utm_content || null,
+        utm_term: body.utm_term || null,
+        landing_page: body.landing_page || null,
+        referrer: body.referrer || null,
 
         // ── Styling-form-specific columns ──
         services: body.services || [],
@@ -304,6 +317,14 @@ export async function POST(request: NextRequest) {
       console.error('Failed to generate submission action:', err)
       // Non-blocking — submission is saved either way
     })
+
+    // ── Upload Google Ads offline conversion (non-blocking) ──
+    const gclid = body.gclid as string | undefined
+    if (gclid) {
+      uploadClickConversion(gclid, new Date()).catch(err => {
+        console.error('Google Ads conversion upload error:', err)
+      })
+    }
 
     // ── Send notification email (non-blocking) ──
     sendNotificationEmail(body, formType).catch(err => {
