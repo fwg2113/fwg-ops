@@ -76,18 +76,6 @@ export interface NihCompletionLog {
   created_at: string
 }
 
-export interface NihWeeklyWinner {
-  id: string
-  week_start: string
-  week_end: string
-  position: number
-  team_member_id: string
-  member_name: string
-  member_avatar_color: string
-  points: number
-  created_at: string
-}
-
 export interface BoardData {
   tasks: NihTask[]
   categories: NihCategory[]
@@ -95,7 +83,6 @@ export interface BoardData {
   teamMembers: NihTeamMember[]
   prizes: NihPrize[]
   completionLog: NihCompletionLog[]
-  weeklyWinners: NihWeeklyWinner[]
 }
 
 export type FilterState = {

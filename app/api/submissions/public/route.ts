@@ -94,7 +94,6 @@ export async function POST(request: NextRequest) {
       sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material', 'timeline'],
       signage_promo: ['contact_name', 'email', 'contact_method', 'quantity', 'timeline'],
       embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'design_size', 'digitizing', 'timeline'],
-      ad_landing: ['contact_name', 'business_name', 'email', 'phone'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType]
     if (!required) {
@@ -190,7 +189,7 @@ export async function POST(request: NextRequest) {
       .insert({
         submission_number: nextNumber,
         status: 'new',
-        source: formType === 'ad_landing' ? 'ad_landing' : 'website_form',
+        source: 'website_form',
         form_type: formType,
 
         // Contact info (mapped to existing columns)
@@ -205,7 +204,7 @@ export async function POST(request: NextRequest) {
         vehicle_year: vehicleYear,
         vehicle_make: vehicleMake,
         vehicle_model: vehicleModel,
-        vehicle_count: vehicles.length || parseInt(body.vehicle_count) || 1,
+        vehicle_count: vehicles.length || 1,
 
         // Legacy project fields
         project_type: (body.coverage_type || '').toUpperCase().replace(/ /g, '_'),
@@ -879,18 +878,6 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
         <tr><td style="padding:10px 16px 16px;color:#1D1D1D;line-height:1.5;">${body.notes}</td></tr>
       </table>`
     }
-  } else if (formType === 'ad_landing') {
-    // Ad landing page lead — simple service + vehicle count
-    const serviceLabel = (body.coverage_type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-    projectSectionHTML += `
-    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
-      ${sectionHeader('Service Requested')}
-      ${emailRow('Service', serviceLabel || '—')}
-      ${emailRow('Vehicles', body.vehicle_count || '1')}
-      ${body.source_page ? emailRow('Landing Page', body.source_page) : ''}
-      ${body.gclid ? emailRow('Google Ad', 'Yes (gclid captured)') : ''}
-      ${body.utm_campaign ? emailRow('Campaign', body.utm_campaign) : ''}
-    </table>`
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -962,10 +949,6 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     } else {
       emailSubject = `New Embroidery Inquiry — ${body.contact_name} (${itemCount} product${itemCount !== 1 ? 's' : ''})`
     }
-  } else if (formType === 'ad_landing') {
-    emailTitle = 'New Google Ads Lead'
-    const serviceLabel = (body.coverage_type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-    emailSubject = `New Google Ads Lead — ${body.business_name || body.contact_name} (${serviceLabel || 'Quote Request'})`
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
