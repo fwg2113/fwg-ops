@@ -19,8 +19,7 @@ export default function TrustSection() {
               </svg>
             </div>
             <h3 className="text-white font-bold text-xl mb-3">Experience</h3>
-            {/* Update these stats with real numbers */}
-            <p className="text-3xl font-bold text-[#CE0000] mb-2">500+</p>
+            <p className="text-3xl font-bold text-[#CE0000] mb-2">700+</p>
             <p className="text-gray-200 text-sm mb-1">Vehicles Wrapped</p>
             <p className="text-gray-400 text-xs">
               Years of experience serving Frederick, MD and the surrounding area.
@@ -36,15 +35,17 @@ export default function TrustSection() {
             </div>
             <h3 className="text-white font-bold text-xl mb-3">Quality</h3>
             <p className="text-gray-200 text-sm mb-3">
-              3M &amp; Avery Dennison certified materials with manufacturer warranties.
+              Premium Avery Dennison, Oracal &amp; 3M materials with manufacturer warranties.
             </p>
             <div className="flex justify-center gap-3">
-              {/* Badge placeholders — replace with real certification images */}
               <div className="h-8 px-3 bg-zinc-800 rounded-lg flex items-center">
-                <span className="text-gray-400 text-xs font-semibold">3M</span>
+                <span className="text-gray-400 text-xs font-semibold">Avery Dennison</span>
               </div>
               <div className="h-8 px-3 bg-zinc-800 rounded-lg flex items-center">
-                <span className="text-gray-400 text-xs font-semibold">Avery</span>
+                <span className="text-gray-400 text-xs font-semibold">Oracal</span>
+              </div>
+              <div className="h-8 px-3 bg-zinc-800 rounded-lg flex items-center">
+                <span className="text-gray-400 text-xs font-semibold">3M</span>
               </div>
             </div>
           </div>

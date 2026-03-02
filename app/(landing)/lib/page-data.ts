@@ -64,10 +64,6 @@ export const BEFORE_AFTER = [
     beforeLabel: 'BEFORE: Unmarked box truck',
     afterLabel: 'AFTER: Fully wrapped box truck with company graphics',
   },
-  {
-    beforeLabel: 'BEFORE: Blank pickup truck',
-    afterLabel: 'AFTER: Partial wrap with logo, phone, and website',
-  },
 ]
 
 // ─── Per-page data ───
@@ -109,9 +105,9 @@ export const PAGES: Record<string, PageContent> = {
       subheadline:
         'Full and partial wraps for trucks, vans, trailers, and fleets. Designed, printed, and installed in Frederick, MD.',
       trustBullets: [
-        'Certified Wrap Installers',
-        '3M & Avery Dennison Materials',
-        'Free Design Consultation',
+        'In-House Team of Professional Installers',
+        'Avery Dennison, Oracal & 3M Materials',
+        'In-House Design Team & Free Consultation',
         'Fleet Discounts Available',
       ],
       heroImageAlt: 'Commercial vehicle wrap by Frederick Wraps & Graphics',
@@ -277,9 +273,9 @@ export const PAGES: Record<string, PageContent> = {
       subheadline:
         'Full wraps, partial wraps, lettering, graphics, and fleet branding — all designed, printed, and installed in Frederick, MD. Get your free quote today.',
       trustBullets: [
-        'Certified Wrap Installers',
-        '3M & Avery Dennison Materials',
-        'Free Design Consultation',
+        'In-House Team of Professional Installers',
+        'Avery Dennison, Oracal & 3M Materials',
+        'In-House Design Team & Free Consultation',
         'Fleet Discounts Available',
       ],
       heroImageAlt: 'HERO: Showcase of various wrapped vehicles',

@@ -61,8 +61,8 @@ export default async function FleetWrapsPage() {
       {/* 4. Process Steps (unique to fleet page) */}
       <ProcessSteps steps={FLEET_PROCESS_STEPS} />
 
-      {/* 5. Video */}
-      <VideoSection />
+      {/* 5. Video — hidden until video asset is ready */}
+      {/* <VideoSection /> */}
 
       {/* 6. Before/After Gallery */}
       <section className="py-16 bg-gray-900">
@@ -73,7 +73,7 @@ export default async function FleetWrapsPage() {
           <p className="text-gray-400 text-center mb-10">
             Drag the slider to see the transformation.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {BEFORE_AFTER.map((ba, i) => (
               <BeforeAfterSlider
                 key={i}
