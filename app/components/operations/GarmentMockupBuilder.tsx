@@ -23,6 +23,7 @@ interface Logo {
   isDst?: boolean // Whether this is a DST embroidery file
   dstBuffer?: ArrayBuffer // Raw DST file data for re-rendering
   threadColor?: string // Current thread color for DST files
+  isPlaceholder?: boolean // Whether this is a "YOUR LOGO HERE" placeholder
 }
 
 interface TextElement {
@@ -83,6 +84,7 @@ export default function GarmentMockupBuilder({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const replaceInputRef = useRef<HTMLInputElement>(null)
   const [resizeStartFontSize, setResizeStartFontSize] = useState(48)
 
   const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
@@ -507,6 +509,152 @@ export default function GarmentMockupBuilder({
     ctx.fillText('Design File', 200, 350)
 
     return canvas.toDataURL('image/png')
+  }
+
+  // Generate a "YOUR LOGO HERE" placeholder image
+  const createPlaceholderImage = (): string => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 600
+    canvas.height = 600
+    const ctx = canvas.getContext('2d')!
+
+    // Light gray background
+    ctx.fillStyle = '#e5e7eb'
+    ctx.beginPath()
+    ctx.roundRect(0, 0, 600, 600, 16)
+    ctx.fill()
+
+    // Dashed border
+    ctx.strokeStyle = '#9ca3af'
+    ctx.lineWidth = 4
+    ctx.setLineDash([14, 8])
+    ctx.beginPath()
+    ctx.roundRect(12, 12, 576, 576, 12)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Icon: simple image/logo icon
+    ctx.strokeStyle = '#6b7280'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.roundRect(210, 170, 180, 140, 8)
+    ctx.stroke()
+    // Mountain shape
+    ctx.fillStyle = '#9ca3af'
+    ctx.beginPath()
+    ctx.moveTo(215, 300)
+    ctx.lineTo(270, 240)
+    ctx.lineTo(310, 275)
+    ctx.lineTo(350, 220)
+    ctx.lineTo(385, 300)
+    ctx.closePath()
+    ctx.fill()
+    // Sun circle
+    ctx.beginPath()
+    ctx.arc(355, 200, 18, 0, Math.PI * 2)
+    ctx.fill()
+
+    // "YOUR LOGO HERE" text
+    ctx.fillStyle = '#374151'
+    ctx.font = 'bold 42px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('YOUR LOGO', 300, 380)
+    ctx.fillText('HERE', 300, 430)
+
+    // Subtitle
+    ctx.fillStyle = '#6b7280'
+    ctx.font = '20px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.fillText('Placeholder — final art TBD', 300, 490)
+
+    return canvas.toDataURL('image/png')
+  }
+
+  const handleAddPlaceholder = () => {
+    const placeholderUrl = createPlaceholderImage()
+    const newLogo: Logo = {
+      id: `logo_${Date.now()}_${Math.random()}`,
+      url: placeholderUrl,
+      originalUrl: placeholderUrl,
+      backgroundRemoved: false,
+      location: activeLocation,
+      x: 0.3,
+      y: 0.25,
+      width: 0.4,
+      height: 0.4,
+      rotation: 0,
+      isSvg: false,
+      aspectRatio: 1,
+      isPlaceholder: true,
+    }
+    setLogos(prev => [...prev, newLogo])
+    setSelectedLogoId(newLogo.id)
+  }
+
+  // Replace a placeholder (or any logo) with a new uploaded file
+  const handleReplaceLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0 || !selectedLogoId) return
+    const file = files[0]
+    const targetLogoId = selectedLogoId
+    const targetLogo = logos.find(l => l.id === targetLogoId)
+    if (!targetLogo) return
+
+    const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
+
+    if (isSvgFile) {
+      // Read SVG as text to get raw SVG content for color extraction
+      const textReader = new FileReader()
+      textReader.onload = async (event) => {
+        const svgContent = event.target?.result as string
+        const colors = extractSvgColors(svgContent)
+        const initialColorMap: { [key: string]: string } = {}
+        colors.forEach(color => { initialColorMap[color] = color })
+        const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' })
+        const url = URL.createObjectURL(svgBlob)
+        const img = new Image()
+        await new Promise((resolve) => { img.onload = resolve; img.src = url })
+        const aspectRatio = img.naturalWidth / img.naturalHeight
+
+        updateLogo(targetLogoId, {
+          url,
+          originalUrl: url,
+          isSvg: true,
+          svgContent,
+          colorMap: initialColorMap,
+          aspectRatio,
+          isPlaceholder: false,
+          backgroundRemoved: false,
+        })
+      }
+      textReader.readAsText(file)
+    } else {
+      // Read raster images as data URL
+      const dataReader = new FileReader()
+      dataReader.onload = async (event) => {
+        const dataUrl = event.target?.result as string
+        const img = new Image()
+        await new Promise((resolve) => { img.onload = resolve; img.src = dataUrl })
+        const aspectRatio = img.naturalWidth / img.naturalHeight
+
+        updateLogo(targetLogoId, {
+          url: dataUrl,
+          originalUrl: dataUrl,
+          isSvg: false,
+          svgContent: undefined,
+          colorMap: undefined,
+          aspectRatio,
+          isPlaceholder: false,
+          backgroundRemoved: false,
+          isDst: false,
+          dstBuffer: undefined,
+          threadColor: undefined,
+        })
+      }
+      dataReader.readAsDataURL(file)
+    }
+    // Reset input so re-selecting the same file triggers onChange
+    e.target.value = ''
   }
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1530,6 +1678,23 @@ export default function GarmentMockupBuilder({
               >
                 + Upload Logo
               </button>
+              <button
+                onClick={handleAddPlaceholder}
+                style={{
+                  width: '100%',
+                  marginTop: '8px',
+                  padding: '10px',
+                  background: 'transparent',
+                  border: '1px dashed rgba(148,163,184,0.4)',
+                  borderRadius: '8px',
+                  color: '#94a3b8',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >
+                Use Placeholder Image
+              </button>
             </div>
 
             {/* Add Text */}
@@ -1805,6 +1970,36 @@ export default function GarmentMockupBuilder({
                   </div>
                 )}
 
+                {/* Replace with Upload */}
+                {selectedLogo.isPlaceholder && (
+                  <>
+                    <input
+                      ref={replaceInputRef}
+                      type="file"
+                      accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.svg"
+                      onChange={handleReplaceLogo}
+                      style={{ display: 'none' }}
+                    />
+                    <button
+                      onClick={() => replaceInputRef.current?.click()}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        marginBottom: '8px',
+                        background: 'rgba(34,197,94,0.15)',
+                        border: '1px solid rgba(34,197,94,0.3)',
+                        borderRadius: '6px',
+                        color: '#22c55e',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Replace with Artwork
+                    </button>
+                  </>
+                )}
+
                 {/* Delete */}
                 <button
                   onClick={() => deleteLogo(selectedLogo.id)}
@@ -1983,7 +2178,9 @@ export default function GarmentMockupBuilder({
                     }}
                   >
                     <img src={logo.url} alt={`Logo ${index + 1}`} style={{ width: '30px', height: '30px', objectFit: 'contain' }} />
-                    <span style={{ color: '#94a3b8', fontSize: '13px' }}>Logo {index + 1}</span>
+                    <span style={{ color: logo.isPlaceholder ? '#f59e0b' : '#94a3b8', fontSize: '13px' }}>
+                      {logo.isPlaceholder ? 'Placeholder' : `Logo ${index + 1}`}
+                    </span>
                   </div>
                 ))}
               </div>
