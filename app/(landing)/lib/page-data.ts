@@ -333,26 +333,26 @@ export const PAGES: Record<string, PageContent> = {
 export const PPF_TESTIMONIALS = [
   {
     quote:
-      'They did an awesome job on my food trailer. Fast turn around time and it looks great. Thanks for the great job.',
-    name: 'Chris Moreland',
+      'These guys are amazing. I went in with my Tesla Model 3 for all around tint and a full front PPF. They did a great job and were very kind. Super responsive to texts and pricing is great. Highly recommend!',
+    name: 'Parthav Poudel',
     company: 'Frederick, MD',
   },
   {
     quote:
-      'Great customer service. Fast scheduling. They have completed multiple vehicle lettering as well as custom apparel for us. Highly recommend',
-    name: 'Karen May',
+      'Joe and Sharon provide the pinnacle of service and quality of work. If you\'re looking for tint, vinyl, or paint protection film you owe it to yourself to reach out to them. Guaranteed to not disappoint!',
+    name: 'Brett Miller',
     company: 'Frederick, MD',
   },
   {
     quote:
-      'Planning the design went smoothly. Their work turned out great. Highly recommend. Will be back for future work.',
-    name: 'Bruce Shankle II',
+      'We love this place! They do a great job and are so friendly. They\'ve done about 6 cars and a race car for us! The best in town.',
+    name: 'Valerie Barker',
     company: 'Frederick, MD',
   },
   {
     quote:
-      'The folks at Frederick Wrap and Graphics are very nice and responsive. I had them make some small vinyl lettering for a business sign in Frederick and they did it the same day for as reasonable price. I would definitely recommend this business!',
-    name: 'Dennis Thomas',
+      'Excellent customer service and high quality wraps!! Only place to bring your business!',
+    name: 'Mike Volpe',
     company: 'Frederick, MD',
   },
 ]
