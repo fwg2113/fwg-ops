@@ -19,6 +19,12 @@ import { unstable_cache } from 'next/cache'
 //   before-after/after-2/       ← after photo for second slider
 //   before-after/before-3/      ← before photo for third slider
 //   before-after/after-3/       ← after photo for third slider
+//
+//   PPF pages use a separate before-after folder:
+//   ppf-before-after/before-1/  ← PPF before photo for first slider
+//   ppf-before-after/after-1/   ← PPF after photo for first slider
+//   ppf-before-after/before-2/  ← PPF before photo for second slider
+//   ppf-before-after/after-2/   ← PPF after photo for second slider
 
 const R2_PUBLIC_BASE = 'https://pub-fc53e761336c467eb14e978df4383491.r2.dev'
 const LANDING_BUCKET = 'fwg-landing'
@@ -83,6 +89,10 @@ export const getLandingImages = unstable_cache(
 export async function getPageImages(pageSlug: string) {
   const all = await getLandingImages()
 
+  // PPF pages use ppf-before-after/ folder, wraps pages use before-after/
+  const isPPF = pageSlug.startsWith('ppf')
+  const baPrefix = isPPF ? 'ppf-before-after' : 'before-after'
+
   return {
     hero: all[`${pageSlug}/hero`] as string | undefined,
     services: [
@@ -92,9 +102,9 @@ export async function getPageImages(pageSlug: string) {
       all[`${pageSlug}/service-4`],
     ] as (string | undefined)[],
     beforeAfter: [
-      { before: all['before-after/before-1'], after: all['before-after/after-1'] },
-      { before: all['before-after/before-2'], after: all['before-after/after-2'] },
-      { before: all['before-after/before-3'], after: all['before-after/after-3'] },
+      { before: all[`${baPrefix}/before-1`], after: all[`${baPrefix}/after-1`] },
+      { before: all[`${baPrefix}/before-2`], after: all[`${baPrefix}/after-2`] },
+      { before: all[`${baPrefix}/before-3`], after: all[`${baPrefix}/after-3`] },
     ] as { before?: string; after?: string }[],
   }
 }
