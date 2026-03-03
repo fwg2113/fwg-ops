@@ -419,7 +419,7 @@ export const PPF_PAGES: Record<string, PPFPageContent> = {
       subheadline:
         'Premium self-healing PPF installation in Frederick, MD. Stop rock chips, scratches, and road debris before they damage your paint.',
       trustBullets: [
-        'SunTek Certified Installer',
+        'SunTek, STEK & Autobahn Films',
         '650+ Five-Star Reviews',
         'Self-Healing Film Technology',
         'Free Estimates & Consultations',
@@ -470,7 +470,7 @@ export const PPF_PAGES: Record<string, PPFPageContent> = {
       trustBullets: [
         'Free Estimates — No Obligation',
         '650+ Five-Star Reviews',
-        'SunTek Certified Installer',
+        'SunTek, STEK & Autobahn Films',
         'Honest, Transparent Pricing',
       ],
       heroImageAlt: 'PPF pricing and packages at Frederick Wraps & Graphics',
@@ -502,7 +502,7 @@ export const PPF_PAGES: Record<string, PPFPageContent> = {
     meta: {
       title: 'Tesla PPF Frederick MD | Tesla Paint Protection Film | Frederick Wraps & Graphics',
       description:
-        'Tesla paint protection film in Frederick, MD. PPF for Model 3, Model Y, Model S, Model X, and Cybertruck. SunTek certified installer.',
+        'Tesla paint protection film in Frederick, MD. PPF for Model 3, Model Y, Model S, Model X, and Cybertruck. Professional installation.',
       ogImage: '/images/ppf/hero/tesla-hero.jpg',
     },
     hero: {
@@ -513,7 +513,7 @@ export const PPF_PAGES: Record<string, PPFPageContent> = {
       trustBullets: [
         'All Tesla Models — Including Cybertruck',
         '650+ Five-Star Reviews',
-        'SunTek Certified Installer',
+        'SunTek, STEK & Autobahn Films',
         'Self-Healing Film Technology',
       ],
       heroImageAlt: 'Tesla paint protection film installation by Frederick Wraps & Graphics',
@@ -551,18 +551,18 @@ export const PPF_PAGES: Record<string, PPFPageContent> = {
     meta: {
       title: 'Luxury Car PPF Frederick MD | BMW, Porsche, Mercedes PPF | Frederick Wraps & Graphics',
       description:
-        'Premium PPF installation for BMW, Porsche, Mercedes, Audi, and luxury vehicles in Frederick, MD. SunTek certified. Manufacturer-backed warranty.',
+        'Premium PPF installation for BMW, Porsche, Mercedes, Audi, and luxury vehicles in Frederick, MD. Certified Autobahn dealer. Manufacturer-backed warranty.',
       ogImage: '/images/ppf/hero/luxury-hero.jpg',
     },
     hero: {
       h1: 'Luxury Vehicle PPF',
       subline: 'Premium Protection for Premium Vehicles',
       subheadline:
-        'Your BMW, Porsche, Mercedes, or Audi deserves the best paint protection available. SunTek certified installation in Frederick, MD.',
+        'Your BMW, Porsche, Mercedes, or Audi deserves the best paint protection available. Certified Autobahn dealer in Frederick, MD.',
       trustBullets: [
         'BMW, Porsche, Mercedes & More',
         '650+ Five-Star Reviews',
-        'SunTek Certified Installer',
+        'Certified Autobahn Dealer',
         'Manufacturer-Backed Warranty',
       ],
       heroImageAlt: 'Luxury vehicle PPF installation by Frederick Wraps & Graphics',
@@ -622,7 +622,7 @@ export const PPF_FAQ: FAQItem[] = [
   {
     question: 'How long does PPF last?',
     answer:
-      'Our SunTek and STEK films come with manufacturer-backed warranties. With proper care, PPF typically lasts 7-10 years.',
+      'Our SunTek, STEK, and Autobahn films come with manufacturer-backed warranties. With proper care, PPF typically lasts 7-10 years.',
   },
   {
     question: 'What\'s included in a full front package?',
@@ -685,7 +685,7 @@ export const FLEET_PROCESS_STEPS = [
   {
     step: 4,
     title: 'Install & Launch',
-    description: 'Professional installation by certified technicians. Your fleet hits the road looking sharp.',
+    description: 'Professional installation by experienced technicians. Your fleet hits the road looking sharp.',
   },
 ]
 
