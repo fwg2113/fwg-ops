@@ -2,7 +2,11 @@
 // Horizontal strip below hero. Light background with two-tone card effect.
 // "Trusted by 700+ businesses" + star rating.
 
-export default function SocialProofBar() {
+type Props = {
+  text?: string
+}
+
+export default function SocialProofBar({ text = 'Trusted by 700+ Businesses' }: Props) {
   return (
     <section className="bg-white py-4 border-y border-gray-200">
       <div className="max-w-7xl mx-auto px-4">
@@ -10,7 +14,7 @@ export default function SocialProofBar() {
           {/* Trust statement */}
           <div className="flex items-center gap-2">
             <span className="text-gray-900 font-semibold text-sm">
-              Trusted by 700+ Businesses
+              {text}
             </span>
             <div className="flex gap-0.5" aria-label="5 star rating">
               {[...Array(5)].map((_, i) => (

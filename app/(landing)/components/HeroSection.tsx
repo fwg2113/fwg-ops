@@ -12,6 +12,8 @@ type Props = {
   heroImageAlt: string
   heroImage?: string
   pageSlug: string
+  formType?: 'wraps' | 'ppf'
+  coverageOptions?: { label: string; value: string }[]
 }
 export default function HeroSection({
   h1,
@@ -21,6 +23,8 @@ export default function HeroSection({
   heroImageAlt,
   heroImage,
   pageSlug,
+  formType,
+  coverageOptions,
 }: Props) {
   return (
     <section className="relative min-h-screen pt-24 flex items-center">
@@ -81,7 +85,12 @@ export default function HeroSection({
           </div>
           {/* Right — Lead form */}
           <div className="lg:max-w-md lg:ml-auto">
-            <LeadForm pageSlug={pageSlug} variant="hero" />
+            <LeadForm
+              pageSlug={pageSlug}
+              variant="hero"
+              formType={formType}
+              coverageOptions={coverageOptions}
+            />
           </div>
         </div>
       </div>
