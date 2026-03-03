@@ -34,6 +34,7 @@ export default async function PPFPricingPage() {
         heroImage={images.hero}
         pageSlug={SLUG}
         formType="ppf"
+        submissionFormType="ppf_pricing"
         coverageOptions={page.coverageOptions}
       />
 
@@ -133,6 +134,7 @@ export default async function PPFPricingPage() {
             pageSlug={SLUG}
             variant="cta"
             formType="ppf"
+            submissionFormType="ppf_pricing"
             coverageOptions={page.coverageOptions}
           />
         </div>
