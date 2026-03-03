@@ -33,6 +33,7 @@ export default async function PPFTeslaPage() {
         heroImage={images.hero}
         pageSlug={SLUG}
         formType="ppf"
+        submissionFormType="ppf_tesla"
         coverageOptions={page.coverageOptions}
       />
 
@@ -125,6 +126,7 @@ export default async function PPFTeslaPage() {
             pageSlug={SLUG}
             variant="cta"
             formType="ppf"
+            submissionFormType="ppf_tesla"
             coverageOptions={page.coverageOptions}
           />
         </div>

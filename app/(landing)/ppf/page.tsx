@@ -34,6 +34,7 @@ export default async function PPFPage() {
         heroImage={images.hero}
         pageSlug={SLUG}
         formType="ppf"
+        submissionFormType="ppf_landing"
         coverageOptions={page.coverageOptions}
       />
 
@@ -109,6 +110,7 @@ export default async function PPFPage() {
             pageSlug={SLUG}
             variant="cta"
             formType="ppf"
+            submissionFormType="ppf_landing"
             coverageOptions={page.coverageOptions}
           />
         </div>
