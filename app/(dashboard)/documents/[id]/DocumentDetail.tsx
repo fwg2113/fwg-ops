@@ -137,6 +137,7 @@ type LineItem = {
   description: string; quantity: number; sqft: number; unit_price: number; rate: number; line_total: number
   sort_order: number; attachments?: Attachment[]; custom_fields?: Record<string, any>; taxable?: boolean
   decoration_type?: string; stitch_count?: string; decoration_locations?: any
+  addon_fees?: Array<{ id: string; label: string; per_piece: number; enabled: boolean }>
 }
 
 type LineItemGroup = { group_id: string; category_key: string }
@@ -242,6 +243,8 @@ export default function DocumentDetail({
 
   const [doc, setDoc] = useState(initialDoc)
   const [attachments, setAttachments] = useState<Attachment[]>(initialDoc.attachments || [])
+  const [isDraggingToProjectFiles, setIsDraggingToProjectFiles] = useState(false)
+  const dragCounterRef = useRef(0)
   
   // Customer fields
   const [customerName, setCustomerName] = useState(initialDoc.customer_name || '')
@@ -415,6 +418,10 @@ export default function DocumentDetail({
 
   // Apparel size management
   const [apparelSizeMenu, setApparelSizeMenu] = useState<string | null>(null)
+
+  // Duplicate line item
+  const [duplicateMenu, setDuplicateMenu] = useState<string | null>(null)
+  const [dupOptions, setDupOptions] = useState({ productInfo: true, quantities: false })
   const [apparelColorDropdown, setApparelColorDropdown] = useState<string | null>(null)
 
   // Mockup builder state
@@ -1623,6 +1630,14 @@ export default function DocumentDetail({
       }
     }
 
+    // Add add-on fees (per unit, always apply regardless of manual override)
+    if (item?.addon_fees && Array.isArray(item.addon_fees)) {
+      const addonTotal = item.addon_fees
+        .filter(f => f.enabled)
+        .reduce((sum, f) => sum + (f.per_piece || 0), 0)
+      totalAmount += addonTotal * totalQty
+    }
+
     return { totalQty, totalAmount: Math.round(totalAmount * 100) / 100 }
   }
 
@@ -1769,6 +1784,38 @@ export default function DocumentDetail({
     const updatedItem = newItems.find(i => i.id === itemId)
     if (updatedItem) {
       await supabase.from('line_items').update({
+        quantity: updatedItem.quantity,
+        sqft: updatedItem.sqft,
+        unit_price: updatedItem.unit_price,
+        rate: updatedItem.rate,
+        line_total: updatedItem.line_total,
+      }).eq('id', itemId)
+    }
+    updateDocumentTotals(newItems)
+  }
+
+  const updateAddonFees = async (itemId: string, fees: Array<{ id: string; label: string; per_piece: number; enabled: boolean }>) => {
+    const newItems = lineItems.map(item => {
+      if (item.id !== itemId) return item
+      const updatedItem = { ...item, addon_fees: fees }
+      const af = getApparelFields(updatedItem)
+      const sizes = af.sizes || {}
+      const { totalQty, totalAmount } = recalcApparelTotals(sizes, updatedItem)
+      return {
+        ...updatedItem,
+        quantity: totalQty,
+        sqft: totalQty,
+        line_total: totalAmount,
+        unit_price: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+        rate: totalQty > 0 ? Math.round((totalAmount / totalQty) * 100) / 100 : 0,
+      }
+    })
+    setLineItems(newItems)
+
+    const updatedItem = newItems.find(i => i.id === itemId)
+    if (updatedItem) {
+      await supabase.from('line_items').update({
+        addon_fees: fees,
         quantity: updatedItem.quantity,
         sqft: updatedItem.sqft,
         unit_price: updatedItem.unit_price,
@@ -2402,6 +2449,55 @@ export default function DocumentDetail({
     await supabase.from('documents').update({ subtotal: newSubtotal, total: newTotal }).eq('id', doc.id)
   }
 
+  const duplicateLineItem = async (itemId: string, copyProduct: boolean, copyQuantities: boolean) => {
+    const source = lineItems.find(i => i.id === itemId)
+    if (!source) return
+
+    const sourceIdx = lineItems.findIndex(i => i.id === itemId)
+    const cf = { ...(source.custom_fields || {}) }
+
+    if (!copyQuantities) {
+      if (cf.sizes) {
+        const sizes = { ...cf.sizes } as Record<string, any>
+        Object.keys(sizes).forEach(s => { sizes[s] = { ...sizes[s], qty: 0 } })
+        cf.sizes = sizes
+      }
+    }
+
+    const newItem: Record<string, unknown> = {
+      document_id: source.document_id,
+      group_id: source.group_id,
+      category: source.category,
+      line_type: source.line_type,
+      package_key: source.package_key,
+      description: copyProduct ? source.description : '',
+      quantity: copyQuantities ? source.quantity : 0,
+      sqft: copyQuantities ? source.sqft : 0,
+      unit_price: source.unit_price,
+      rate: source.rate,
+      line_total: copyQuantities ? source.line_total : 0,
+      sort_order: sourceIdx + 1,
+      custom_fields: copyProduct ? cf : { apparel_mode: true, enabled_sizes: [], sizes: {} },
+      taxable: source.taxable,
+      decoration_type: copyProduct ? source.decoration_type : null,
+      stitch_count: copyProduct ? source.stitch_count : null,
+      addon_fees: copyProduct ? (source.addon_fees || []) : [],
+    }
+
+    const { data, error } = await supabase.from('line_items').insert(newItem).select().single()
+    if (error) {
+      showToast('Failed to duplicate line item', 'error')
+      return
+    }
+    if (data) {
+      const updated = [...lineItems]
+      updated.splice(sourceIdx + 1, 0, data as LineItem)
+      setLineItems(updated)
+      updateDocumentTotals(updated)
+    }
+    setDuplicateMenu(null)
+  }
+
   // ============================================================================
   // FILE HANDLERS
   // ============================================================================
@@ -2776,6 +2872,48 @@ export default function DocumentDetail({
     await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
   }
 
+  // Drag-and-drop: copy a line item file to Project Files
+  const handleDropFileToProjectFiles = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDraggingToProjectFiles(false)
+    dragCounterRef.current = 0
+
+    try {
+      const data = e.dataTransfer.getData('application/json')
+      if (!data) return
+      const att: Attachment = JSON.parse(data)
+      if (!att.url) return
+
+      // Deduplicate filename: if "logo.png" exists, use "logo-2.png", etc.
+      let filename = att.filename || att.file_name || att.name || 'file'
+      const existingNames = new Set(attachments.map(a => a.filename))
+      if (existingNames.has(filename)) {
+        const dotIdx = filename.lastIndexOf('.')
+        const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename
+        const ext = dotIdx > 0 ? filename.slice(dotIdx) : ''
+        let counter = 2
+        while (existingNames.has(`${base}-${counter}${ext}`)) counter++
+        filename = `${base}-${counter}${ext}`
+      }
+
+      const newAtt: Attachment = {
+        url: att.url,
+        key: `copy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        filename,
+        contentType: att.contentType || att.type || att.mime_type || 'application/octet-stream',
+        size: att.size || 0,
+        uploadedAt: new Date().toISOString()
+      }
+
+      const updated = [...attachments, newAtt]
+      setAttachments(updated)
+      await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+      showToast('File copied to Project Files', 'success')
+    } catch (err) {
+      console.error('Drop error:', err)
+    }
+  }
+
   // ============================================================================
   // FEE HANDLERS
   // ============================================================================
@@ -3100,6 +3238,18 @@ export default function DocumentDetail({
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '22px', fontWeight: 700, margin: 0 }}>{isQuote ? 'Quote' : 'Invoice'} # {doc.doc_number}</h2>
               <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: isQuote ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.2)', color: isQuote ? '#3b82f6' : '#22c55e' }}>{doc.doc_type}</span>
+              {/* Payment status badge */}
+              {(isInvoice || actualAmountPaid > 0) && (() => {
+                const isPaid = balanceDue <= 0
+                const isPartial = actualAmountPaid > 0 && balanceDue > 0
+                const depositAmt = doc.deposit_required || 0
+                const depositPaid = depositAmt > 0 && actualAmountPaid >= depositAmt && balanceDue > 0
+                if (isPaid) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(34,197,94,0.2)', color: '#22c55e' }}>PAID IN FULL</span>
+                if (depositPaid) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}>DEPOSIT PAID</span>
+                if (isPartial) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}>PARTIAL PAYMENT</span>
+                if (isInvoice) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(239,68,68,0.2)', color: '#ef4444' }}>UNPAID</span>
+                return null
+              })()}
             </div>
             <div style={{ color: '#64748b', fontSize: '14px' }}>
               Status: <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 500, background: statusStyle.bg, color: statusStyle.color, textTransform: 'capitalize', marginLeft: '4px' }}>{doc.status || 'Draft'}</span>
@@ -3289,8 +3439,22 @@ export default function DocumentDetail({
       </div>
 
       {/* Project Files */}
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Project Files</h3></div>
+      <div
+        style={{
+          ...cardStyle,
+          border: isDraggingToProjectFiles ? '2px dashed #3b82f6' : undefined,
+          background: isDraggingToProjectFiles ? 'rgba(59,130,246,0.08)' : cardStyle.background,
+          transition: 'border 0.15s ease, background 0.15s ease'
+        }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
+        onDragEnter={(e) => { e.preventDefault(); dragCounterRef.current++; if (e.dataTransfer.types.includes('application/json')) setIsDraggingToProjectFiles(true) }}
+        onDragLeave={() => { dragCounterRef.current--; if (dragCounterRef.current <= 0) { setIsDraggingToProjectFiles(false); dragCounterRef.current = 0 } }}
+        onDrop={handleDropFileToProjectFiles}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Project Files</h3>
+          {isDraggingToProjectFiles && <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 500 }}>Drop here to copy</span>}
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
           {attachments.map((a) => (
             <div key={a.key} style={{ position: 'relative', width: '104px', height: '104px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', overflow: 'hidden', cursor: 'pointer' }} onClick={() => a.contentType?.startsWith('image/') ? openLightbox(a) : window.open(a.url, '_blank')}>
@@ -3690,6 +3854,35 @@ export default function DocumentDetail({
                                     </div>
                                   )}
                                 </div>
+                                {/* Duplicate Line Item */}
+                                <div style={{ position: 'relative' }}>
+                                  <button
+                                    onClick={() => { setDuplicateMenu(duplicateMenu === item.id ? null : item.id); setDupOptions({ productInfo: true, quantities: false }) }}
+                                    style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}
+                                    title="Duplicate line item"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                  </button>
+                                  {duplicateMenu === item.id && (
+                                    <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', padding: '12px', zIndex: 100, width: '200px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#f1f5f9', marginBottom: '10px' }}>Duplicate Options</div>
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={dupOptions.productInfo} onChange={e => setDupOptions(p => ({ ...p, productInfo: e.target.checked }))} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }} />
+                                        <span style={{ color: '#f1f5f9', fontSize: '13px' }}>Product info</span>
+                                      </label>
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={dupOptions.quantities} onChange={e => setDupOptions(p => ({ ...p, quantities: e.target.checked }))} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }} />
+                                        <span style={{ color: '#f1f5f9', fontSize: '13px' }}>Quantities</span>
+                                      </label>
+                                      <button
+                                        onClick={() => duplicateLineItem(item.id, dupOptions.productInfo, dupOptions.quantities)}
+                                        style={{ width: '100%', marginTop: '10px', padding: '6px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', color: '#a78bfa', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+                                      >
+                                        Duplicate
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                                 <button onClick={() => deleteLineItem(item.id)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
@@ -3736,14 +3929,17 @@ export default function DocumentDetail({
                             }
 
                             const manualOverride = af.manual_price_override || false
+                            const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
 
                             return (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                 {enabledSizes.map(size => {
                                   const sizeData = sizes[size] || { qty: 0, price: 0 }
                                   const isCustomerProvided = size === 'Customer Provided'
-                                  // Final unit price = garment price + per-unit decoration fee (unless manual override)
-                                  const finalUnitPrice = manualOverride ? (sizeData.price || 0) : (sizeData.price || 0) + perUnitDecorationFee
+                                  // Final unit price = garment price + per-unit decoration fee + add-on fees
+                                  const finalUnitPrice = manualOverride
+                                    ? (sizeData.price || 0) + addonPerPiece
+                                    : (sizeData.price || 0) + perUnitDecorationFee + addonPerPiece
 
                                   return (
                                     <div key={size} style={{
@@ -3781,11 +3977,11 @@ export default function DocumentDetail({
                                               }
                                               const newFinalPrice = parseFloat(inputValue) || 0
                                               if (manualOverride) {
-                                                // Manual override: set price directly
-                                                updateApparelField(item.id, `size.${size}.price`, newFinalPrice)
+                                                // Manual override: set price directly (subtract add-on fees since they're added back in display)
+                                                updateApparelField(item.id, `size.${size}.price`, Math.max(0, newFinalPrice - addonPerPiece))
                                               } else {
                                                 // Automatic mode: back-calculate garment price from final unit price
-                                                const newGarmentPrice = newFinalPrice - perUnitDecorationFee
+                                                const newGarmentPrice = newFinalPrice - perUnitDecorationFee - addonPerPiece
                                                 updateApparelField(item.id, `size.${size}.price`, Math.max(0, newGarmentPrice))
                                               }
                                             }}
@@ -3862,6 +4058,57 @@ export default function DocumentDetail({
                                     title="Reset to $2.25"
                                   >
                                     Reset
+                                  </button>
+                                </div>
+
+                                {/* Add-On Fees */}
+                                <div style={{ marginTop: '8px', marginBottom: '8px' }}>
+                                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', marginBottom: '6px' }}>ADD-ON FEES</div>
+                                  {(item.addon_fees || []).map((fee, feeIdx) => (
+                                    <div key={fee.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                      <input
+                                        type="text"
+                                        value={fee.label}
+                                        placeholder="e.g. Individual Names"
+                                        onChange={e => {
+                                          const updated = [...(item.addon_fees || [])]
+                                          updated[feeIdx] = { ...updated[feeIdx], label: e.target.value }
+                                          updateAddonFees(item.id, updated)
+                                        }}
+                                        style={{ flex: 1, padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px' }}
+                                      />
+                                      <span style={{ fontSize: '12px', color: '#64748b' }}>$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={fee.per_piece || ''}
+                                        onChange={e => {
+                                          const updated = [...(item.addon_fees || [])]
+                                          updated[feeIdx] = { ...updated[feeIdx], per_piece: parseFloat(e.target.value) || 0 }
+                                          updateAddonFees(item.id, updated)
+                                        }}
+                                        style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
+                                      />
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>/ea</span>
+                                      <button
+                                        onClick={() => {
+                                          const updated = (item.addon_fees || []).filter((_, i) => i !== feeIdx)
+                                          updateAddonFees(item.id, updated)
+                                        }}
+                                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '2px 4px' }}
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    onClick={() => {
+                                      const newFee = { id: `fee_${Date.now()}`, label: '', per_piece: 0, enabled: true }
+                                      updateAddonFees(item.id, [...(item.addon_fees || []), newFee])
+                                    }}
+                                    style={{ padding: '3px 10px', background: 'rgba(167,139,250,0.1)', border: '1px dashed rgba(167,139,250,0.3)', borderRadius: '4px', color: '#a78bfa', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                                  >
+                                    + Add Fee
                                   </button>
                                 </div>
 
@@ -3954,6 +4201,57 @@ export default function DocumentDetail({
                                     title={`Reset to auto ($${defaultEmbFee.toFixed(2)})`}
                                   >
                                     Reset
+                                  </button>
+                                </div>
+
+                                {/* Add-On Fees */}
+                                <div style={{ marginTop: '8px', marginBottom: '8px' }}>
+                                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#a78bfa', marginBottom: '6px' }}>ADD-ON FEES</div>
+                                  {(item.addon_fees || []).map((fee, feeIdx) => (
+                                    <div key={fee.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                      <input
+                                        type="text"
+                                        value={fee.label}
+                                        placeholder="e.g. Individual Names"
+                                        onChange={e => {
+                                          const updated = [...(item.addon_fees || [])]
+                                          updated[feeIdx] = { ...updated[feeIdx], label: e.target.value }
+                                          updateAddonFees(item.id, updated)
+                                        }}
+                                        style={{ flex: 1, padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px' }}
+                                      />
+                                      <span style={{ fontSize: '12px', color: '#64748b' }}>$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={fee.per_piece || ''}
+                                        onChange={e => {
+                                          const updated = [...(item.addon_fees || [])]
+                                          updated[feeIdx] = { ...updated[feeIdx], per_piece: parseFloat(e.target.value) || 0 }
+                                          updateAddonFees(item.id, updated)
+                                        }}
+                                        style={{ width: '60px', padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '4px', color: '#f1f5f9', fontSize: '12px', textAlign: 'center' }}
+                                      />
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>/ea</span>
+                                      <button
+                                        onClick={() => {
+                                          const updated = (item.addon_fees || []).filter((_, i) => i !== feeIdx)
+                                          updateAddonFees(item.id, updated)
+                                        }}
+                                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '2px 4px' }}
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    onClick={() => {
+                                      const newFee = { id: `fee_${Date.now()}`, label: '', per_piece: 0, enabled: true }
+                                      updateAddonFees(item.id, [...(item.addon_fees || []), newFee])
+                                    }}
+                                    style={{ padding: '3px 10px', background: 'rgba(167,139,250,0.1)', border: '1px dashed rgba(167,139,250,0.3)', borderRadius: '4px', color: '#a78bfa', fontSize: '11px', cursor: 'pointer', fontWeight: 500 }}
+                                  >
+                                    + Add Fee
                                   </button>
                                 </div>
 
@@ -4050,9 +4348,22 @@ export default function DocumentDetail({
                               const name = att.name || att.filename || att.file_name || 'File'
                               const isImage = /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
                               return (
-                                <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '195px', height: '195px', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
+                                <div
+                                  key={att.file_id || att.key || attIdx}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('application/json', JSON.stringify({
+                                      url, filename: name, key: att.key || att.file_id || String(attIdx),
+                                      contentType: att.contentType || att.type || att.mime_type || (isImage ? 'image/jpeg' : 'application/octet-stream'),
+                                      size: att.size || 0, file_name: name, name
+                                    }))
+                                    e.dataTransfer.effectAllowed = 'copy'
+                                  }}
+                                  style={{ position: 'relative', width: '195px', height: '195px', borderRadius: '8px', overflow: 'hidden', cursor: 'grab', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }}
+                                  onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}
+                                >
                                   {isImage && url ? (
-                                    <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <img src={url} alt={name} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                   ) : (
                                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#64748b' }}>
                                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -4150,9 +4461,22 @@ export default function DocumentDetail({
                                   uploadedAt: att.uploadedAt || att.uploaded_at || ''
                                 }
                                 return (
-                                  <div key={att.file_id || att.key || attIdx} style={{ position: 'relative', width: '234px', height: '234px', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }} onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}>
+                                  <div
+                                    key={att.file_id || att.key || attIdx}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('application/json', JSON.stringify({
+                                        url, filename: name, key: normalizedAtt.key,
+                                        contentType: normalizedAtt.contentType,
+                                        size: normalizedAtt.size, file_name: name, name
+                                      }))
+                                      e.dataTransfer.effectAllowed = 'copy'
+                                    }}
+                                    style={{ position: 'relative', width: '234px', height: '234px', borderRadius: '12px', overflow: 'hidden', cursor: 'grab', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d' }}
+                                    onClick={() => isImage ? openLineItemLightbox(item.id, attIdx) : window.open(url, '_blank')}
+                                  >
                                     {isImage && url ? (
-                                      <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                      <img src={url} alt={name} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     ) : (
                                       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: '#64748b', gap: '8px' }}>
                                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -4574,9 +4898,51 @@ export default function DocumentDetail({
           )}
           
           {payments.length > 0 && (
-            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#64748b', fontSize: '14px' }}>Total Paid</span>
-              <span style={{ color: '#22c55e', fontSize: '16px', fontWeight: 600 }}>${actualAmountPaid.toFixed(2)}</span>
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '14px' }}>Total Paid</span>
+                <span style={{ color: '#22c55e', fontSize: '16px', fontWeight: 600 }}>${actualAmountPaid.toFixed(2)}</span>
+              </div>
+              {balanceDue > 0.01 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                  <span style={{ color: '#64748b', fontSize: '14px' }}>Balance Due</span>
+                  <span style={{ color: '#f59e0b', fontSize: '16px', fontWeight: 600 }}>${balanceDue.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Request Remaining Balance button */}
+          {balanceDue > 0.01 && actualAmountPaid > 0 && customerEmail && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(148,163,184,0.1)' }}>
+              <ActionButton
+                onClick={async () => {
+                  const customerLink = window.location.origin + '/view/' + doc.id
+                  const subject = `Remaining Balance Due - Invoice #${doc.doc_number} - $${balanceDue.toFixed(2)}`
+                  const html = `<div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;"><p>Hi ${doc.customer_name?.split(' ')[0] || 'there'},</p><p>Thank you for your deposit payment! This is a friendly reminder that a remaining balance of <strong>$${balanceDue.toFixed(2)}</strong> is due on Invoice #${doc.doc_number}.</p><p style="margin: 24px 0;"><a href="${customerLink}" style="background: linear-gradient(135deg, #d71cd1, #8b5cf6); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Pay Remaining Balance</a></p><p style="color: #6b7280; font-size: 14px;">If you have any questions, feel free to reach out at (240) 693-3715.</p><p>— Frederick Wraps & Graphics</p></div>`
+                  try {
+                    const res = await fetch('/api/email/send', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ to: customerEmail, subject, html })
+                    })
+                    if (res.ok) {
+                      showToast('Balance request sent to ' + customerEmail, 'success')
+                      await appendHistory('Balance Requested', `Remaining balance email ($${balanceDue.toFixed(2)}) sent to ${customerEmail}`)
+                    } else {
+                      showToast('Failed to send balance request', 'error')
+                    }
+                  } catch (err) {
+                    console.error('Error sending balance request:', err)
+                    showToast('Failed to send balance request', 'error')
+                  }
+                }}
+                variant="secondary"
+                style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', fontSize: '13px', color: '#f59e0b', borderColor: 'rgba(245,158,11,0.3)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Request Remaining Balance ({`$${balanceDue.toFixed(2)}`})
+              </ActionButton>
             </div>
           )}
         </div>

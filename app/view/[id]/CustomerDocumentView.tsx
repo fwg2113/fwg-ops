@@ -39,6 +39,7 @@ type LineItem = {
   description: string; quantity: number; sqft: number; unit_price: number; rate: number; line_total: number
   sort_order: number; attachments?: Attachment[]; custom_fields?: Record<string, any>; taxable?: boolean
   decoration_type?: string; decoration_locations?: any; stitch_count?: string
+  addon_fees?: Array<{ id: string; label: string; per_piece: number; enabled: boolean }>
 }
 
 type PricingMatrix = {
@@ -103,18 +104,48 @@ function countItemDesignLocations(item: LineItem): number {
 // ============================================================================
 function buildTierPricing(
   item: LineItem,
-  matrices: PricingMatrix[]
+  matrices: PricingMatrix[],
+  sizeQtyOverrides?: Record<string, number>
 ): { label: string; pricePerPiece: number }[] | null {
   const cf = item.custom_fields || {}
   if (!cf.apparel_mode) return null
 
-  // Get the average wholesale cost from sizes
+  // Compute wholesale using quantity-weighted average of sizes that have qty > 0
   const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number; wholesale: number }>
-  const sizeEntries = Object.values(sizes)
+  const enabledSizes = (cf.enabled_sizes || []) as string[]
+  const sizeEntries = Object.entries(sizes)
   if (sizeEntries.length === 0) return null
-  const wholesalePrices = sizeEntries.map(s => s.wholesale || 0).filter(w => w > 0)
-  if (wholesalePrices.length === 0) return null
-  const avgWholesale = wholesalePrices.reduce((a, b) => a + b, 0) / wholesalePrices.length
+
+  // Merge admin-set qtys with customer overrides
+  let weightedSum = 0
+  let totalWeightQty = 0
+  for (const [sizeName, sizeData] of sizeEntries) {
+    if (!sizeData.wholesale || sizeData.wholesale <= 0) continue
+    const effectiveQty = sizeQtyOverrides?.[sizeName] ?? sizeData.qty ?? 0
+    if (effectiveQty > 0) {
+      weightedSum += sizeData.wholesale * effectiveQty
+      totalWeightQty += effectiveQty
+    }
+  }
+
+  let avgWholesale: number
+  if (totalWeightQty > 0) {
+    // Weighted average based on actual quantities
+    avgWholesale = weightedSum / totalWeightQty
+  } else {
+    // Fallback: simple average of enabled sizes with wholesale > 0
+    const enabledWholesale = enabledSizes
+      .map(s => sizes[s]?.wholesale || 0)
+      .filter(w => w > 0)
+    if (enabledWholesale.length === 0) {
+      // Final fallback: all sizes with wholesale > 0
+      const allWholesale = sizeEntries.map(([, s]) => s.wholesale || 0).filter(w => w > 0)
+      if (allWholesale.length === 0) return null
+      avgWholesale = allWholesale.reduce((a, b) => a + b, 0) / allWholesale.length
+    } else {
+      avgWholesale = enabledWholesale.reduce((a, b) => a + b, 0) / enabledWholesale.length
+    }
+  }
 
   // Find applicable pricing matrix
   const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
@@ -168,7 +199,9 @@ function buildTierPricing(
       }
     }
 
-    const pricePerPiece = garmentPrice + decorationFee
+    // Include add-on fees in displayed tier price
+    const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
+    const pricePerPiece = garmentPrice + decorationFee + addonPerPiece
 
     // Format label
     const label = tier.max >= 99999
@@ -183,13 +216,15 @@ function buildTierPricing(
 
 // ============================================================================
 // HELPER: Get per-piece price for an item at a given aggregate quantity
+// (uses avgWholesale — suitable for tier pricing TABLE display only)
 // ============================================================================
 function getActiveTierPrice(
   item: LineItem,
   matrices: PricingMatrix[],
-  aggregateQty: number
+  aggregateQty: number,
+  sizeQtyOverrides?: Record<string, number>
 ): number | null {
-  const tiers = buildTierPricing(item, matrices)
+  const tiers = buildTierPricing(item, matrices, sizeQtyOverrides)
   if (!tiers || tiers.length === 0) return null
 
   const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
@@ -210,6 +245,89 @@ function getActiveTierPrice(
     return tiers[tiers.length - 1].pricePerPiece
   }
   return null
+}
+
+// ============================================================================
+// HELPER: Get per-piece price for a SPECIFIC SIZE using its own wholesale cost
+// This matches how the admin dashboard calculates prices (per-size wholesale)
+// ============================================================================
+function getActiveTierSizePrice(
+  item: LineItem,
+  matrices: PricingMatrix[],
+  aggregateQty: number,
+  sizeName: string
+): number | null {
+  const cf = item.custom_fields || {}
+  if (!cf.apparel_mode) return null
+
+  const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number; wholesale: number }>
+  const sizeData = sizes[sizeName]
+  if (!sizeData) return null
+
+  // Add-on fees always apply
+  const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
+
+  // Manual price override: the admin-set sizeData.price IS the final per-unit price
+  // (no markup recalculation, no decoration fee added — but add-on fees still apply)
+  const manualOverride = cf.manual_price_override || false
+  if (manualOverride) return (sizeData.price || 0) + addonPerPiece
+
+  if (!sizeData.wholesale || sizeData.wholesale <= 0) return null
+
+  const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
+  let markupMatrix: PricingMatrix | undefined
+  let feeMatrix: PricingMatrix | undefined
+
+  if (isEmbroidery) {
+    markupMatrix = matrices.find(m => m.decoration_type === 'embroidery_markup')
+    feeMatrix = matrices.find(m => m.decoration_type === 'embroidery_fee')
+  } else {
+    markupMatrix = matrices.find(m => m.decoration_type === 'dtf')
+    feeMatrix = markupMatrix
+  }
+
+  if (!markupMatrix?.quantity_breaks?.length) return null
+
+  // Find the markup tier for the aggregate quantity
+  const sortedBreaks = [...markupMatrix.quantity_breaks].sort((a, b) => a.min - b.min)
+  let markupPct = sortedBreaks[sortedBreaks.length - 1].markup_pct
+  let tierIdx = sortedBreaks.length - 1
+  for (let i = 0; i < sortedBreaks.length; i++) {
+    if (aggregateQty >= sortedBreaks[i].min && aggregateQty <= sortedBreaks[i].max) {
+      markupPct = sortedBreaks[i].markup_pct
+      tierIdx = i
+      break
+    }
+  }
+
+  // Garment price from THIS size's wholesale cost (not avgWholesale)
+  const garmentPrice = sizeData.wholesale * (markupPct / 100)
+
+  const designLocations = countItemDesignLocations(item)
+  let decorationFee = 0
+
+  if (isEmbroidery) {
+    const embFeeOverride = cf.embroidery_fee_per_location as number | undefined
+    if (embFeeOverride !== undefined) {
+      decorationFee = embFeeOverride * designLocations
+    } else {
+      const sortedFeeBreaks = feeMatrix?.quantity_breaks ? [...feeMatrix.quantity_breaks].sort((a, b) => a.min - b.min) : []
+      const feeTier = sortedFeeBreaks.find(ft => aggregateQty >= ft.min && aggregateQty <= ft.max)
+        || sortedFeeBreaks[tierIdx]
+        || sortedFeeBreaks[sortedFeeBreaks.length - 1]
+      if (feeTier?.decoration_prices) {
+        const stitchTier = item.stitch_count || cf.stitch_count || 'up_to_10k'
+        const stitchKey = stitchTier === '10k_to_20k' || stitchTier === '20k_plus' ? '10k_to_20k' : 'up_to_10k'
+        decorationFee = (feeTier.decoration_prices[stitchKey] || 0) * designLocations
+      }
+    }
+  } else {
+    const designFee = cf.design_fee_per_location ?? 5.00
+    const pressFee = cf.press_fee_per_location ?? 2.25
+    decorationFee = designLocations * (designFee + pressFee)
+  }
+
+  return garmentPrice + decorationFee + addonPerPiece
 }
 
 // ============================================================================
@@ -243,6 +361,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [status, setStatus] = useState(doc.status)
   const [submittingOption, setSubmittingOption] = useState(false)
+  const [payFullBalance, setPayFullBalance] = useState(false)
 
   // Per-option action state: which option is in approve or request-changes mode
   const [optionActionMode, setOptionActionMode] = useState<Record<string, 'approve' | 'request_changes' | null>>({})
@@ -300,43 +419,44 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     return total
   }, [lineItems, customerSizeQtys, additionalInstances])
 
-  // Get dynamic per-piece price for an item based on current aggregate qty
-  const getDynamicPrice = useCallback((item: LineItem) => {
+  // Get dynamic per-piece price for a SPECIFIC SIZE (uses per-size wholesale,
+  // matching how admin dashboard calculates prices)
+  const getDynamicSizePrice = useCallback((item: LineItem, sizeName: string) => {
     const isEmb = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
     const decType = isEmb ? 'embroidery' : 'dtf'
     const aggQty = getAggregateQty(decType)
-    return getActiveTierPrice(item, pricingMatrices, aggQty)
+    return getActiveTierSizePrice(item, pricingMatrices, aggQty, sizeName)
   }, [getAggregateQty, pricingMatrices])
 
-  // Compute dynamic line total for an item using tier pricing
+  // Compute dynamic line total for an item using per-size tier pricing
   const getDynamicLineTotal = useCallback((item: LineItem) => {
     const cf = item.custom_fields || {} as any
     if (!cf.apparel_mode) return item.line_total
     const enabledSizes = (cf.enabled_sizes || []) as string[]
     const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
     const custQtys = customerSizeQtys[item.id] || {}
-    const tierPrice = getDynamicPrice(item)
     let total = 0
     for (const s of enabledSizes) {
       const qty = custQtys[s] ?? sizeData[s]?.qty ?? 0
-      const price = tierPrice ?? sizeData[s]?.price ?? 0
+      // Use per-size wholesale-based price, falling back to stored price
+      const price = getDynamicSizePrice(item, s) ?? sizeData[s]?.price ?? 0
       total += qty * price
     }
     return total
-  }, [customerSizeQtys, getDynamicPrice])
+  }, [customerSizeQtys, getDynamicSizePrice])
 
   // Compute dynamic total for additional color instances of an item
   const getDynamicInstanceTotal = useCallback((item: LineItem, inst: ColorInstance) => {
-    const tierPrice = getDynamicPrice(item)
     const cf = item.custom_fields || {} as any
     const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
     let total = 0
     for (const [size, qty] of Object.entries(inst.sizeQtys)) {
-      const price = tierPrice ?? sizeData[size]?.price ?? 0
+      // Use per-size wholesale-based price, falling back to stored price
+      const price = getDynamicSizePrice(item, size) ?? sizeData[size]?.price ?? 0
       total += qty * price
     }
     return total
-  }, [getDynamicPrice])
+  }, [getDynamicSizePrice])
 
   // Option lightbox state
   const [optLightbox, setOptLightbox] = useState<{ optionId: string; index: number } | null>(null)
@@ -767,6 +887,15 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const cardFee = amountDue * 0.029 + 0.30
   const cardTotal = amountDue + cardFee
 
+  // Deposit vs full payment: when deposit is required and partially unpaid, offer both options
+  const hasDepositChoice = depositRequired > 0 && depositRequired < total && actualAmountPaid < depositRequired && balanceDue > amountDue + 0.01
+  const chosenAmount = hasDepositChoice && payFullBalance ? balanceDue : amountDue
+  const chosenCardFee = chosenAmount * 0.029 + 0.30
+  const chosenCardTotal = chosenAmount + chosenCardFee
+  // Precompute both amounts for the toggle display
+  const fullCardFee = balanceDue * 0.029 + 0.30
+  const fullCardTotal = balanceDue + fullCardFee
+
   // ============================================================================
   // OPTION LIGHTBOX HANDLERS
   // ============================================================================
@@ -1100,15 +1229,18 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
   const handlePayment = async (method: 'bank' | 'card') => {
     try {
+      const payAmount = chosenAmount
+      const payCardFee = chosenCardFee
+      const payCardTotal = chosenCardTotal
       const endpoint = method === 'bank' ? '/api/payment/bank' : '/api/payment'
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId: doc.id,
-          amount: method === 'card' ? cardTotal : amountDue,
-          netAmount: amountDue,
-          processingFee: method === 'card' ? cardFee : 0,
+          amount: method === 'card' ? payCardTotal : payAmount,
+          netAmount: payAmount,
+          processingFee: method === 'card' ? payCardFee : 0,
           method
         })
       })
@@ -1675,11 +1807,22 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                                 background: '#ffffff', outline: 'none', fontFamily: 'inherit'
                                               }}
                                             />
-                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicPrice(item) ?? s.price)} ea</div>
+                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? s.price)} ea</div>
                                           </div>
                                         )
                                       })}
                                     </div>
+                                  </div>
+                                )}
+
+                                {/* Add-on fees (options mode) */}
+                                {item.addon_fees && item.addon_fees.filter(f => f.enabled).length > 0 && (
+                                  <div style={{ marginTop: '8px', marginLeft: '18px' }}>
+                                    {item.addon_fees.filter(f => f.enabled).map(fee => (
+                                      <div key={fee.id} style={{ fontSize: '13px', color: '#6b7280', marginBottom: '3px' }}>
+                                        Add-on: {fee.label} — <span style={{ fontWeight: 600, color: '#374151' }}>{formatCurrency(fee.per_piece)}/ea</span>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
 
@@ -1850,8 +1993,24 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                         }
 
                         const decTypeGroups = Object.entries(byDecType).map(([decType, items]) => {
-                          // Use first item's tiers as representative (same style = same pricing)
-                          const tiers = buildTierPricing(items[0], pricingMatrices)
+                          // Skip tier table if all items have manual price override
+                          const allManualOverride = items.every(i => i.custom_fields?.manual_price_override)
+                          if (allManualOverride) return null
+
+                          // Use first non-manual-override item's tiers as representative
+                          const representativeItem = items.find(i => !i.custom_fields?.manual_price_override) || items[0]
+                          // Build merged qty overrides across all items of this dec type for weighted wholesale average
+                          const mergedQtys: Record<string, number> = {}
+                          for (const item of items) {
+                            const itemCf = item.custom_fields || {} as any
+                            const itemEnabledSizes = (itemCf.enabled_sizes || []) as string[]
+                            const itemSizes = (itemCf.sizes || {}) as Record<string, { qty: number }>
+                            const itemCustQtys = customerSizeQtys[item.id] || {}
+                            for (const s of itemEnabledSizes) {
+                              mergedQtys[s] = (mergedQtys[s] || 0) + (itemCustQtys[s] ?? itemSizes[s]?.qty ?? 0)
+                            }
+                          }
+                          const tiers = buildTierPricing(representativeItem, pricingMatrices, mergedQtys)
                           if (!tiers || tiers.length === 0) return null
 
                           // Aggregate total qty: all items of this dec type + customer edits + additional instances
@@ -2685,16 +2844,32 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                             ) : (
                                               <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{custQty}</div>
                                             )}
-                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicPrice(item) ?? s.price)} ea</div>
+                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? s.price)} ea</div>
                                           </div>
                                         )
                                       })}
                                     </div>
                                   </div>
 
+                                  {/* Add-on fees */}
+                                  {item.addon_fees && item.addon_fees.filter(f => f.enabled).length > 0 && (
+                                    <div style={{ marginTop: '8px', marginLeft: '20px' }}>
+                                      {item.addon_fees.filter(f => f.enabled).map(fee => (
+                                        <div key={fee.id} style={{ fontSize: '13px', color: '#6b7280', marginBottom: '3px' }}>
+                                          Add-on: {fee.label} — <span style={{ fontWeight: 600, color: '#374151' }}>{formatCurrency(fee.per_piece)}/ea</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
                                   {/* Qty tier pricing table */}
-                                  {pricingMatrices.length > 0 && (() => {
-                                    const tiers = buildTierPricing(item, pricingMatrices)
+                                  {pricingMatrices.length > 0 && !cf.manual_price_override && (() => {
+                                    // Build merged size qtys (customer edits override admin defaults)
+                                    const mergedQtys: Record<string, number> = {}
+                                    for (const s of enabledSizes) {
+                                      mergedQtys[s] = custQtys[s] ?? sizes[s]?.qty ?? 0
+                                    }
+                                    const tiers = buildTierPricing(item, pricingMatrices, mergedQtys)
                                     if (!tiers || tiers.length === 0) return null
                                     const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
                                     const decType = isEmbroidery ? 'embroidery' : 'dtf'
@@ -2744,6 +2919,11 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                       </div>
                                     )
                                   })()}
+                                  {cf.manual_price_override && (
+                                    <div style={{ marginTop: '12px', marginLeft: '20px', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                                      <span style={{ fontSize: '13px', color: '#9ca3af', fontStyle: 'italic' }}>Custom pricing applied</span>
+                                    </div>
+                                  )}
 
                                   {/* Add Another Color button */}
                                   {canApprove && availableColors.length > 1 && (
@@ -3388,6 +3568,54 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
           </div>
         )}
 
+        {/* Payment History */}
+        {payments.filter(p => p.status === 'completed').length > 0 && (
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            padding: '24px 32px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+            marginBottom: '24px'
+          }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 16px 0' }}>
+              Payment History
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {payments.filter(p => p.status === 'completed').map(p => {
+                const amt = parseFloat(String(p.amount)) || 0
+                const fee = parseFloat(String(p.processing_fee)) || 0
+                const netAmt = (fee > 0 && fee < amt) ? amt - fee : amt
+                return (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#166534' }}>{formatCurrency(netAmt)}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                        {p.payment_method === 'card' ? 'Credit Card' : p.payment_method === 'bank_transfer' ? 'Bank Transfer' : p.payment_method === 'cash' ? 'Cash' : p.payment_method === 'check' ? 'Check' : 'Payment'}
+                        {fee > 0 && fee < amt && <span style={{ color: '#9ca3af' }}> (incl. {formatCurrency(fee)} processing fee)</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                      </svg>
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {balanceDue > 0.01 && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '14px', color: '#6b7280' }}>Remaining Balance</span>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(balanceDue)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Payment Options */}
         {canPay && (
           <div style={{
@@ -3400,10 +3628,54 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
             <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 20px 0' }}>
               Payment Options
             </h2>
-            
+
+            {/* Deposit vs Full Payment Toggle */}
+            {hasDepositChoice && (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', background: '#f8f9fa', borderRadius: '10px', padding: '4px' }}>
+                <button
+                  onClick={() => setPayFullBalance(false)}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: !payFullBalance ? '#ffffff' : 'transparent',
+                    boxShadow: !payFullBalance ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: !payFullBalance ? '#1a1a1a' : '#9ca3af' }}>Pay Deposit</div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: !payFullBalance ? '#be1e2d' : '#9ca3af', marginTop: '2px' }}>{formatCurrency(amountDue)}</div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                    {Math.round((depositRequired / total) * 100)}% of total
+                  </div>
+                </button>
+                <button
+                  onClick={() => setPayFullBalance(true)}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: payFullBalance ? '#ffffff' : 'transparent',
+                    boxShadow: payFullBalance ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: payFullBalance ? '#1a1a1a' : '#9ca3af' }}>Pay in Full</div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: payFullBalance ? '#be1e2d' : '#9ca3af', marginTop: '2px' }}>{formatCurrency(balanceDue)}</div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>Full balance</div>
+                </button>
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Bank Transfer */}
-              <div 
+              <div
                 onClick={() => canPay && handlePayment('bank')}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#be1e2d'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(190,30,45,0.15)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -3429,7 +3701,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   color: '#ffffff',
                   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
                 }}>
-                  SAVE {formatCurrency(cardFee)}
+                  SAVE {formatCurrency(chosenCardFee)}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
@@ -3438,12 +3710,14 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   </svg>
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Bank Transfer</span>
                 </div>
-                <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(amountDue)}</div>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total && actualAmountPaid < depositRequired ? '50% deposit · No processing fee' : 'No processing fee'}</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(chosenAmount)}</div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                  {hasDepositChoice && !payFullBalance ? `${Math.round((depositRequired / total) * 100)}% deposit · No processing fee` : 'No processing fee'}
+                </div>
               </div>
-              
+
               {/* Credit Card */}
-              <div 
+              <div
                 onClick={() => canPay && handlePayment('card')}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#be1e2d'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(190,30,45,0.15)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -3463,8 +3737,10 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                   </svg>
                   <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Credit Card</span>
                 </div>
-                <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(cardTotal)}</div>
-                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>{depositRequired > 0 && depositRequired < total && actualAmountPaid < depositRequired ? '50% deposit · Includes 2.9% + $0.30 processing fee' : 'Includes 2.9% + $0.30 processing fee'}</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>{formatCurrency(chosenCardTotal)}</div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                  {hasDepositChoice && !payFullBalance ? `${Math.round((depositRequired / total) * 100)}% deposit · Includes 2.9% + $0.30 processing fee` : 'Includes 2.9% + $0.30 processing fee'}
+                </div>
               </div>
             </div>
           </div>
