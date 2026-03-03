@@ -1744,13 +1744,26 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                             }
                             // Dynamic total: sum all group items + additional instances
                             let dynamicOptionTotal = 0
+                            let dynamicOptionMax = 0
+                            let hasRange = false
                             for (const gi of groupItems) {
-                              dynamicOptionTotal += getDynamicLineTotal(gi)
+                              const itemTotal = getDynamicLineTotal(gi)
+                              dynamicOptionTotal += itemTotal
+                              if (gi.custom_fields?.price_max) {
+                                hasRange = true
+                                dynamicOptionMax += gi.custom_fields.price_max
+                              } else {
+                                dynamicOptionMax += itemTotal
+                              }
                               for (const inst of (additionalInstances[gi.id] || [])) {
-                                dynamicOptionTotal += getDynamicInstanceTotal(gi, inst)
+                                const instTotal = getDynamicInstanceTotal(gi, inst)
+                                dynamicOptionTotal += instTotal
+                                dynamicOptionMax += instTotal
                               }
                             }
-                            return formatCurrency(dynamicOptionTotal)
+                            return hasRange
+                              ? `${formatCurrency(dynamicOptionTotal)} - ${formatCurrency(dynamicOptionMax)}`
+                              : formatCurrency(dynamicOptionTotal)
                           })()}
                         </div>
                       </div>
@@ -3157,8 +3170,12 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   )}
                                 </div>
                                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(item.line_total)}</div>
-                                  {item.quantity > 1 && (
+                                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>
+                                    {item.custom_fields?.price_max
+                                      ? `${formatCurrency(item.line_total)} - ${formatCurrency(item.custom_fields.price_max)}`
+                                      : formatCurrency(item.line_total)}
+                                  </div>
+                                  {item.quantity > 1 && !item.custom_fields?.price_max && (
                                     <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} x {formatCurrency(item.rate || item.unit_price)}</div>
                                   )}
                                 </div>

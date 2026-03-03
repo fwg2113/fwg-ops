@@ -4490,7 +4490,35 @@ export default function DocumentDetail({
                           <td style={{ padding: '8px 12px' }}>
                             <input type="number" step="0.01" value={item.rate || item.unit_price || ''} onChange={(e) => updateLineItem(item.id, 'rate', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, padding: '8px', fontSize: '13px', textAlign: 'right' }} />
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'right', color: '#f1f5f9', fontWeight: 500, fontSize: '14px' }}>${(item.line_total || 0).toFixed(2)}</td>
+                          <td style={{ padding: '8px 12px', textAlign: 'right', color: '#f1f5f9', fontWeight: 500, fontSize: '14px' }}>
+                            <div>${(item.line_total || 0).toFixed(2)}</div>
+                            {optionsMode && !(item.custom_fields?.apparel_mode) && item.category?.toUpperCase() !== 'EMBROIDERY' && (
+                              <div style={{ marginTop: '4px' }}>
+                                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ color: '#64748b', fontSize: '11px' }}>to</span>
+                                  <span style={{ color: '#64748b', fontSize: '11px' }}>$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.custom_fields?.price_max || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value ? parseFloat(e.target.value) : undefined
+                                      const cf = { ...(item.custom_fields || {}), price_max: val }
+                                      if (!val) delete cf.price_max
+                                      updateLineItem(item.id, 'custom_fields', cf)
+                                    }}
+                                    placeholder="max"
+                                    style={{ ...inputStyle, padding: '4px 6px', fontSize: '11px', textAlign: 'right', width: '70px' }}
+                                  />
+                                </div>
+                                {item.custom_fields?.price_max && (
+                                  <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '2px' }}>
+                                    Range: ${(item.line_total || 0).toLocaleString()} - ${item.custom_fields.price_max.toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                             <input
                               type="checkbox"
