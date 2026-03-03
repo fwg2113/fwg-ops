@@ -1,0 +1,42 @@
+{
+  "reviews": [{
+    "reviewer": {
+      "displayName": "Alex Alexander"
+    },
+    "starRating": "FIVE",
+    "comment": "Joe was amazing. I had a few issues with my passenger window on my Lexus LS430 and Joe was patient, professional and courteous to me and my wife. I had a really short time frame and he made it happen.  My tint got messed up due to my window motor failing and when i called to bring it back to get retinted he was concerned and stood by his work and re did the tint without charging. It was not his fault, had nothing to do with him but he ate the charge. WOW everything about Frederick Window Tinting is 1st class. He will do all my vehicles because he guarantees his work",
+    "createTime": "2015-05-19T20:42:58.484Z",
+    "updateTime": "2015-05-19T20:42:58.484Z",
+    "reviewReply": {
+      "comment": "Mr. Alexander, I am grateful for your willingness to travel as far as you did to use my services. I\u0027m sorry you\u0027ve had the complication with that window motor. Hopefully all will go smooth from here out! Thank you again.",
+      "updateTime": "2015-05-22T10:57:53.666048Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSUNRbUxYQUZBEAE"
+  }, {
+    "reviewer": {
+      "displayName": "mike ford"
+    },
+    "starRating": "FIVE",
+    "comment": "Great service, professional work. Very fast too. Highly recommend!",
+    "createTime": "2015-05-19T20:17:13.814Z",
+    "updateTime": "2015-05-19T20:17:13.814Z",
+    "reviewReply": {
+      "comment": "Mike thank you for your business and feedback. I enjoyed working on your vehicle.",
+      "updateTime": "2015-05-22T10:54:57.065684Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSURnM01iNFp3EAE"
+  }, {
+    "reviewer": {
+      "displayName": "Trey T"
+    },
+    "starRating": "FIVE",
+    "comment": "Great and professional service, I had both my car and SUV tinted and I am very satisfied with the results.  HIGHLY RECOMMENDED!!!",
+    "createTime": "2015-05-19T18:20:27.440Z",
+    "updateTime": "2015-05-19T18:20:27.440Z",
+    "reviewReply": {
+      "comment": "Trevor it a was pleasure to work on your vehicles. I greatly appreciate your business and kind words. Thank you for your service in the armed forces!",
+      "updateTime": "2015-05-22T10:52:11.746329Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURnMzVlSmdBRRAB"
+  }]
+}
