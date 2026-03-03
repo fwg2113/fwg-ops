@@ -1800,14 +1800,19 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                     {(() => {
                                       const dynamicTotal = getDynamicLineTotal(item)
+                                      const hasPriceRange = !!cf.price_max
                                       const custQtys = customerSizeQtys[item.id] || {}
-                                      const dynamicPcs = isApparelItem && enabledSizes.length > 0
+                                      const isApparelOrEmbroidery = isApparelItem || item.category?.toUpperCase() === 'EMBROIDERY'
+                                      const unitCount = isApparelItem && enabledSizes.length > 0
                                         ? enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? (sizes[s]?.qty ?? 0)), 0)
-                                        : item.quantity
+                                        : (isApparelOrEmbroidery ? item.quantity : (item.sqft || item.quantity))
+                                      const unitLabel = isApparelOrEmbroidery ? 'pcs' : 'sq ft'
                                       return (
                                         <>
-                                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(dynamicTotal)}</div>
-                                          {dynamicPcs > 0 && <div style={{ fontSize: '12px', color: '#6b7280' }}>{dynamicPcs} pcs</div>}
+                                          {!hasPriceRange && (
+                                            <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(dynamicTotal)}</div>
+                                          )}
+                                          {unitCount > 0 && <div style={{ fontSize: '12px', color: '#6b7280' }}>{unitCount} {unitLabel}</div>}
                                         </>
                                       )
                                     })()}
@@ -3156,31 +3161,41 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                             }
 
                             // Standard line item display
-                            return (
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                                <div style={{
-                                  width: '8px', height: '8px', borderRadius: '50%',
-                                  background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
-                                  marginTop: '6px', flexShrink: 0
-                                }} />
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>{item.description || 'Line Item'}</div>
-                                  {!showGroupHeader && item.category && (
-                                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{formatCategory(item.category)}</div>
-                                  )}
-                                </div>
-                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>
-                                    {item.custom_fields?.price_max
-                                      ? `${formatCurrency(item.line_total)} - ${formatCurrency(item.custom_fields.price_max)}`
-                                      : formatCurrency(item.line_total)}
+                            {
+                              const isEmbroidery = item.category?.toUpperCase() === 'EMBROIDERY'
+                              const isApparelOrEmbroidery = isApparelItem || isEmbroidery
+                              const hasPriceRange = !!cf.price_max
+                              const unitCount = isApparelOrEmbroidery ? item.quantity : (item.sqft || item.quantity)
+                              const unitLabel = isApparelOrEmbroidery ? 'pcs' : 'sq ft'
+                              return (
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                  <div style={{
+                                    width: '8px', height: '8px', borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #be1e2d 0%, #8a1621 100%)',
+                                    marginTop: '6px', flexShrink: 0
+                                  }} />
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a' }}>{item.description || 'Line Item'}</div>
+                                    {!showGroupHeader && item.category && (
+                                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{formatCategory(item.category)}</div>
+                                    )}
+                                    {unitCount > 0 && (
+                                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{unitCount} {unitLabel}</div>
+                                    )}
                                   </div>
-                                  {item.quantity > 1 && !item.custom_fields?.price_max && (
-                                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} x {formatCurrency(item.rate || item.unit_price)}</div>
-                                  )}
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>
+                                      {hasPriceRange
+                                        ? `${formatCurrency(item.line_total)} - ${formatCurrency(cf.price_max)}`
+                                        : formatCurrency(item.line_total)}
+                                    </div>
+                                    {item.quantity > 1 && !hasPriceRange && isApparelOrEmbroidery && (
+                                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} x {formatCurrency(item.rate || item.unit_price)}</div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )
+                              )
+                            }
                           })()}
 
                           {/* Inline image gallery for this line item */}
