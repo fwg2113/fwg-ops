@@ -6,15 +6,22 @@ import { useRouter } from 'next/navigation'
 // ─── Lead Capture Form ───
 // Reusable form used in hero section and final CTA.
 // Captures attribution (gclid, UTM) from URL on mount.
-// Submits to /api/submissions/public with form_type='ad_landing'.
+// Submits to /api/submissions/public → Supabase submissions table.
+// Redirects to /thank-you on success; shows inline error on failure.
 //
 // formType='wraps' (default): Business Name + Vehicle Description fields
 // formType='ppf': Vehicle Year, Make & Model + Coverage Area dropdown
+//
+// submissionFormType controls the form_type sent to the API:
+//   wraps pages: 'ad_landing' (default)
+//   PPF pages: 'ppf_landing', 'ppf_pricing', 'ppf_tesla', 'ppf_luxury'
 
 type Props = {
   pageSlug: string
   variant?: 'hero' | 'cta'
   formType?: 'wraps' | 'ppf'
+  /** The form_type value sent to the API. Defaults to 'ad_landing' for wraps pages. */
+  submissionFormType?: string
   coverageOptions?: { label: string; value: string }[]
 }
 
@@ -55,6 +62,7 @@ export default function LeadForm({
   pageSlug,
   variant = 'hero',
   formType = 'wraps',
+  submissionFormType = 'ad_landing',
   coverageOptions,
 }: Props) {
   const router = useRouter()
@@ -130,7 +138,7 @@ export default function LeadForm({
       }
 
       const payload = {
-        form_type: 'ad_landing',
+        form_type: submissionFormType,
         contact_name: form.contact_name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
