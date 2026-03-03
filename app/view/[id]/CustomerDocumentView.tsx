@@ -300,6 +300,12 @@ function getActiveTierSizePrice(
     }
   }
 
+  // Use stored markup if admin manually adjusted it (source of truth over auto-tier)
+  const storedMarkup = cf.markup_percent as number | undefined
+  if (storedMarkup !== undefined && storedMarkup > 0) {
+    markupPct = storedMarkup
+  }
+
   // Garment price from THIS size's wholesale cost (not avgWholesale)
   const garmentPrice = sizeData.wholesale * (markupPct / 100)
 
