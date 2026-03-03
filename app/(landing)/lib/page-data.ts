@@ -328,6 +328,342 @@ export const PAGES: Record<string, PageContent> = {
   },
 }
 
+// ─── PPF-specific testimonials ───
+
+export const PPF_TESTIMONIALS = [
+  {
+    quote:
+      'They did an awesome job on my food trailer. Fast turn around time and it looks great. Thanks for the great job.',
+    name: 'Chris Moreland',
+    company: 'Frederick, MD',
+  },
+  {
+    quote:
+      'Great customer service. Fast scheduling. They have completed multiple vehicle lettering as well as custom apparel for us. Highly recommend',
+    name: 'Karen May',
+    company: 'Frederick, MD',
+  },
+  {
+    quote:
+      'Planning the design went smoothly. Their work turned out great. Highly recommend. Will be back for future work.',
+    name: 'Bruce Shankle II',
+    company: 'Frederick, MD',
+  },
+  {
+    quote:
+      'The folks at Frederick Wrap and Graphics are very nice and responsive. I had them make some small vinyl lettering for a business sign in Frederick and they did it the same day for as reasonable price. I would definitely recommend this business!',
+    name: 'Dennis Thomas',
+    company: 'Frederick, MD',
+  },
+]
+
+// ─── PPF before/after gallery labels ───
+
+export const PPF_BEFORE_AFTER = [
+  {
+    beforeLabel: 'BEFORE: Unprotected vehicle paint',
+    afterLabel: 'AFTER: Full front PPF installed',
+  },
+  {
+    beforeLabel: 'BEFORE: Rock chips and road damage',
+    afterLabel: 'AFTER: Paint protection film applied',
+  },
+]
+
+// ─── PPF coverage area options (shared across PPF pages) ───
+
+export const PPF_COVERAGE_OPTIONS = [
+  { label: 'Full Front', value: 'full_front' },
+  { label: 'Full Body', value: 'full_body' },
+  { label: 'Partial / Custom', value: 'partial_custom' },
+  { label: 'Not Sure Yet', value: 'not_sure' },
+]
+
+export const PPF_TESLA_COVERAGE_OPTIONS = [
+  { label: 'Full Front', value: 'full_front' },
+  { label: 'Full Body', value: 'full_body' },
+  { label: 'Track Pack (rockers, A-pillars, door edges)', value: 'track_pack' },
+  { label: 'Not Sure Yet', value: 'not_sure' },
+]
+
+// ─── PPF page data ───
+
+export type PPFPageContent = {
+  meta: {
+    title: string
+    description: string
+    ogImage: string
+  }
+  hero: {
+    h1: string
+    subline: string
+    subheadline: string
+    trustBullets: string[]
+    heroImageAlt: string
+  }
+  services: ServiceItem[]
+  coverageOptions: { label: string; value: string }[]
+}
+
+export const PPF_PAGES: Record<string, PPFPageContent> = {
+  ppf: {
+    meta: {
+      title: 'PPF Installation Frederick MD | Paint Protection Film | Frederick Wraps & Graphics',
+      description:
+        'Premium paint protection film installation in Frederick, MD. Self-healing PPF for rock chips, scratches, and road debris. Free estimates.',
+      ogImage: '/images/ppf/hero/ppf-hero.jpg',
+    },
+    hero: {
+      h1: 'Paint Protection Film',
+      subline: 'Protect Your Vehicle\'s Paint From Day One',
+      subheadline:
+        'Premium self-healing PPF installation in Frederick, MD. Stop rock chips, scratches, and road debris before they damage your paint.',
+      trustBullets: [
+        'SunTek Certified Installer',
+        '650+ Five-Star Reviews',
+        'Self-Healing Film Technology',
+        'Free Estimates & Consultations',
+      ],
+      heroImageAlt: 'Paint protection film installation by Frederick Wraps & Graphics',
+    },
+    services: [
+      {
+        title: 'Full Front PPF',
+        description:
+          'Protect the hood, fenders, bumper, and mirrors — the areas that take the most abuse from rock chips and road debris.',
+        imageAlt: 'SERVICE: Full front PPF installation',
+      },
+      {
+        title: 'Full Body PPF',
+        description:
+          'Complete bumper-to-bumper protection for your entire vehicle. The ultimate defense against chips, scratches, and swirl marks.',
+        imageAlt: 'SERVICE: Full body PPF coverage',
+      },
+      {
+        title: 'Track Pack / Partial PPF',
+        description:
+          'Custom coverage for high-impact zones — rocker panels, door edges, A-pillars, and more. Tailored to your driving needs.',
+        imageAlt: 'SERVICE: Partial PPF on high-impact zones',
+      },
+      {
+        title: 'Ceramic Coating + PPF',
+        description:
+          'Combine PPF with a professional ceramic coating for the ultimate protection and shine. Self-healing film plus hydrophobic surface.',
+        imageAlt: 'SERVICE: Ceramic coating combined with PPF',
+      },
+    ],
+    coverageOptions: PPF_COVERAGE_OPTIONS,
+  },
+
+  'ppf-pricing': {
+    meta: {
+      title: 'PPF Pricing Frederick MD | Paint Protection Film Cost | Frederick Wraps & Graphics',
+      description:
+        'Transparent PPF pricing for every vehicle. Full front from $2,000+, full body from $5,000+. Free, no-obligation quotes in Frederick, MD.',
+      ogImage: '/images/ppf/hero/ppf-pricing-hero.jpg',
+    },
+    hero: {
+      h1: 'PPF Pricing & Packages',
+      subline: 'Transparent Pricing. No Surprises.',
+      subheadline:
+        'Every vehicle is different. Get an honest quote based on your specific vehicle and the coverage you want. No hidden fees, no pressure.',
+      trustBullets: [
+        'Free Estimates — No Obligation',
+        '650+ Five-Star Reviews',
+        'SunTek Certified Installer',
+        'Honest, Transparent Pricing',
+      ],
+      heroImageAlt: 'PPF pricing and packages at Frederick Wraps & Graphics',
+    },
+    services: [
+      {
+        title: 'Partial / High-Impact Zones',
+        description:
+          'Protect the most vulnerable areas — door edges, rocker panels, door cups, and A-pillars. Great entry point for PPF.',
+        imageAlt: 'SERVICE: Partial PPF on high-impact zones',
+      },
+      {
+        title: 'Full Front Package',
+        description:
+          'Hood, front bumper, fenders, mirrors, and headlights. The most popular package — protects where it matters most.',
+        imageAlt: 'SERVICE: Full front PPF package',
+      },
+      {
+        title: 'Full Body PPF',
+        description:
+          'Bumper-to-bumper protection for your entire vehicle. The ultimate investment in your paint.',
+        imageAlt: 'SERVICE: Full body PPF installation',
+      },
+    ],
+    coverageOptions: PPF_COVERAGE_OPTIONS,
+  },
+
+  'ppf-tesla': {
+    meta: {
+      title: 'Tesla PPF Frederick MD | Tesla Paint Protection Film | Frederick Wraps & Graphics',
+      description:
+        'Tesla paint protection film in Frederick, MD. PPF for Model 3, Model Y, Model S, Model X, and Cybertruck. SunTek certified installer.',
+      ogImage: '/images/ppf/hero/tesla-hero.jpg',
+    },
+    hero: {
+      h1: 'Tesla Paint Protection Film',
+      subline: 'Protect Every Tesla Model — Including Cybertruck',
+      subheadline:
+        'Tesla\'s paint is notoriously soft. PPF is not optional — it\'s essential. We protect Model 3, Model Y, Model S, Model X, and Cybertruck.',
+      trustBullets: [
+        'All Tesla Models — Including Cybertruck',
+        '650+ Five-Star Reviews',
+        'SunTek Certified Installer',
+        'Self-Healing Film Technology',
+      ],
+      heroImageAlt: 'Tesla paint protection film installation by Frederick Wraps & Graphics',
+    },
+    services: [
+      {
+        title: 'Model 3 PPF',
+        description:
+          'The best-selling Tesla deserves the best protection. Full front and full body packages available for all Model 3 variants.',
+        imageAlt: 'SERVICE: Tesla Model 3 with PPF',
+      },
+      {
+        title: 'Model Y PPF',
+        description:
+          'Protect your Model Y from day one. Popular packages include full front plus rocker panels for maximum coverage.',
+        imageAlt: 'SERVICE: Tesla Model Y with PPF',
+      },
+      {
+        title: 'Model S & Model X PPF',
+        description:
+          'Premium protection for Tesla\'s flagship models. Custom coverage tailored to the S and X body lines.',
+        imageAlt: 'SERVICE: Tesla Model S or Model X with PPF',
+      },
+      {
+        title: 'Cybertruck PPF',
+        description:
+          'The Cybertruck\'s stainless steel shows everything. PPF keeps it looking factory fresh. We have hands-on Cybertruck experience.',
+        imageAlt: 'SERVICE: Tesla Cybertruck with PPF',
+      },
+    ],
+    coverageOptions: PPF_TESLA_COVERAGE_OPTIONS,
+  },
+
+  'ppf-luxury': {
+    meta: {
+      title: 'Luxury Car PPF Frederick MD | BMW, Porsche, Mercedes PPF | Frederick Wraps & Graphics',
+      description:
+        'Premium PPF installation for BMW, Porsche, Mercedes, Audi, and luxury vehicles in Frederick, MD. SunTek certified. Manufacturer-backed warranty.',
+      ogImage: '/images/ppf/hero/luxury-hero.jpg',
+    },
+    hero: {
+      h1: 'Luxury Vehicle PPF',
+      subline: 'Premium Protection for Premium Vehicles',
+      subheadline:
+        'Your BMW, Porsche, Mercedes, or Audi deserves the best paint protection available. SunTek certified installation in Frederick, MD.',
+      trustBullets: [
+        'BMW, Porsche, Mercedes & More',
+        '650+ Five-Star Reviews',
+        'SunTek Certified Installer',
+        'Manufacturer-Backed Warranty',
+      ],
+      heroImageAlt: 'Luxury vehicle PPF installation by Frederick Wraps & Graphics',
+    },
+    services: [
+      {
+        title: 'BMW PPF',
+        description:
+          'Protect your BMW\'s paint from rock chips and road debris. Full front and full body packages for all models — 3 Series through X7.',
+        imageAlt: 'SERVICE: BMW with paint protection film',
+      },
+      {
+        title: 'Porsche PPF',
+        description:
+          'Porsche paint demands premium protection. Custom PPF packages for 911, Cayenne, Macan, Taycan, and more.',
+        imageAlt: 'SERVICE: Porsche with paint protection film',
+      },
+      {
+        title: 'Mercedes-Benz PPF',
+        description:
+          'Keep your Mercedes looking showroom-new. PPF installation for C-Class, E-Class, GLE, AMG models, and more.',
+        imageAlt: 'SERVICE: Mercedes-Benz with paint protection film',
+      },
+      {
+        title: 'Audi & Others',
+        description:
+          'Audi, Lexus, Range Rover, trucks, and any vehicle you want to protect. We install PPF on all makes and models.',
+        imageAlt: 'SERVICE: Audi or luxury vehicle with PPF',
+      },
+    ],
+    coverageOptions: PPF_COVERAGE_OPTIONS,
+  },
+}
+
+// ─── PPF FAQ data (pricing page) ───
+
+export type FAQItem = {
+  question: string
+  answer: string
+}
+
+export const PPF_FAQ: FAQItem[] = [
+  {
+    question: 'How much does PPF cost?',
+    answer:
+      'PPF pricing depends on your vehicle and coverage area. Full front packages typically start around $2,000 and full body starts around $5,000. We provide free, no-obligation quotes for every vehicle.',
+  },
+  {
+    question: 'Is PPF worth the cost?',
+    answer:
+      'Absolutely. PPF prevents rock chips, scratches, and paint damage that would cost far more to repair. It also preserves your vehicle\'s resale value. Think of it as insurance for your paint.',
+  },
+  {
+    question: 'Do you offer payment plans?',
+    answer: 'Contact us to discuss payment options for your PPF installation.',
+  },
+  {
+    question: 'How long does PPF last?',
+    answer:
+      'Our SunTek and STEK films come with manufacturer-backed warranties. With proper care, PPF typically lasts 7-10 years.',
+  },
+  {
+    question: 'What\'s included in a full front package?',
+    answer:
+      'Full front typically covers the hood, front bumper, fenders, mirrors, and headlights — the areas that take the most abuse from road debris.',
+  },
+]
+
+// ─── PPF package pricing data ───
+
+export type PackageItem = {
+  title: string
+  description: string
+  price: string
+  imageAlt: string
+}
+
+export const PPF_PACKAGES: PackageItem[] = [
+  {
+    title: 'Partial / High-Impact Zones',
+    description:
+      'Protect the most vulnerable areas — door edges, rocker panels, door cups, and A-pillars. Great entry point for PPF.',
+    price: 'Starting from $500+',
+    imageAlt: 'Partial PPF on high-impact zones',
+  },
+  {
+    title: 'Full Front Package',
+    description:
+      'Hood, front bumper, fenders, mirrors, and headlights. The most popular package — protects where it matters most.',
+    price: 'Starting from $2,000+',
+    imageAlt: 'Full front PPF package',
+  },
+  {
+    title: 'Full Body PPF',
+    description:
+      'Bumper-to-bumper protection for your entire vehicle. The ultimate investment in your paint.',
+    price: 'Starting from $5,000+',
+    imageAlt: 'Full body PPF installation',
+  },
+]
+
 // ─── Fleet page process steps ───
 
 export const FLEET_PROCESS_STEPS = [
