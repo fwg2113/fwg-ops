@@ -435,11 +435,14 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     const enabledSizes = (cf.enabled_sizes || []) as string[]
     const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
     const custQtys = customerSizeQtys[item.id] || {}
+    // Add-on fees must be included even when getDynamicSizePrice falls back to stored price
+    const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
     let total = 0
     for (const s of enabledSizes) {
       const qty = custQtys[s] ?? sizeData[s]?.qty ?? 0
-      // Use per-size wholesale-based price, falling back to stored price
-      const price = getDynamicSizePrice(item, s) ?? sizeData[s]?.price ?? 0
+      // getDynamicSizePrice already includes add-on fees; fallback sizeData.price does not
+      const dynamicPrice = getDynamicSizePrice(item, s)
+      const price = dynamicPrice ?? ((sizeData[s]?.price ?? 0) + addonPerPiece)
       total += qty * price
     }
     return total
@@ -449,10 +452,11 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const getDynamicInstanceTotal = useCallback((item: LineItem, inst: ColorInstance) => {
     const cf = item.custom_fields || {} as any
     const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
+    const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
     let total = 0
     for (const [size, qty] of Object.entries(inst.sizeQtys)) {
-      // Use per-size wholesale-based price, falling back to stored price
-      const price = getDynamicSizePrice(item, size) ?? sizeData[size]?.price ?? 0
+      const dynamicPrice = getDynamicSizePrice(item, size)
+      const price = dynamicPrice ?? ((sizeData[size]?.price ?? 0) + addonPerPiece)
       total += qty * price
     }
     return total
@@ -1807,7 +1811,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                                 background: '#ffffff', outline: 'none', fontFamily: 'inherit'
                                               }}
                                             />
-                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? s.price)} ea</div>
+                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? ((s.price || 0) + (item.addon_fees || []).filter(f => f.enabled).reduce((sum: number, f: any) => sum + (f.per_piece || 0), 0)))} ea</div>
                                           </div>
                                         )
                                       })}
@@ -2844,7 +2848,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                             ) : (
                                               <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{custQty}</div>
                                             )}
-                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? s.price)} ea</div>
+                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? ((s.price || 0) + (item.addon_fees || []).filter(f => f.enabled).reduce((sum: number, f: any) => sum + (f.per_piece || 0), 0)))} ea</div>
                                           </div>
                                         )
                                       })}
