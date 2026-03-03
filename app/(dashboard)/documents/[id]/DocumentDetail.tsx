@@ -63,6 +63,16 @@ const buttonStyles = `
     background: rgba(34, 197, 94, 0.1);
     box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
   }
+  .action-btn-warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3) !important;
+  }
+  .action-btn-warning:hover:not(:disabled) {
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.5) !important;
+  }
   .action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -79,7 +89,7 @@ const ActionButton = ({
 }: { 
   onClick?: () => void
   disabled?: boolean
-  variant?: 'primary' | 'secondary' | 'success' | 'success-outline'
+  variant?: 'primary' | 'secondary' | 'success' | 'success-outline' | 'warning'
   children: React.ReactNode
   style?: React.CSSProperties
 }) => {
@@ -461,6 +471,8 @@ export default function DocumentDetail({
   const [showSendModal, setShowSendModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
   const [showArchiveModal, setShowArchiveModal] = useState(false)
+  const [showResetApprovalModal, setShowResetApprovalModal] = useState(false)
+  const [resetApprovalReason, setResetApprovalReason] = useState('')
   const [archiveBucket, setArchiveBucket] = useState<'won' | 'lost'>('lost')
   const [archiveReason, setArchiveReason] = useState('')
   const [archiveOtherReason, setArchiveOtherReason] = useState('')
@@ -1137,6 +1149,37 @@ export default function DocumentDetail({
     } catch (err) {
       console.error('Approve error:', err)
       showToast('Failed to approve quote', 'error')
+    }
+    setSaving(false)
+  }
+
+  const handleResetApproval = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/documents/reset-approval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: doc.id,
+          reason: resetApprovalReason || undefined
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('Approval reset — document reverted to quote', 'success')
+        const detail = resetApprovalReason
+          ? `Approval reset. Reason: ${resetApprovalReason}`
+          : 'Approval reset'
+        await appendHistory('Reset Approval', detail)
+        setShowResetApprovalModal(false)
+        setResetApprovalReason('')
+        window.location.reload()
+      } else {
+        showToast('Failed to reset: ' + (data.error || 'Unknown error'), 'error')
+      }
+    } catch (err) {
+      console.error('Reset approval error:', err)
+      showToast('Failed to reset approval', 'error')
     }
     setSaving(false)
   }
@@ -3302,6 +3345,10 @@ export default function DocumentDetail({
                 if (doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
                   buttons.push(<ActionButton key="approve" onClick={handleMarkApproved} disabled={saving} variant="success-outline">Mark Approved</ActionButton>)
                 }
+                // Reset Approval (if approved and not archived)
+                if (doc.approved_at && !isArchived) {
+                  buttons.push(<ActionButton key="reset-approval" onClick={() => setShowResetApprovalModal(true)} disabled={saving} variant="warning">Reset Approval</ActionButton>)
+                }
               }
               
               if (isInvoice) {
@@ -3324,6 +3371,10 @@ export default function DocumentDetail({
                 // Move to Production (unless archived or already in production)
                 if (!isArchived && !inProduction) {
                   buttons.push(<ActionButton key="production" onClick={handleMoveToProduction} disabled={saving} variant="primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>Move to Production</ActionButton>)
+                }
+                // Reset Approval (if approved and not archived)
+                if (doc.approved_at && !isArchived) {
+                  buttons.push(<ActionButton key="reset-approval" onClick={() => setShowResetApprovalModal(true)} disabled={saving} variant="warning">Reset Approval</ActionButton>)
                 }
               }
 
@@ -5581,6 +5632,35 @@ export default function DocumentDetail({
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <ActionButton onClick={() => setShowArchiveModal(false)} variant="secondary">Cancel</ActionButton>
               <ActionButton onClick={handleArchive} disabled={saving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Approval Modal */}
+      {showResetApprovalModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowResetApprovalModal(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Reset Approval</h2>
+              <button onClick={() => setShowResetApprovalModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <p style={{ color: '#94a3b8', fontSize: '14px', margin: '0 0 16px 0' }}>
+                This will revert the document back to a quote, unlock pricing for editing, and allow the customer to re-approve.
+              </p>
+              <label style={{ color: '#94a3b8', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Reason (optional)</label>
+              <textarea
+                value={resetApprovalReason}
+                onChange={e => setResetApprovalReason(e.target.value)}
+                placeholder="e.g. Customer requested size changes..."
+                rows={3}
+                style={{ width: '100%', background: '#1a1a1a', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', padding: '10px 12px', fontSize: '14px', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <ActionButton onClick={() => setShowResetApprovalModal(false)} variant="secondary">Cancel</ActionButton>
+              <ActionButton onClick={handleResetApproval} disabled={saving} variant="warning">Reset Approval</ActionButton>
             </div>
           </div>
         </div>
