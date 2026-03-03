@@ -1,6 +1,6 @@
 // ─── PPF Trust Section ───
 // 3-column layout: Experience, Quality, Process.
-// PPF-specific: 13+ years, SunTek/STEK films, Quote→Drop Off→Install→Pick Up.
+// PPF-specific: 13+ years, SunTek/STEK/Autobahn films, Quote→Drop Off→Install→Pick Up.
 
 export default function PPFTrustSection() {
   return (
@@ -35,7 +35,7 @@ export default function PPFTrustSection() {
             </div>
             <h3 className="text-white font-bold text-xl mb-3">Quality</h3>
             <p className="text-gray-200 text-sm mb-3">
-              Premium SunTek and STEK films with manufacturer-backed warranties.
+              Premium SunTek, STEK, and Autobahn films with manufacturer-backed warranties.
             </p>
             <div className="flex justify-center gap-3">
               <div className="h-8 px-3 bg-zinc-800 rounded-lg flex items-center">
@@ -43,6 +43,9 @@ export default function PPFTrustSection() {
               </div>
               <div className="h-8 px-3 bg-zinc-800 rounded-lg flex items-center">
                 <span className="text-gray-400 text-xs font-semibold">STEK</span>
+              </div>
+              <div className="h-8 px-3 bg-zinc-800 rounded-lg flex items-center">
+                <span className="text-gray-400 text-xs font-semibold">Autobahn</span>
               </div>
             </div>
           </div>
