@@ -425,8 +425,59 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     return total
   }, [lineItems, customerSizeQtys, additionalInstances])
 
-  // Get dynamic per-piece price for a SPECIFIC SIZE (uses per-size wholesale,
-  // matching how admin dashboard calculates prices)
+  // Get the STORED per-unit display price for a specific size.
+  // This matches the admin formula: sizeData.price + decorationFee + addonFees
+  // sizeData.price = wholesale * markup (already stored by admin)
+  // We do NOT recalculate from wholesale — the stored price IS the source of truth.
+  const getStoredSizeDisplayPrice = useCallback((item: LineItem, sizeName: string): number => {
+    const cf = item.custom_fields || {} as any
+    const sizes = (cf.sizes || {}) as Record<string, { qty: number; price: number; wholesale: number }>
+    const sizeData = sizes[sizeName]
+    if (!sizeData) return 0
+
+    const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
+    const manualOverride = cf.manual_price_override || false
+
+    // Manual override: sizeData.price is the full garment price (no decoration added)
+    if (manualOverride) return (sizeData.price || 0) + addonPerPiece
+
+    // Standard: sizeData.price = wholesale * markup. Add decoration + addon fees.
+    const isEmbroidery = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
+    const designLocations = countItemDesignLocations(item)
+    let decorationFee = 0
+
+    if (isEmbroidery) {
+      const embFeeOverride = cf.embroidery_fee_per_location as number | undefined
+      if (embFeeOverride !== undefined) {
+        decorationFee = embFeeOverride * designLocations
+      } else {
+        // Look up from embroidery fee matrix
+        const feeMatrix = pricingMatrices.find(m => m.decoration_type === 'embroidery_fee')
+        if (feeMatrix?.quantity_breaks) {
+          const aggQty = getAggregateQty('embroidery')
+          const sortedFeeBreaks = [...feeMatrix.quantity_breaks].sort((a, b) => a.min - b.min)
+          const feeTier = sortedFeeBreaks.find(ft => aggQty >= ft.min && aggQty <= ft.max)
+            || sortedFeeBreaks[sortedFeeBreaks.length - 1]
+          if (feeTier?.decoration_prices) {
+            const stitchTier = item.stitch_count || cf.stitch_count || 'up_to_10k'
+            const stitchKey = stitchTier === '10k_to_20k' || stitchTier === '20k_plus' ? '10k_to_20k' : 'up_to_10k'
+            decorationFee = (feeTier.decoration_prices[stitchKey] || 0) * designLocations
+          }
+        }
+      }
+    } else {
+      // DTF decoration
+      const designFee = cf.design_fee_per_location ?? 5.00
+      const pressFee = cf.press_fee_per_location ?? 2.25
+      decorationFee = designLocations * (designFee + pressFee)
+    }
+
+    return (sizeData.price || 0) + decorationFee + addonPerPiece
+  }, [pricingMatrices, getAggregateQty])
+
+  // Get dynamic per-piece price for a SPECIFIC SIZE.
+  // For tier pricing TABLE calculations (what-if at different quantities), uses wholesale recalc.
+  // For actual display, use getStoredSizeDisplayPrice instead.
   const getDynamicSizePrice = useCallback((item: LineItem, sizeName: string) => {
     const isEmb = item.category === 'EMBROIDERY' || item.decoration_type === 'embroidery'
     const decType = isEmb ? 'embroidery' : 'dtf'
@@ -434,39 +485,38 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
     return getActiveTierSizePrice(item, pricingMatrices, aggQty, sizeName)
   }, [getAggregateQty, pricingMatrices])
 
-  // Compute dynamic line total for an item using per-size tier pricing
+  // Compute line total for an item.
+  // If customer hasn't edited quantities, returns the stored line_total (admin-calculated).
+  // If customer changed quantities, recalculates using stored per-size prices.
   const getDynamicLineTotal = useCallback((item: LineItem) => {
     const cf = item.custom_fields || {} as any
     if (!cf.apparel_mode) return item.line_total
+
+    // If customer hasn't edited this item's quantities, use the stored total
+    if (!editedItems.has(item.id)) return item.line_total
+
+    // Customer changed quantities — recalculate using stored per-size display prices
     const enabledSizes = (cf.enabled_sizes || []) as string[]
     const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
     const custQtys = customerSizeQtys[item.id] || {}
-    // Add-on fees must be included even when getDynamicSizePrice falls back to stored price
-    const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
     let total = 0
     for (const s of enabledSizes) {
       const qty = custQtys[s] ?? sizeData[s]?.qty ?? 0
-      // getDynamicSizePrice already includes add-on fees; fallback sizeData.price does not
-      const dynamicPrice = getDynamicSizePrice(item, s)
-      const price = dynamicPrice ?? ((sizeData[s]?.price ?? 0) + addonPerPiece)
+      const price = getStoredSizeDisplayPrice(item, s)
       total += qty * price
     }
     return total
-  }, [customerSizeQtys, getDynamicSizePrice])
+  }, [customerSizeQtys, editedItems, getStoredSizeDisplayPrice])
 
   // Compute dynamic total for additional color instances of an item
   const getDynamicInstanceTotal = useCallback((item: LineItem, inst: ColorInstance) => {
-    const cf = item.custom_fields || {} as any
-    const sizeData = (cf.sizes || {}) as Record<string, { qty: number; price: number }>
-    const addonPerPiece = (item.addon_fees || []).filter(f => f.enabled).reduce((sum, f) => sum + (f.per_piece || 0), 0)
     let total = 0
     for (const [size, qty] of Object.entries(inst.sizeQtys)) {
-      const dynamicPrice = getDynamicSizePrice(item, size)
-      const price = dynamicPrice ?? ((sizeData[size]?.price ?? 0) + addonPerPiece)
+      const price = getStoredSizeDisplayPrice(item, size)
       total += qty * price
     }
     return total
-  }, [getDynamicSizePrice])
+  }, [getStoredSizeDisplayPrice])
 
   // Option lightbox state
   const [optLightbox, setOptLightbox] = useState<{ optionId: string; index: number } | null>(null)
@@ -838,13 +888,19 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   // Combine both sets of images
   const galleryImages = [...projectImages, ...lineItemImages]
 
-  // Calculate totals (dynamically using tier pricing when customer edits quantities)
-  const subtotal = lineItems.reduce((sum, item) => sum + getDynamicLineTotal(item), 0)
+  // Use stored totals from the database (admin-calculated, source of truth).
+  // Only recalculate if customer has edited quantities on a quote.
+  const hasAnyCustomerEdits = editedItems.size > 0
+  const displaySubtotal = lineItems.reduce((sum, item) => sum + getDynamicLineTotal(item), 0)
+  const subtotal = hasAnyCustomerEdits ? displaySubtotal : (parseFloat(String(doc.subtotal)) || displaySubtotal)
   const feesTotal = fees.reduce((sum, fee) => sum + (fee.amount || 0), 0)
   const discountAmount = doc.discount_percent ? (subtotal * doc.discount_percent / 100) : (parseFloat(String(doc.discount_amount)) || 0)
-  const taxableSubtotal = lineItems.filter(item => item.taxable).reduce((sum, item) => sum + getDynamicLineTotal(item), 0)
-  const taxAmount = taxableSubtotal * 0.06
-  const total = subtotal + feesTotal - discountAmount + taxAmount
+  const taxAmount = hasAnyCustomerEdits
+    ? lineItems.filter(item => item.taxable).reduce((sum, item) => sum + getDynamicLineTotal(item), 0) * 0.06
+    : (parseFloat(String(doc.tax_amount)) || 0)
+  const total = hasAnyCustomerEdits
+    ? subtotal + feesTotal - discountAmount + taxAmount
+    : (parseFloat(String(doc.total)) || subtotal + feesTotal - discountAmount + taxAmount)
   // Calculate actual amount paid from payments table (doc.amount_paid may not be updated)
   const actualAmountPaid = (() => {
     const fromPayments = payments.filter(p => p.status === 'completed').reduce((sum, p) => {
@@ -1817,7 +1873,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                                 background: '#ffffff', outline: 'none', fontFamily: 'inherit'
                                               }}
                                             />
-                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? ((s.price || 0) + (item.addon_fees || []).filter(f => f.enabled).reduce((sum: number, f: any) => sum + (f.per_piece || 0), 0)))} ea</div>
+                                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getStoredSizeDisplayPrice(item, size))} ea</div>
                                           </div>
                                         )
                                       })}
@@ -2854,7 +2910,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                             ) : (
                                               <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginTop: '3px' }}>{custQty}</div>
                                             )}
-                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getDynamicSizePrice(item, size) ?? ((s.price || 0) + (item.addon_fees || []).filter(f => f.enabled).reduce((sum: number, f: any) => sum + (f.per_piece || 0), 0)))} ea</div>
+                                            <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '3px' }}>{formatCurrency(getStoredSizeDisplayPrice(item, size))} ea</div>
                                           </div>
                                         )
                                       })}

@@ -3537,38 +3537,49 @@ export default function DocumentDetail({
               </svg>
               {optionsMode ? 'Options Mode ON' : 'Options Mode OFF'}
             </button>
-            {/* Pricing Lock Toggle */}
-            <button
-              onClick={async () => {
-                const newLocked = !pricingLocked
-                setPricingLocked(newLocked)
-                await supabase.from('documents').update({ pricing_locked: newLocked }).eq('id', doc.id)
-              }}
-              title={pricingLocked ? 'Pricing locked — settings changes won\'t affect this document' : 'Pricing unlocked — settings changes can be applied'}
-              style={{
-                padding: '10px 16px',
-                background: pricingLocked ? 'linear-gradient(135deg, #f59e0b, #d97706)' : '#282a30',
-                border: pricingLocked ? 'none' : '1px solid rgba(148,163,184,0.2)',
-                borderRadius: '8px',
-                color: pricingLocked ? 'white' : '#94a3b8',
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              {pricingLocked ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-              )}
-              {pricingLocked ? 'Pricing Locked' : 'Pricing Unlocked'}
-            </button>
           </div>
         </div>
       )}
+
+      {/* Pricing Lock Toggle — visible on all document types */}
+      <div style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 4px 0' }}>Pricing Lock</h3>
+          <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>
+            {pricingLocked
+              ? 'Pricing is locked — global settings changes won\'t affect this document'
+              : 'Pricing is unlocked — global settings changes can be applied'}
+          </p>
+        </div>
+        <button
+          onClick={async () => {
+            const newLocked = !pricingLocked
+            setPricingLocked(newLocked)
+            await supabase.from('documents').update({ pricing_locked: newLocked }).eq('id', doc.id)
+          }}
+          title={pricingLocked ? 'Pricing locked — settings changes won\'t affect this document' : 'Pricing unlocked — settings changes can be applied'}
+          style={{
+            padding: '10px 16px',
+            background: pricingLocked ? 'linear-gradient(135deg, #f59e0b, #d97706)' : '#282a30',
+            border: pricingLocked ? 'none' : '1px solid rgba(148,163,184,0.2)',
+            borderRadius: '8px',
+            color: pricingLocked ? 'white' : '#94a3b8',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          {pricingLocked ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+          )}
+          {pricingLocked ? 'Pricing Locked' : 'Pricing Unlocked'}
+        </button>
+      </div>
 
       {/* Options Builder (when in options mode) - uses same section modal */}
       {isQuote && optionsMode && (
