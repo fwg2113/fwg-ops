@@ -339,20 +339,20 @@ export const PPF_TESTIMONIALS = [
   },
   {
     quote:
-      'Joe and Sharon provide the pinnacle of service and quality of work. If you\'re looking for tint, vinyl, or paint protection film you owe it to yourself to reach out to them. Guaranteed to not disappoint!',
-    name: 'Brett Miller',
+      'Awesome team; and the shop has a family like atmosphere. They did an amazing job on two cars for me. They took the utmost care and treated my cars like they were million dollar rides.',
+    name: 'Erik Hutson',
     company: 'Frederick, MD',
   },
   {
     quote:
-      'We love this place! They do a great job and are so friendly. They\'ve done about 6 cars and a race car for us! The best in town.',
-    name: 'Valerie Barker',
+      'My car looks a 1000% better after these guys worked their magic. There is no question where I will bring all my cars in the future.',
+    name: 'Tom Forde',
     company: 'Frederick, MD',
   },
   {
     quote:
-      'Excellent customer service and high quality wraps!! Only place to bring your business!',
-    name: 'Mike Volpe',
+      'Incredibly happy with the work these guys did for me. Sharon was very professional and made my experience here very pleasant. I wish I had more cars for them to work on!',
+    name: 'Christopher Duffy',
     company: 'Frederick, MD',
   },
 ]
