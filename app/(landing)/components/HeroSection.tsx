@@ -13,6 +13,7 @@ type Props = {
   heroImage?: string
   pageSlug: string
   formType?: 'wraps' | 'ppf'
+  submissionFormType?: string
   coverageOptions?: { label: string; value: string }[]
 }
 export default function HeroSection({
@@ -24,6 +25,7 @@ export default function HeroSection({
   heroImage,
   pageSlug,
   formType,
+  submissionFormType,
   coverageOptions,
 }: Props) {
   return (
@@ -89,6 +91,7 @@ export default function HeroSection({
               pageSlug={pageSlug}
               variant="hero"
               formType={formType}
+              submissionFormType={submissionFormType}
               coverageOptions={coverageOptions}
             />
           </div>
