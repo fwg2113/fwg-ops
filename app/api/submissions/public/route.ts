@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       cafe_wrap: ['contact_name', 'email', 'phone', 'contact_method', 'timeline'],
       sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material', 'timeline'],
       signage_promo: ['contact_name', 'email', 'contact_method', 'quantity', 'timeline'],
-      embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'design_size', 'digitizing', 'timeline'],
+      embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'digitizing', 'timeline'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType]
     if (!required) {
