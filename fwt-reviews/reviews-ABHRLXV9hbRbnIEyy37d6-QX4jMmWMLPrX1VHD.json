@@ -1,0 +1,260 @@
+{
+  "reviews": [{
+    "reviewer": {
+      "displayName": "Ammon Morgan III"
+    },
+    "starRating": "FIVE",
+    "comment": "They did an awesome job had both my vehicles done and both times was quick friendly service, their kids were a blast to hang out with while waiting. Highly reccomend these guys to anyone.",
+    "createTime": "2020-01-08T00:21:09.002851Z",
+    "updateTime": "2020-01-08T00:21:09.002851Z",
+    "reviewReply": {
+      "comment": "Thank you Ammon! We appreciate your business and your loyalty!",
+      "updateTime": "2020-01-10T15:40:34.213239Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURNemMzcjlBRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Kenneth Vermillion"
+    },
+    "starRating": "FIVE",
+    "comment": "I can’t say enough about this place the customer service  is awesome the work is great I have had 2 of my vehicles tinted by them and they turned out great the prices are great all around great company will keep passing the word around to people to come to them 5 stars across the board.",
+    "createTime": "2020-01-03T19:54:56.844558Z",
+    "updateTime": "2020-01-03T19:54:56.844558Z",
+    "reviewReply": {
+      "comment": "Thank you so much Kenneth!! =)",
+      "updateTime": "2020-01-10T15:40:48.052679Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURNeWVPTzl3RRAB"
+  }, {
+    "reviewer": {
+      "displayName": "James Leedy"
+    },
+    "starRating": "FIVE",
+    "createTime": "2019-12-18T15:26:05.072561Z",
+    "updateTime": "2019-12-18T15:26:05.072561Z",
+    "reviewReply": {
+      "comment": "Thanks James!",
+      "updateTime": "2020-01-10T15:41:00.034524Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURNdE5QRTlnRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Patrick Bruch"
+    },
+    "starRating": "FIVE",
+    "createTime": "2019-12-16T20:43:27.995729Z",
+    "updateTime": "2019-12-16T20:43:27.995729Z",
+    "reviewReply": {
+      "comment": "Thanks Patrick!",
+      "updateTime": "2020-01-10T15:41:17.649652Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURNaE8zbW5BRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Megan Ford"
+    },
+    "starRating": "FIVE",
+    "comment": "Very satisfied with the work done here",
+    "createTime": "2019-09-06T13:57:50.660930Z",
+    "updateTime": "2019-11-20T00:25:23.540162Z",
+    "reviewReply": {
+      "comment": "Thank you Megan!",
+      "updateTime": "2020-01-10T15:43:19.978504Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSURVeDhpaE9nEAE"
+  }, {
+    "reviewer": {
+      "displayName": "Ralph Lopez"
+    },
+    "starRating": "FIVE",
+    "comment": "Totally honest, trustworthy, fair priced,  extremely friendly - and top notch quality materials and work.",
+    "createTime": "2019-11-02T16:52:12.006144Z",
+    "updateTime": "2019-11-02T16:52:12.006144Z",
+    "reviewReply": {
+      "comment": "Thank you so much for your kind words Ralph!",
+      "updateTime": "2020-01-10T15:41:29.836644Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSUQwaHVEb1lnEAE"
+  }, {
+    "reviewer": {
+      "displayName": "Michael Baker"
+    },
+    "starRating": "FIVE",
+    "comment": "Did a great job! Very happy with the job done. So happy taking my wife\u0027s car in next!",
+    "createTime": "2019-11-02T16:14:39.131826Z",
+    "updateTime": "2019-11-02T16:14:39.131826Z",
+    "reviewReply": {
+      "comment": "Thanks Michael! We appreciate your business!",
+      "updateTime": "2020-01-10T15:41:55.274573Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSUQwLXJlZWFnEAE"
+  }, {
+    "reviewer": {
+      "displayName": "Tiemogo Soumare"
+    },
+    "starRating": "FIVE",
+    "createTime": "2019-10-26T17:44:50.798821Z",
+    "updateTime": "2019-10-26T17:44:50.798821Z",
+    "reviewReply": {
+      "comment": "Thank you!",
+      "updateTime": "2020-01-10T15:42:00.770217Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSUQwN0pYMnBRRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Andrew Miller"
+    },
+    "starRating": "FIVE",
+    "comment": "Great place to get your windows tinted , very professional and has a great family atmosphere! My appointment was at 8:45 I was about 10 minutes late getting there my cat was done by 10:15 not only is it a great place they do a great job and they are fast , great pricing great warranty , they really take care of the customer  and in this day and age it\u0027s hard to find a great business like they have , I highly HIGHLY recommend FREDERICK WINDOW TINTING!!!  THANK YOU FOR THE AWESOME JOB !!! I WILL be back",
+    "createTime": "2019-10-12T14:29:16.860541Z",
+    "updateTime": "2019-10-12T14:35:53.974901Z",
+    "reviewReply": {
+      "comment": "Thank you so much for your kind review, Drew! We appreciate you coming in!",
+      "updateTime": "2019-10-12T14:53:32.054382Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSUMwaDU3aG9RRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Renn B. (rcmaniac623)"
+    },
+    "starRating": "FIVE",
+    "comment": "Great Tint shop! Had my car tinted today. I can already tell it is a great film that they use and the install by Joe looks great compared to other installers. I had my previous car tinted by them about 4 years ago. Moved to Frederick and luckily found them again. Great work, great customer service and tint price was competitive. FYI i had the phantom s7 series installed.",
+    "createTime": "2019-10-09T01:31:30.088707Z",
+    "updateTime": "2019-10-09T01:31:30.088707Z",
+    "reviewReply": {
+      "comment": "Thank you so much for your loyalty over the years! We appreciate your review!",
+      "updateTime": "2019-10-12T14:53:30.540572Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSUMwNDVtNHBnRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Matt Dill"
+    },
+    "starRating": "FIVE",
+    "comment": "Needing window tint this is the place to go",
+    "createTime": "2019-09-14T17:58:17.399056Z",
+    "updateTime": "2019-09-14T17:58:17.399056Z",
+    "reviewReply": {
+      "comment": "Thank you so much, Matt!",
+      "updateTime": "2019-10-12T14:53:29.100568Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSUMwaEt5dktnEAE"
+  }, {
+    "reviewer": {
+      "displayName": "Brett Miller"
+    },
+    "starRating": "FIVE",
+    "comment": "Joe and Sharon provide the pinnacle of service and quality of work. If your looking for tint, vinyl, or paint protection film you owe it to yourself to reach out to them. Guaranteed to not disappoint!\n-signed\nthe pickiest customer on earth\n\nThank you both for an amazing job!",
+    "createTime": "2019-09-14T17:33:27.672085Z",
+    "updateTime": "2019-09-14T17:33:27.672085Z",
+    "reviewReply": {
+      "comment": "Thank you so much, Brett!",
+      "updateTime": "2019-10-12T14:53:27.725120Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSUMwaElTNVZ3EAE"
+  }, {
+    "reviewer": {
+      "displayName": "Brittany Dunham"
+    },
+    "starRating": "FIVE",
+    "comment": "The other reviews say it all! These guys are top notch.",
+    "createTime": "2019-09-14T15:42:09.365760Z",
+    "updateTime": "2019-09-14T15:42:09.365760Z",
+    "reviewReply": {
+      "comment": "Thank you so much, Brittany!",
+      "updateTime": "2019-10-12T14:53:41.199822Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSUMwLUsza3RRRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "speedsoundtech"
+    },
+    "starRating": "FIVE",
+    "comment": "If you want quality, give these guys a call!",
+    "createTime": "2019-09-14T14:34:44.023489Z",
+    "updateTime": "2019-09-14T14:34:44.023489Z",
+    "reviewReply": {
+      "comment": "Thank you!",
+      "updateTime": "2019-10-12T14:53:49.181405Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSUMwLUo2T213RRAB"
+  }, {
+    "reviewer": {
+      "displayName": "tracy harris"
+    },
+    "starRating": "ONE",
+    "comment": "To high drive to PGA county got it 200 $ cheaper",
+    "createTime": "2019-09-14T04:24:28.047335Z",
+    "updateTime": "2019-09-14T04:24:28.047335Z",
+    "reviewReply": {
+      "comment": "Generally, I would let a review like this roll down my back, but when someone who has never used our company leaves a 1* review at 12:44am on a Friday evening, I feel inclined to say something.\n\nThis world we live in is negative enough. When 29 out of your 34 posted public reviews are 1-2*, perhaps re-evaluate if it\u0027s necessary to do this to us or any other hard working business that\u0027s working to provide for our families. If you had a negative experience with us that warranted a 1* review, I\u0027d own it. But simply because you wanted a cheaper price and were willing to drive over an hour each way is not a true reflection of our work and the service we provide.",
+      "updateTime": "2019-09-14T13:17:52.886997Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSUMwMktPM2RREAE"
+  }, {
+    "reviewer": {
+      "displayName": "Patrick Thompson"
+    },
+    "starRating": "FIVE",
+    "comment": "Got my Prius tinted to bring back my youth.  They did a quality job.  More expensive than tint than when I was a kid but so is life.  Owner/manager is a nice guy",
+    "createTime": "2019-09-11T11:57:30.105702Z",
+    "updateTime": "2019-09-11T11:57:30.105702Z",
+    "reviewReply": {
+      "comment": "Thank you, Patrick!",
+      "updateTime": "2019-09-11T12:24:05.917730Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSUMwa0k3eGl3RRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Emily Rathvon"
+    },
+    "starRating": "FIVE",
+    "comment": "My husband and I have both gotten our windows done and they look amazing!",
+    "createTime": "2019-09-09T21:03:39.190358Z",
+    "updateTime": "2019-09-09T21:03:39.190358Z",
+    "reviewReply": {
+      "comment": "Thank you, Emily!",
+      "updateTime": "2019-09-11T12:24:11.996200Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURVdjUzSDJRRRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Nathan Skipper IV"
+    },
+    "starRating": "FIVE",
+    "comment": "Frederick Window Tinting is the best place for tint! Joe and Sharyn are responsive, professional, fast, and overall just fantastic. They tinted my Fiat 500 Abarth 9 months ago and it still looks like it was done yesterday. The fit and finish of the tint is top notch and I’ve been extremely satisfied with the service and the product. It was my first time having a car tinted and the whole process was painless, they handled everything quickly and easily. I couldn’t be happier with my experience at FWT!",
+    "createTime": "2019-09-08T23:14:03.717171Z",
+    "updateTime": "2019-09-08T23:14:03.717171Z",
+    "reviewReply": {
+      "comment": "Thank you, Nathan!",
+      "updateTime": "2019-09-11T12:24:19.745014Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURVcjktdXZ3RRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Kathy Miller"
+    },
+    "starRating": "FIVE",
+    "comment": "Our XC40 brought us to this gem.family run and owned.Great product, top in frederick",
+    "createTime": "2019-08-21T20:13:12.679128Z",
+    "updateTime": "2019-08-26T17:54:15.923714Z",
+    "reviewReply": {
+      "comment": "Thank you so much Kathy!",
+      "updateTime": "2019-09-03T19:29:31.642816Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChdDSUhNMG9nS0VJQ0FnSURVcG9ERTR3RRAB"
+  }, {
+    "reviewer": {
+      "displayName": "Don Murray"
+    },
+    "starRating": "FIVE",
+    "comment": "Absolutely incredible customer service and an amazing job!!!",
+    "createTime": "2019-08-24T20:04:42.430458Z",
+    "updateTime": "2019-08-24T20:04:42.430458Z",
+    "reviewReply": {
+      "comment": "Thank you so much Don! We appreciate your business and review!",
+      "updateTime": "2019-09-03T19:29:47.426517Z"
+    },
+    "name": "accounts/114723450049664810853/locations/10123051285004451502/reviews/ChZDSUhNMG9nS0VJQ0FnSURVdnBMQlVnEAE"
+  }]
+}
