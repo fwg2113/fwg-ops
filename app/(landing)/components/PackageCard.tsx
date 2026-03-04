@@ -26,10 +26,10 @@ export default function PackageCard({ title, description, price, features, popul
         <span className="h-[30px]" />
       )}
       <div
-        className={`p-6 flex flex-col flex-1 w-full text-center ${
+        className={`rounded-xl p-6 flex flex-col flex-1 w-full text-center ${
           popular
-            ? 'bg-zinc-800 border-2 border-[#CE0000] rounded-b-xl'
-            : 'bg-zinc-800 rounded-xl'
+            ? 'bg-zinc-800 border-2 border-[#CE0000]'
+            : 'bg-zinc-800'
         }`}
       >
         <h3 className="text-white font-bold text-lg mb-1">{title}</h3>
@@ -39,7 +39,9 @@ export default function PackageCard({ title, description, price, features, popul
           {priceLabel ? (
             <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">{priceLabel}</p>
           ) : (
-            <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">{'\n'}</p>
+            <div className="flex flex-col items-center mb-1">
+              <div className="w-12 border-t border-gray-600" />
+            </div>
           )}
           <p className="text-[#CE0000] font-bold text-2xl">{priceAmount}</p>
         </div>
