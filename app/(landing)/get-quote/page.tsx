@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
-import { PAGES, TESTIMONIALS, buildJsonLd } from '../lib/page-data'
+import { PAGES, TESTIMONIALS, BEFORE_AFTER, buildJsonLd } from '../lib/page-data'
 import { getPageImages } from '../lib/get-landing-images'
 import HeroSection from '../components/HeroSection'
 import SocialProofBar from '../components/SocialProofBar'
 import ServiceCard from '../components/ServiceCard'
 import VideoSection from '../components/VideoSection'
+import BeforeAfterSlider from '../components/BeforeAfterSlider'
 import TrustSection from '../components/TrustSection'
 import TestimonialCard from '../components/TestimonialCard'
 import LeadForm from '../components/LeadForm'
@@ -57,6 +58,28 @@ export default async function GetQuotePage() {
 
       {/* 4. Video — hidden until video asset is ready */}
       {/* <VideoSection /> */}
+
+      {/* 5. Before/After Gallery */}
+      <section className="py-16 bg-black">
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-3xl font-bold text-white text-center mb-4">
+            Before &amp; After
+          </h2>
+          <p className="text-gray-400 text-center mb-10">
+            Drag the slider to see the transformation.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {BEFORE_AFTER.map((ba, i) => (
+              <BeforeAfterSlider
+                key={i}
+                {...ba}
+                beforeImage={images.beforeAfter[i]?.before}
+                afterImage={images.beforeAfter[i]?.after}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* 6. Trust Section */}
       <TrustSection />
