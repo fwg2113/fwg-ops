@@ -637,30 +637,51 @@ export type PackageItem = {
   title: string
   description: string
   price: string
-  imageAlt: string
+  features: string[]
+  popular?: boolean
 }
 
 export const PPF_PACKAGES: PackageItem[] = [
   {
-    title: 'Partial / High-Impact Zones',
-    description:
-      'Protect the most vulnerable areas — door edges, rocker panels, door cups, and A-pillars. Great entry point for PPF.',
-    price: 'Starting from $500+',
-    imageAlt: 'Partial PPF on high-impact zones',
+    title: 'Essentials',
+    description: 'Protect everyday touch points from chips and scratches.',
+    price: '$395',
+    features: ['Door cups', 'Door edges'],
   },
   {
-    title: 'Full Front Package',
-    description:
-      'Hood, front bumper, fenders, mirrors, and headlights. The most popular package — protects where it matters most.',
-    price: 'Starting from $2,000+',
-    imageAlt: 'Full front PPF package',
+    title: 'Partial Front',
+    description: 'Shield the most vulnerable front-facing surfaces from road debris.',
+    price: 'Starting at $995+',
+    features: ['Partial hood (24")', 'Partial fenders', 'Mirrors', 'Full bumper'],
   },
   {
-    title: 'Full Body PPF',
-    description:
-      'Bumper-to-bumper protection for your entire vehicle. The ultimate investment in your paint.',
-    price: 'Starting from $5,000+',
-    imageAlt: 'Full body PPF installation',
+    title: 'Full Front',
+    description: 'Our most popular package — full coverage where it matters most.',
+    price: 'Starting at $1,995+',
+    popular: true,
+    features: ['Full hood', 'Full fenders', 'Mirrors', 'Headlights', 'Full bumper'],
+  },
+  {
+    title: 'Full Front+',
+    description: 'Everything in Full Front plus extended protection for high-wear areas.',
+    price: 'Starting at $2,995+',
+    features: [
+      'Full Front package',
+      'A-pillars',
+      'Rocker panels',
+      'Rear bumper',
+      'Luggage strip',
+    ],
+  },
+  {
+    title: 'Full Vehicle Coverage',
+    description: 'Complete bumper-to-bumper PPF coverage for maximum protection.',
+    price: 'Contact for Quote',
+    features: [
+      'Full body coverage',
+      'Every painted surface',
+      'Custom-fit installation',
+    ],
   },
 ]
 
