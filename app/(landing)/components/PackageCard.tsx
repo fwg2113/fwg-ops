@@ -11,32 +11,42 @@ type Props = {
 }
 
 export default function PackageCard({ title, description, price, features, popular }: Props) {
+  // Split price into label + amount for consistent vertical alignment
+  const hasStartingAt = price.toLowerCase().includes('starting at')
+  const priceAmount = hasStartingAt ? price.replace(/.*starting at\s*/i, '') : price
+  const priceLabel = hasStartingAt ? 'Most Vehicles Starting at' : null
+
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col items-center">
       {popular ? (
-        <span className="self-start bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-xl">
+        <span className="bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-xl">
           Most Popular
         </span>
       ) : (
         <span className="h-[30px]" />
       )}
       <div
-        className={`rounded-xl p-6 flex flex-col flex-1 ${
+        className={`rounded-xl p-6 flex flex-col flex-1 w-full text-center ${
           popular
-            ? 'bg-zinc-800 border-2 border-[#CE0000] rounded-tl-none'
+            ? 'bg-zinc-800 border-2 border-[#CE0000] rounded-tl-none rounded-tr-none'
             : 'bg-zinc-800'
         }`}
       >
         <h3 className="text-white font-bold text-lg mb-1">{title}</h3>
         <p className="text-gray-400 text-sm leading-relaxed mb-4">{description}</p>
 
-        <p className="text-[#CE0000] font-bold text-2xl mb-4">{price}</p>
+        <div className="mb-4 mt-auto">
+          {priceLabel && (
+            <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">{priceLabel}</p>
+          )}
+          <p className="text-[#CE0000] font-bold text-2xl">{priceAmount}</p>
+        </div>
 
-        <ul className="space-y-2 mt-auto">
+        <ul className="space-y-2">
           {features.map(f => (
-            <li key={f} className="flex items-start gap-2 text-gray-300 text-sm">
+            <li key={f} className="flex items-center justify-center gap-2 text-gray-300 text-sm">
               <svg
-                className="w-4 h-4 text-[#CE0000] shrink-0 mt-0.5"
+                className="w-4 h-4 text-[#CE0000] shrink-0"
                 fill="currentColor"
                 viewBox="0 0 20 20"
                 aria-hidden="true"
