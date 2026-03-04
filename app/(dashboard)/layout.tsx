@@ -7,6 +7,7 @@ import Sidebar from '../components/Sidebar'
 import NotificationManager from '../components/NotificationManager'
 
 const PhoneWidget = dynamic(() => import('./components/PhoneWidget'), { ssr: false })
+const IncomingCallToast = dynamic(() => import('../components/IncomingCallToast'), { ssr: false })
 
 export default function DashboardLayout({
   children,
@@ -285,6 +286,7 @@ export default function DashboardLayout({
           {children}
         </main>
         <NotificationManager />
+        <IncomingCallToast />
         <PhoneWidget />
       </div>
     </>

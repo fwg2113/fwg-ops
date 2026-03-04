@@ -14,6 +14,8 @@ export async function POST(request: Request) {
     const callSid = formData.get('CallSid') as string
     const from = formData.get('From') as string
     const to = formData.get('To') as string
+    const callerCity = formData.get('CallerCity') as string || ''
+    const callerState = formData.get('CallerState') as string || ''
 
     // Check if this is a retry (menu replay on timeout)
     const url = new URL(request.url)
@@ -36,13 +38,18 @@ export async function POST(request: Request) {
         receiver_phone: effectiveTo,
         status: 'ringing',
         call_sid: effectiveCallSid,
-        read: false
+        read: false,
+        caller_city: callerCity || null,
+        caller_state: callerState || null,
       })
       console.log('Insert error:', insertError)
     }
 
     // Max 3 menu replays before hanging up
     if (retry >= 3) {
+      // Mark the call as missed since no menu option was selected
+      await supabase.from('calls').update({ status: 'missed' }).eq('call_sid', effectiveCallSid)
+
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice">We're sorry, we didn't receive your selection. Please try calling again. Goodbye.</Say>

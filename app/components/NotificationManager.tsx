@@ -9,6 +9,7 @@ type NotificationSettings = {
   message_sound_key: string
   email_sound_key: string
   payment_sound_key: string
+  call_sound_key: string
   start_hour: number
   end_hour: number
   message_repeat_interval: number
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   message_sound_key: 'chime',
   email_sound_key: 'bell',
   payment_sound_key: 'cascade',
+  call_sound_key: 'doorbell',
   start_hour: 9,
   end_hour: 17,
   message_repeat_interval: 60,
