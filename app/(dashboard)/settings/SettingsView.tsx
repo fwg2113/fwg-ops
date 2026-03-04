@@ -178,6 +178,7 @@ type NotificationSettings = {
   message_sound_key: string
   email_sound_key: string
   payment_sound_key: string
+  call_sound_key: string
   start_hour: number
   end_hour: number
   message_repeat_interval: number
@@ -362,6 +363,7 @@ export default function SettingsView({
     message_sound_key: 'chime',
     email_sound_key: 'bell',
     payment_sound_key: 'cascade',
+    call_sound_key: 'doorbell',
     start_hour: 9,
     end_hour: 17,
     message_repeat_interval: 60,
@@ -6012,6 +6014,58 @@ export default function SettingsView({
                       )}
                     </div>
 
+                    {/* Incoming Call Alert Sound */}
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', color: '#f97316', fontSize: '14px', marginBottom: '10px', fontWeight: 600 }}>Incoming Call Alert Sound</label>
+                      <p style={{ color: '#94a3b8', fontSize: '12px', margin: '-6px 0 10px 0' }}>Plays when a new inbound call arrives (before menu selection)</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '8px' }}>
+                        {BUILTIN_SOUNDS.map(sound => (
+                          <button
+                            key={sound.key}
+                            onClick={() => {
+                              setNotifSettings({ ...notifSettings, call_sound_key: sound.key })
+                              playSound(sound.key)
+                            }}
+                            style={{
+                              padding: '10px',
+                              background: notifSettings.call_sound_key === sound.key ? 'rgba(249, 115, 22, 0.15)' : '#111111',
+                              border: notifSettings.call_sound_key === sound.key ? '2px solid #f97316' : '1px solid rgba(148,163,184,0.15)',
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
+                            <div style={{ color: '#64748b', fontSize: '11px' }}>{sound.description}</div>
+                          </button>
+                        ))}
+                      </div>
+                      {customSounds.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '8px' }}>
+                          {customSounds.map(sound => (
+                            <button
+                              key={sound.id}
+                              onClick={() => {
+                                setNotifSettings({ ...notifSettings, call_sound_key: `custom:${sound.id}` })
+                                playCustomSound(sound.dataUrl)
+                              }}
+                              style={{
+                                padding: '10px',
+                                background: notifSettings.call_sound_key === `custom:${sound.id}` ? 'rgba(249, 115, 22, 0.15)' : '#111111',
+                                border: notifSettings.call_sound_key === `custom:${sound.id}` ? '2px solid #f97316' : '1px solid rgba(148,163,184,0.15)',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                              }}
+                            >
+                              <div style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500, marginBottom: '2px' }}>{sound.label}</div>
+                              <div style={{ color: '#64748b', fontSize: '11px' }}>Custom upload</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Custom Sound Upload */}
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '10px', fontWeight: 500 }}>Custom Sounds</label>
@@ -6046,6 +6100,7 @@ export default function SettingsView({
                                     if (notifSettings.message_sound_key === customKey) updates.message_sound_key = 'chime'
                                     if (notifSettings.email_sound_key === customKey) updates.email_sound_key = 'bell'
                                     if (notifSettings.payment_sound_key === customKey) updates.payment_sound_key = 'cascade'
+                                    if (notifSettings.call_sound_key === customKey) updates.call_sound_key = 'doorbell'
                                     if (Object.keys(updates).length > 0) {
                                       setNotifSettings({ ...notifSettings, ...updates })
                                     }

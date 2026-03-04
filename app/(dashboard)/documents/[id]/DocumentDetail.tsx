@@ -366,8 +366,9 @@ export default function DocumentDetail({
   }, [])
 
   const handleDiscountNoteBlur = async () => {
-    await supabase.from('documents').update({ discount_note: discountNote }).eq('id', doc.id)
-    setDoc({ ...doc, discount_note: discountNote })
+    const { error } = await supabase.from('documents').update({ discount_note: discountNote }).eq('id', doc.id)
+    if (!error) { setDoc({ ...doc, discount_note: discountNote }); showAutosave(true) }
+    else showAutosave(false)
   }
 
   // Payments state
@@ -543,11 +544,21 @@ export default function DocumentDetail({
 // Toast notifications
   const [toasts, setToasts] = useState<Array<{id: number, message: string, type: 'success' | 'error' | 'info'}>>([])
   const toastIdRef = useRef(0)
-  
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = ++toastIdRef.current
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
+  }
+
+  // Autosave toast — subtle, bottom-center, auto-dismiss 2s
+  const [autosaveToast, setAutosaveToast] = useState<{ message: string, type: 'ok' | 'fail' } | null>(null)
+  const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const showAutosave = (success: boolean) => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    setAutosaveToast(success ? { message: 'Autosaved', type: 'ok' } : { message: 'Autosave failed — click Save to retry', type: 'fail' })
+    autosaveTimerRef.current = setTimeout(() => setAutosaveToast(null), success ? 2000 : 5000)
   }
 
   // Line item lightbox state
@@ -746,10 +757,31 @@ export default function DocumentDetail({
 
   const handleSaveDocument = async () => {
     setSaving(true)
-    const updates = { customer_name: customerName, company_name: companyName, customer_email: customerEmail, customer_phone: customerPhone, vehicle_description: vehicleDescription, project_description: projectDescription, subtotal, total }
-    await supabase.from('documents').update(updates).eq('id', doc.id)
-    setDoc({ ...doc, ...updates })
-    setHasChanges(false)
+    const discount = discountAmountInput || (subtotal * discountPercentInput / 100)
+    const newTotal = subtotal + feesTotal - discount + taxAmountInput
+    const updates = {
+      customer_name: customerName,
+      company_name: companyName,
+      customer_email: customerEmail,
+      customer_phone: customerPhone,
+      vehicle_description: vehicleDescription,
+      project_description: projectDescription,
+      discount_amount: discountAmountInput,
+      discount_percent: discountPercentInput,
+      discount_note: discountNote,
+      tax_amount: taxAmountInput,
+      deposit_required: depositRequired,
+      valid_until: validUntil || null,
+      notes: notes,
+      subtotal,
+      total: newTotal,
+      fees,
+    }
+    const { error } = await supabase.from('documents').update(updates).eq('id', doc.id)
+    if (!error) {
+      setDoc({ ...doc, ...updates })
+      setHasChanges(false)
+    }
     setSaving(false)
   }
 
@@ -2489,7 +2521,8 @@ export default function DocumentDetail({
   const updateDocumentTotals = async (items: LineItem[]) => {
     const newSubtotal = items.reduce((sum, i) => sum + (i.line_total || 0), 0)
     const newTotal = newSubtotal + feesTotal - discountAmount + taxAmount
-    await supabase.from('documents').update({ subtotal: newSubtotal, total: newTotal }).eq('id', doc.id)
+    const { error } = await supabase.from('documents').update({ subtotal: newSubtotal, total: newTotal }).eq('id', doc.id)
+    showAutosave(!error)
   }
 
   const duplicateLineItem = async (itemId: string, copyProduct: boolean, copyQuantities: boolean) => {
@@ -2963,7 +2996,8 @@ export default function DocumentDetail({
   const addFee = async () => {
     const newFees = [...fees, { fee_type: '', description: '', amount: 0 }]
     setFees(newFees)
-    await supabase.from('documents').update({ fees: newFees }).eq('id', doc.id)
+    const { error } = await supabase.from('documents').update({ fees: newFees }).eq('id', doc.id)
+    showAutosave(!error)
   }
   
   const updateFee = async (index: number, field: string, value: any) => {
@@ -2981,42 +3015,52 @@ export default function DocumentDetail({
     // Calculate new totals
     const newFeesTotal = newFees.reduce((sum, f) => sum + (f.amount || 0), 0)
     const newTotal = subtotal + newFeesTotal - discountAmount + taxAmount
-    await supabase.from('documents').update({ fees: newFees, total: newTotal }).eq('id', doc.id)
+    const { error } = await supabase.from('documents').update({ fees: newFees, total: newTotal }).eq('id', doc.id)
+    showAutosave(!error)
   }
-  
+
   const deleteFee = async (index: number) => {
     const newFees = fees.filter((_, i) => i !== index)
     setFees(newFees)
-    
+
     // Calculate new totals
     const newFeesTotal = newFees.reduce((sum, f) => sum + (f.amount || 0), 0)
     const newTotal = subtotal + newFeesTotal - discountAmount + taxAmount
-    await supabase.from('documents').update({ fees: newFees, total: newTotal }).eq('id', doc.id)
+    const { error } = await supabase.from('documents').update({ fees: newFees, total: newTotal }).eq('id', doc.id)
+    showAutosave(!error)
   }
 
-  const handleDiscountChange = async () => {
-    const newTotal = subtotal + feesTotal - (discountAmountInput || (subtotal * discountPercentInput / 100)) + taxAmountInput
-    await supabase.from('documents').update({ 
-      discount_amount: discountAmountInput, 
-      discount_percent: discountPercentInput,
+  const handleDiscountChange = async (overrideAmount?: number, overridePercent?: number) => {
+    const amount = overrideAmount ?? discountAmountInput
+    const percent = overridePercent ?? discountPercentInput
+    const newTotal = subtotal + feesTotal - (amount || (subtotal * percent / 100)) + taxAmountInput
+    const { error } = await supabase.from('documents').update({
+      discount_amount: amount,
+      discount_percent: percent,
       discount_note: discountNote,
-      total: newTotal 
+      total: newTotal
     }).eq('id', doc.id)
-    setDoc({ ...doc, discount_amount: discountAmountInput, discount_percent: discountPercentInput, discount_note: discountNote, total: newTotal })
+    if (!error) {
+      setDoc({ ...doc, discount_amount: amount, discount_percent: percent, discount_note: discountNote, total: newTotal })
+      showAutosave(true)
+    } else {
+      showAutosave(false)
+    }
   }
 
   const handleTaxChange = async () => {
     const discount = discountAmountInput || (subtotal * discountPercentInput / 100)
     const newTotal = subtotal + feesTotal - discount + taxAmountInput
-    await supabase.from('documents').update({ tax_amount: taxAmountInput, total: newTotal }).eq('id', doc.id)
-    setDoc({ ...doc, tax_amount: taxAmountInput, total: newTotal })
+    const { error } = await supabase.from('documents').update({ tax_amount: taxAmountInput, total: newTotal }).eq('id', doc.id)
+    if (!error) { setDoc({ ...doc, tax_amount: taxAmountInput, total: newTotal }); showAutosave(true) }
+    else showAutosave(false)
   }
 
   const handleSaveAll = async () => {
     setSaving(true)
     const discount = discountAmountInput || (subtotal * discountPercentInput / 100)
     const newTotal = subtotal + feesTotal - discount + taxAmountInput
-    
+
     const updates = {
       customer_name: customerName,
       company_name: companyName,
@@ -3026,6 +3070,7 @@ export default function DocumentDetail({
       project_description: projectDescription,
       discount_amount: discountAmountInput,
       discount_percent: discountPercentInput,
+      discount_note: discountNote,
       tax_amount: taxAmountInput,
       deposit_required: depositRequired,
       valid_until: validUntil || null,
@@ -3034,12 +3079,12 @@ export default function DocumentDetail({
       total: newTotal,
       fees: fees
     }
-    
+
     const { error } = await supabase.from('documents').update(updates).eq('id', doc.id)
     if (!error) {
       setDoc({ ...doc, ...updates })
       setHasChanges(false)
-      // Saved successfully - no toast needed
+      showToast('Saved successfully', 'success')
     } else {
       showToast('Save failed: ' + error.message, 'error')
     }
@@ -4693,12 +4738,13 @@ export default function DocumentDetail({
                   
                   const discount = newAmount || (subtotal * newPercent / 100)
                   const newTotal = subtotal + feesTotal - discount + taxAmountInput
-                  await supabase.from('documents').update({ 
-                    discount_amount: newAmount, 
+                  const { error: discErr } = await supabase.from('documents').update({
+                    discount_amount: newAmount,
                     discount_percent: newPercent,
-                    total: newTotal 
+                    total: newTotal
                   }).eq('id', doc.id)
-                  setDoc({ ...doc, discount_amount: newAmount, discount_percent: newPercent, total: newTotal })
+                  if (!discErr) { setDoc({ ...doc, discount_amount: newAmount, discount_percent: newPercent, total: newTotal }); showAutosave(true) }
+                  else showAutosave(false)
                 }}
                 style={{ ...inputStyle, width: '110px', padding: '8px 10px', fontSize: '13px' }}
               >
@@ -4712,7 +4758,7 @@ export default function DocumentDetail({
                 <option value="custom%">Custom %</option>
               </select>
               {(discountPercentInput > 0 && ![5,10,15,20,25].includes(discountPercentInput)) && (
-                <input type="text" inputMode="decimal" value={discountPercentInput || ''} onChange={(e) => setDiscountPercentInput(parseFloat(e.target.value) || 0)} onBlur={handleDiscountChange} style={{ ...inputStyle, width: '60px', padding: '8px 10px', fontSize: '13px', textAlign: 'right' }} placeholder="%" />
+                <input type="text" inputMode="decimal" value={discountPercentInput || ''} onChange={(e) => setDiscountPercentInput(parseFloat(e.target.value) || 0)} onBlur={(e) => handleDiscountChange(undefined, parseFloat(e.target.value) || 0)} style={{ ...inputStyle, width: '60px', padding: '8px 10px', fontSize: '13px', textAlign: 'right' }} placeholder="%" />
               )}
               {discountMode === 'flat' && (
                 <input 
@@ -4728,7 +4774,7 @@ export default function DocumentDetail({
                   onBlur={(e) => {
                     const parsed = parseFloat(e.target.value) || 0
                     setDiscountAmountInput(parsed)
-                    handleDiscountChange()
+                    handleDiscountChange(parsed)
                   }}
                   style={{ ...inputStyle, width: '80px', padding: '8px 10px', fontSize: '13px', textAlign: 'right' }} 
                   placeholder="0.00" 
@@ -4772,7 +4818,7 @@ export default function DocumentDetail({
                   }
                   
                   setDepositRequired(newDeposit)
-                  await supabase.from('documents').update({ deposit_required: newDeposit }).eq('id', doc.id)
+                  { const { error: depErr } = await supabase.from('documents').update({ deposit_required: newDeposit }).eq('id', doc.id); showAutosave(!depErr) }
                   setDoc({ ...doc, deposit_required: newDeposit })
                 }}
                 style={{ ...inputStyle, width: '90px', padding: '8px 10px', fontSize: '13px' }}
@@ -4788,7 +4834,7 @@ export default function DocumentDetail({
                   value={depositRequired || ''} 
                   onChange={(e) => setDepositRequired(parseFloat(e.target.value) || 0)} 
                   onBlur={async () => {
-                    await supabase.from('documents').update({ deposit_required: depositRequired }).eq('id', doc.id)
+                    const { error: depErr } = await supabase.from('documents').update({ deposit_required: depositRequired }).eq('id', doc.id); showAutosave(!depErr)
                     setDoc({ ...doc, deposit_required: depositRequired })
                   }}
                   style={{ ...inputStyle, width: '80px', padding: '8px 10px', fontSize: '13px', textAlign: 'right' }} 
@@ -6313,6 +6359,36 @@ export default function DocumentDetail({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Autosave Toast — subtle, bottom-center */}
+      {autosaveToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 3001,
+          padding: '6px 14px',
+          borderRadius: '6px',
+          background: autosaveToast.type === 'ok' ? 'rgba(100,116,139,0.85)' : 'rgba(239,68,68,0.9)',
+          color: 'white',
+          fontSize: '12px',
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          opacity: 1,
+          transition: 'opacity 0.15s ease',
+        }}>
+          {autosaveToast.type === 'ok' ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          )}
+          {autosaveToast.message}
         </div>
       )}
 
