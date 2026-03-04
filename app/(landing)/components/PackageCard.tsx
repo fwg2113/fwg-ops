@@ -20,9 +20,7 @@ export default function PackageCard({ title, description, price, features, popul
       }`}
     >
       {popular && (
-        <span className="absolute -top-3 left-4 bg-[#CE0000] text-white text-[10px] font-bold uppercase tracking-wider px-3 pt-1 pb-2 rounded-t-md"
-          style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 6px), 50% 100%, 0 calc(100% - 6px))' }}
-        >
+        <span className="absolute top-0 left-0 bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-tl-xl rounded-br-lg">
           Most Popular
         </span>
       )}
