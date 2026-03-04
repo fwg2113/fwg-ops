@@ -34,7 +34,7 @@ export default function PackageCard({ title, description, price, features, popul
         }`}
       >
         <h3 className="text-white font-bold text-lg mb-1">{title}</h3>
-        <p className="text-gray-400 text-sm leading-relaxed mb-4 flex-1">{description}</p>
+        <p className="text-gray-400 text-sm leading-relaxed mb-4 min-h-[3.5rem]">{description}</p>
 
         <div className="mb-4">
           <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">
