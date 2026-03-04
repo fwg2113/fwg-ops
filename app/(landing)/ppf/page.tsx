@@ -3,7 +3,6 @@ import { PPF_PAGES, PPF_TESTIMONIALS, PPF_BEFORE_AFTER, PPF_PACKAGES, buildJsonL
 import { getPageImages } from '../lib/get-landing-images'
 import HeroSection from '../components/HeroSection'
 import SocialProofBar from '../components/SocialProofBar'
-import ServiceCard from '../components/ServiceCard'
 import BeforeAfterSlider from '../components/BeforeAfterSlider'
 import PPFTrustSection from '../components/PPFTrustSection'
 import PackageCard from '../components/PackageCard'
@@ -42,25 +41,8 @@ export default async function PPFPage() {
       {/* 2. Social Proof */}
       <SocialProofBar text="Trusted by Frederick for 13+ Years" />
 
-      {/* 3. Services Grid */}
+      {/* 3. Packages & Pricing */}
       <section className="py-16 bg-black">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-white text-center mb-4">
-            Our PPF Services
-          </h2>
-          <p className="text-gray-400 text-center mb-10 max-w-2xl mx-auto">
-            Premium paint protection film for every coverage level and budget.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {page.services.map((s, i) => (
-              <ServiceCard key={s.title} {...s} image={images.services[i]} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Packages & Pricing */}
-      <section className="py-16 bg-zinc-900">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-white text-center mb-4">
             PPF Packages &amp; Pricing
