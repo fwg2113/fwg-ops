@@ -18,7 +18,7 @@ export default function PackageCard({ title, description, price, features, popul
   const priceLabel = hasStartingAt ? 'Most Vehicles\nStarting at' : isContactPrice ? '\n' : '\nPer Vehicle'
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center h-full">
       {popular ? (
         <span className="bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-xl">
           Most Popular
@@ -33,17 +33,19 @@ export default function PackageCard({ title, description, price, features, popul
             : 'bg-zinc-800'
         }`}
       >
-        <h3 className="text-white font-bold text-lg mb-1">{title}</h3>
-        <p className="text-gray-400 text-sm leading-relaxed mb-4 min-h-[3.5rem]">{description}</p>
+        <h3 className="text-white font-bold text-lg mb-1 min-h-[3.5rem]">{title}</h3>
+        <p className="text-gray-400 text-sm leading-relaxed mb-4 min-h-[6rem]">{description}</p>
 
         <div className="mb-4">
-          <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">
-            {priceLabel}
-          </p>
+          <div className="h-[2.5rem] flex items-end justify-center mb-1">
+            <p className="text-gray-400 text-xs uppercase tracking-wide whitespace-pre-line text-center">
+              {priceLabel}
+            </p>
+          </div>
           <p className="text-[#CE0000] font-bold text-2xl">{priceAmount}</p>
         </div>
 
-        <ul className="space-y-2 text-left">
+        <ul className="space-y-2 text-left mt-auto">
           {features.map(f => (
             <li key={f} className="flex items-start gap-2 text-gray-300 text-sm">
               <svg
