@@ -96,9 +96,11 @@ export async function POST(request: Request) {
       return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })
     }
 
-    // Build dial targets — SIP only
+    // Build dial targets — SIP + dashboard client (no carrier <Number> elements)
     const statusUrl = `https://fwg-ops.vercel.app/api/voice/status?callSid=${callSid}`
-    const dialCallerId = to || from
+    const safeLabel = xmlEscape(category.label)
+    // Use caller's number as callerId so SIP phones show who's calling
+    const dialCallerId = from || to
     const sipUris = teamPhones
       .filter(p => p.sip_uri)
       .map(p => `<Sip statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.sip_uri}</Sip>`)
@@ -109,6 +111,11 @@ export async function POST(request: Request) {
 <Response>
   ${categoryMessageTwiml}
   <Dial callerId="${dialCallerId}" timeout="40" answerOnBridge="true" action="${actionUrl}">
+    <Client statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">
+      <Identity>ops-dashboard</Identity>
+      <Parameter name="categoryKey" value="${category.key}" />
+      <Parameter name="categoryLabel" value="${safeLabel}" />
+    </Client>
     ${sipUris}
   </Dial>
 </Response>`
