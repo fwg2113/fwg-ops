@@ -14,7 +14,8 @@ export default function PackageCard({ title, description, price, features, popul
   // Split price into label + amount for consistent vertical alignment
   const hasStartingAt = price.toLowerCase().includes('starting at')
   const priceAmount = hasStartingAt ? price.replace(/.*starting at\s*/i, '') : price
-  const priceLabel = hasStartingAt ? 'Most Vehicles\nStarting at' : null
+  const isContactPrice = priceAmount.toLowerCase().includes('contact')
+  const priceLabel = hasStartingAt ? 'Most Vehicles\nStarting at' : isContactPrice ? '\n' : '\nPer Vehicle'
 
   return (
     <div className="flex flex-col items-center">
@@ -33,20 +34,16 @@ export default function PackageCard({ title, description, price, features, popul
         }`}
       >
         <h3 className="text-white font-bold text-lg mb-1">{title}</h3>
-        <p className="text-gray-400 text-sm leading-relaxed mb-4">{description}</p>
+        <p className="text-gray-400 text-sm leading-relaxed mb-4 flex-1">{description}</p>
 
-        <div className="mb-4 mt-auto">
-          {priceLabel ? (
-            <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">{priceLabel}</p>
-          ) : (
-            <div className="flex flex-col items-center mb-1">
-              <div className="w-12 border-t border-gray-600" />
-            </div>
-          )}
+        <div className="mb-4">
+          <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">
+            {priceLabel}
+          </p>
           <p className="text-[#CE0000] font-bold text-2xl">{priceAmount}</p>
         </div>
 
-        <ul className="space-y-2">
+        <ul className="space-y-2 text-left">
           {features.map(f => (
             <li key={f} className="flex items-start gap-2 text-gray-300 text-sm">
               <svg
