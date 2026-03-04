@@ -99,9 +99,9 @@ export async function POST(request: Request) {
     // Build dial targets — match the proven screen route pattern exactly
     const statusUrl = `https://fwg-ops.vercel.app/api/voice/status?callSid=${callSid}`
     const safeLabel = xmlEscape(category.label)
-    // callerId must be a Twilio-owned number for <Number> (PSTN) legs.
-    // Using the caller's number breaks outbound legs. The business number (to) is safe.
-    const dialCallerId = to || from
+    // Use the caller's number (from) as callerId so team phones show who's calling.
+    // Twilio allows the inbound caller's number as callerId for forwarded legs.
+    const dialCallerId = from || to
     const numbers = teamPhones.map(p => `<Number statusCallback="${statusUrl}" statusCallbackEvent="initiated ringing answered completed">${p.phone}</Number>`).join('\n    ')
     const sipUris = teamPhones
       .filter(p => p.sip_uri)
