@@ -14,7 +14,7 @@ export default function PackageCard({ title, description, price, features, popul
   return (
     <div className="flex flex-col">
       {popular ? (
-        <span className="self-start bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-lg">
+        <span className="self-start bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-xl ml-[2px]">
           Most Popular
         </span>
       ) : (
