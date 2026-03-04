@@ -14,7 +14,7 @@ export default function PackageCard({ title, description, price, features, popul
   return (
     <div className="flex flex-col">
       {popular ? (
-        <span className="self-start bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-xl ml-[2px]">
+        <span className="self-start bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-xl">
           Most Popular
         </span>
       ) : (
@@ -23,7 +23,7 @@ export default function PackageCard({ title, description, price, features, popul
       <div
         className={`rounded-xl p-6 flex flex-col flex-1 ${
           popular
-            ? 'bg-zinc-800 ring-2 ring-[#CE0000] rounded-tl-none'
+            ? 'bg-zinc-800 border-2 border-[#CE0000] rounded-tl-none'
             : 'bg-zinc-800'
         }`}
       >
