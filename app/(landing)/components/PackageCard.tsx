@@ -14,7 +14,7 @@ export default function PackageCard({ title, description, price, features, popul
   // Split price into label + amount for consistent vertical alignment
   const hasStartingAt = price.toLowerCase().includes('starting at')
   const priceAmount = hasStartingAt ? price.replace(/.*starting at\s*/i, '') : price
-  const priceLabel = hasStartingAt ? 'Most Vehicles Starting at' : null
+  const priceLabel = hasStartingAt ? 'Most Vehicles\nStarting at' : null
 
   return (
     <div className="flex flex-col items-center">
@@ -26,27 +26,29 @@ export default function PackageCard({ title, description, price, features, popul
         <span className="h-[30px]" />
       )}
       <div
-        className={`rounded-xl p-6 flex flex-col flex-1 w-full text-center ${
+        className={`p-6 flex flex-col flex-1 w-full text-center ${
           popular
-            ? 'bg-zinc-800 border-2 border-[#CE0000] rounded-tl-none rounded-tr-none'
-            : 'bg-zinc-800'
+            ? 'bg-zinc-800 border-2 border-[#CE0000] rounded-b-xl'
+            : 'bg-zinc-800 rounded-xl'
         }`}
       >
         <h3 className="text-white font-bold text-lg mb-1">{title}</h3>
         <p className="text-gray-400 text-sm leading-relaxed mb-4">{description}</p>
 
         <div className="mb-4 mt-auto">
-          {priceLabel && (
-            <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">{priceLabel}</p>
+          {priceLabel ? (
+            <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">{priceLabel}</p>
+          ) : (
+            <p className="text-gray-400 text-xs uppercase tracking-wide mb-1 whitespace-pre-line">{'\n'}</p>
           )}
           <p className="text-[#CE0000] font-bold text-2xl">{priceAmount}</p>
         </div>
 
         <ul className="space-y-2">
           {features.map(f => (
-            <li key={f} className="flex items-center justify-center gap-2 text-gray-300 text-sm">
+            <li key={f} className="flex items-start gap-2 text-gray-300 text-sm">
               <svg
-                className="w-4 h-4 text-[#CE0000] shrink-0"
+                className="w-4 h-4 text-[#CE0000] shrink-0 mt-0.5"
                 fill="currentColor"
                 viewBox="0 0 20 20"
                 aria-hidden="true"
