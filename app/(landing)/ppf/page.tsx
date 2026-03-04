@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
-import { PPF_PAGES, PPF_TESTIMONIALS, PPF_BEFORE_AFTER, PPF_PACKAGES, buildJsonLd } from '../lib/page-data'
+import { PPF_PAGES, PPF_TESTIMONIALS, PPF_PACKAGES, buildJsonLd } from '../lib/page-data'
 import { getPageImages } from '../lib/get-landing-images'
 import HeroSection from '../components/HeroSection'
 import SocialProofBar from '../components/SocialProofBar'
-import BeforeAfterSlider from '../components/BeforeAfterSlider'
 import PPFTrustSection from '../components/PPFTrustSection'
 import PackageCard from '../components/PackageCard'
 import TestimonialCard from '../components/TestimonialCard'
@@ -58,28 +57,6 @@ export default async function PPFPage() {
           <p className="text-center mt-8 text-gray-500 text-sm">
             Every quote is customized to your specific vehicle. Contact us for an accurate estimate.
           </p>
-        </div>
-      </section>
-
-      {/* 5. Before/After Gallery */}
-      <section className="py-16 bg-black">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-white text-center mb-4">
-            Before &amp; After
-          </h2>
-          <p className="text-gray-400 text-center mb-10">
-            Drag the slider to see the transformation.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {PPF_BEFORE_AFTER.map((ba, i) => (
-              <BeforeAfterSlider
-                key={i}
-                {...ba}
-                beforeImage={images.beforeAfter[i]?.before}
-                afterImage={images.beforeAfter[i]?.after}
-              />
-            ))}
-          </div>
         </div>
       </section>
 
