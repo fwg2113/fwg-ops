@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const dialCallStatus = formData.get('DialCallStatus') as string
     const dialCallDuration = formData.get('DialCallDuration') as string
 
-    console.log('Call complete:', { callSid, dialCallStatus, dialCallDuration })
+    console.log('Call complete:', { callSid, dialCallStatus, dialCallDuration, allFormData: Object.fromEntries(formData.entries()) })
 
     // Check if this call is in transfer mode
     // When a warm transfer is initiated, the agent's call leg is redirected to a Conference,
@@ -82,7 +82,12 @@ export async function POST(request: Request) {
     return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })
   } catch (error) {
     console.error('Complete webhook error:', error)
-    return new NextResponse("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>", {
+    // On error, go to voicemail instead of returning empty TwiML (which hangs up)
+    const from = new URL(request.url).searchParams.get('from')
+    const callSid = new URL(request.url).searchParams.get('callSid')
+    const voicemailUrl = "https://ops.frederickwraps.com/api/voice/voicemail?callSid=" + (callSid || "") + "&amp;from=" + encodeURIComponent(from || "")
+    const twiml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Say voice=\"alice\">We're sorry, no one is available right now. Please leave a message after the beep.</Say><Record maxLength=\"120\" action=\"" + voicemailUrl + "\" /></Response>"
+    return new NextResponse(twiml, {
       headers: { 'Content-Type': 'text/xml' }
     })
   }
