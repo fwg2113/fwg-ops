@@ -20,7 +20,7 @@ export default function PackageCard({ title, description, price, features, popul
       }`}
     >
       {popular && (
-        <span className="absolute top-0 left-0 bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-tl-xl rounded-br-lg">
+        <span className="absolute bottom-full left-0 bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-t-lg">
           Most Popular
         </span>
       )}
