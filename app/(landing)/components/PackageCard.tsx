@@ -1,49 +1,54 @@
 // ─── Package Card ───
-// Displays a PPF package with pricing, title, and description.
-// Used on the PPF pricing page.
-
-import ImageWithFallback from './ImageWithFallback'
+// Displays a PPF package with pricing, title, features, and optional "Most Popular" badge.
+// Clean, text-focused card design without vehicle images.
 
 type Props = {
   title: string
   description: string
   price: string
-  imageAlt: string
-  image?: string
+  features: string[]
+  popular?: boolean
 }
 
-const GRADIENTS = [
-  'from-red-950 to-red-900',
-  'from-rose-950 to-red-950',
-  'from-stone-900 to-red-950',
-]
-
-export default function PackageCard({ title, description, price, imageAlt, image }: Props) {
-  const idx = title.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % GRADIENTS.length
-
+export default function PackageCard({ title, description, price, features, popular }: Props) {
   return (
-    <div className="bg-zinc-800 rounded-xl overflow-hidden">
-      <div className="aspect-[16/10] relative">
-        {image ? (
-          <ImageWithFallback
-            src={image}
-            alt={imageAlt}
-            className="absolute inset-0 w-full h-full object-cover"
-            fallbackGradient={GRADIENTS[idx]}
-            fallbackLabel={imageAlt}
-          />
-        ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${GRADIENTS[idx]} flex items-center justify-center p-4`}>
-            <span className="text-white/60 text-sm text-center font-medium">{imageAlt}</span>
-          </div>
-        )}
-      </div>
+    <div
+      className={`relative rounded-xl p-6 flex flex-col ${
+        popular
+          ? 'bg-zinc-800 ring-2 ring-[#CE0000]'
+          : 'bg-zinc-800'
+      }`}
+    >
+      {popular && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#CE0000] text-white text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+          Most Popular
+        </span>
+      )}
 
-      <div className="p-5">
-        <h3 className="text-white font-bold text-lg mb-2">{title}</h3>
-        <p className="text-gray-400 text-sm leading-relaxed mb-3">{description}</p>
-        <p className="text-[#CE0000] font-bold text-lg">{price}</p>
-      </div>
+      <h3 className="text-white font-bold text-lg mb-1">{title}</h3>
+      <p className="text-gray-400 text-sm leading-relaxed mb-4">{description}</p>
+
+      <p className="text-[#CE0000] font-bold text-2xl mb-4">{price}</p>
+
+      <ul className="space-y-2 mt-auto">
+        {features.map(f => (
+          <li key={f} className="flex items-start gap-2 text-gray-300 text-sm">
+            <svg
+              className="w-4 h-4 text-[#CE0000] shrink-0 mt-0.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clipRule="evenodd"
+              />
+            </svg>
+            {f}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

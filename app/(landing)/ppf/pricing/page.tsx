@@ -50,9 +50,9 @@ export default async function PPFPricingPage() {
           <p className="text-gray-400 text-center mb-10 max-w-2xl mx-auto">
             Pricing varies by vehicle size, model, and coverage area. Here&apos;s what to expect.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {PPF_PACKAGES.map((pkg, i) => (
-              <PackageCard key={pkg.title} {...pkg} image={images.services[i]} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            {PPF_PACKAGES.map(pkg => (
+              <PackageCard key={pkg.title} {...pkg} />
             ))}
           </div>
           <div className="mt-8 bg-zinc-800 rounded-xl p-6 text-center">
