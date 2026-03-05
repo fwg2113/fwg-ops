@@ -637,37 +637,12 @@ export type PackageItem = {
   title: string
   description: string
   price: string
-<<<<<<< HEAD
-  imageAlt: string
-=======
   features: string[]
   popular?: boolean
->>>>>>> claude/fwg-landing-pages-mcae2
 }
 
 export const PPF_PACKAGES: PackageItem[] = [
   {
-<<<<<<< HEAD
-    title: 'Partial / High-Impact Zones',
-    description:
-      'Protect the most vulnerable areas — door edges, rocker panels, door cups, and A-pillars. Great entry point for PPF.',
-    price: 'Starting from $500+',
-    imageAlt: 'Partial PPF on high-impact zones',
-  },
-  {
-    title: 'Full Front Package',
-    description:
-      'Hood, front bumper, fenders, mirrors, and headlights. The most popular package — protects where it matters most.',
-    price: 'Starting from $2,000+',
-    imageAlt: 'Full front PPF package',
-  },
-  {
-    title: 'Full Body PPF',
-    description:
-      'Bumper-to-bumper protection for your entire vehicle. The ultimate investment in your paint.',
-    price: 'Starting from $5,000+',
-    imageAlt: 'Full body PPF installation',
-=======
     title: 'Essentials',
     description: 'Protect everyday touch points from chips and scratches.',
     price: '$395',
@@ -707,7 +682,6 @@ export const PPF_PACKAGES: PackageItem[] = [
       'Every painted surface',
       'Custom-fit installation',
     ],
->>>>>>> claude/fwg-landing-pages-mcae2
   },
 ]
 

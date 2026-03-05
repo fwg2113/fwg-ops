@@ -1,17 +1,10 @@
 import type { Metadata } from 'next'
-<<<<<<< HEAD
-import { PPF_PAGES, PPF_TESTIMONIALS, buildJsonLd } from '../../lib/page-data'
-=======
 import { PPF_PAGES, PPF_TESTIMONIALS, PPF_PACKAGES, buildJsonLd } from '../../lib/page-data'
->>>>>>> claude/fwg-landing-pages-mcae2
 import { getPageImages } from '../../lib/get-landing-images'
 import HeroSection from '../../components/HeroSection'
 import SocialProofBar from '../../components/SocialProofBar'
 import ServiceCard from '../../components/ServiceCard'
-<<<<<<< HEAD
-=======
 import PackageCard from '../../components/PackageCard'
->>>>>>> claude/fwg-landing-pages-mcae2
 import PPFTrustSection from '../../components/PPFTrustSection'
 import TestimonialCard from '../../components/TestimonialCard'
 import LeadForm from '../../components/LeadForm'
@@ -83,9 +76,6 @@ export default async function PPFLuxuryPage() {
         </div>
       </section>
 
-<<<<<<< HEAD
-      {/* 5. Trust Section */}
-=======
       {/* 5. Packages & Pricing */}
       <section className="py-16 bg-black">
         <div className="max-w-6xl mx-auto px-4">
@@ -107,7 +97,6 @@ export default async function PPFLuxuryPage() {
       </section>
 
       {/* 6. Trust Section */}
->>>>>>> claude/fwg-landing-pages-mcae2
       <PPFTrustSection />
 
       {/* 6. Testimonials */}
