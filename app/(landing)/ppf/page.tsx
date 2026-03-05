@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+<<<<<<< HEAD
 import { PPF_PAGES, PPF_TESTIMONIALS, PPF_BEFORE_AFTER, buildJsonLd } from '../lib/page-data'
 import { getPageImages } from '../lib/get-landing-images'
 import HeroSection from '../components/HeroSection'
@@ -6,6 +7,14 @@ import SocialProofBar from '../components/SocialProofBar'
 import ServiceCard from '../components/ServiceCard'
 import BeforeAfterSlider from '../components/BeforeAfterSlider'
 import PPFTrustSection from '../components/PPFTrustSection'
+=======
+import { PPF_PAGES, PPF_TESTIMONIALS, PPF_PACKAGES, buildJsonLd } from '../lib/page-data'
+import { getPageImages } from '../lib/get-landing-images'
+import HeroSection from '../components/HeroSection'
+import SocialProofBar from '../components/SocialProofBar'
+import PPFTrustSection from '../components/PPFTrustSection'
+import PackageCard from '../components/PackageCard'
+>>>>>>> claude/fwg-landing-pages-mcae2
 import TestimonialCard from '../components/TestimonialCard'
 import LeadForm from '../components/LeadForm'
 
@@ -41,6 +50,7 @@ export default async function PPFPage() {
       {/* 2. Social Proof */}
       <SocialProofBar text="Trusted by Frederick for 13+ Years" />
 
+<<<<<<< HEAD
       {/* 3. Services Grid */}
       <section className="py-16 bg-black">
         <div className="max-w-6xl mx-auto px-4">
@@ -77,6 +87,25 @@ export default async function PPFPage() {
               />
             ))}
           </div>
+=======
+      {/* 3. Packages & Pricing */}
+      <section className="py-16 bg-black">
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-3xl font-bold text-white text-center mb-4">
+            PPF Packages &amp; Pricing
+          </h2>
+          <p className="text-gray-400 text-center mb-10 max-w-2xl mx-auto">
+            Pricing varies by vehicle size and model. Choose the coverage level that fits your needs.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            {PPF_PACKAGES.map(pkg => (
+              <PackageCard key={pkg.title} {...pkg} />
+            ))}
+          </div>
+          <p className="text-center mt-8 text-gray-500 text-sm">
+            Every quote is customized to your specific vehicle. Contact us for an accurate estimate.
+          </p>
+>>>>>>> claude/fwg-landing-pages-mcae2
         </div>
       </section>
 
