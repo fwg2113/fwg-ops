@@ -373,16 +373,20 @@ export const PPF_BEFORE_AFTER = [
 // ─── PPF coverage area options (shared across PPF pages) ───
 
 export const PPF_COVERAGE_OPTIONS = [
+  { label: 'Essentials', value: 'essentials' },
+  { label: 'Partial Front', value: 'partial_front' },
   { label: 'Full Front', value: 'full_front' },
-  { label: 'Full Body', value: 'full_body' },
-  { label: 'Partial / Custom', value: 'partial_custom' },
+  { label: 'Full Front+', value: 'full_front_plus' },
+  { label: 'Full Vehicle Coverage', value: 'full_vehicle' },
   { label: 'Not Sure Yet', value: 'not_sure' },
 ]
 
 export const PPF_TESLA_COVERAGE_OPTIONS = [
+  { label: 'Essentials', value: 'essentials' },
+  { label: 'Partial Front', value: 'partial_front' },
   { label: 'Full Front', value: 'full_front' },
-  { label: 'Full Body', value: 'full_body' },
-  { label: 'Track Pack (rockers, A-pillars, door edges)', value: 'track_pack' },
+  { label: 'Full Front+', value: 'full_front_plus' },
+  { label: 'Full Vehicle Coverage', value: 'full_vehicle' },
   { label: 'Not Sure Yet', value: 'not_sure' },
 ]
 
