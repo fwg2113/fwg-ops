@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, Fragment, useCallback } from 'react'
+import { useState, useMemo, Fragment, useCallback, useEffect } from 'react'
 
 type FAOrder = {
   id: string
@@ -326,10 +326,29 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [showShipForm, setShowShipForm] = useState(false)
   const [trackingNumber, setTrackingNumber] = useState('')
+  const [printFileUrl, setPrintFileUrl] = useState<string | null>(null)
+  const [printFileLoading, setPrintFileLoading] = useState(false)
+  const [printFileNotFound, setPrintFileNotFound] = useState(false)
 
   const items = order.items || []
   const artworkToken = order.metadata?.artwork_session_token
   const nextActions = STATUS_FLOW[order.status] || []
+
+  useEffect(() => {
+    if (!artworkToken) return
+    setPrintFileLoading(true)
+    fetch(`/api/fa-orders/print-file?session_token=${encodeURIComponent(artworkToken)}`)
+      .then(res => {
+        if (!res.ok) { setPrintFileNotFound(true); return null }
+        return res.json()
+      })
+      .then(data => {
+        if (data?.url) setPrintFileUrl(data.url)
+        else setPrintFileNotFound(true)
+      })
+      .catch(() => setPrintFileNotFound(true))
+      .finally(() => setPrintFileLoading(false))
+  }, [artworkToken])
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -490,32 +509,38 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
       {artworkToken && (
         <div style={{ marginBottom: '24px' }}>
           <div style={{ ...labelStyle, marginBottom: '10px' }}>Print-Ready File</div>
-          <a
-            href={`https://assets.frederickapparel.com/fa/artwork/${artworkToken}/print-ready/`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 16px',
-              borderRadius: '8px',
-              background: 'rgba(34,211,238,0.1)',
-              border: '1px solid rgba(34,211,238,0.25)',
-              color: '#22d3ee',
-              fontSize: '13px',
-              fontWeight: 500,
-              textDecoration: 'none',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Download Print File
-          </a>
+          {printFileLoading ? (
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>Loading print file...</span>
+          ) : printFileNotFound ? (
+            <span style={{ fontSize: '13px', color: '#64748b' }}>No print file found</span>
+          ) : printFileUrl ? (
+            <a
+              href={printFileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 16px',
+                borderRadius: '8px',
+                background: 'rgba(34,211,238,0.1)',
+                border: '1px solid rgba(34,211,238,0.25)',
+                color: '#22d3ee',
+                fontSize: '13px',
+                fontWeight: 500,
+                textDecoration: 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download Print File
+            </a>
+          ) : null}
         </div>
       )}
 
