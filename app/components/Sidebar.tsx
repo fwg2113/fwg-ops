@@ -36,6 +36,12 @@ const navSections = [
     ]
   },
   {
+    title: 'FREDERICK APPAREL',
+    items: [
+      { href: '/fa-orders', label: 'FA', labelGradient: 'Orders', icon: 'shirt', badgeKey: 'fa-orders' },
+    ]
+  },
+  {
     title: 'PRODUCTION',
     items: [
       { href: '/calendar', label: 'Job', labelGradient: 'Calendar', icon: 'calendar' },
@@ -162,6 +168,11 @@ const icons: Record<string, React.ReactElement> = {
       <circle cx="18.5" cy="18.5" r="2.5"></circle>
     </svg>
   ),
+  shirt: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"></path>
+    </svg>
+  ),
   bug: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <path d="M8 2l1.88 1.88"></path>
@@ -183,20 +194,21 @@ export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number; 'purchase-orders': number }>({ messages: 0, email: 0, payments: 0, actions: 0, 'purchase-orders': 0 })
+  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number; 'purchase-orders': number; 'fa-orders': number }>({ messages: 0, email: 0, payments: 0, actions: 0, 'purchase-orders': 0, 'fa-orders': 0 })
   const [handsStats, setHandsStats] = useState<{ availablePoints: number; leaders: { id: string; name: string; avatar_color: string; total_points: number }[] }>({ availablePoints: 0, leaders: [] })
 
   const fetchUnreadCounts = useCallback(async () => {
     try {
-      const [msgRes, emailRes, payRes, actionsRes, poRes] = await Promise.all([
+      const [msgRes, emailRes, payRes, actionsRes, poRes, faRes] = await Promise.all([
         fetch('/api/messages/unread-count'),
         fetch('/api/gmail/unread-count'),
         fetch('/api/payments/unread-count'),
         fetch('/api/customer-actions/count'),
         fetch('/api/purchase-orders/active-count'),
+        fetch('/api/fa-orders/active-count'),
       ])
-      const [msgData, emailData, payData, actionsData, poData] = await Promise.all([
-        msgRes.json(), emailRes.json(), payRes.json(), actionsRes.json(), poRes.json(),
+      const [msgData, emailData, payData, actionsData, poData, faData] = await Promise.all([
+        msgRes.json(), emailRes.json(), payRes.json(), actionsRes.json(), poRes.json(), faRes.json(),
       ])
 
       setUnreadCounts({
@@ -205,6 +217,7 @@ export default function Sidebar() {
         payments: payData.count || 0,
         actions: actionsData.count || 0,
         'purchase-orders': poData.count || 0,
+        'fa-orders': faData.count || 0,
       })
     } catch (err) {
       console.error('Failed to fetch unread counts:', err)
@@ -485,7 +498,7 @@ export default function Sidebar() {
                       height: '20px',
                       padding: '0 6px',
                       borderRadius: '999px',
-                      background: ('badgeKey' in item && item.badgeKey === 'payments') ? '#16a34a' : ('badgeKey' in item && item.badgeKey === 'actions') ? '#06b6d4' : ('badgeKey' in item && item.badgeKey === 'purchase-orders') ? '#a855f7' : '#d71cd1',
+                      background: ('badgeKey' in item && item.badgeKey === 'payments') ? '#16a34a' : ('badgeKey' in item && item.badgeKey === 'actions') ? '#06b6d4' : ('badgeKey' in item && item.badgeKey === 'purchase-orders') ? '#a855f7' : ('badgeKey' in item && item.badgeKey === 'fa-orders') ? '#f59e0b' : '#d71cd1',
                       color: '#ffffff',
                       fontSize: '11px',
                       fontWeight: 700,
