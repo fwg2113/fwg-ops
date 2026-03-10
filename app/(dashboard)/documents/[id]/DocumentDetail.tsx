@@ -6558,6 +6558,12 @@ export default function DocumentDetail({
             setMockupBuilderOpen(false)
             setMockupLineItemId(null)
           }}
+          projectFiles={(attachments || []).map(a => ({
+            url: a.url,
+            thumbnail_url: a.url,
+            filename: a.filename,
+            contentType: a.contentType,
+          }))}
         />
       )}
 
