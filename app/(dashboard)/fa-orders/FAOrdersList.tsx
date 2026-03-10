@@ -329,6 +329,7 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
   const [printFileUrl, setPrintFileUrl] = useState<string | null>(null)
   const [printFileLoading, setPrintFileLoading] = useState(false)
   const [printFileNotFound, setPrintFileNotFound] = useState(false)
+  const [driveStatus, setDriveStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   const items = order.items || []
   const artworkToken = order.metadata?.artwork_session_token
@@ -377,6 +378,29 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
       showToast('Failed to update status', 'error')
     } finally {
       setUpdatingStatus(false)
+    }
+  }
+
+  const handleSendToDrive = async () => {
+    if (!printFileUrl || !order.order_number) return
+    setDriveStatus('sending')
+    try {
+      const res = await fetch(`/api/fa-orders/${order.id}/send-to-drive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printFileUrl, orderNumber: order.order_number }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setDriveStatus('error')
+        showToast(data.error || 'Drive upload failed', 'error')
+        return
+      }
+      setDriveStatus('sent')
+      showToast('File sent to Google Drive', 'success')
+    } catch {
+      setDriveStatus('error')
+      showToast('Drive upload failed', 'error')
     }
   }
 
@@ -514,32 +538,98 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
           ) : printFileNotFound ? (
             <span style={{ fontSize: '13px', color: '#64748b' }}>No print file found</span>
           ) : printFileUrl ? (
-            <a
-              href={printFileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 16px',
-                borderRadius: '8px',
-                background: 'rgba(34,211,238,0.1)',
-                border: '1px solid rgba(34,211,238,0.25)',
-                color: '#22d3ee',
-                fontSize: '13px',
-                fontWeight: 500,
-                textDecoration: 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Download Print File
-            </a>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <a
+                href={printFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  background: 'rgba(34,211,238,0.1)',
+                  border: '1px solid rgba(34,211,238,0.25)',
+                  color: '#22d3ee',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  textDecoration: 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Download Print File
+              </a>
+              {driveStatus === 'sent' ? (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  background: 'rgba(34,197,94,0.1)',
+                  border: '1px solid rgba(34,197,94,0.25)',
+                  color: '#22c55e',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                }}>
+                  Sent to Drive
+                </span>
+              ) : driveStatus === 'error' ? (
+                <button
+                  onClick={handleSendToDrive}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    color: '#ef4444',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 16, height: 16 }}>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                  </svg>
+                  Drive upload failed — try again
+                </button>
+              ) : (
+                <button
+                  onClick={handleSendToDrive}
+                  disabled={driveStatus === 'sending'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    background: 'rgba(66,133,244,0.1)',
+                    border: '1px solid rgba(66,133,244,0.25)',
+                    color: '#4285f4',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: driveStatus === 'sending' ? 'not-allowed' : 'pointer',
+                    opacity: driveStatus === 'sending' ? 0.6 : 1,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 16, height: 16 }}>
+                    <path d="M7.71 3.5L1.15 15l3.43 5.95h6.86l-3.43-5.95L7.71 3.5zm1.14 0l6.56 11.5H22l-6.56-11.5H8.85zM14.29 15.95L17.71 22H4.57l3.43-5.95h6.29z" />
+                  </svg>
+                  {driveStatus === 'sending' ? 'Sending...' : 'Send to Drive'}
+                </button>
+              )}
+            </div>
           ) : null}
         </div>
       )}
