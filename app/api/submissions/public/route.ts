@@ -212,6 +212,11 @@ export async function POST(request: NextRequest) {
         lines.push(`Also Interested In: ${body.also_interested_in.join(', ')}`)
       }
       if (body.additional_info) lines.push(`Additional Info: ${body.additional_info}`)
+
+      // Store artwork_url in logo_urls column so convert route can attach it to quotes
+      if (body.artwork_url && !body.logo_urls?.length) {
+        body.logo_urls = [body.artwork_url]
+      }
       if (lines.length > 0) faNotes = lines.join('\n')
     }
 

@@ -21,9 +21,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Submission not found' }, { status: 404 })
     }
 
+    // ── FA form type: parse notes for structured data ──
+    const isFA = sub.form_type === 'fa_apparel' || sub.form_type === 'fa_embroidery'
+    let faParsed: Record<string, string> = {}
+    if (isFA && sub.notes) {
+      const parts = sub.notes.includes('|') ? sub.notes.split('|') : sub.notes.split('\n')
+      for (const part of parts) {
+        const trimmed = part.trim()
+        const colonIdx = trimmed.indexOf(':')
+        if (colonIdx > 0) {
+          const key = trimmed.slice(0, colonIdx).trim().toLowerCase()
+          const value = trimmed.slice(colonIdx + 1).trim()
+          if (value) faParsed[key] = value
+        }
+      }
+    }
+
     // Build vehicle description — prefer new vehicles array
     let vehicleDescription = ''
-    if (sub.vehicles && Array.isArray(sub.vehicles) && sub.vehicles.length > 0) {
+    if (isFA) {
+      const style = faParsed['style #'] || faParsed['style'] || ''
+      const color = faParsed['color'] || ''
+      vehicleDescription = [style, color].filter(Boolean).join(' — ')
+        || (sub.form_type === 'fa_embroidery' ? 'FA Embroidery' : 'FA Apparel')
+    } else if (sub.vehicles && Array.isArray(sub.vehicles) && sub.vehicles.length > 0) {
       vehicleDescription = sub.vehicles.map((v: { type_label?: string; year?: string; make?: string; model?: string; is_other?: boolean; other_desc?: string }) => {
         if (v.is_other) return v.other_desc || v.type_label || 'Other'
         const parts = [v.year, v.make, v.model].filter(Boolean).join(' ')
@@ -42,24 +63,51 @@ export async function POST(request: NextRequest) {
 
     // Build project description — prefer new form fields
     const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-    const projectParts = []
-    if (sub.coverage_type) {
-      projectParts.push(titleCase(sub.coverage_type))
-    } else if (sub.project_type) {
-      projectParts.push(titleCase(sub.project_type))
+    let projectDescription = ''
+    if (isFA) {
+      const sizesRaw = faParsed['sizes'] || ''
+      const totalQty = faParsed['total qty'] || faParsed['qty'] || ''
+      // Format sizes: parse JSON object like {"M":2,"L":3} into "M:2, L:3"
+      let sizesFormatted = sizesRaw
+      if (sizesRaw.startsWith('{')) {
+        try {
+          const obj = JSON.parse(sizesRaw) as Record<string, number>
+          sizesFormatted = Object.entries(obj)
+            .filter(([, v]) => v)
+            .map(([k, v]) => `${k}:${v}`)
+            .join(', ')
+        } catch { /* use raw string as fallback */ }
+      }
+      const descParts: string[] = []
+      if (sizesFormatted) descParts.push(sizesFormatted)
+      if (totalQty) descParts.push(`Total: ${totalQty} pcs`)
+      projectDescription = descParts.join(' — ') || (sub.form_type === 'fa_embroidery' ? 'Embroidery Request' : 'Apparel Request')
+    } else {
+      const projectParts = []
+      if (sub.coverage_type) {
+        projectParts.push(titleCase(sub.coverage_type))
+      } else if (sub.project_type) {
+        projectParts.push(titleCase(sub.project_type))
+      }
+      if (sub.artwork_status) {
+        projectParts.push(titleCase(sub.artwork_status))
+      } else if (sub.design_scenario) {
+        projectParts.push(titleCase(sub.design_scenario))
+      }
+      projectDescription = projectParts.join(' - ')
     }
-    if (sub.artwork_status) {
-      projectParts.push(titleCase(sub.artwork_status))
-    } else if (sub.design_scenario) {
-      projectParts.push(titleCase(sub.design_scenario))
-    }
-    const projectDescription = projectParts.join(' - ')
 
     // Build notes from available info
-    const notesParts = []
-    if (sub.additional_info) notesParts.push(sub.additional_info)
-    if (sub.vision_description) notesParts.push(sub.vision_description)
-    const notesText = notesParts.join('\n\n')
+    let notesText = ''
+    if (isFA) {
+      // Pass through full notes as-is so nothing is lost
+      notesText = sub.notes || ''
+    } else {
+      const notesParts = []
+      if (sub.additional_info) notesParts.push(sub.additional_info)
+      if (sub.vision_description) notesParts.push(sub.vision_description)
+      notesText = notesParts.join('\n\n')
+    }
 
     // Find or create customer
     let customerId = null
@@ -152,6 +200,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: docError.message }, { status: 500 })
     }
 
+    // ── FA: attach artwork files to the quote if present ──
+    // Check notes field, logo_urls column, and reference_image_urls column
+    if (isFA) {
+      const attachments: { url: string; key: string; filename: string; contentType: string; size: number; uploadedAt: string }[] = []
+      // From notes field
+      const artworkUrl = faParsed['artwork url'] || faParsed['artwork'] || ''
+      if (artworkUrl) {
+        attachments.push({
+          url: artworkUrl,
+          key: '',
+          filename: 'Customer Artwork',
+          contentType: 'application/octet-stream',
+          size: 0,
+          uploadedAt: new Date().toISOString(),
+        })
+      }
+      // From logo_urls column
+      if (Array.isArray(sub.logo_urls)) {
+        for (const url of sub.logo_urls) {
+          if (url) attachments.push({
+            url,
+            key: '',
+            filename: 'Customer Logo',
+            contentType: 'application/octet-stream',
+            size: 0,
+            uploadedAt: new Date().toISOString(),
+          })
+        }
+      }
+      // From reference_image_urls column
+      if (Array.isArray(sub.reference_image_urls)) {
+        for (const url of sub.reference_image_urls) {
+          if (url) attachments.push({
+            url,
+            key: '',
+            filename: 'Reference Image',
+            contentType: 'application/octet-stream',
+            size: 0,
+            uploadedAt: new Date().toISOString(),
+          })
+        }
+      }
+      if (attachments.length > 0) {
+        await supabase
+          .from('documents')
+          .update({ attachments })
+          .eq('id', doc.id)
+      }
+    }
+
     // Update the submission to mark as converted
     await supabase
       .from('submissions')
@@ -164,7 +262,9 @@ export async function POST(request: NextRequest) {
     // Generate customer workflow actions for the new document
     // Uses the submission's project_type as the category, with 'draft' as current status
     // so REVIEW_AND_CATEGORIZE auto-completes (since review is done by converting)
-    const category = sub.coverage_type || sub.project_type || 'OTHER'
+    const category = isFA
+      ? (sub.form_type === 'fa_embroidery' ? 'EMBROIDERY' : 'APPAREL')
+      : (sub.coverage_type || sub.project_type || 'OTHER')
     await linkSubmissionToDocument(submission_id, doc.id, category).catch(err => {
       console.error('Failed to generate customer actions:', err)
       // Non-blocking - don't fail the conversion if action generation fails

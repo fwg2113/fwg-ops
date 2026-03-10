@@ -270,6 +270,8 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   'signage_promo': 'Signage & Promo',
   'embroidery': 'Embroidery',
   'ad_landing': 'Ad Landing Page',
+  'fa_apparel': 'FA Apparel Request',
+  'fa_embroidery': 'FA Embroidery Request',
 }
 
 // ─── Café-specific labels ───
@@ -437,6 +439,41 @@ const EMBROIDERY_TIMELINE_LABELS: Record<string, string> = {
   '30_60_days': '30–60 days',
   '60_90_days': '60–90+ days',
   'flexible': 'No Rush — Flexible',
+}
+
+// ─── FA notes parser ───
+// Notes format: "Style #: DM108\nColor: Black\nTotal Qty: 9\nSizes: S:1,M:2,L:3,XL:2,2XL:1\nAlso Interested In: T-Shirts, Hats & Caps\nAdditional Info: ..."
+// OR pipe format: "Style: DM108 | Color: Black | Qty: 9 | Sizes: S:1,M:2,L:3,XL:2,2XL:1 | ..."
+function parseFANotes(notes: string): Record<string, string> {
+  if (!notes) return {}
+  const result: Record<string, string> = {}
+  // Split on newlines or pipes
+  const parts = notes.includes('|') ? notes.split('|') : notes.split('\n')
+  for (const part of parts) {
+    const trimmed = part.trim()
+    const colonIdx = trimmed.indexOf(':')
+    if (colonIdx > 0) {
+      const key = trimmed.slice(0, colonIdx).trim().toLowerCase()
+      const value = trimmed.slice(colonIdx + 1).trim()
+      if (value) result[key] = value
+    }
+  }
+  return result
+}
+
+function parseSizes(sizesStr: string): { size: string; qty: string }[] {
+  if (!sizesStr) return []
+  // Handles "S:1,M:2,L:3" or "S: 1, M: 2, L: 3" or JSON object
+  if (sizesStr.startsWith('{')) {
+    try {
+      const obj = JSON.parse(sizesStr)
+      return Object.entries(obj).filter(([, v]) => v).map(([k, v]) => ({ size: k, qty: String(v) }))
+    } catch { /* fall through */ }
+  }
+  return sizesStr.split(',').map(s => s.trim()).filter(Boolean).map(s => {
+    const [size, qty] = s.split(':').map(p => p.trim())
+    return { size: size || '', qty: qty || '0' }
+  }).filter(s => s.size)
 }
 
 const STATUS_OPTIONS = ['new', 'contacted', 'in_progress', 'quoted', 'converted', 'won', 'lost', 'archived']
@@ -1337,6 +1374,133 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                   </div>
                 )}
               </>
+            ) : (submission.form_type === 'fa_apparel' || submission.form_type === 'fa_embroidery') ? (
+              (() => {
+                const fa = parseFANotes(submission.notes || '')
+                const styleNum = fa['style #'] || fa['style'] || ''
+                const color = fa['color'] || ''
+                const totalQty = fa['total qty'] || fa['qty'] || ''
+                const sizes = parseSizes(fa['sizes'] || '')
+                const additionalItems = fa['additional items'] || ''
+                const alsoInterestedIn = fa['also interested in'] || ''
+                const additionalInfo = fa['additional info'] || ''
+                const artworkUrl = fa['artwork url'] || fa['artwork'] || ''
+                return (
+                  <>
+                    {/* Selected Product */}
+                    {(styleNum || color) && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>Selected Product</span>
+                        <span style={{
+                          ...valueStyle,
+                          background: 'rgba(168, 85, 247, 0.1)',
+                          border: '1px solid rgba(168, 85, 247, 0.25)',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontWeight: 600,
+                        }}>
+                          {[styleNum, color].filter(Boolean).join(' — ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Size Grid */}
+                    {sizes.length > 0 && (
+                      <div style={{ ...rowStyle, flexDirection: 'column', gap: '8px' }}>
+                        <span style={labelStyle}>Sizes</span>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {sizes.map((s, i) => (
+                            <div key={i} style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              background: '#1d1d1d',
+                              border: '1px solid rgba(148, 163, 184, 0.15)',
+                              borderRadius: '8px',
+                              padding: '8px 14px',
+                              minWidth: '52px',
+                            }}>
+                              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.size}</span>
+                              <span style={{ fontSize: '18px', color: '#f1f5f9', fontWeight: 700, marginTop: '2px' }}>{s.qty}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Total Quantity */}
+                    {totalQty && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>Total Quantity</span>
+                        <span style={{ ...valueStyle, fontWeight: 600, fontSize: '16px' }}>{totalQty}</span>
+                      </div>
+                    )}
+
+                    {/* Additional Items */}
+                    {additionalItems && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>Additional Items</span>
+                        <span style={{ ...valueStyle, maxWidth: '60%' }}>{additionalItems}</span>
+                      </div>
+                    )}
+
+                    {/* Also Interested In */}
+                    {alsoInterestedIn && (
+                      <div style={{ ...rowStyle, flexDirection: 'column', gap: '8px' }}>
+                        <span style={labelStyle}>Also Interested In</span>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {alsoInterestedIn.split(',').map((item, i) => (
+                            <span key={i} style={{
+                              padding: '4px 12px',
+                              borderRadius: '999px',
+                              background: 'rgba(34, 211, 238, 0.1)',
+                              border: '1px solid rgba(34, 211, 238, 0.25)',
+                              color: '#22d3ee',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                            }}>
+                              {item.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Artwork File */}
+                    {artworkUrl && (
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>Artwork File</span>
+                        <a href={artworkUrl} target="_blank" rel="noopener noreferrer" style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          background: 'rgba(215, 28, 209, 0.1)',
+                          border: '1px solid rgba(215, 28, 209, 0.25)',
+                          color: '#d71cd1',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          textDecoration: 'none',
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                          </svg>
+                          View Artwork
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Additional Info */}
+                    {additionalInfo && (
+                      <div style={lastRowStyle}>
+                        <span style={labelStyle}>Anything Else</span>
+                        <span style={{ ...valueStyle, maxWidth: '60%' }}>{additionalInfo}</span>
+                      </div>
+                    )}
+                  </>
+                )
+              })()
             ) : submission.form_type === 'ad_landing' ? (
               <>
                 {submission.vehicle_description && (
