@@ -9,7 +9,7 @@ const supabase = createClient(
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-const VALID_STATUSES = ['new', 'in_production', 'printed', 'ready_for_pickup', 'shipped', 'completed', 'cancelled']
+const VALID_STATUSES = ['new', 'paid', 'in_production', 'printed', 'ready_for_pickup', 'shipped', 'picked_up', 'completed', 'cancelled']
 
 const FROM_EMAIL = 'orders@frederickapparel.com'
 

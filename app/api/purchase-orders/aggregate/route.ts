@@ -21,7 +21,7 @@ export async function GET() {
       .from('documents')
       .select('id, doc_number, doc_type, customer_name, status, created_at')
       .eq('doc_type', 'invoice')
-      .in('status', ['sent', 'approved', 'paid', 'partial', 'viewed'])
+      .in('status', ['sent', 'approved', 'paid', 'partial', 'viewed', 'ach_pending'])
       .neq('status', 'archived')
       .order('created_at', { ascending: false })
 
