@@ -203,43 +203,52 @@ export async function POST(request: NextRequest) {
     // ── FA: attach artwork files to the quote if present ──
     // Check notes field, logo_urls column, and reference_image_urls column
     if (isFA) {
-      const attachments: { url: string; key: string; filename: string; contentType: string; size: number; uploadedAt: string }[] = []
+      const guessContentType = (url: string): string => {
+        const lower = url.toLowerCase().split('?')[0]
+        if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+        if (lower.endsWith('.png')) return 'image/png'
+        if (lower.endsWith('.svg')) return 'image/svg+xml'
+        if (lower.endsWith('.gif')) return 'image/gif'
+        if (lower.endsWith('.webp')) return 'image/webp'
+        if (lower.endsWith('.pdf')) return 'application/pdf'
+        return 'application/octet-stream'
+      }
+      const extractFilename = (url: string): string => {
+        try {
+          const path = new URL(url).pathname
+          const name = path.split('/').pop() || ''
+          return decodeURIComponent(name) || 'file'
+        } catch {
+          return url.split('/').pop()?.split('?')[0] || 'file'
+        }
+      }
+      const buildAttachment = (url: string, label: string) => ({
+        url,
+        thumbnail_url: url,
+        key: '',
+        filename: extractFilename(url),
+        contentType: guessContentType(url),
+        size: 0,
+        uploadedAt: new Date().toISOString(),
+        label,
+      })
+
+      const attachments: ReturnType<typeof buildAttachment>[] = []
       // From notes field
       const artworkUrl = faParsed['artwork url'] || faParsed['artwork'] || ''
       if (artworkUrl) {
-        attachments.push({
-          url: artworkUrl,
-          key: '',
-          filename: 'Customer Artwork',
-          contentType: 'application/octet-stream',
-          size: 0,
-          uploadedAt: new Date().toISOString(),
-        })
+        attachments.push(buildAttachment(artworkUrl, 'Customer Artwork'))
       }
       // From logo_urls column
       if (Array.isArray(sub.logo_urls)) {
         for (const url of sub.logo_urls) {
-          if (url) attachments.push({
-            url,
-            key: '',
-            filename: 'Customer Logo',
-            contentType: 'application/octet-stream',
-            size: 0,
-            uploadedAt: new Date().toISOString(),
-          })
+          if (url) attachments.push(buildAttachment(url, 'Customer Artwork'))
         }
       }
       // From reference_image_urls column
       if (Array.isArray(sub.reference_image_urls)) {
         for (const url of sub.reference_image_urls) {
-          if (url) attachments.push({
-            url,
-            key: '',
-            filename: 'Reference Image',
-            contentType: 'application/octet-stream',
-            size: 0,
-            uploadedAt: new Date().toISOString(),
-          })
+          if (url) attachments.push(buildAttachment(url, 'Reference Image'))
         }
       }
       if (attachments.length > 0) {
