@@ -37,6 +37,24 @@ export default async function PaymentSuccessPage({
     // Bank transfers (ACH) redirect to success URL before payment completes
     if (session.payment_status !== 'paid') {
       const isPending = session.payment_status === 'unpaid' || session.payment_status === 'no_payment_required'
+
+      // Mark invoice as ach_pending so it shows up in the dashboard
+      if (isPending && session.metadata?.document_id) {
+        const achDocId = session.metadata.document_id
+        const { data: achDoc } = await supabase
+          .from('documents')
+          .select('status')
+          .eq('id', achDocId)
+          .single()
+
+        if (achDoc && achDoc.status !== 'paid' && achDoc.status !== 'partial') {
+          await supabase
+            .from('documents')
+            .update({ status: 'ach_pending' })
+            .eq('id', achDocId)
+        }
+      }
+
       return <PaymentSuccessClient documentId={session.metadata?.document_id || null} amount={0} pending={isPending} />
     }
 
