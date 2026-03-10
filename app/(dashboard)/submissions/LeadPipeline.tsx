@@ -68,7 +68,7 @@ type Props = {
 export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
-  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf' | 'cafe_wrap' | 'sticker_label' | 'signage_promo' | 'embroidery'>('all')
+  const [formTypeFilter, setFormTypeFilter] = useState<'all' | 'commercial_wrap' | 'automotive_styling' | 'ppf' | 'cafe_wrap' | 'sticker_label' | 'signage_promo' | 'embroidery' | 'fa_apparel' | 'fa_embroidery'>('all')
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = () => {
@@ -353,6 +353,12 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
     if (formType === 'embroidery') {
       return { label: 'EMBROIDERY', bg: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' }
     }
+    if (formType === 'fa_apparel') {
+      return { label: 'FA APPAREL', bg: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }
+    }
+    if (formType === 'fa_embroidery') {
+      return { label: 'FA EMBROIDERY', bg: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' }
+    }
     return { label: 'COMMERCIAL', bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }
   }
 
@@ -593,6 +599,8 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
               { key: 'sticker_label', label: 'Stickers' },
               { key: 'signage_promo', label: 'Signage' },
               { key: 'embroidery', label: 'Embroidery' },
+              { key: 'fa_apparel', label: 'FA Apparel' },
+              { key: 'fa_embroidery', label: 'FA Embroidery' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}

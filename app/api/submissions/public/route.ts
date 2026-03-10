@@ -78,9 +78,12 @@ export async function POST(request: NextRequest) {
       body.contact_name = String(body.customer_name).trim()
     }
 
-    // Resolve business_name from alternate field name (sticker form sends "company")
+    // Resolve business_name from alternate field name (sticker form sends "company", FA forms send "company_name")
     if (!body.business_name && body.company) {
       body.business_name = String(body.company).trim()
+    }
+    if (!body.business_name && body.company_name) {
+      body.business_name = String(body.company_name).trim()
     }
 
     console.log(`[${formType}] submission received — keys: ${Object.keys(body).join(', ')}, email: ${JSON.stringify(body.email)}`)
@@ -99,6 +102,8 @@ export async function POST(request: NextRequest) {
       sticker_label: ['contact_name', 'email', 'contact_method', 'sticker_type', 'shape', 'material', 'timeline'],
       signage_promo: ['contact_name', 'email', 'contact_method', 'quantity', 'timeline'],
       embroidery: ['contact_name', 'email', 'contact_method', 'garment_supply', 'digitizing', 'timeline'],
+      fa_apparel: ['contact_name', 'email', 'phone'],
+      fa_embroidery: ['contact_name', 'email', 'phone'],
     }
     const required = REQUIRED_BY_FORM_TYPE[formType]
     if (!required) {
@@ -186,6 +191,28 @@ export async function POST(request: NextRequest) {
       logo_only: 'LOGO_ONLY',
       from_scratch: 'FROM_SCRATCH',
       ai_mockup: 'FROM_SCRATCH',
+    }
+
+    // ── Build notes for FA form types (fields without direct column mapping) ──
+    let faNotes: string | null = null
+    if (formType === 'fa_apparel' || formType === 'fa_embroidery') {
+      const lines: string[] = []
+      if (body.style_number) lines.push(`Style #: ${body.style_number}`)
+      if (body.selected_color) lines.push(`Color: ${body.selected_color}`)
+      if (body.total_quantity) lines.push(`Total Qty: ${body.total_quantity}`)
+      if (body.know_sizes) lines.push(`Knows Sizes: ${body.know_sizes}`)
+      if (body.sizes) {
+        const sizeStr = typeof body.sizes === 'object' ? JSON.stringify(body.sizes) : String(body.sizes)
+        lines.push(`Sizes: ${sizeStr}`)
+      }
+      if (Array.isArray(body.additional_items) && body.additional_items.length > 0) {
+        lines.push(`Additional Items: ${body.additional_items.join(', ')}`)
+      }
+      if (Array.isArray(body.also_interested_in) && body.also_interested_in.length > 0) {
+        lines.push(`Also Interested In: ${body.also_interested_in.join(', ')}`)
+      }
+      if (body.additional_info) lines.push(`Additional Info: ${body.additional_info}`)
+      if (lines.length > 0) faNotes = lines.join('\n')
     }
 
     // ── Insert submission ──
@@ -305,6 +332,9 @@ export async function POST(request: NextRequest) {
         garment_supply: body.garment_supply || null,
         design_size: body.design_size || null,
         digitizing: body.digitizing || null,
+
+        // ── FA-specific notes (fields without direct column mapping) ──
+        notes: faNotes || body.notes || null,
       })
       .select('id')
       .single()
