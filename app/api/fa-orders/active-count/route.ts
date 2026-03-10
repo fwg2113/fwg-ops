@@ -18,7 +18,7 @@ export async function GET() {
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .filter('metadata->>source', 'eq', 'frederick-apparel')
-      .not('status', 'in', '("completed","cancelled")')
+      .not('status', 'in', '("completed","picked_up","shipped","cancelled")')
 
     if (error) {
       console.error('Error fetching active FA order count:', error)

@@ -30,15 +30,10 @@ const navSections = [
     ]
   },
   {
-    title: 'PURCHASING',
-    items: [
-      { href: '/purchase-orders', label: 'Purchase', labelGradient: 'Orders', icon: 'truck', badgeKey: 'purchase-orders' },
-    ]
-  },
-  {
     title: 'FREDERICK APPAREL',
     items: [
       { href: '/fa-orders', label: 'FA', labelGradient: 'Orders', icon: 'shirt', badgeKey: 'fa-orders' },
+      { href: '/purchase-orders', label: 'Purchase', labelGradient: 'Orders', icon: 'truck', badgeKey: 'purchase-orders' },
     ]
   },
   {
