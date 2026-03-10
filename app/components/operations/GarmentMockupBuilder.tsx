@@ -58,6 +58,7 @@ interface GarmentMockupBuilderProps {
   onSaveConfig: (logos: Logo[], textElements: TextElement[]) => void
   onClose: () => void
   onFileUpload?: (file: File) => void
+  projectFiles?: Array<{ url: string; thumbnail_url?: string; filename: string; contentType?: string }>
 }
 
 export default function GarmentMockupBuilder({
@@ -70,7 +71,8 @@ export default function GarmentMockupBuilder({
   onSave,
   onSaveConfig,
   onClose,
-  onFileUpload
+  onFileUpload,
+  projectFiles = []
 }: GarmentMockupBuilderProps) {
   const [activeLocation, setActiveLocation] = useState<Location>('Front')
   const [logos, setLogos] = useState<Logo[]>(initialLogos || [])
@@ -86,6 +88,8 @@ export default function GarmentMockupBuilder({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const [resizeStartFontSize, setResizeStartFontSize] = useState(48)
+  const [showProjectFiles, setShowProjectFiles] = useState(false)
+  const [loadingProjectFile, setLoadingProjectFile] = useState<string | null>(null)
 
   const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
 
@@ -657,180 +661,148 @@ export default function GarmentMockupBuilder({
     e.target.value = ''
   }
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+  const processUploadedFile = (file: File) => {
+    const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
+    const isDesignFile = /\.(emb|dst|pdf)$/i.test(file.name)
 
-    Array.from(files).forEach(file => {
-      const isSvgFile = file.type === 'image/svg+xml' || file.name.endsWith('.svg')
-      const isDesignFile = /\.(emb|dst|pdf)$/i.test(file.name)
+    // Handle design files (DST = stitch render, PDF = page render, EMB = placeholder)
+    if (isDesignFile) {
+      const isDst = /\.dst$/i.test(file.name)
+      const isPdf = /\.pdf$/i.test(file.name)
 
-      // Handle design files (DST = stitch render, PDF = page render, EMB = placeholder)
-      if (isDesignFile) {
-        const isDst = /\.dst$/i.test(file.name)
-        const isPdf = /\.pdf$/i.test(file.name)
-
-        if (isDst) {
-          // Render DST stitch preview and store buffer for re-rendering with color changes
-          const defaultThreadColor = '#1a1a8b'
-          Promise.all([renderDSTFile(file, 800, defaultThreadColor), file.arrayBuffer()]).then(([stitchDataUrl, dstBuffer]) => {
-            const img = new Image()
-            img.onload = () => {
-              const aspectRatio = img.naturalWidth / img.naturalHeight
-              const height = 0.3 / aspectRatio
-              const newLogo: Logo = {
-                id: `logo_${Date.now()}_${Math.random()}`,
-                url: stitchDataUrl,
-                originalUrl: stitchDataUrl,
-                backgroundRemoved: false,
-                location: activeLocation,
-                x: 0.35,
-                y: 0.3,
-                width: 0.3,
-                height: height,
-                rotation: 0,
-                isSvg: false,
-                isDst: true,
-                dstBuffer: dstBuffer,
-                threadColor: defaultThreadColor,
-                aspectRatio
-              }
-              setLogos(prev => [...prev, newLogo])
-              setSelectedLogoId(newLogo.id)
-            }
-            img.src = stitchDataUrl
-          }).catch((err) => {
-            console.error('DST render failed, falling back to placeholder:', err)
-            const placeholderUrl = createDesignFilePlaceholder(file.name)
+      if (isDst) {
+        const defaultThreadColor = '#1a1a8b'
+        Promise.all([renderDSTFile(file, 800, defaultThreadColor), file.arrayBuffer()]).then(([stitchDataUrl, dstBuffer]) => {
+          const img = new Image()
+          img.onload = () => {
+            const aspectRatio = img.naturalWidth / img.naturalHeight
+            const height = 0.3 / aspectRatio
             const newLogo: Logo = {
               id: `logo_${Date.now()}_${Math.random()}`,
-              url: placeholderUrl,
-              originalUrl: placeholderUrl,
+              url: stitchDataUrl,
+              originalUrl: stitchDataUrl,
               backgroundRemoved: false,
               location: activeLocation,
-              x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
-              isSvg: false, aspectRatio: 1
+              x: 0.35, y: 0.3, width: 0.3, height: height, rotation: 0,
+              isSvg: false, isDst: true, dstBuffer: dstBuffer,
+              threadColor: defaultThreadColor, aspectRatio
             }
             setLogos(prev => [...prev, newLogo])
             setSelectedLogoId(newLogo.id)
-          })
-        } else if (isPdf) {
-          // Render PDF first page using an object URL and canvas
-          const pdfUrl = URL.createObjectURL(file)
-          // Use an iframe/canvas approach - create a placeholder for now with the filename
-          // PDF rendering requires pdf.js which we can add later for full vector support
+          }
+          img.src = stitchDataUrl
+        }).catch((err) => {
+          console.error('DST render failed, falling back to placeholder:', err)
           const placeholderUrl = createDesignFilePlaceholder(file.name)
           const newLogo: Logo = {
             id: `logo_${Date.now()}_${Math.random()}`,
-            url: placeholderUrl,
-            originalUrl: placeholderUrl,
-            backgroundRemoved: false,
-            location: activeLocation,
+            url: placeholderUrl, originalUrl: placeholderUrl,
+            backgroundRemoved: false, location: activeLocation,
             x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
             isSvg: false, aspectRatio: 1
           }
           setLogos(prev => [...prev, newLogo])
           setSelectedLogoId(newLogo.id)
-          URL.revokeObjectURL(pdfUrl)
-        } else {
-          // EMB and other formats - placeholder (no JS parser available for Wilcom EMB)
-          const placeholderUrl = createDesignFilePlaceholder(file.name)
-          const newLogo: Logo = {
-            id: `logo_${Date.now()}_${Math.random()}`,
-            url: placeholderUrl,
-            originalUrl: placeholderUrl,
-            backgroundRemoved: false,
-            location: activeLocation,
-            x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
-            isSvg: false, aspectRatio: 1
-          }
-          setLogos(prev => [...prev, newLogo])
-          setSelectedLogoId(newLogo.id)
+        })
+      } else if (isPdf) {
+        const pdfUrl = URL.createObjectURL(file)
+        const placeholderUrl = createDesignFilePlaceholder(file.name)
+        const newLogo: Logo = {
+          id: `logo_${Date.now()}_${Math.random()}`,
+          url: placeholderUrl, originalUrl: placeholderUrl,
+          backgroundRemoved: false, location: activeLocation,
+          x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
+          isSvg: false, aspectRatio: 1
         }
-        return
-      }
-
-      const reader = new FileReader()
-      reader.onload = async (event) => {
-        const content = event.target?.result as string
-
-        if (isSvgFile) {
-          // Parse SVG and extract colors
-          const colors = extractSvgColors(content)
-          const initialColorMap: { [key: string]: string } = {}
-          colors.forEach(color => {
-            initialColorMap[color] = color // Initially map to same color
-          })
-
-          // Convert SVG to data URL
-          const svgBlob = new Blob([content], { type: 'image/svg+xml' })
-          const url = URL.createObjectURL(svgBlob)
-
-          // Load image to get dimensions
-          const img = new Image()
-          await new Promise((resolve) => {
-            img.onload = resolve
-            img.src = url
-          })
-
-          const aspectRatio = img.naturalWidth / img.naturalHeight
-          const height = 0.3 / aspectRatio // Maintain aspect ratio with width of 0.3
-
-          const newLogo: Logo = {
-            id: `logo_${Date.now()}_${Math.random()}`,
-            url,
-            originalUrl: url,
-            backgroundRemoved: false,
-            location: activeLocation,
-            x: 0.35,
-            y: 0.3,
-            width: 0.3,
-            height: height,
-            rotation: 0,
-            isSvg: true,
-            svgContent: content,
-            colorMap: initialColorMap,
-            aspectRatio
-          }
-          setLogos(prev => [...prev, newLogo])
-          setSelectedLogoId(newLogo.id)
-        } else {
-          // Handle regular image files (PNG, JPG, etc.)
-          // Load image to get dimensions
-          const img = new Image()
-          await new Promise((resolve) => {
-            img.onload = resolve
-            img.src = content
-          })
-
-          const aspectRatio = img.naturalWidth / img.naturalHeight
-          const height = 0.3 / aspectRatio // Maintain aspect ratio with width of 0.3
-
-          const newLogo: Logo = {
-            id: `logo_${Date.now()}_${Math.random()}`,
-            url: content,
-            originalUrl: content,
-            backgroundRemoved: false,
-            location: activeLocation,
-            x: 0.35,
-            y: 0.3,
-            width: 0.3,
-            height: height,
-            rotation: 0,
-            isSvg: false,
-            aspectRatio
-          }
-          setLogos(prev => [...prev, newLogo])
-          setSelectedLogoId(newLogo.id)
+        setLogos(prev => [...prev, newLogo])
+        setSelectedLogoId(newLogo.id)
+        URL.revokeObjectURL(pdfUrl)
+      } else {
+        const placeholderUrl = createDesignFilePlaceholder(file.name)
+        const newLogo: Logo = {
+          id: `logo_${Date.now()}_${Math.random()}`,
+          url: placeholderUrl, originalUrl: placeholderUrl,
+          backgroundRemoved: false, location: activeLocation,
+          x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
+          isSvg: false, aspectRatio: 1
         }
+        setLogos(prev => [...prev, newLogo])
+        setSelectedLogoId(newLogo.id)
       }
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const content = event.target?.result as string
 
       if (isSvgFile) {
-        reader.readAsText(file)
+        const colors = extractSvgColors(content)
+        const initialColorMap: { [key: string]: string } = {}
+        colors.forEach(color => { initialColorMap[color] = color })
+
+        const svgBlob = new Blob([content], { type: 'image/svg+xml' })
+        const url = URL.createObjectURL(svgBlob)
+
+        const img = new Image()
+        await new Promise((resolve) => { img.onload = resolve; img.src = url })
+
+        const aspectRatio = img.naturalWidth / img.naturalHeight
+        const height = 0.3 / aspectRatio
+
+        const newLogo: Logo = {
+          id: `logo_${Date.now()}_${Math.random()}`,
+          url, originalUrl: url, backgroundRemoved: false,
+          location: activeLocation, x: 0.35, y: 0.3, width: 0.3, height, rotation: 0,
+          isSvg: true, svgContent: content, colorMap: initialColorMap, aspectRatio
+        }
+        setLogos(prev => [...prev, newLogo])
+        setSelectedLogoId(newLogo.id)
       } else {
-        reader.readAsDataURL(file)
+        const img = new Image()
+        await new Promise((resolve) => { img.onload = resolve; img.src = content })
+
+        const aspectRatio = img.naturalWidth / img.naturalHeight
+        const height = 0.3 / aspectRatio
+
+        const newLogo: Logo = {
+          id: `logo_${Date.now()}_${Math.random()}`,
+          url: content, originalUrl: content, backgroundRemoved: false,
+          location: activeLocation, x: 0.35, y: 0.3, width: 0.3, height, rotation: 0,
+          isSvg: false, aspectRatio
+        }
+        setLogos(prev => [...prev, newLogo])
+        setSelectedLogoId(newLogo.id)
       }
-    })
+    }
+
+    if (isSvgFile) {
+      reader.readAsText(file)
+    } else {
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    Array.from(files).forEach(file => processUploadedFile(file))
+    e.target.value = ''
+  }
+
+  const handleProjectFileClick = async (projectFile: { url: string; filename: string; contentType?: string }) => {
+    setLoadingProjectFile(projectFile.url)
+    try {
+      const response = await fetch(projectFile.url)
+      const blob = await response.blob()
+      const mimeType = projectFile.contentType || blob.type || 'application/octet-stream'
+      const file = new File([blob], projectFile.filename, { type: mimeType })
+      processUploadedFile(file)
+    } catch (err) {
+      console.error('Failed to load project file:', err)
+    } finally {
+      setLoadingProjectFile(null)
+    }
   }
 
   // Remove white background from image
@@ -1696,6 +1668,106 @@ export default function GarmentMockupBuilder({
                 Use Placeholder Image
               </button>
             </div>
+
+            {/* Project Files */}
+            {projectFiles.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <button
+                  onClick={() => setShowProjectFiles(!showProjectFiles)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    background: '#282a30',
+                    border: '1px solid rgba(148,163,184,0.2)',
+                    borderRadius: '8px',
+                    color: '#f1f5f9',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>Project Files ({projectFiles.length})</span>
+                  <span style={{ fontSize: '12px', transition: 'transform 0.2s', transform: showProjectFiles ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                </button>
+                {showProjectFiles && (
+                  <div style={{
+                    marginTop: '8px',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: '8px'
+                  }}>
+                    {projectFiles.map((pf, idx) => {
+                      const isImage = pf.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(pf.filename)
+                      const isLoading = loadingProjectFile === pf.url
+                      const ext = pf.filename.split('.').pop()?.toUpperCase() || '?'
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => handleProjectFileClick(pf)}
+                          disabled={isLoading}
+                          title={pf.filename}
+                          style={{
+                            padding: '4px',
+                            background: '#1e1f25',
+                            border: '1px solid rgba(148,163,184,0.2)',
+                            borderRadius: '6px',
+                            cursor: isLoading ? 'wait' : 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '4px',
+                            opacity: isLoading ? 0.5 : 1
+                          }}
+                        >
+                          {isImage ? (
+                            <img
+                              src={pf.thumbnail_url || pf.url}
+                              alt={pf.filename}
+                              style={{
+                                width: '100%',
+                                height: '60px',
+                                objectFit: 'contain',
+                                borderRadius: '4px',
+                                background: '#fff'
+                              }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: '100%',
+                              height: '60px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: '#282a30',
+                              borderRadius: '4px',
+                              color: '#94a3b8',
+                              fontSize: '11px',
+                              fontWeight: 700
+                            }}>
+                              {ext}
+                            </div>
+                          )}
+                          <span style={{
+                            color: '#94a3b8',
+                            fontSize: '10px',
+                            width: '100%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            textAlign: 'center'
+                          }}>
+                            {pf.filename}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Add Text */}
             <div style={{ marginBottom: '24px' }}>

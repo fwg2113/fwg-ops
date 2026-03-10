@@ -34,6 +34,7 @@ const navSections = [
     items: [
       { href: '/fa-orders', label: 'FA', labelGradient: 'Orders', icon: 'shirt', badgeKey: 'fa-orders' },
       { href: '/purchase-orders', label: 'Purchase', labelGradient: 'Orders', icon: 'truck', badgeKey: 'purchase-orders' },
+      { href: '/image-enhancer', label: 'Image', labelGradient: 'Enhancer', icon: 'sparkle' },
     ]
   },
   {
@@ -166,6 +167,11 @@ const icons: Record<string, React.ReactElement> = {
   shirt: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z"></path>
+    </svg>
+  ),
+  sparkle: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"></path>
     </svg>
   ),
   bug: (
