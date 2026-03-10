@@ -3103,7 +3103,7 @@ export default function DocumentDetail({
     if (status === 'viewed') return { bg: 'rgba(168,85,247,0.2)', color: '#a855f7' }
     if (status === 'approved' || status === 'paid') return { bg: 'rgba(34,197,94,0.2)', color: '#22c55e' }
     if (status === 'declined' || status === 'overdue') return { bg: 'rgba(239,68,68,0.2)', color: '#ef4444' }
-    if (status === 'pending' || status === 'partial') return { bg: 'rgba(245,158,11,0.2)', color: '#f59e0b' }
+    if (status === 'pending' || status === 'partial' || status === 'ach_pending') return { bg: 'rgba(245,158,11,0.2)', color: '#f59e0b' }
     return { bg: 'rgba(100,116,139,0.2)', color: '#94a3b8' }
   }
 
@@ -3335,12 +3335,13 @@ export default function DocumentDetail({
                 if (isPaid) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(34,197,94,0.2)', color: '#22c55e' }}>PAID IN FULL</span>
                 if (depositPaid) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}>DEPOSIT PAID</span>
                 if (isPartial) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}>PARTIAL PAYMENT</span>
+                if (doc.status === 'ach_pending') return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }}>ACH PENDING</span>
                 if (isInvoice) return <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: 'rgba(239,68,68,0.2)', color: '#ef4444' }}>UNPAID</span>
                 return null
               })()}
             </div>
             <div style={{ color: '#64748b', fontSize: '14px' }}>
-              Status: <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 500, background: statusStyle.bg, color: statusStyle.color, textTransform: 'capitalize', marginLeft: '4px' }}>{doc.status || 'Draft'}</span>
+              Status: <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 500, background: statusStyle.bg, color: statusStyle.color, textTransform: 'capitalize', marginLeft: '4px' }}>{doc.status === 'ach_pending' ? 'ACH Pending' : (doc.status || 'Draft')}</span>
               <span style={{ margin: '0 8px' }}>-</span>Created: {formatDate(doc.created_at)}
             </div>
           </div>

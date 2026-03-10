@@ -195,6 +195,7 @@ export default function DocumentList({
       case 'declined': return { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }
       case 'pending': return { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }
       case 'partial': return { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }
+      case 'ach_pending': return { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }
       case 'paid': return { bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }
       case 'overdue': return { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }
       default: return { bg: 'rgba(100, 116, 139, 0.15)', color: '#94a3b8' }
@@ -470,7 +471,7 @@ export default function DocumentList({
                         color: statusStyle.color,
                         textTransform: 'capitalize'
                       }}>
-                        {doc.status || 'Draft'}
+                        {doc.status === 'ach_pending' ? 'ACH Pending' : (doc.status || 'Draft')}
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
