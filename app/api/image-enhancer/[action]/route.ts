@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
 const VALID_ACTIONS = new Set(['analyze-image', 'enhance', 'remove-background', 'vectorize'])
 const FORMDATA_ACTIONS = new Set(['analyze-image', 'enhance', 'remove-background'])
 const FA_API_BASE = 'https://frederickapparel.com/api/ai'

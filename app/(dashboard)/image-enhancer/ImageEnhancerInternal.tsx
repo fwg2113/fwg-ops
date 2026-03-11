@@ -18,7 +18,7 @@ interface AnalysisResult {
 
 type CardStatus = 'idle' | 'loading' | 'done' | 'error'
 
-const API_BASE = '/api/image-enhancer'
+const API_BASE = 'https://frederickapparel.com/api/ai'
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 const ACCEPTED_TYPES = '.png,.jpg,.jpeg,.svg,.pdf,.ai,.eps'
 
@@ -132,6 +132,15 @@ export default function ImageEnhancerInternal() {
   const getBestRaster = () => bgRemovedBase64 || enhancedBase64 || originalBase64
   const getBestForProcessing = () => enhancedBase64 || originalBase64
 
+  const dataUrlToBlob = (dataUrl: string): Blob => {
+    const [header, data] = dataUrl.split(',')
+    const mime = header.match(/:(.*?);/)?.[1] || 'image/png'
+    const bytes = atob(data)
+    const arr = new Uint8Array(bytes.length)
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+    return new Blob([arr], { type: mime })
+  }
+
   const reset = () => {
     setFile(null); setOriginalBase64('')
     setAnalysisResult(null); setAnalysisStatus('idle'); setAnalysisError('')
@@ -227,9 +236,10 @@ export default function ImageEnhancerInternal() {
     if (!originalBase64) return
     setAnalysisStatus('loading'); setAnalysisError('')
     try {
+      const form = new FormData()
+      form.append('file', dataUrlToBlob(originalBase64), 'upload.png')
       const res = await fetch(`${API_BASE}/analyze-image`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: originalBase64 }),
+        method: 'POST', body: form,
       })
       if (!res.ok) throw new Error(`Analysis failed (${res.status})`)
       setAnalysisResult(await res.json())
@@ -243,9 +253,10 @@ export default function ImageEnhancerInternal() {
     if (!originalBase64) return
     setEnhanceStatus('loading'); setEnhanceError('')
     try {
+      const form = new FormData()
+      form.append('file', dataUrlToBlob(originalBase64), 'upload.png')
       const res = await fetch(`${API_BASE}/enhance`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: originalBase64 }),
+        method: 'POST', body: form,
       })
       if (!res.ok) throw new Error(`Enhancement failed (${res.status})`)
       const json = await res.json()
@@ -261,9 +272,11 @@ export default function ImageEnhancerInternal() {
     if (!data) return
     setBgRemoveStatus('loading'); setBgRemoveError('')
     try {
+      const form = new FormData()
+      form.append('file', dataUrlToBlob(data), 'upload.png')
+      if (bgColor) form.append('background', bgColor)
       const res = await fetch(`${API_BASE}/remove-background`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: data, background: bgColor }),
+        method: 'POST', body: form,
       })
       if (!res.ok) throw new Error(`Background removal failed (${res.status})`)
       const json = await res.json()
