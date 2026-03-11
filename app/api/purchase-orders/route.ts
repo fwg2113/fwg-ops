@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       quantity: item.quantity,
       inventoryKey: item.inventoryKey,
       sizeIndex: item.sizeIndex,
+      whseNo: undefined as string | undefined,
     }))
 
     const poParams = {
@@ -207,6 +208,20 @@ export async function POST(request: NextRequest) {
           error: 'Failed to validate inventory with SanMar',
           details: String(validationError),
         }, { status: 502 })
+      }
+    }
+
+    // Enrich items with warehouse assignments from validation
+    // Prefer warehouse 5 (Robbinsville NJ) when validation confirmed it;
+    // otherwise use the warehouse SanMar suggested (closest to ship address).
+    if (validationResult?.items) {
+      for (const sanmarItem of sanmarItems) {
+        const validated = validationResult.items.find(
+          (vi: any) => vi.style === sanmarItem.style && vi.size === sanmarItem.size && vi.color === sanmarItem.color
+        )
+        if (validated?.whseNo) {
+          sanmarItem.whseNo = validated.whseNo
+        }
       }
     }
 

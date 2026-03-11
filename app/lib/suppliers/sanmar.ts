@@ -727,6 +727,7 @@ export class SanMarClient {
       quantity: number
       inventoryKey?: number
       sizeIndex?: number
+      whseNo?: string
     }>
   }): Promise<{
     success: boolean
@@ -741,7 +742,7 @@ export class SanMarClient {
         <color>${item.color}</color>
         <size>${item.size}</size>
         <quantity>${item.quantity}</quantity>
-        <whseNo />
+        <whseNo>${item.whseNo || ''}</whseNo>
       </webServicePoDetailList>`).join('')
 
     const soapBody = `<web:submitPO>
