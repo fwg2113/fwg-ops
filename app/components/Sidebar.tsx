@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 
@@ -472,9 +471,17 @@ export default function Sidebar() {
               const isActive = pathname === item.href
               const badgeCount = 'badgeKey' in item ? unreadCounts[item.badgeKey as keyof typeof unreadCounts] : 0
               return (
-                <Link
+                <a
                   key={item.href}
                   href={item.href}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    if ((window as any).__documentIsDirty) {
+                      if (!confirm('You have unsaved changes. Leave anyway?')) return
+                      ;(window as any).__documentIsDirty = false
+                    }
+                    router.push(item.href)
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -523,7 +530,7 @@ export default function Sidebar() {
                       {item.badge}
                     </span>
                   )}
-                </Link>
+                </a>
               )
             })}
           </div>
