@@ -1953,8 +1953,8 @@ export default function DocumentDetail({
         cf.sizes = sizes
       }
 
-      // If quantity changed, recalculate garment prices with new markup
-      if (fieldPath.includes('.qty') && (isDTFApparel({ ...item, custom_fields: cf }) || isEmbroideryApparel({ ...item, custom_fields: cf }))) {
+      // If quantity changed, recalculate garment prices with new markup (skip if manual override)
+      if (fieldPath.includes('.qty') && !cf.manual_price_override && (isDTFApparel({ ...item, custom_fields: cf }) || isEmbroideryApparel({ ...item, custom_fields: cf }))) {
         const sizes = { ...(cf.sizes || {}) }
         const newTotalQty = Object.values(sizes).reduce((sum: number, s: any) => sum + (s.qty || 0), 0)
         const getAutoMarkup = isDTFApparel({ ...item, custom_fields: cf }) ? getDTFMarkupPercent : getEmbroideryMarkupPercent
