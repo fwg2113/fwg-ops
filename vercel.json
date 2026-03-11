@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "app/api/image-enhancer/[action]/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
