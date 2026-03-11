@@ -86,6 +86,8 @@ export default function ImageEnhancerInternal() {
   // Upload
   const [file, setFile] = useState<File | null>(null)
   const [originalBase64, setOriginalBase64] = useState('')
+  const [fileUrl, setFileUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Analyze
@@ -130,19 +132,9 @@ export default function ImageEnhancerInternal() {
     })
 
   const getBestRaster = () => bgRemovedBase64 || enhancedBase64 || originalBase64
-  const getBestForProcessing = () => enhancedBase64 || originalBase64
-
-  const dataUrlToBlob = (dataUrl: string): Blob => {
-    const [header, data] = dataUrl.split(',')
-    const mime = header.match(/:(.*?);/)?.[1] || 'image/png'
-    const bytes = atob(data)
-    const arr = new Uint8Array(bytes.length)
-    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
-    return new Blob([arr], { type: mime })
-  }
 
   const reset = () => {
-    setFile(null); setOriginalBase64('')
+    setFile(null); setOriginalBase64(''); setFileUrl(''); setUploading(false)
     setAnalysisResult(null); setAnalysisStatus('idle'); setAnalysisError('')
     setEnhancedBase64(''); setEnhanceStatus('idle'); setEnhanceError('')
     setBgRemovedBase64(''); setBgRemoveStatus('idle'); setBgRemoveError('')
@@ -212,13 +204,43 @@ export default function ImageEnhancerInternal() {
   const handleFile = useCallback(async (f: File) => {
     if (f.size > MAX_FILE_SIZE) { alert('File exceeds 20MB limit.'); return }
     setFile(f)
-    const b64 = await fileToBase64(f)
-    setOriginalBase64(b64)
+    setFileUrl('')
+    setUploading(true)
     // Reset tool results
     setAnalysisResult(null); setAnalysisStatus('idle'); setAnalysisError('')
     setEnhancedBase64(''); setEnhanceStatus('idle'); setEnhanceError('')
     setBgRemovedBase64(''); setBgRemoveStatus('idle'); setBgRemoveError('')
     setVectorizedSvg(''); setVectorizeStatus('idle'); setVectorizeError('')
+
+    // Generate local preview
+    const b64 = await fileToBase64(f)
+    setOriginalBase64(b64)
+
+    // Upload to R2 via presigned URL
+    try {
+      const presignRes = await fetch('/api/image-enhancer/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: f.name, contentType: f.type }),
+      })
+      if (!presignRes.ok) throw new Error('Failed to get upload URL')
+      const { uploadUrl, fileUrl: url } = await presignRes.json()
+
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: f,
+        headers: { 'Content-Type': f.type || 'application/octet-stream' },
+      })
+      if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`)
+
+      setFileUrl(url)
+    } catch (err: any) {
+      console.error('R2 upload failed:', err)
+      alert('Failed to upload file. Please try again.')
+      setFile(null); setOriginalBase64('')
+    } finally {
+      setUploading(false)
+    }
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -233,13 +255,13 @@ export default function ImageEnhancerInternal() {
   // --- API calls ---
 
   const runAnalyze = async () => {
-    if (!originalBase64) return
+    if (!fileUrl) return
     setAnalysisStatus('loading'); setAnalysisError('')
     try {
-      const form = new FormData()
-      form.append('file', dataUrlToBlob(originalBase64), 'upload.png')
       const res = await fetch(`${API_BASE}/analyze-image`, {
-        method: 'POST', body: form,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl }),
       })
       if (!res.ok) throw new Error(`Analysis failed (${res.status})`)
       setAnalysisResult(await res.json())
@@ -250,13 +272,13 @@ export default function ImageEnhancerInternal() {
   }
 
   const runEnhance = async () => {
-    if (!originalBase64) return
+    if (!fileUrl) return
     setEnhanceStatus('loading'); setEnhanceError('')
     try {
-      const form = new FormData()
-      form.append('file', dataUrlToBlob(originalBase64), 'upload.png')
       const res = await fetch(`${API_BASE}/enhance`, {
-        method: 'POST', body: form,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl }),
       })
       if (!res.ok) throw new Error(`Enhancement failed (${res.status})`)
       const json = await res.json()
@@ -268,15 +290,13 @@ export default function ImageEnhancerInternal() {
   }
 
   const runBgRemove = async () => {
-    const data = getBestForProcessing()
-    if (!data) return
+    if (!fileUrl) return
     setBgRemoveStatus('loading'); setBgRemoveError('')
     try {
-      const form = new FormData()
-      form.append('file', dataUrlToBlob(data), 'upload.png')
-      if (bgColor) form.append('background', bgColor)
       const res = await fetch(`${API_BASE}/remove-background`, {
-        method: 'POST', body: form,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl, background: bgColor }),
       })
       if (!res.ok) throw new Error(`Background removal failed (${res.status})`)
       const json = await res.json()
@@ -288,6 +308,7 @@ export default function ImageEnhancerInternal() {
   }
 
   const runVectorize = async () => {
+    // Vectorize sends base64 directly (small payload after processing)
     const data = getBestRaster()
     if (!data) return
     setVectorizeStatus('loading'); setVectorizeError('')
@@ -833,8 +854,16 @@ export default function ImageEnhancerInternal() {
           />
         </div>
 
-        {/* Tools Grid — only visible when file is uploaded */}
-        {file && (
+        {/* Upload progress */}
+        {file && uploading && (
+          <div style={{ ...cardStyle, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Spinner size={22} />
+            <span style={{ color: '#94a3b8', fontSize: '13px' }}>Uploading file to cloud storage...</span>
+          </div>
+        )}
+
+        {/* Tools Grid — only visible when file is uploaded to R2 */}
+        {file && fileUrl && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
               {renderAnalyzeCard()}

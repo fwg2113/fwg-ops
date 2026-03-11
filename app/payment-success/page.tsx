@@ -65,7 +65,7 @@ export default async function PaymentSuccessPage({
       const baseAmount = session.metadata?.base_amount ? parseFloat(session.metadata.base_amount) : stripeAmount
       amount = baseAmount
 
-      // Prevent duplicate payment records (e.g. customer refreshes success page)
+      // Check if payment already recorded (e.g. webhook arrived first or customer refreshes)
       const { data: existingPayment } = await supabase
         .from('payments')
         .select('id')
@@ -162,10 +162,10 @@ export default async function PaymentSuccessPage({
         const baseAmount = parsedBase > 0 ? parsedBase : stripeAmount
         const processingFee = stripeAmount - baseAmount
 
-        // Insert payment record and get the ID back
+        // Upsert payment record (idempotent — handles race with webhook)
         const { data: paymentRecord, error: paymentError } = await supabase
           .from('payments')
-          .insert({
+          .upsert({
             document_id: documentId,
             amount: stripeAmount,
             processing_fee: processingFee > 0 ? processingFee : 0,
@@ -175,7 +175,7 @@ export default async function PaymentSuccessPage({
             status: 'completed',
             read: false,
             created_at: new Date().toISOString()
-          })
+          }, { onConflict: 'processor_txn_id', ignoreDuplicates: true })
           .select()
           .single()
 

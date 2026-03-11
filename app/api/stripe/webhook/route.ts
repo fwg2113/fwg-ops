@@ -166,18 +166,6 @@ async function handlePaymentIntentSucceeded(paymentIntent: any) {
 async function recordPayment(session: any, documentId: string) {
   const paymentIntentId = session.payment_intent
 
-  // Duplicate check by processor_txn_id
-  const { data: existingPayment } = await supabase
-    .from('payments')
-    .select('id')
-    .eq('processor_txn_id', paymentIntentId)
-    .maybeSingle()
-
-  if (existingPayment) {
-    console.log(`[stripe-webhook] Payment already recorded for ${paymentIntentId} — skipping`)
-    return
-  }
-
   const { data: doc } = await supabase
     .from('documents')
     .select('*')
@@ -263,10 +251,10 @@ async function recordPayment(session: any, documentId: string) {
     }
   }
 
-  // Insert payment record
+  // Upsert payment record (idempotent — handles duplicate webhook deliveries)
   const { data: paymentRecord, error: paymentError } = await supabase
     .from('payments')
-    .insert({
+    .upsert({
       document_id: documentId,
       amount: stripeAmount,
       processing_fee: processingFee > 0 ? processingFee : 0,
@@ -276,12 +264,12 @@ async function recordPayment(session: any, documentId: string) {
       status: 'completed',
       read: false,
       created_at: new Date().toISOString(),
-    })
+    }, { onConflict: 'processor_txn_id', ignoreDuplicates: true })
     .select()
     .single()
 
   if (paymentError) {
-    console.error('[stripe-webhook] Failed to insert payment:', paymentError)
+    console.error('[stripe-webhook] Failed to upsert payment:', paymentError)
     return
   }
 
