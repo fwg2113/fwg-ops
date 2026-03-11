@@ -18,7 +18,7 @@ interface AnalysisResult {
 
 type CardStatus = 'idle' | 'loading' | 'done' | 'error'
 
-const API_BASE = 'https://frederickapparel.com/api/ai'
+const API_BASE = '/api/image-enhancer'
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 const ACCEPTED_TYPES = '.png,.jpg,.jpeg,.svg,.pdf,.ai,.eps'
 
