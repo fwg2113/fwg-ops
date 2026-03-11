@@ -1,5 +1,3 @@
-Modify production flow to load with all the tasks collapsed. 
-Add materials to supabase
-Building new quote modal when typing in a customer name to search, the search results work great but when clicking on a name it loads the customer info on first click but a second click is needed to close the customer search results box.
-Need to remove all the up and down arrows on the line items SqFt, Rate, Qty, Price etc. Anyone of them that have those stupid arrows.
-Need payments to be added to a specific google sheet. "TRANSACTIONS" 
+Need to fix purchase orders to Sanmar. We placed our first one last week and everything worked really well except that it came from the OH location which took 3 days. I don't know how its currently wired but I thought it was set up to always prioritize the NJ location with PA or VA being the next ones when product is not available. In short I want any and all garments to come from NJ, PA or VA in that order. 
+We need to change when DTF, Apparel and Embroidery Emails updates go out. We also need to change the wording a bit.
+The service option for Custom Branded Apparel (DTF) needs to be changed to "Printed Apparel"
