@@ -238,9 +238,9 @@ export default function DocumentDetail({
 }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [saving, setSaving] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
 
   // Background removal modal state
   const [showBgRemovalModal, setShowBgRemovalModal] = useState(false)
@@ -321,7 +321,7 @@ export default function DocumentDetail({
     if (tot > 0 && Math.abs(dep - tot) < 0.01) return 'full'
     if (tot > 0 && Math.abs(dep - (tot * 0.5)) < 0.01) return '50%'
     if (dep > 0) return 'custom'
-    return '50%'
+    return 'full'
   })
   const [validUntil, setValidUntil] = useState(initialDoc.valid_until ? initialDoc.valid_until.split('T')[0] : '')
   const [notes, setNotes] = useState(initialDoc.notes || '')
@@ -365,10 +365,9 @@ export default function DocumentDetail({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleDiscountNoteBlur = async () => {
-    const { error } = await supabase.from('documents').update({ discount_note: discountNote }).eq('id', doc.id)
-    if (!error) { setDoc({ ...doc, discount_note: discountNote }); showAutosave(true) }
-    else showAutosave(false)
+  const handleDiscountNoteBlur = () => {
+    setDoc({ ...doc, discount_note: discountNote })
+    setIsDirty(true)
   }
 
   // Payments state
@@ -551,15 +550,6 @@ export default function DocumentDetail({
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }
 
-  // Autosave toast — subtle, bottom-center, auto-dismiss 2s
-  const [autosaveToast, setAutosaveToast] = useState<{ message: string, type: 'ok' | 'fail' } | null>(null)
-  const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-  const showAutosave = (success: boolean) => {
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
-    setAutosaveToast(success ? { message: 'Autosaved', type: 'ok' } : { message: 'Autosave failed — click Save to retry', type: 'fail' })
-    autosaveTimerRef.current = setTimeout(() => setAutosaveToast(null), success ? 2000 : 5000)
-  }
 
   // Line item lightbox state
   const [lineItemLightbox, setLineItemLightbox] = useState<{itemId: string, index: number} | null>(null)
@@ -680,8 +670,21 @@ export default function DocumentDetail({
     const changed = customerName !== (initialDoc.customer_name || '') || companyName !== (initialDoc.company_name || '') ||
       customerEmail !== (initialDoc.customer_email || '') || customerPhone !== (initialDoc.customer_phone || '') ||
       vehicleDescription !== (initialDoc.vehicle_description || '') || projectDescription !== (initialDoc.project_description || '')
-    setHasChanges(changed)
+    if (changed) setIsDirty(true)
   }, [customerName, companyName, customerEmail, customerPhone, vehicleDescription, projectDescription, initialDoc])
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    (window as any).__documentIsDirty = isDirty
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) { e.preventDefault(); e.returnValue = '' }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => {
+      window.removeEventListener('beforeunload', handler)
+      ;(window as any).__documentIsDirty = false
+    }
+  }, [isDirty])
 
   // Customer autocomplete
   useEffect(() => {
@@ -752,38 +755,9 @@ export default function DocumentDetail({
     setCustomerPhone(customer.phone || '')
     setCustomerSearch('')
     setShowCustomerDropdown(false)
-    setHasChanges(true)
+    setIsDirty(true)
   }
 
-  const handleSaveDocument = async () => {
-    setSaving(true)
-    const discount = discountAmountInput || (subtotal * discountPercentInput / 100)
-    const newTotal = subtotal + feesTotal - discount + taxAmountInput
-    const updates = {
-      customer_name: customerName,
-      company_name: companyName,
-      customer_email: customerEmail,
-      customer_phone: customerPhone,
-      vehicle_description: vehicleDescription,
-      project_description: projectDescription,
-      discount_amount: discountAmountInput,
-      discount_percent: discountPercentInput,
-      discount_note: discountNote,
-      tax_amount: taxAmountInput,
-      deposit_required: depositRequired,
-      valid_until: validUntil || null,
-      notes: notes,
-      subtotal,
-      total: newTotal,
-      fees,
-    }
-    const { error } = await supabase.from('documents').update(updates).eq('id', doc.id)
-    if (!error) {
-      setDoc({ ...doc, ...updates })
-      setHasChanges(false)
-    }
-    setSaving(false)
-  }
 
   const [linkCopied, setLinkCopied] = useState(false)
   const handleCopyLink = () => {
@@ -974,7 +948,15 @@ export default function DocumentDetail({
     }
     setSendingFollowUp(false)
   }
-  const handleOpenSendModal = () => {
+  const handleOpenSendModal = async () => {
+    // If there are unsaved changes, prompt user to save first
+    if (isDirty) {
+      const choice = confirm('You have unsaved changes. Save before sending?')
+      if (choice) {
+        await handleSaveAll()
+      }
+      // Proceed to open modal regardless (changes were either saved or user chose not to)
+    }
     // Load previous send settings if available, otherwise use defaults
     const prev = (() => {
       try {
@@ -1161,7 +1143,7 @@ export default function DocumentDetail({
   const handleMarkApproved = async () => {
     if (!confirm('Mark this quote as approved? This will also convert it to an invoice.')) return
     
-    setSaving(true)
+    setIsSaving(true)
     try {
       const res = await fetch('/api/documents/approve', {
         method: 'POST',
@@ -1182,11 +1164,11 @@ export default function DocumentDetail({
       console.error('Approve error:', err)
       showToast('Failed to approve quote', 'error')
     }
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleResetApproval = async () => {
-    setSaving(true)
+    setIsSaving(true)
     try {
       const res = await fetch('/api/documents/reset-approval', {
         method: 'POST',
@@ -1213,20 +1195,20 @@ export default function DocumentDetail({
       console.error('Reset approval error:', err)
       showToast('Failed to reset approval', 'error')
     }
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleConvertToInvoice = async () => {
     if (!confirm('Convert to invoice?')) return
-    setSaving(true)
+    setIsSaving(true)
     await supabase.from('documents').update({ doc_type: 'invoice', status: 'pending' }).eq('id', doc.id)
     setDoc({ ...doc, doc_type: 'invoice', status: 'pending' })
     await appendHistory('Converted', 'Converted from quote to invoice')
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleArchive = async () => {
-    setSaving(true)
+    setIsSaving(true)
     const bucketValue = archiveBucket === 'won' ? 'ARCHIVE_WON' : 'ARCHIVE_LOST'
     const reason = archiveBucket === 'lost' ? (archiveReason === 'OTHER' ? archiveOtherReason : archiveReason) : null
 
@@ -1241,7 +1223,7 @@ export default function DocumentDetail({
     if (error) {
       console.error('Archive error:', error)
       alert(`Failed to archive: ${error.message}`)
-      setSaving(false)
+      setIsSaving(false)
       return
     }
 
@@ -1249,17 +1231,17 @@ export default function DocumentDetail({
     setDoc({ ...doc, status: 'archived', bucket: bucketValue })
     await appendHistory('Archived', `Archived as ${archiveBucket}${reason ? ': ' + reason : ''}`)
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleMoveToCold = async () => {
     if (!confirm(`Move this ${doc.doc_type} to Cold?`)) return
-    setSaving(true)
+    setIsSaving(true)
     await supabase.from('documents').update({ bucket: 'COLD' }).eq('id', doc.id)
     setDoc({ ...doc, bucket: 'COLD' })
     await appendHistory('Moved to Cold', 'Document moved to cold bucket')
     router.push(doc.doc_type === 'quote' ? '/quotes' : '/invoices')
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleToggleSnooze = async () => {
@@ -1280,7 +1262,7 @@ export default function DocumentDetail({
   }
 
   const handleSaveFulfillment = async () => {
-    setSaving(true)
+    setIsSaving(true)
     await supabase.from('documents').update({
       fulfillment_type: fulfillmentType || null,
       fulfillment_details: fulfillmentDetails
@@ -1288,7 +1270,7 @@ export default function DocumentDetail({
     setDoc({ ...doc, fulfillment_type: fulfillmentType, fulfillment_details: fulfillmentDetails })
     await appendHistory('Fulfillment Updated', `Set to ${fulfillmentType ? fulfillmentType.replace(/_/g, ' ') : 'none'}`)
     setShowFulfillmentModal(false)
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleDelete = async () => {
@@ -1428,7 +1410,7 @@ export default function DocumentDetail({
 
   const handleMoveToProduction = async () => {
     if (!confirm('Move this invoice to Production? This will generate production tasks based on line item categories.')) return
-    setSaving(true)
+    setIsSaving(true)
 
     try {
       // Call new API to generate tasks from templates
@@ -1458,15 +1440,15 @@ export default function DocumentDetail({
       showToast('Failed to move to production', 'error')
     }
 
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleMarkPaid = async () => {
-    setSaving(true)
+    setIsSaving(true)
     await supabase.from('documents').update({ status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 }).eq('id', doc.id)
     setDoc({ ...doc, status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 })
     await appendHistory('Marked Paid', `Manually marked as paid in full`)
-    setSaving(false)
+    setIsSaving(false)
   }
 
   const handleSendRevisionReply = async () => {
@@ -1856,16 +1838,7 @@ export default function DocumentDetail({
     )
     setLineItems(newItems)
 
-    const updatedItem = newItems.find(i => i.id === itemId)
-    if (updatedItem) {
-      await supabase.from('line_items').update({
-        quantity: updatedItem.quantity,
-        sqft: updatedItem.sqft,
-        unit_price: updatedItem.unit_price,
-        rate: updatedItem.rate,
-        line_total: updatedItem.line_total,
-      }).eq('id', itemId)
-    }
+    setIsDirty(true)
     updateDocumentTotals(newItems)
   }
 
@@ -1886,18 +1859,7 @@ export default function DocumentDetail({
       }
     })
     setLineItems(newItems)
-
-    const updatedItem = newItems.find(i => i.id === itemId)
-    if (updatedItem) {
-      await supabase.from('line_items').update({
-        addon_fees: fees,
-        quantity: updatedItem.quantity,
-        sqft: updatedItem.sqft,
-        unit_price: updatedItem.unit_price,
-        rate: updatedItem.rate,
-        line_total: updatedItem.line_total,
-      }).eq('id', itemId)
-    }
+    setIsDirty(true)
     updateDocumentTotals(newItems)
   }
 
@@ -1987,16 +1949,7 @@ export default function DocumentDetail({
     setLineItems(newItems)
 
     const updatedItem = newItems.find(i => i.id === itemId)
-    if (updatedItem) {
-      await supabase.from('line_items').update({
-        quantity: updatedItem.quantity,
-        sqft: updatedItem.sqft,
-        unit_price: updatedItem.unit_price,
-        rate: updatedItem.rate,
-        line_total: updatedItem.line_total,
-        custom_fields: updatedItem.custom_fields,
-      }).eq('id', itemId)
-    }
+    setIsDirty(true)
     updateDocumentTotals(newItems)
   }
 
@@ -2480,25 +2433,7 @@ export default function DocumentDetail({
       return updated
     })
     setLineItems(newItems)
-    
-    // Save to database
-    const updatedItem = newItems.find(i => i.id === itemId)
-    if (updatedItem) {
-      await supabase.from('line_items').update({
-        description: updatedItem.description,
-        category: updatedItem.category,
-        line_type: updatedItem.line_type,
-        package_key: updatedItem.package_key,
-        quantity: updatedItem.quantity,
-        sqft: updatedItem.sqft,
-        unit_price: updatedItem.unit_price,
-        rate: updatedItem.rate,
-        line_total: updatedItem.line_total,
-        taxable: updatedItem.taxable || false,
-        custom_fields: updatedItem.custom_fields || null
-      }).eq('id', itemId)
-    }
-    
+    setIsDirty(true)
     updateDocumentTotals(newItems)
   }
 
@@ -2518,11 +2453,11 @@ export default function DocumentDetail({
     updateDocumentTotals(newItems)
   }
 
-  const updateDocumentTotals = async (items: LineItem[]) => {
+  const updateDocumentTotals = (items: LineItem[]) => {
     const newSubtotal = items.reduce((sum, i) => sum + (i.line_total || 0), 0)
     const newTotal = newSubtotal + feesTotal - discountAmount + taxAmount
-    const { error } = await supabase.from('documents').update({ subtotal: newSubtotal, total: newTotal }).eq('id', doc.id)
-    showAutosave(!error)
+    setDoc(prev => ({ ...prev, subtotal: newSubtotal, total: newTotal }))
+    setIsDirty(true)
   }
 
   const duplicateLineItem = async (itemId: string, copyProduct: boolean, copyQuantities: boolean) => {
@@ -2993,14 +2928,13 @@ export default function DocumentDetail({
   // ============================================================================
   // FEE HANDLERS
   // ============================================================================
-  const addFee = async () => {
+  const addFee = () => {
     const newFees = [...fees, { fee_type: '', description: '', amount: 0 }]
     setFees(newFees)
-    const { error } = await supabase.from('documents').update({ fees: newFees }).eq('id', doc.id)
-    showAutosave(!error)
+    setIsDirty(true)
   }
-  
-  const updateFee = async (index: number, field: string, value: any) => {
+
+  const updateFee = (index: number, field: string, value: any) => {
     const newFees = [...fees]
     newFees[index] = { ...newFees[index], [field]: value }
     if (field === 'fee_type' && value) {
@@ -3011,84 +2945,93 @@ export default function DocumentDetail({
       }
     }
     setFees(newFees)
-    
-    // Calculate new totals
-    const newFeesTotal = newFees.reduce((sum, f) => sum + (f.amount || 0), 0)
-    const newTotal = subtotal + newFeesTotal - discountAmount + taxAmount
-    const { error } = await supabase.from('documents').update({ fees: newFees, total: newTotal }).eq('id', doc.id)
-    showAutosave(!error)
+    setIsDirty(true)
   }
 
-  const deleteFee = async (index: number) => {
+  const deleteFee = (index: number) => {
     const newFees = fees.filter((_, i) => i !== index)
     setFees(newFees)
-
-    // Calculate new totals
-    const newFeesTotal = newFees.reduce((sum, f) => sum + (f.amount || 0), 0)
-    const newTotal = subtotal + newFeesTotal - discountAmount + taxAmount
-    const { error } = await supabase.from('documents').update({ fees: newFees, total: newTotal }).eq('id', doc.id)
-    showAutosave(!error)
+    setIsDirty(true)
   }
 
-  const handleDiscountChange = async (overrideAmount?: number, overridePercent?: number) => {
+  const handleDiscountChange = (overrideAmount?: number, overridePercent?: number) => {
     const amount = overrideAmount ?? discountAmountInput
     const percent = overridePercent ?? discountPercentInput
     const newTotal = subtotal + feesTotal - (amount || (subtotal * percent / 100)) + taxAmountInput
-    const { error } = await supabase.from('documents').update({
-      discount_amount: amount,
-      discount_percent: percent,
-      discount_note: discountNote,
-      total: newTotal
-    }).eq('id', doc.id)
-    if (!error) {
-      setDoc({ ...doc, discount_amount: amount, discount_percent: percent, discount_note: discountNote, total: newTotal })
-      showAutosave(true)
-    } else {
-      showAutosave(false)
-    }
+    setDoc({ ...doc, discount_amount: amount, discount_percent: percent, discount_note: discountNote, total: newTotal })
+    setIsDirty(true)
   }
 
-  const handleTaxChange = async () => {
+  const handleTaxChange = () => {
     const discount = discountAmountInput || (subtotal * discountPercentInput / 100)
     const newTotal = subtotal + feesTotal - discount + taxAmountInput
-    const { error } = await supabase.from('documents').update({ tax_amount: taxAmountInput, total: newTotal }).eq('id', doc.id)
-    if (!error) { setDoc({ ...doc, tax_amount: taxAmountInput, total: newTotal }); showAutosave(true) }
-    else showAutosave(false)
+    setDoc({ ...doc, tax_amount: taxAmountInput, total: newTotal })
+    setIsDirty(true)
   }
 
   const handleSaveAll = async () => {
-    setSaving(true)
-    const discount = discountAmountInput || (subtotal * discountPercentInput / 100)
-    const newTotal = subtotal + feesTotal - discount + taxAmountInput
+    setIsSaving(true)
+    try {
+      // 1. Save all line items
+      const lineItemPromises = lineItems.map(item =>
+        supabase.from('line_items').update({
+          description: item.description,
+          category: item.category,
+          line_type: item.line_type,
+          package_key: item.package_key,
+          quantity: item.quantity,
+          sqft: item.sqft,
+          unit_price: item.unit_price,
+          rate: item.rate,
+          line_total: item.line_total,
+          taxable: item.taxable || false,
+          custom_fields: item.custom_fields || null,
+          addon_fees: item.addon_fees || null,
+        }).eq('id', item.id)
+      )
+      await Promise.all(lineItemPromises)
 
-    const updates = {
-      customer_name: customerName,
-      company_name: companyName,
-      customer_email: customerEmail,
-      customer_phone: customerPhone,
-      vehicle_description: vehicleDescription,
-      project_description: projectDescription,
-      discount_amount: discountAmountInput,
-      discount_percent: discountPercentInput,
-      discount_note: discountNote,
-      tax_amount: taxAmountInput,
-      deposit_required: depositRequired,
-      valid_until: validUntil || null,
-      notes: notes,
-      subtotal: subtotal,
-      total: newTotal,
-      fees: fees
-    }
+      // 2. Recalculate totals from current state
+      const newSubtotal = lineItems.reduce((sum, i) => sum + (i.line_total || 0), 0)
+      const newFeesTotal = fees.reduce((sum, f) => sum + (f.amount || 0), 0)
+      const discount = discountAmountInput || (newSubtotal * discountPercentInput / 100)
+      const taxableSubtotal = lineItems.filter(i => i.taxable).reduce((sum, i) => sum + (i.line_total || 0), 0)
+      const newTax = taxableSubtotal * 0.06
+      const newTotal = newSubtotal + newFeesTotal - discount + newTax
 
-    const { error } = await supabase.from('documents').update(updates).eq('id', doc.id)
-    if (!error) {
-      setDoc({ ...doc, ...updates })
-      setHasChanges(false)
-      showToast('Saved successfully', 'success')
-    } else {
-      showToast('Save failed: ' + error.message, 'error')
+      // 3. Save document fields
+      const updates = {
+        customer_name: customerName,
+        company_name: companyName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        vehicle_description: vehicleDescription,
+        project_description: projectDescription,
+        discount_amount: discountAmountInput,
+        discount_percent: discountPercentInput,
+        discount_note: discountNote,
+        tax_amount: newTax,
+        deposit_required: depositRequired,
+        valid_until: validUntil || null,
+        notes,
+        subtotal: newSubtotal,
+        total: newTotal,
+        fees,
+      }
+
+      const { error } = await supabase.from('documents').update(updates).eq('id', doc.id)
+      if (!error) {
+        setDoc({ ...doc, ...updates })
+        setIsDirty(false)
+        showToast('Saved', 'success')
+      } else {
+        showToast('Save failed: ' + error.message, 'error')
+      }
+    } catch (err) {
+      console.error('Save error:', err)
+      showToast('Save failed', 'error')
     }
-    setSaving(false)
+    setIsSaving(false)
   }
 
   // ============================================================================
@@ -3235,7 +3178,7 @@ export default function DocumentDetail({
           {/* Delete Button */}
           <ActionButton
             onClick={() => setShowDeleteModal(true)}
-            disabled={saving}
+            disabled={isSaving}
             variant="secondary"
             style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
           >
@@ -3256,7 +3199,7 @@ export default function DocumentDetail({
 
             if (!isArchived && !isCold && hasBeenSent) {
               return (
-                <ActionButton onClick={handleMoveToCold} disabled={saving} variant="secondary">
+                <ActionButton onClick={handleMoveToCold} disabled={isSaving} variant="secondary">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M2 12h4m12 0h4M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
                     <circle cx="12" cy="12" r="4"/>
@@ -3280,7 +3223,7 @@ export default function DocumentDetail({
                     setArchiveOtherReason('')
                     setShowArchiveModal(true)
                   }}
-                  disabled={saving}
+                  disabled={isSaving}
                   variant="secondary"
                 >
                   Archive
@@ -3293,7 +3236,7 @@ export default function DocumentDetail({
           {/* Snooze Button */}
           <ActionButton
             onClick={handleToggleSnooze}
-            disabled={saving}
+            disabled={isSaving}
             variant="secondary"
             style={doc.snoozed ? { color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.3)', background: 'rgba(245, 158, 11, 0.1)' } : {}}
           >
@@ -3353,6 +3296,15 @@ export default function DocumentDetail({
               const inProduction = doc.in_production === true
               const buttons = []
 
+              // Save button - show when there are unsaved changes
+              if (isDirty) {
+                buttons.push(
+                  <ActionButton key="save" onClick={handleSaveAll} disabled={isSaving} variant="success">
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </ActionButton>
+                )
+              }
+
               // Send to Zayn - show for embroidery documents
               if (hasEmbroideryItems) {
                 buttons.push(
@@ -3381,7 +3333,7 @@ export default function DocumentDetail({
               if (isQuote) {
                 // Send (unless declined/expired/archived)
                 if (doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
-                  buttons.push(<ActionButton key="send" onClick={handleOpenSendModal} disabled={saving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
+                  buttons.push(<ActionButton key="send" onClick={handleOpenSendModal} disabled={isSaving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
                 }
                 // Follow Up (if sent, not approved/declined/expired/archived)
                 if (hasBeenSent && !isArchived && doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired') {
@@ -3389,18 +3341,18 @@ export default function DocumentDetail({
                 }
                 // Mark Approved (unless already approved/declined/expired/archived)
                 if (doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
-                  buttons.push(<ActionButton key="approve" onClick={handleMarkApproved} disabled={saving} variant="success-outline">Mark Approved</ActionButton>)
+                  buttons.push(<ActionButton key="approve" onClick={handleMarkApproved} disabled={isSaving} variant="success-outline">Mark Approved</ActionButton>)
                 }
                 // Reset Approval (if approved and not archived)
                 if (doc.approved_at && !isArchived) {
-                  buttons.push(<ActionButton key="reset-approval" onClick={() => setShowResetApprovalModal(true)} disabled={saving} variant="warning">Reset Approval</ActionButton>)
+                  buttons.push(<ActionButton key="reset-approval" onClick={() => setShowResetApprovalModal(true)} disabled={isSaving} variant="warning">Reset Approval</ActionButton>)
                 }
               }
               
               if (isInvoice) {
                 // Send (unless void/paid/archived)
                 if (doc.status !== 'void' && doc.status !== 'paid' && !isArchived) {
-                  buttons.push(<ActionButton key="send" onClick={handleOpenSendModal} disabled={saving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
+                  buttons.push(<ActionButton key="send" onClick={handleOpenSendModal} disabled={isSaving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
                 }
                 // Follow Up (if sent, not paid/void/archived)
                 if (hasBeenSent && !isArchived && doc.status !== 'paid' && doc.status !== 'void') {
@@ -3416,11 +3368,11 @@ export default function DocumentDetail({
                 }
                 // Move to Production (unless archived or already in production)
                 if (!isArchived && !inProduction) {
-                  buttons.push(<ActionButton key="production" onClick={handleMoveToProduction} disabled={saving} variant="primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>Move to Production</ActionButton>)
+                  buttons.push(<ActionButton key="production" onClick={handleMoveToProduction} disabled={isSaving} variant="primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>Move to Production</ActionButton>)
                 }
                 // Reset Approval (if approved and not archived)
                 if (doc.approved_at && !isArchived) {
-                  buttons.push(<ActionButton key="reset-approval" onClick={() => setShowResetApprovalModal(true)} disabled={saving} variant="warning">Reset Approval</ActionButton>)
+                  buttons.push(<ActionButton key="reset-approval" onClick={() => setShowResetApprovalModal(true)} disabled={isSaving} variant="warning">Reset Approval</ActionButton>)
                 }
               }
 
@@ -3532,7 +3484,6 @@ export default function DocumentDetail({
         </div>
         <div style={{ marginTop: '16px' }}><label style={labelStyle}>Vehicle / Subject</label><input type="text" value={vehicleDescription} onChange={(e) => setVehicleDescription(e.target.value)} placeholder="e.g., 2024 Ford Transit - White" style={inputStyle} /></div>
         <div style={{ marginTop: '16px' }}><label style={labelStyle}>Project Description</label><textarea value={projectDescription} onChange={(e) => setProjectDescription(e.target.value)} placeholder="Describe the project scope..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></div>
-        {hasChanges && <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}><button onClick={handleSaveDocument} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : 'Save Changes'}</button></div>}
       </div>
 
       {/* Project Files */}
@@ -3868,13 +3819,7 @@ export default function DocumentDetail({
                                                   }
                                                 })
                                                 setLineItems(newItems)
-
-                                                const updatedItem = newItems.find(i => i.id === item.id)
-                                                if (updatedItem) {
-                                                  await supabase.from('line_items').update({
-                                                    custom_fields: updatedItem.custom_fields,
-                                                  }).eq('id', item.id)
-                                                }
+                                                setIsDirty(true)
                                               }
                                             }}
                                             style={{
@@ -4711,7 +4656,7 @@ export default function DocumentDetail({
                   discountPercentInput > 0 ? 'custom%' :
                   discountAmountInput > 0 ? 'flat' : 'none'
                 } 
-                onChange={async (e) => {
+                onChange={(e) => {
                   const val = e.target.value
                   let newPercent = 0
                   let newAmount = 0
@@ -4736,16 +4681,11 @@ export default function DocumentDetail({
                   
                   setDiscountPercentInput(newPercent)
                   setDiscountAmountInput(newAmount)
-                  
+
                   const discount = newAmount || (subtotal * newPercent / 100)
                   const newTotal = subtotal + feesTotal - discount + taxAmountInput
-                  const { error: discErr } = await supabase.from('documents').update({
-                    discount_amount: newAmount,
-                    discount_percent: newPercent,
-                    total: newTotal
-                  }).eq('id', doc.id)
-                  if (!discErr) { setDoc({ ...doc, discount_amount: newAmount, discount_percent: newPercent, total: newTotal }); showAutosave(true) }
-                  else showAutosave(false)
+                  setDoc({ ...doc, discount_amount: newAmount, discount_percent: newPercent, total: newTotal })
+                  setIsDirty(true)
                 }}
                 style={{ ...inputStyle, width: '110px', padding: '8px 10px', fontSize: '13px' }}
               >
@@ -4805,7 +4745,7 @@ export default function DocumentDetail({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
               <select 
                 value={depositType} 
-                onChange={async (e) => {
+                onChange={(e) => {
                   const val = e.target.value as '50%' | 'full' | 'custom'
                   setDepositType(val)
                   let newDeposit = 0
@@ -4819,8 +4759,8 @@ export default function DocumentDetail({
                   }
                   
                   setDepositRequired(newDeposit)
-                  { const { error: depErr } = await supabase.from('documents').update({ deposit_required: newDeposit }).eq('id', doc.id); showAutosave(!depErr) }
                   setDoc({ ...doc, deposit_required: newDeposit })
+                  setIsDirty(true)
                 }}
                 style={{ ...inputStyle, width: '90px', padding: '8px 10px', fontSize: '13px' }}
               >
@@ -4834,9 +4774,9 @@ export default function DocumentDetail({
                   inputMode="decimal" 
                   value={depositRequired || ''} 
                   onChange={(e) => setDepositRequired(parseFloat(e.target.value) || 0)} 
-                  onBlur={async () => {
-                    const { error: depErr } = await supabase.from('documents').update({ deposit_required: depositRequired }).eq('id', doc.id); showAutosave(!depErr)
+                  onBlur={() => {
                     setDoc({ ...doc, deposit_required: depositRequired })
+                    setIsDirty(true)
                   }}
                   style={{ ...inputStyle, width: '80px', padding: '8px 10px', fontSize: '13px', textAlign: 'right' }} 
                   placeholder="0.00"
@@ -5172,13 +5112,13 @@ export default function DocumentDetail({
 
       {/* Sticky Footer */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '20px 24px', background: 'linear-gradient(to top, #111111 60%, transparent)', display: 'flex', alignItems: 'center', gap: '12px', zIndex: 100 }}>
-        <ActionButton onClick={() => router.back()} variant="secondary">
+        <ActionButton onClick={() => { if (isDirty && !confirm('You have unsaved changes. Discard?')) return; router.back() }} variant="secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
           Back
         </ActionButton>
         <button
           onClick={handleSaveAll}
-          disabled={saving}
+          disabled={isSaving}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -5191,7 +5131,7 @@ export default function DocumentDetail({
             fontSize: '15px',
             fontWeight: 600,
             cursor: 'pointer',
-            opacity: saving ? 0.7 : 1,
+            opacity: isSaving ? 0.7 : 1,
             boxShadow: '0 0 20px rgba(215, 28, 209, 0.4)',
             transition: 'all 0.2s ease',
             transform: 'scale(1)'
@@ -5212,7 +5152,7 @@ export default function DocumentDetail({
           }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          {saving ? 'Saving...' : 'Save'}
+          {isSaving ? 'Saving...' : 'Save'}
         </button>
       </div>
 
@@ -5706,7 +5646,7 @@ export default function DocumentDetail({
             
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <ActionButton onClick={() => setShowArchiveModal(false)} variant="secondary">Cancel</ActionButton>
-              <ActionButton onClick={handleArchive} disabled={saving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
+              <ActionButton onClick={handleArchive} disabled={isSaving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
             </div>
           </div>
         </div>
@@ -5735,7 +5675,7 @@ export default function DocumentDetail({
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <ActionButton onClick={() => setShowResetApprovalModal(false)} variant="secondary">Cancel</ActionButton>
-              <ActionButton onClick={handleResetApproval} disabled={saving} variant="warning">Reset Approval</ActionButton>
+              <ActionButton onClick={handleResetApproval} disabled={isSaving} variant="warning">Reset Approval</ActionButton>
             </div>
           </div>
         </div>
@@ -5877,7 +5817,7 @@ export default function DocumentDetail({
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button onClick={() => setShowFulfillmentModal(false)} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSaveFulfillment} disabled={saving} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>Save Fulfillment</button>
+              <button onClick={handleSaveFulfillment} disabled={isSaving} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>Save Fulfillment</button>
             </div>
           </div>
         </div>
@@ -6360,36 +6300,6 @@ export default function DocumentDetail({
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Autosave Toast — subtle, bottom-center */}
-      {autosaveToast && (
-        <div style={{
-          position: 'fixed',
-          bottom: '80px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 3001,
-          padding: '6px 14px',
-          borderRadius: '6px',
-          background: autosaveToast.type === 'ok' ? 'rgba(100,116,139,0.85)' : 'rgba(239,68,68,0.9)',
-          color: 'white',
-          fontSize: '12px',
-          fontWeight: 500,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-          opacity: 1,
-          transition: 'opacity 0.15s ease',
-        }}>
-          {autosaveToast.type === 'ok' ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-          )}
-          {autosaveToast.message}
         </div>
       )}
 
