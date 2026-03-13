@@ -128,6 +128,13 @@ export async function POST(request: NextRequest) {
       inventoryKey: item.inventoryKey,
       sizeIndex: item.sizeIndex,
       whseNo: undefined as string | undefined,
+      // preserve source tracking fields
+      lineItemId: item.lineItemId,
+      documentId: item.documentId,
+      documentNumber: item.documentNumber,
+      customerName: item.customerName,
+      catalogColor: item.catalogColor,
+      wholesalePrice: item.wholesalePrice,
     }))
 
     const poParams = {
@@ -212,7 +219,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Enrich items with warehouse assignments from validation
-    // Prefer warehouse 5 (Robbinsville NJ) when validation confirmed it;
+    // Prefer warehouse 5 (Virginia / Dulles) when validation confirmed it;
     // otherwise use the warehouse SanMar suggested (closest to ship address).
     if (validationResult?.items) {
       for (const sanmarItem of sanmarItems) {
@@ -303,7 +310,10 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    await supabase.from('purchase_order_items').insert(poItemRows)
+    const { error: poItemsError } = await supabase.from('purchase_order_items').insert(poItemRows)
+    if (poItemsError) {
+      console.error('Failed to insert purchase_order_items:', poItemsError)
+    }
 
     return NextResponse.json({
       success: submitResult.success,
@@ -363,7 +373,7 @@ export async function PATCH(request: NextRequest) {
 function getWarehouseName(whseNo: string): string {
   const names: Record<string, string> = {
     '1': 'Seattle', '2': 'Cincinnati', '3': 'Dallas', '4': 'Reno',
-    '5': 'Robbinsville', '6': 'Jacksonville', '7': 'Minneapolis',
+    '5': 'Virginia (Dulles)', '6': 'Jacksonville', '7': 'Minneapolis',
     '12': 'Phoenix', '31': 'Richmond',
   }
   return names[whseNo] || `Warehouse ${whseNo}`

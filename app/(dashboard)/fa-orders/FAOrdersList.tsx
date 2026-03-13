@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, Fragment, useCallback, useEffect } from 'react'
+import React, { useState, useMemo, Fragment, useCallback, useEffect } from 'react'
 
 type OrderItem = {
   id: string
@@ -41,6 +41,15 @@ type LineItem = {
   supplier?: string
   decoration_type?: string
   custom_fields?: any
+  garment_source?: string
+  garment_status?: string
+  received_quantities?: Record<string, number>
+  receiving_notes?: string
+  transfer_status?: string
+  attachments?: any[]
+  garments_sorted?: boolean
+  transfers_printed?: boolean
+  transfers_cut_sorted?: boolean
 }
 
 type FADocument = {
@@ -55,6 +64,8 @@ type FADocument = {
   paid_at?: string
   created_at: string
   line_items: LineItem[]
+  folded_counted_sorted?: boolean
+  ready_for_customer?: boolean
 }
 
 type Tab = 'dtf' | 'embroidery' | 'apparel' | 'completed'
@@ -351,7 +362,9 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
                         style={{
                           borderBottom: '1px solid rgba(148,163,184,0.05)',
                           transition: 'background 0.15s ease',
+                          cursor: 'pointer',
                         }}
+                        onClick={() => setExpandedOrder(isExpanded ? null : row.id)}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(148,163,184,0.05)' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                       >
@@ -397,22 +410,14 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
                           </span>
                         </td>
                         <td style={{ padding: '14px 16px' }}>
-                          <button
-                            onClick={() => setExpandedOrder(isExpanded ? null : row.id)}
-                            style={{
-                              padding: '6px 14px',
-                              borderRadius: '6px',
-                              border: '1px solid rgba(34,211,238,0.3)',
-                              background: isExpanded ? 'rgba(34,211,238,0.15)' : 'transparent',
-                              color: '#22d3ee',
-                              fontSize: '13px',
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            {isExpanded ? 'Hide' : 'View'}
-                          </button>
+                          <span style={{
+                            color: '#475569',
+                            fontSize: '18px',
+                            lineHeight: 1,
+                            userSelect: 'none',
+                          }}>
+                            {isExpanded ? '▲' : '▼'}
+                          </span>
                         </td>
                       </tr>
                       {isExpanded && row.source === 'fa_order' && (
@@ -894,40 +899,778 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
 }
 
 function DocumentDetail({ doc }: { doc: FADocument }) {
+  const apparelItems = doc.line_items.filter(
+    li => li.custom_fields?.apparel_mode === true || li.custom_fields?.apparel_mode === 'true'
+  )
+  const nonApparelItems = doc.line_items.filter(
+    li => !li.custom_fields?.apparel_mode && li.custom_fields?.apparel_mode !== 'true'
+  )
+
+  const [lineItemStates, setLineItemStates] = React.useState<Record<string, {
+    garment_source: string
+    received_quantities: Record<string, number>
+    receiving_notes: string
+    transfer_status: string
+    transfers_printed: boolean
+    transfers_cut_sorted: boolean
+    saving: boolean
+  }>>(() => {
+    const init: Record<string, any> = {}
+    doc.line_items.forEach(li => {
+      init[li.id] = {
+        garment_source: li.garment_source || '',
+        received_quantities: li.received_quantities || {},
+        receiving_notes: li.receiving_notes || '',
+        transfer_status: li.transfer_status || 'pending',
+        transfers_printed: !!li.transfers_printed,
+        transfers_cut_sorted: !!li.transfers_cut_sorted,
+        saving: false,
+      }
+    })
+    return init
+  })
+
+  const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [modal, setModal] = React.useState<{
+    type: 'garments_ordered' | 'garments_received' | 'garments_sorted' | 'transfers_printed' | 'transfers_cut_sorted' | 'in_production' | 'folded_counted_sorted' | 'ready_for_customer' | null
+    lineItemId?: string
+  }>({ type: null })
+  const [docState, setDocState] = React.useState({
+    in_production: !!doc.in_production,
+    folded_counted_sorted: !!doc.folded_counted_sorted,
+    ready_for_customer: !!doc.ready_for_customer,
+  })
+
+  const saveDocField = async (fields: Record<string, boolean>) => {
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/production-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+      const data = await res.json()
+      if (!res.ok) { showToast(data.error || 'Save failed', 'error'); return false }
+      setDocState(prev => ({ ...prev, ...fields }))
+      showToast('Saved', 'success')
+      return true
+    } catch {
+      showToast('Save failed', 'error')
+      return false
+    }
+  }
+
+  const saveLineItemField = async (lineItemId: string, fields: Record<string, any>) => {
+    try {
+      const res = await fetch('/api/line-items/receiving', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ line_item_id: lineItemId, ...fields }),
+      })
+      const data = await res.json()
+      if (!res.ok) { showToast(data.error || 'Save failed', 'error'); return false }
+      showToast('Saved', 'success')
+      return true
+    } catch {
+      showToast('Save failed', 'error')
+      return false
+    }
+  }
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const updateLineItem = (id: string, patch: Partial<typeof lineItemStates[string]>) => {
+    setLineItemStates(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }))
+  }
+
+  const saveLineItem = async (li: any) => {
+    const state = lineItemStates[li.id]
+    if (!state) return
+    updateLineItem(li.id, { saving: true })
+    try {
+      const res = await fetch('/api/line-items/receiving', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          line_item_id: li.id,
+          garment_source: state.garment_source,
+          received_quantities: state.received_quantities,
+          receiving_notes: state.receiving_notes,
+          transfer_status: state.transfer_status,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { showToast(data.error || 'Save failed', 'error'); return }
+      showToast('Saved', 'success')
+    } catch {
+      showToast('Save failed', 'error')
+    } finally {
+      updateLineItem(li.id, { saving: false })
+    }
+  }
+
+  // Compute pipeline status
+  const garmentStatuses = apparelItems.map(li => {
+    const rawSizes: Record<string, any> = li.custom_fields?.sizes || {}
+    const sizes: Record<string, number> = Object.fromEntries(
+      Object.entries(rawSizes).map(([s, v]) => [s, typeof v === 'object' && v !== null ? Number(v.qty ?? v) : Number(v)])
+    )
+    const totalOrdered = Object.values(sizes).reduce((a, b) => a + b, 0)
+    const totalReceived = Object.values(lineItemStates[li.id]?.received_quantities || {}).reduce((a: number, b: any) => a + Number(b), 0)
+    if (!lineItemStates[li.id]?.garment_source) return 'pending_source'
+    if (totalReceived === 0) return 'ordered'
+    if (totalReceived >= totalOrdered) return 'received'
+    return 'partially_received'
+  })
+
+  const garmentsOrdered = garmentStatuses.some(s => s !== 'pending_source')
+  const allGarmentsReceived = garmentStatuses.length > 0 && garmentStatuses.every(s => s === 'received')
+  const anyPartial = garmentStatuses.some(s => s === 'partially_received')
+  const allGarmentsSorted = apparelItems.length > 0 && apparelItems.every(li => li.garments_sorted)
+  const designApproved = true
+  const allTransfersPrinted = apparelItems.length > 0 && apparelItems.every(li => lineItemStates[li.id]?.transfers_printed)
+  const allTransfersCutSorted = apparelItems.length > 0 && apparelItems.every(li => lineItemStates[li.id]?.transfers_cut_sorted)
+  const readyForProduction = allGarmentsSorted && allTransfersCutSorted
+  const inProduction = !!doc.in_production
+  const foldedCountedSorted = !!doc.folded_counted_sorted
+  const readyForCustomer = !!doc.ready_for_customer
+
+  const node = (done: boolean, active: boolean, partial: boolean, icon: string): React.CSSProperties => ({
+    width: 32, height: 32, borderRadius: '50%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 13,
+    background: done ? 'rgba(52,211,153,0.15)' : active ? 'rgba(34,211,238,0.12)' : partial ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
+    border: `2px solid ${done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : 'rgba(148,163,184,0.15)'}`,
+    color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
+    boxShadow: active ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
+    flexShrink: 0,
+  })
+  const lbl = (done: boolean, active: boolean, partial?: boolean): React.CSSProperties => ({
+    fontSize: 9, textAlign: 'center' as const, lineHeight: 1.3, fontWeight: 500, marginTop: 4,
+    color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
+  })
+  const line = (done: boolean): React.CSSProperties => ({
+    flex: 1, height: 2, minWidth: 20,
+    background: done ? '#34d399' : 'rgba(148,163,184,0.1)',
+  })
+
   return (
-    <div style={{
-      padding: '24px 20px 24px 48px',
-      background: 'rgba(59,130,246,0.03)',
-      borderBottom: '1px solid rgba(148,163,184,0.1)',
-    }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+    <div style={{ padding: '20px 20px 24px 48px', background: 'rgba(59,130,246,0.02)', borderBottom: '1px solid rgba(148,163,184,0.08)' }}>
+      {/* Pipeline Step Modal */}
+      {modal.type && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setModal({ type: null })}
+        >
+          <div
+            style={{ background: '#111826', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 12, padding: 24, width: 480, maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* GARMENTS ORDERED */}
+            {modal.type === 'garments_ordered' && modal.lineItemId && (() => {
+              const li = apparelItems.find(l => l.id === modal.lineItemId)
+              const state = lineItemStates[modal.lineItemId]
+              if (!li || !state) return null
+              return (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garment Source — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>How are we getting these garments?</div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                    {[
+                      { val: 'sanmar', label: 'Order SanMar', color: '#22d3ee' },
+                      { val: 'stock', label: 'Pull from Stock', color: '#84cc16' },
+                      { val: 'external', label: 'Already Ordered', color: '#f97316' },
+                    ].map(opt => (
+                      <button key={opt.val} onClick={() => updateLineItem(modal.lineItemId!, { garment_source: opt.val })}
+                        style={{ padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${state.garment_source === opt.val ? opt.color : 'rgba(148,163,184,0.15)'}`, background: state.garment_source === opt.val ? `${opt.color}18` : 'transparent', color: state.garment_source === opt.val ? opt.color : '#475569', transition: 'all 0.15s' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {state.garment_source === 'stock' && (
+                    <div style={{ padding: '8px 12px', background: 'rgba(132,204,22,0.08)', border: '1px solid rgba(132,204,22,0.15)', borderRadius: 6, fontSize: 12, color: '#84cc16', marginBottom: 16 }}>
+                      📦 Go to inventory and pull these pieces.
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { garment_source: state.garment_source }); setModal({ type: null }) }}
+                      style={{ padding: '8px 16px', borderRadius: 6, background: '#22d3ee', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      Save
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+
+            {/* GARMENTS RECEIVED */}
+            {modal.type === 'garments_received' && modal.lineItemId && (() => {
+              const li = apparelItems.find(l => l.id === modal.lineItemId)
+              const state = lineItemStates[modal.lineItemId]
+              if (!li || !state) return null
+              const rawSizes: Record<string, any> = li.custom_fields?.sizes || {}
+              const sizes: Record<string, number> = Object.fromEntries(Object.entries(rawSizes).map(([s, v]) => [s, typeof v === 'object' && v !== null ? Number(v.qty ?? v) : Number(v)]))
+              const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+              const sizeEntries = Object.entries(sizes).filter(([,q]) => Number(q) > 0).sort(([a],[b]) => (SIZE_ORDER.indexOf(a.toUpperCase()) === -1 ? 99 : SIZE_ORDER.indexOf(a.toUpperCase())) - (SIZE_ORDER.indexOf(b.toUpperCase()) === -1 ? 99 : SIZE_ORDER.indexOf(b.toUpperCase())))
+              const totalOrdered = sizeEntries.reduce((a,[,v]) => a + Number(v), 0)
+              const totalReceived = Object.values(state.received_quantities).reduce((a:number,b:any) => a + Number(b), 0)
+              return (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garments Received — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>{totalReceived} of {totalOrdered} pieces received</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                    {sizeEntries.map(([size, qty]) => {
+                      const recvd = state.received_quantities[size] ?? 0
+                      const checked = Number(recvd) >= Number(qty)
+                      return (
+                        <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 56, background: checked ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${checked ? 'rgba(52,211,153,0.2)' : 'rgba(148,163,184,0.1)'}`, borderRadius: 8, padding: '10px 8px' }}>
+                          <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>{size}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>{qty} pcs</div>
+                          <input type="checkbox" checked={checked} onChange={e => updateLineItem(modal.lineItemId!, { received_quantities: { ...state.received_quantities, [size]: e.target.checked ? Number(qty) : 0 } })} style={{ width: 16, height: 16, accentColor: '#34d399', cursor: 'pointer' }} />
+                          <input type="number" value={state.received_quantities[size] ?? ''} min={0} max={Number(qty)} placeholder="0"
+                            onChange={e => updateLineItem(modal.lineItemId!, { received_quantities: { ...state.received_quantities, [size]: Number(e.target.value) } })}
+                            style={{ width: 44, padding: '4px 6px', background: '#0d1220', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 4, color: '#c8cdd8', fontSize: 12, textAlign: 'center' }} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <textarea value={state.receiving_notes} onChange={e => updateLineItem(modal.lineItemId!, { receiving_notes: e.target.value })} placeholder="Note (e.g. 2XL backordered, ETA next week)…" rows={2}
+                    style={{ width: '100%', padding: '8px 10px', background: '#0d1220', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 6, color: '#c8cdd8', fontSize: 12, resize: 'none', fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { received_quantities: state.received_quantities, receiving_notes: state.receiving_notes }); setModal({ type: null }) }}
+                      style={{ padding: '8px 16px', borderRadius: 6, background: '#22d3ee', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      Save
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+
+            {/* GARMENTS SORTED */}
+            {modal.type === 'garments_sorted' && modal.lineItemId && (() => {
+              const li = apparelItems.find(l => l.id === modal.lineItemId)
+              if (!li) return null
+              const currentlySorted = !!li.garments_sorted
+              return (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garments Sorted — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
+                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                    {currentlySorted ? 'Mark garments as NOT sorted?' : 'Confirm garments are counted and sorted by size and ready for pressing.'}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={async () => {
+                      await saveLineItemField(modal.lineItemId!, { garments_sorted: !currentlySorted })
+                      updateLineItem(modal.lineItemId!, {})
+                      setModal({ type: null })
+                    }} style={{ padding: '8px 16px', borderRadius: 6, background: currentlySorted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      {currentlySorted ? 'Mark Not Sorted' : '✓ Confirm Sorted'}
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+
+            {/* TRANSFERS PRINTED */}
+            {modal.type === 'transfers_printed' && modal.lineItemId && (() => {
+              const li = apparelItems.find(l => l.id === modal.lineItemId)
+              const state = lineItemStates[modal.lineItemId]
+              if (!li || !state) return null
+              const currentlyPrinted = !!state.transfers_printed
+              return (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Transfers Printed — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
+                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                    {currentlyPrinted ? 'Mark transfers as NOT printed?' : 'Confirm DTF transfers have been printed and are ready to be cut and sorted.'}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { transfer_status: currentlyPrinted ? 'pending' : 'printed' }); updateLineItem(modal.lineItemId!, { transfers_printed: !currentlyPrinted }); setModal({ type: null }) }}
+                      style={{ padding: '8px 16px', borderRadius: 6, background: currentlyPrinted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      {currentlyPrinted ? 'Mark Not Printed' : '✓ Confirm Printed'}
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+
+            {/* TRANSFERS CUT & SORTED */}
+            {modal.type === 'transfers_cut_sorted' && modal.lineItemId && (() => {
+              const li = apparelItems.find(l => l.id === modal.lineItemId)
+              const state = lineItemStates[modal.lineItemId]
+              if (!li || !state) return null
+              const currentlyCutSorted = !!state.transfers_cut_sorted
+              return (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Transfers Cut & Sorted — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
+                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                    {currentlyCutSorted ? 'Mark transfers as NOT cut and sorted?' : 'Confirm transfers are cut and sorted by order and ready for pressing.'}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { transfer_status: currentlyCutSorted ? 'printed' : 'ready' }); updateLineItem(modal.lineItemId!, { transfers_cut_sorted: !currentlyCutSorted }); setModal({ type: null }) }}
+                      style={{ padding: '8px 16px', borderRadius: 6, background: currentlyCutSorted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      {currentlyCutSorted ? 'Mark Not Cut & Sorted' : '✓ Confirm Cut & Sorted'}
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+
+            {/* IN PRODUCTION */}
+            {modal.type === 'in_production' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>In Production</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                  {docState.in_production ? 'Mark order as NOT in production?' : 'Confirm pressing has started on this order.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { await saveDocField({ in_production: !docState.in_production }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.in_production ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {docState.in_production ? 'Mark Not In Production' : '✓ Confirm In Production'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* FOLDED COUNTED SORTED */}
+            {modal.type === 'folded_counted_sorted' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Folded, Counted & Sorted</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                  {docState.folded_counted_sorted ? 'Mark order as NOT folded/counted/sorted?' : 'Confirm the order has been folded, counted and packed.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { await saveDocField({ folded_counted_sorted: !docState.folded_counted_sorted }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.folded_counted_sorted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {docState.folded_counted_sorted ? 'Mark Not Done' : '✓ Confirm Folded & Packed'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* READY FOR CUSTOMER */}
+            {modal.type === 'ready_for_customer' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Ready for Customer</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                  {docState.ready_for_customer ? 'Mark order as NOT ready for customer?' : 'This will notify Diogo or Mason to do a quick QC check and send the customer a pickup notification.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { await saveDocField({ ready_for_customer: !docState.ready_for_customer }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.ready_for_customer ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {docState.ready_for_customer ? 'Mark Not Ready' : '✓ Mark Ready for Customer'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{ position: 'fixed', top: 20, right: 20, padding: '10px 18px', borderRadius: 8, background: toast.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(239,68,68,0.9)', color: '#fff', fontSize: 13, fontWeight: 500, zIndex: 9999 }}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Customer + Doc Info */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, marginBottom: 20 }}>
         <div>
           <div style={labelStyle}>Customer</div>
-          <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: 500 }}>{doc.customer_name || '—'}</div>
+          <div style={{ fontSize: 14, color: '#f1f5f9', fontWeight: 500 }}>{doc.customer_name || '—'}</div>
         </div>
         <div>
           <div style={labelStyle}>Document</div>
-          <div style={{ fontSize: '14px', color: '#3b82f6', fontWeight: 600 }}>{doc.doc_number || '—'}</div>
-          <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>
-            {doc.doc_type === 'invoice' ? 'Invoice' : doc.doc_type === 'quote' ? 'Quote' : doc.doc_type || '—'}
-          </div>
+          <div style={{ fontSize: 14, color: '#3b82f6', fontWeight: 600 }}>{doc.doc_number || '—'}</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{doc.doc_type === 'invoice' ? 'Invoice' : doc.doc_type || '—'}</div>
         </div>
         <div>
           <div style={labelStyle}>Total</div>
-          <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: 500 }}>
-            {doc.total != null ? `$${Number(doc.total).toFixed(2)}` : '—'}
-          </div>
-          <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>
-            {doc.created_at ? formatDate(doc.created_at) : '—'}
-          </div>
+          <div style={{ fontSize: 14, color: '#f1f5f9', fontWeight: 500 }}>{doc.total != null ? `${Number(doc.total).toFixed(2)}` : '—'}</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{doc.created_at ? formatDate(doc.created_at) : '—'}</div>
         </div>
       </div>
 
-      {/* Line Items */}
-      <div>
-        <div style={{ ...labelStyle, marginBottom: '10px' }}>Line Items</div>
-        {doc.line_items.length > 0 ? (
-          <div style={{ background: '#1a1a1a', borderRadius: '8px', overflow: 'hidden' }}>
+      {/* Pipeline — two parallel tracks merging at Production */}
+      {apparelItems.length > 0 && (() => {
+        const NODE_W = 56
+        const DIAG_W = 48
+        const SHARED_NODE_W = 60
+        const GAP = 20
+
+        const PipeNode = ({ done, active, partial, children, label, onClick }: { done: boolean, active: boolean, partial?: boolean, children: React.ReactNode, label: string, onClick?: () => void }) => (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: NODE_W }}>
+            <div
+              onClick={onClick}
+              style={{
+              width: 32, height: 32, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
+              background: done ? 'rgba(52,211,153,0.15)' : active ? 'rgba(34,211,238,0.12)' : partial ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
+              border: `2px solid ${done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : 'rgba(148,163,184,0.15)'}`,
+              color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
+              boxShadow: active ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
+              cursor: onClick ? 'pointer' : 'default',
+            }}>{children}</div>
+            <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569' }}>{label}</div>
+          </div>
+        )
+
+        const Con = ({ done }: { done: boolean }) => (
+          <div style={{ flex: 1, minWidth: 20, height: 2, background: done ? '#34d399' : 'rgba(148,163,184,0.1)', flexShrink: 0, marginBottom: 18 }} />
+        )
+
+        const SharedCon = ({ done }: { done: boolean }) => (
+          <div style={{ flex: 1, minWidth: 16, height: 2, background: done ? '#22d3ee' : 'rgba(148,163,184,0.1)', flexShrink: 0, marginBottom: 22 }} />
+        )
+
+        return (
+          <div style={{ marginBottom: 24, overflowX: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'stretch', width: '100%' }}>
+
+              {/* LEFT: Two stacked tracks */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, flex: '0 0 45%' }}>
+
+                {/* GARMENTS track */}
+                <div>
+                  <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Garments</div>
+                  <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                    <PipeNode done={allGarmentsReceived || allGarmentsSorted} active={garmentsOrdered && !allGarmentsReceived && !anyPartial} label={'Garments\nOrdered'} onClick={() => setModal({ type: 'garments_ordered', lineItemId: apparelItems[0]?.id })}>
+                      {allGarmentsReceived || allGarmentsSorted ? '✓' : '📋'}
+                    </PipeNode>
+                    <Con done={allGarmentsReceived || anyPartial} />
+                    <PipeNode done={allGarmentsSorted} active={allGarmentsReceived && !allGarmentsSorted} partial={anyPartial && !allGarmentsReceived} label={anyPartial && !allGarmentsReceived ? 'Partially\nReceived' : 'Garments\nReceived'} onClick={() => setModal({ type: 'garments_received', lineItemId: apparelItems[0]?.id })}>
+                      {allGarmentsSorted ? '✓' : allGarmentsReceived ? '✓' : anyPartial ? '⚠' : '📦'}
+                    </PipeNode>
+                    <Con done={allGarmentsSorted} />
+                    <PipeNode done={allGarmentsSorted} active={allGarmentsReceived && !allGarmentsSorted} label={'Garments\nSorted'} onClick={() => setModal({ type: 'garments_sorted', lineItemId: apparelItems[0]?.id })}>
+                      {allGarmentsSorted ? '✓' : '🗂'}
+                    </PipeNode>
+                  </div>
+                </div>
+
+                {/* TRANSFERS track */}
+                <div>
+                  <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Transfers</div>
+                  <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                    <PipeNode done={allTransfersPrinted || allTransfersCutSorted} active={!allTransfersPrinted} label={'Design\nApproved'}>
+                      {allTransfersPrinted || allTransfersCutSorted ? '✓' : '🎨'}
+                    </PipeNode>
+                    <Con done={allTransfersPrinted} />
+                    <PipeNode done={allTransfersCutSorted} active={allTransfersPrinted && !allTransfersCutSorted} label={'Transfers\nPrinted'} onClick={() => setModal({ type: 'transfers_printed', lineItemId: apparelItems[0]?.id })}>
+                      {allTransfersCutSorted ? '✓' : allTransfersPrinted ? '✓' : '🖨'}
+                    </PipeNode>
+                    <Con done={allTransfersCutSorted} />
+                    <PipeNode done={allTransfersCutSorted} active={allTransfersPrinted && !allTransfersCutSorted} label={'Cut &\nSorted'} onClick={() => setModal({ type: 'transfers_cut_sorted', lineItemId: apparelItems[0]?.id })}>
+                      {allTransfersCutSorted ? '✓' : '✂️'}
+                    </PipeNode>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* DIAGONAL SVG connector */}
+              <div style={{ position: 'relative', width: DIAG_W, flexShrink: 0 }}>
+                <svg width={DIAG_W} height="100%" style={{ position: 'absolute', inset: 0 }} preserveAspectRatio="none">
+                  {/* Top track diagonal */}
+                  <line x1="0" y1="52" x2={DIAG_W} y2="50%" stroke={allGarmentsSorted ? '#34d399' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
+                  {/* Bottom track diagonal */}
+                  <line x1="0" y1="calc(100% - 52px)" x2={DIAG_W} y2="50%" stroke={allTransfersCutSorted ? '#34d399' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
+                </svg>
+              </div>
+
+              {/* RIGHT: Shared track, vertically centered */}
+              <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0,
+                    background: inProduction ? 'rgba(52,211,153,0.15)' : readyForProduction ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: `2px solid ${inProduction ? '#34d399' : readyForProduction ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
+                    color: inProduction ? '#34d399' : readyForProduction ? '#22d3ee' : '#475569',
+                    boxShadow: readyForProduction && !inProduction ? '0 0 0 4px rgba(34,211,238,0.12)' : 'none',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setModal({ type: 'in_production' })}>
+                    {inProduction || foldedCountedSorted || readyForCustomer ? '✓' : '⚡'}
+                  </div>
+                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: inProduction ? '#34d399' : readyForProduction ? '#22d3ee' : '#475569' }}>Ready for<br/>Production</div>
+                </div>
+                <SharedCon done={inProduction} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
+                    background: foldedCountedSorted ? 'rgba(52,211,153,0.15)' : inProduction ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: `2px solid ${foldedCountedSorted ? '#34d399' : inProduction ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
+                    color: foldedCountedSorted ? '#34d399' : inProduction ? '#22d3ee' : '#475569',
+                    boxShadow: inProduction && !foldedCountedSorted ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setModal({ type: 'in_production' })}>
+                    {foldedCountedSorted || readyForCustomer ? '✓' : '👕'}
+                  </div>
+                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: foldedCountedSorted ? '#34d399' : inProduction ? '#22d3ee' : '#475569' }}>In<br/>Production</div>
+                </div>
+                <SharedCon done={foldedCountedSorted} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
+                    background: readyForCustomer ? 'rgba(52,211,153,0.15)' : foldedCountedSorted ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: `2px solid ${readyForCustomer ? '#34d399' : foldedCountedSorted ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
+                    color: readyForCustomer ? '#34d399' : foldedCountedSorted ? '#22d3ee' : '#475569',
+                    boxShadow: foldedCountedSorted && !readyForCustomer ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setModal({ type: 'folded_counted_sorted' })}>
+                    {readyForCustomer ? '✓' : '📋'}
+                  </div>
+                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: readyForCustomer ? '#34d399' : foldedCountedSorted ? '#22d3ee' : '#475569' }}>Folded<br/>Counted<br/>Sorted</div>
+                </div>
+                <SharedCon done={readyForCustomer} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
+                    background: readyForCustomer ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: `2px solid ${readyForCustomer ? '#34d399' : 'rgba(148,163,184,0.15)'}`,
+                    color: readyForCustomer ? '#34d399' : '#475569',
+                    boxShadow: readyForCustomer ? '0 0 0 3px rgba(52,211,153,0.12)' : 'none',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setModal({ type: 'ready_for_customer' })}>
+                    {readyForCustomer ? '🎉' : '📦'}
+                  </div>
+                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: readyForCustomer ? '#34d399' : '#475569' }}>Ready for<br/>Customer</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Ready for Production Banner */}
+      {readyForProduction && (
+        <div style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>⚡</span>
+          <div>
+            <div style={{ color: '#34d399', fontWeight: 700, fontSize: 13 }}>All garments received · All transfers ready</div>
+            <div style={{ color: '#4a7a5a', fontSize: 11 }}>This order is ready to press.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Apparel Line Items */}
+      {apparelItems.map((li) => {
+        const state = lineItemStates[li.id]
+        if (!state) return null
+        const rawSizes: Record<string, any> = li.custom_fields?.sizes || {}
+        const sizes: Record<string, number> = Object.fromEntries(
+          Object.entries(rawSizes).map(([size, val]) => [
+            size,
+            typeof val === 'object' && val !== null ? Number(val.qty ?? val) : Number(val)
+          ])
+        )
+        const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+        const sizeEntries = Object.entries(sizes)
+          .filter(([, qty]) => Number(qty) > 0)
+          .sort(([a], [b]) => {
+            const ai = SIZE_ORDER.indexOf(a.toUpperCase())
+            const bi = SIZE_ORDER.indexOf(b.toUpperCase())
+            return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+          })
+        const totalOrdered = sizeEntries.reduce((a, [, v]) => a + Number(v), 0)
+        const totalReceived = Object.values(state.received_quantities).reduce((a: number, b: any) => a + Number(b), 0)
+        const isFullyReceived = totalOrdered > 0 && totalReceived >= totalOrdered
+        const isPartial = totalReceived > 0 && !isFullyReceived
+
+        const mockups = (li.attachments || []).filter((a: any) =>
+          a.label?.toLowerCase().includes('mock') || a.contentType?.startsWith('image/')
+        )
+
+        return (
+          <div key={li.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 8, marginBottom: 14, overflow: 'hidden' }}>
+            {/* Line item header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid rgba(148,163,184,0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13 }}>{li.custom_fields?.item_number || li.description}</span>
+                {li.custom_fields?.color && <span style={{ color: '#64748b', fontSize: 12 }}>· {li.custom_fields.color}</span>}
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>· {totalOrdered} pcs</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {isFullyReceived && <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>✓ All Received</span>}
+                {isPartial && <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>⚠ {totalReceived}/{totalOrdered} Received</span>}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+              {/* Left: Garment sourcing + receiving */}
+              <div style={{ padding: '12px 14px', borderRight: '1px solid rgba(148,163,184,0.08)' }}>
+                {/* Source selector */}
+                {!isFullyReceived && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Garment Source</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[
+                        { val: 'sanmar', label: 'Order SanMar', color: '#22d3ee' },
+                        { val: 'stock', label: 'Pull from Stock', color: '#84cc16' },
+                        { val: 'external', label: 'Already Ordered', color: '#f97316' },
+                      ].map(opt => (
+                        <button
+                          key={opt.val}
+                          onClick={() => updateLineItem(li.id, { garment_source: opt.val })}
+                          style={{
+                            padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                            border: `1px solid ${state.garment_source === opt.val ? opt.color : 'rgba(148,163,184,0.15)'}`,
+                            background: state.garment_source === opt.val ? `${opt.color}15` : 'transparent',
+                            color: state.garment_source === opt.val ? opt.color : '#475569',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {state.garment_source === 'stock' && (
+                      <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(132,204,22,0.08)', border: '1px solid rgba(132,204,22,0.15)', borderRadius: 5, fontSize: 11, color: '#84cc16' }}>
+                        📦 Go to inventory and pull these pieces. Check off each size as you grab them.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Size receiving grid */}
+                {sizeEntries.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                      {isFullyReceived ? 'Received' : 'Mark Received'}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {sizeEntries.map(([size, qty]) => {
+                        const recvd = state.received_quantities[size] ?? 0
+                        const checked = recvd >= Number(qty)
+                        return (
+                          <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 48 }}>
+                            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>{size}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{qty} pcs</div>
+                            {isFullyReceived ? (
+                              <span style={{ color: '#34d399', fontSize: 11 }}>✓</span>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={e => {
+                                    const newQty = e.target.checked ? Number(qty) : 0
+                                    updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: newQty } })
+                                  }}
+                                  style={{ width: 13, height: 13, accentColor: '#34d399', cursor: 'pointer' }}
+                                />
+                                <input
+                                  type="number"
+                                  value={state.received_quantities[size] ?? ''}
+                                  min={0}
+                                  max={Number(qty)}
+                                  placeholder="0"
+                                  onChange={e => updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: Number(e.target.value) } })}
+                                  style={{ width: 34, padding: '2px 4px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 3, color: '#c8cdd8', fontSize: 11, textAlign: 'center' }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Receiving notes */}
+                <textarea
+                  value={state.receiving_notes}
+                  onChange={e => updateLineItem(li.id, { receiving_notes: e.target.value })}
+                  placeholder="Note (e.g. 2XL backordered, ETA next week)…"
+                  rows={2}
+                  style={{ width: '100%', marginTop: 10, padding: '6px 10px', background: '#0d1220', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 5, color: '#c8cdd8', fontSize: 11, resize: 'none', fontFamily: 'inherit', outline: 'none' }}
+                />
+              </div>
+
+              {/* Right: Transfers + Mockups */}
+              <div style={{ padding: '12px 14px' }}>
+                {/* Transfer status */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>DTF Transfers</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {state.transfer_status === 'ready' ? (
+                      <button
+                        onClick={() => updateLineItem(li.id, { transfer_status: 'pending' })}
+                        style={{ padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.25)', color: '#34d399' }}
+                      >
+                        ✓ Transfers Ready
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => updateLineItem(li.id, { transfer_status: 'ready' })}
+                        style={{ padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.2)', color: '#22d3ee' }}
+                      >
+                        Mark Transfers Ready
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mockups */}
+                {mockups.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Mockups</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {mockups.map((m: any, idx: number) => (
+                        <a
+                          key={idx}
+                          href={m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={m.label || `Mockup ${idx + 1}`}
+                          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 72, padding: 6, background: '#0d1220', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 6, cursor: 'pointer', textDecoration: 'none', transition: 'border-color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.borderColor = '#22d3ee')}
+                          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(148,163,184,0.1)')}
+                        >
+                          <img src={m.url} alt={m.label} style={{ width: 52, height: 52, objectFit: 'contain', borderRadius: 3 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                          <span style={{ fontSize: 9, color: '#475569', textAlign: 'center', lineHeight: 1.2 }}>{m.label || `Mockup ${idx + 1}`}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Save button */}
+            <div style={{ padding: '8px 14px', borderTop: '1px solid rgba(148,163,184,0.08)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => saveLineItem(li)}
+                disabled={state.saving}
+                style={{ padding: '6px 16px', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: state.saving ? 'not-allowed' : 'pointer', background: state.saving ? 'rgba(148,163,184,0.1)' : '#22d3ee', color: state.saving ? '#64748b' : '#000', border: 'none', opacity: state.saving ? 0.6 : 1, transition: 'all 0.15s' }}
+              >
+                {state.saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Non-apparel line items fallback */}
+      {nonApparelItems.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ ...labelStyle, marginBottom: 8 }}>Other Line Items</div>
+          <div style={{ background: '#1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
@@ -937,32 +1680,20 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
                 </tr>
               </thead>
               <tbody>
-                {doc.line_items.map((li) => (
+                {nonApparelItems.map(li => (
                   <tr key={li.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.05)' }}>
-                    <td style={{ padding: '10px 14px', color: '#f1f5f9', fontSize: '13px' }}>
-                      {li.description || '—'}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '13px' }}>
-                      {li.category?.replace(/_/g, ' ') || '—'}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '13px' }}>
-                      {li.quantity || 1}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '13px' }}>
-                      {li.unit_price != null ? `$${Number(li.unit_price).toFixed(2)}` : '—'}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>
-                      {li.line_total != null ? `$${Number(li.line_total).toFixed(2)}` : '—'}
-                    </td>
+                    <td style={{ padding: '10px 14px', color: '#f1f5f9', fontSize: 13 }}>{li.description || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: 13 }}>{li.category?.replace(/_/g, ' ') || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: 13 }}>{typeof li.quantity === 'object' ? JSON.stringify(li.quantity) : (li.quantity || 1)}</td>
+                    <td style={{ padding: '10px 14px', color: '#94a3b8', fontSize: 13 }}>{li.unit_price != null && !isNaN(Number(li.unit_price)) ? `${Number(li.unit_price).toFixed(2)}` : '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#f1f5f9', fontSize: 13, fontWeight: 500 }}>{li.line_total != null && !isNaN(Number(li.line_total)) ? `${Number(li.line_total).toFixed(2)}` : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : (
-          <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>No line items</p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
