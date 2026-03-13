@@ -47,14 +47,32 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch line items' }, { status: 500 })
     }
 
-    // 3. Filter to SanMar apparel items with quantities
+    // 2.5. Get line item IDs that have already been ordered
+    const allLineItemIds = (lineItems || []).map(li => li.id)
+    const alreadyOrderedSet = new Set<string>()
+    if (allLineItemIds.length > 0) {
+      const { data: orderedItems } = await supabase
+        .from('purchase_order_items')
+        .select('source_line_item_id')
+        .in('source_line_item_id', allLineItemIds)
+      if (orderedItems) {
+        for (const oi of orderedItems) {
+          alreadyOrderedSet.add(oi.source_line_item_id)
+        }
+      }
+    }
+
+    // 3. Filter to SanMar apparel items with quantities, excluding already-ordered and customer-provided
     const sanmarItems = (lineItems || []).filter(li => {
       const cf = li.custom_fields || {}
       return cf.apparel_mode === true &&
         cf.supplier === 'sanmar' &&
         cf.item_number &&
+        cf.item_number !== 'CUSPRO' &&
+        cf.customer_provided !== true &&
         cf.color &&
-        li.quantity > 0
+        li.quantity > 0 &&
+        !alreadyOrderedSet.has(li.id)
     })
 
     // 4. Check which items have already been ordered (in purchase_order_items)
