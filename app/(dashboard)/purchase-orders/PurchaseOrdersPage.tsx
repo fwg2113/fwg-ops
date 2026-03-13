@@ -1026,6 +1026,39 @@ export default function PurchaseOrdersPage() {
                           </div>
                         )}
 
+                        {/* Skip button — mark as customer-provided to remove from queue */}
+                        {!isManual && !fullyOrdered && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (!confirm('Mark this item as customer-provided? It will be removed from the order queue.')) return
+                              try {
+                                const res = await fetch('/api/line-items/skip', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ lineItemId: item.lineItemId }),
+                                })
+                                if (res.ok) {
+                                  showToast('Item marked as customer-provided', 'success')
+                                  fetchAggregateItems()
+                                } else {
+                                  showToast('Failed to skip item', 'error')
+                                }
+                              } catch {
+                                showToast('Failed to skip item', 'error')
+                              }
+                            }}
+                            title="Mark as customer-provided (don't order)"
+                            style={{
+                              padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(148,163,184,0.2)',
+                              background: 'rgba(148,163,184,0.08)', color: '#94a3b8', fontSize: '11px',
+                              fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+                            }}
+                          >
+                            Skip
+                          </button>
+                        )}
+
                         {/* Remove button for manual items */}
                         {isManual && (
                           <button
