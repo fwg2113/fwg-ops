@@ -1647,6 +1647,9 @@ export default function DocumentDetail({
       manual_price_override?: boolean   // Override auto-calculation
       // Embroidery Pricing fields
       embroidery_fee_per_location?: number  // Editable per-location fee
+      // Garment source fields
+      garment_source?: string
+      customer_provided?: boolean
     }
   }
 
@@ -1868,8 +1871,9 @@ export default function DocumentDetail({
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
-      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes') {
+      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes' || fieldPath === 'garment_source' || fieldPath === 'customer_provided') {
         cf[fieldPath] = value
+        console.log('updateApparelField', fieldPath, value, cf)
       } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location' || fieldPath === 'manual_price_override' || fieldPath === 'embroidery_fee_per_location') {
         // DTF / Embroidery pricing fields (non-markup)
         cf[fieldPath] = value
@@ -1949,6 +1953,20 @@ export default function DocumentDetail({
     setLineItems(newItems)
 
     const updatedItem = newItems.find(i => i.id === itemId)
+    setIsDirty(true)
+    updateDocumentTotals(newItems)
+  }
+
+  const updateApparelFields = (itemId: string, updates: Record<string, any>) => {
+    const newItems = lineItems.map(i => {
+      if (i.id !== itemId) return i
+      const cf: Record<string, any> = { ...(i.custom_fields || {}) }
+      Object.entries(updates).forEach(([fieldPath, value]) => {
+        cf[fieldPath] = value
+      })
+      return { ...i, custom_fields: cf }
+    })
+    setLineItems(newItems)
     setIsDirty(true)
     updateDocumentTotals(newItems)
   }
@@ -3714,6 +3732,42 @@ export default function DocumentDetail({
                       const sizes = af.sizes || {}
                       return (
                         <div key={item.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.1)', padding: '16px' }}>
+                          {/* Garment Source selector */}
+                          {(() => {
+                            const currentSource = lineItems.find(li => li.id === item.id)?.custom_fields?.garment_source || 'sanmar'
+                            const sourceColor = currentSource === 'stock' ? '#f59e0b' : currentSource === 'customer_supplied' ? '#f97316' : '#22d3ee'
+                            return (
+                              <div style={{ marginBottom: '10px', maxWidth: '220px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Garment Source</div>
+                                <select
+                                  value={currentSource}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    const extra = val === 'customer_supplied'
+                                      ? { customer_provided: true, enabled_sizes: ['CUSPRO'] }
+                                      : { customer_provided: false }
+                                    updateApparelFields(item.id, { garment_source: val, ...extra })
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '6px 10px',
+                                    background: '#0d1220',
+                                    border: `1px solid ${sourceColor}60`,
+                                    borderRadius: '6px',
+                                    color: sourceColor,
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                  }}
+                                >
+                                  <option value="sanmar">Order from SanMar</option>
+                                  <option value="stock">In-House Inventory</option>
+                                  <option value="customer_supplied">Customer Supplied</option>
+                                </select>
+                              </div>
+                            )
+                          })()}
                           {/* Top row: Item #, Color, Description, Manage Sizes */}
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '12px' }}>
                             <div style={{ width: '180px' }}>
