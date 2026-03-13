@@ -70,6 +70,7 @@ export async function GET() {
         cf.item_number &&
         cf.item_number !== 'CUSPRO' &&
         cf.customer_provided !== true &&
+        cf.garment_source !== 'customer_supplied' &&
         cf.color &&
         li.quantity > 0 &&
         !alreadyOrderedSet.has(li.id)
@@ -158,6 +159,7 @@ export async function GET() {
         sizes,
         totalQty,
         totalWholesale,
+        garmentSource: cf.garment_source || 'sanmar',
         previousOrders: orderedItemMap[li.id] || [],
       })
     }
