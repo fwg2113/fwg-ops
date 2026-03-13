@@ -126,6 +126,7 @@ export async function GET() {
         sizes: Record<string, { qty: number; price: number; wholesale: number; inventoryKey?: number; sizeIndex?: number }>
         totalQty: number
         totalWholesale: number
+        garmentSource: string
         previousOrders: Array<{ po_number: string; status: string; quantity: number }>
       }>
     }> = {}
