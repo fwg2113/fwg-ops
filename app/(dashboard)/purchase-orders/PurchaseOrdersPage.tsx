@@ -22,6 +22,7 @@ interface AggregateItem {
   sizes: Record<string, SizeData>
   totalQty: number
   totalWholesale: number
+  garmentSource?: string
   previousOrders: Array<{ po_number: string; status: string; quantity: number }>
 }
 
@@ -92,6 +93,9 @@ export default function PurchaseOrdersPage() {
   const [inventoryMap, setInventoryMap] = useState<InventoryMap>({})
   const [checkingInventory, setCheckingInventory] = useState(false)
   const [inventoryChecked, setInventoryChecked] = useState(false)
+  const [stockQtyOnHand, setStockQtyOnHand] = useState<Record<string, number>>({})
+  const [stockConfirmed, setStockConfirmed] = useState<Record<string, { status: 'confirmed' | 'short'; shortfall: number }>>({})
+  const [stockConfirming, setStockConfirming] = useState<Record<string, boolean>>({})
   const [historyFilter, setHistoryFilter] = useState<string>('all')
   // Manual product add state
   const [showManualAdd, setShowManualAdd] = useState(false)
@@ -969,6 +973,15 @@ export default function PurchaseOrdersPage() {
                             {item.catalogColor && item.catalogColor !== item.color && (
                               <span style={{ fontSize: '11px', color: '#64748b' }}>({item.catalogColor})</span>
                             )}
+                            {item.garmentSource === 'stock' && (
+                              <span style={{
+                                fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px',
+                                background: 'rgba(245,158,11,0.15)', color: '#f59e0b',
+                                border: '1px solid rgba(245,158,11,0.3)',
+                              }}>
+                                In-House Inventory
+                              </span>
+                            )}
                           </div>
                           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
                             {item.description}
@@ -1138,6 +1151,107 @@ export default function PurchaseOrdersPage() {
                           )
                         })}
                       </div>
+
+                      {/* In-House Inventory stock confirmation */}
+                      {item.garmentSource === 'stock' && !fullyOrdered && (
+                        <div style={{
+                          marginLeft: '32px', marginTop: '8px', padding: '10px 14px', borderRadius: '8px',
+                          background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)',
+                        }}>
+                          {stockConfirmed[item.lineItemId] ? (
+                            stockConfirmed[item.lineItemId].status === 'confirmed' ? (
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#86efac' }}>
+                                &#10003; Stock confirmed — removing from PO
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#f59e0b' }}>
+                                &#9888; Short by {stockConfirmed[item.lineItemId].shortfall} units — adding shortfall to PO
+                              </div>
+                            )
+                          ) : (
+                            <>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#f59e0b', marginBottom: '8px' }}>
+                                This item is marked as In-House Inventory
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Qty on hand:</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={stockQtyOnHand[item.lineItemId] ?? ''}
+                                  onChange={(e) => setStockQtyOnHand(prev => ({ ...prev, [item.lineItemId]: parseInt(e.target.value, 10) || 0 }))}
+                                  style={{
+                                    width: '70px', padding: '4px 8px', fontSize: '13px', fontWeight: 600,
+                                    background: '#0d1220', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px',
+                                    color: '#f1f5f9', textAlign: 'center', outline: 'none',
+                                  }}
+                                />
+                                <button
+                                  disabled={stockConfirming[item.lineItemId]}
+                                  onClick={async () => {
+                                    const onHand = stockQtyOnHand[item.lineItemId] || 0
+                                    const ordered = item.totalQty
+                                    setStockConfirming(prev => ({ ...prev, [item.lineItemId]: true }))
+                                    try {
+                                      if (onHand >= ordered) {
+                                        // Enough stock — skip this item from PO queue
+                                        const res = await fetch('/api/line-items/skip', {
+                                          method: 'PATCH',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ lineItemId: item.lineItemId }),
+                                        })
+                                        if (res.ok) {
+                                          setStockConfirmed(prev => ({ ...prev, [item.lineItemId]: { status: 'confirmed', shortfall: 0 } }))
+                                          showToast('Stock confirmed — item removed from PO queue', 'success')
+                                          setTimeout(() => fetchAggregateItems(), 1500)
+                                        } else {
+                                          showToast('Failed to confirm stock', 'error')
+                                        }
+                                      } else {
+                                        // Short — update selection to shortfall quantity
+                                        const shortfall = ordered - onHand
+                                        const newSizes: Record<string, number> = {}
+                                        const sizeEntries = Object.entries(item.sizes).filter(([, s]) => s.qty > 0)
+                                        // Distribute shortfall proportionally across sizes
+                                        let remaining = shortfall
+                                        for (const [sizeName, sizeData] of sizeEntries) {
+                                          const ratio = sizeData.qty / ordered
+                                          const sizeShortfall = Math.round(ratio * shortfall)
+                                          newSizes[sizeName] = Math.min(sizeShortfall, remaining)
+                                          remaining -= newSizes[sizeName]
+                                        }
+                                        // Distribute any rounding remainder
+                                        if (remaining > 0) {
+                                          for (const [sizeName] of sizeEntries) {
+                                            if (remaining <= 0) break
+                                            newSizes[sizeName] = (newSizes[sizeName] || 0) + 1
+                                            remaining--
+                                          }
+                                        }
+                                        setSelection(prev => ({ ...prev, [item.lineItemId]: newSizes }))
+                                        setStockConfirmed(prev => ({ ...prev, [item.lineItemId]: { status: 'short', shortfall } }))
+                                        showToast(`Short by ${shortfall} units — shortfall added to PO`, 'info')
+                                      }
+                                    } catch {
+                                      showToast('Failed to confirm stock', 'error')
+                                    } finally {
+                                      setStockConfirming(prev => ({ ...prev, [item.lineItemId]: false }))
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                                    background: stockConfirming[item.lineItemId] ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.2)',
+                                    border: '1px solid rgba(245,158,11,0.4)', color: '#f59e0b',
+                                    cursor: stockConfirming[item.lineItemId] ? 'wait' : 'pointer',
+                                  }}
+                                >
+                                  {stockConfirming[item.lineItemId] ? 'Checking...' : 'Confirm Stock'}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
