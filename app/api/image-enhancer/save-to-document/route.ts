@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     // Fetch current attachments
     const { data: doc, error: fetchErr } = await supabase
       .from('documents')
-      .select('attachments, doc_number, doc_type')
+      .select('attachments, doc_number, doc_type, customer_id')
       .eq('id', documentId)
       .single()
 
@@ -105,6 +105,30 @@ export async function POST(req: NextRequest) {
 
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    }
+
+    // Sync file to customer's Files & Assets
+    if (doc.customer_id) {
+      try {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('project_files_json')
+          .eq('id', doc.customer_id)
+          .single()
+        if (customer) {
+          const existing = customer.project_files_json ? JSON.parse(customer.project_files_json) : []
+          const existingUrls = new Set(existing.map((f: any) => f.url))
+          if (!existingUrls.has(publicUrl)) {
+            existing.push(newAttachment)
+            await supabase
+              .from('customers')
+              .update({ project_files_json: JSON.stringify(existing) })
+              .eq('id', doc.customer_id)
+          }
+        }
+      } catch (syncErr) {
+        console.error('[save-to-document] customer sync error:', syncErr)
+      }
     }
 
     return NextResponse.json({

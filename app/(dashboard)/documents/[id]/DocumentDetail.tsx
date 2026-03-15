@@ -2580,6 +2580,36 @@ export default function DocumentDetail({
     })
   }
 
+  // Sync new attachments to the customer's Files & Assets (project_files_json)
+  // Deduplicates by URL so the same file isn't added twice
+  const syncFilesToCustomer = async (newFiles: Attachment[]) => {
+    if (!doc.customer_id || newFiles.length === 0) return
+    try {
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('project_files_json')
+        .eq('id', doc.customer_id)
+        .single()
+      if (!customer) return
+
+      const existing: Attachment[] = customer.project_files_json
+        ? JSON.parse(customer.project_files_json)
+        : []
+      const existingUrls = new Set(existing.map(f => f.url))
+
+      const toAdd = newFiles.filter(f => !existingUrls.has(f.url))
+      if (toAdd.length === 0) return
+
+      const updated = [...existing, ...toAdd]
+      await supabase
+        .from('customers')
+        .update({ project_files_json: JSON.stringify(updated) })
+        .eq('id', doc.customer_id)
+    } catch (err) {
+      console.error('Failed to sync files to customer:', err)
+    }
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
@@ -2623,6 +2653,7 @@ export default function DocumentDetail({
       const updated = [...attachments, ...newAttachments]
       setAttachments(updated)
       await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+      syncFilesToCustomer(newAttachments)
     }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -2679,6 +2710,7 @@ export default function DocumentDetail({
           setAttachments(updated)
           await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
         }
+        syncFilesToCustomer([newAttachment])
       }
     } catch (err) {
       console.error(err)
@@ -2737,6 +2769,7 @@ export default function DocumentDetail({
           setAttachments(updated)
           await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
         }
+        syncFilesToCustomer([newAttachment])
       }
     } catch (err) {
       console.error(err)
@@ -2790,6 +2823,7 @@ export default function DocumentDetail({
         setAttachments(updated)
         await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
       }
+      syncFilesToCustomer(newAttachments)
     }
 
     setPendingFiles([])
@@ -2942,6 +2976,7 @@ export default function DocumentDetail({
       const updated = [...attachments, newAtt]
       setAttachments(updated)
       await supabase.from('documents').update({ attachments: updated }).eq('id', doc.id)
+      syncFilesToCustomer([newAtt])
       showToast('File copied to Project Files', 'success')
     } catch (err) {
       console.error('Drop error:', err)
@@ -6700,6 +6735,7 @@ export default function DocumentDetail({
                   }
                 }
 
+                syncFilesToCustomer(newAttachments)
                 showToast(
                   replaceFilenames ? 'Text artwork updated' : 'Text artwork saved to project files',
                   'success'
