@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const S3 = new S3Client({
   region: 'auto',
@@ -11,30 +10,40 @@ const S3 = new S3Client({
   },
 })
 
+/**
+ * POST /api/image-enhancer/presign
+ *
+ * Proxied upload: receives the file directly and uploads to R2 server-side.
+ * This avoids CORS issues with direct browser-to-R2 uploads.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { filename, contentType } = await req.json()
+    const formData = await req.formData()
+    const file = formData.get('file') as File | null
 
-    if (!filename) {
-      return NextResponse.json({ error: 'filename required' }, { status: 400 })
+    if (!file) {
+      return NextResponse.json({ error: 'file required' }, { status: 400 })
     }
 
     const timestamp = Date.now()
-    const safeName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
     const key = `fwg-ops/image-enhancer-temp/${timestamp}-${safeName}`
+
+    const buffer = Buffer.from(await file.arrayBuffer())
 
     const command = new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
       Key: key,
-      ContentType: contentType || 'application/octet-stream',
+      ContentType: file.type || 'application/octet-stream',
+      Body: buffer,
     })
 
-    const uploadUrl = await getSignedUrl(S3, command, { expiresIn: 300 })
-    const fileUrl = `${process.env.R2_PUBLIC_URL}/${key}`
+    await S3.send(command)
 
-    return NextResponse.json({ uploadUrl, fileUrl })
+    const fileUrl = `${process.env.R2_PUBLIC_URL}/${key}`
+    return NextResponse.json({ fileUrl })
   } catch (err: any) {
-    console.error('[image-enhancer/presign] error:', err)
+    console.error('[image-enhancer/presign] upload error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

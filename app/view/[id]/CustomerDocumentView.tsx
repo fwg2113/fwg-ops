@@ -664,18 +664,64 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         const locationTexts = mockupConfig.textElements.filter((t: any) => t.location === location)
         for (const te of locationTexts) {
           ctx.save()
-          const tx = x + (te.position?.x || 0) / 100 * w
-          const ty = y + (te.position?.y || 0) / 100 * h
-          ctx.font = `${te.fontSize || 24}px ${te.fontFamily || 'Arial'}`
+          // Support both position formats: {x: 0-1} (normalized) and {position: {x: 0-100}}
+          const tx = te.x != null ? x + te.x * w : x + (te.position?.x || 0) / 100 * w
+          const ty = te.y != null ? y + te.y * h : y + (te.position?.y || 0) / 100 * h
+          const weight = te.fontWeight || 400
+          ctx.font = `${weight} ${te.fontSize || 24}px ${te.fontFamily || 'Arial'}`
           ctx.fillStyle = te.color || '#000000'
-          ctx.textAlign = 'center'
+          const align = te.textAlign === 'justify' ? 'left' : (te.textAlign || 'center')
+          ctx.textAlign = align as CanvasTextAlign
+          ctx.textBaseline = 'middle'
+
+          const lines = (te.text || '').split('\n')
+          const lineHeight = (te.fontSize || 24) * (te.lineSpacing || 1.25)
+          const totalHeight = (lines.length - 1) * lineHeight
+
+          ctx.translate(tx, ty)
           if (te.rotation) {
-            ctx.translate(tx, ty)
             ctx.rotate((te.rotation * Math.PI) / 180)
-            ctx.fillText(te.text || '', 0, 0)
-          } else {
-            ctx.fillText(te.text || '', tx, ty)
           }
+
+          // Helper to draw dilated text (concentric rings of fillText)
+          const drawDilated = (color: string, radius: number) => {
+            if (radius <= 0) return
+            ctx.save()
+            ctx.fillStyle = color
+            const rings = Math.max(3, Math.ceil(radius))
+            for (let r = 1; r <= rings; r++) {
+              const rad = (radius * r) / rings
+              const steps = Math.max(16, Math.ceil(rad * 8))
+              for (let s = 0; s < steps; s++) {
+                const angle = (2 * Math.PI * s) / steps
+                const dx = Math.cos(angle) * rad
+                const dy = Math.sin(angle) * rad
+                for (let li = 0; li < lines.length; li++) {
+                  const ly = -totalHeight / 2 + li * lineHeight
+                  ctx.fillText(lines[li], dx, ly + dy)
+                }
+              }
+            }
+            ctx.restore()
+          }
+
+          // 1) Offset path (outermost) — dilated by offset + stroke combined
+          if ((te.offsetPathWidth || 0) > 0) {
+            const totalRadius = (te.offsetPathWidth || 0) + (te.strokeWidth > 0 ? te.strokeWidth : 0)
+            drawDilated(te.offsetPathColor || '#000000', totalRadius)
+          }
+
+          // 2) Stroke (middle layer) — dilated fill, not strokeText
+          if (te.strokeWidth > 0) {
+            drawDilated(te.strokeColor || '#000000', te.strokeWidth)
+          }
+
+          // 3) Fill (top layer)
+          for (let i = 0; i < lines.length; i++) {
+            const ly = -totalHeight / 2 + i * lineHeight
+            ctx.fillText(lines[i], 0, ly)
+          }
+
           ctx.restore()
         }
       }

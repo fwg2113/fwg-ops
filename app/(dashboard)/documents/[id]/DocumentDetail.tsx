@@ -3530,8 +3530,11 @@ export default function DocumentDetail({
           {isDraggingToProjectFiles && <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 500 }}>Drop here to copy</span>}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-          {attachments.map((a) => (
-            <div key={a.key} style={{ position: 'relative', width: '104px', height: '104px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', overflow: 'hidden', cursor: 'pointer' }} onClick={() => a.contentType?.startsWith('image/') ? openLightbox(a) : window.open(a.url, '_blank')}>
+          {attachments.filter(a =>
+            // Hide JSON config files for text artwork — the PNG preview is shown instead
+            !(a.filename?.startsWith('text-artwork_') && a.filename?.endsWith('.json'))
+          ).map((a, aIdx) => (
+            <div key={a.key || a.url || aIdx} style={{ position: 'relative', width: '104px', height: '104px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', overflow: 'hidden', cursor: 'pointer' }} onClick={() => a.contentType?.startsWith('image/') ? openLightbox(a) : window.open(a.url, '_blank')}>
               {a.contentType?.startsWith('image/') ? <img src={a.url} alt={a.filename} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: '10px' }}>{a.filename?.split('.').pop()?.toUpperCase()}</div>}
               <button onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(a.key) }} style={{ position: 'absolute', top: '2px', right: '2px', width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(239,68,68,0.9)', border: 'none', color: 'white', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
             </div>
@@ -6633,6 +6636,80 @@ export default function DocumentDetail({
               }
             } catch (err) {
               console.error('Design file upload error:', err)
+            }
+          }}
+          onSaveTextArtwork={async (pngFile, jsonFile, replaceFilenames) => {
+            try {
+              // Save both PNG preview and JSON config as document attachments
+              const uploads: Array<{ file: File; contentType: string }> = [
+                { file: pngFile, contentType: 'image/png' },
+                { file: jsonFile, contentType: 'application/json' },
+              ]
+              const newAttachments: Attachment[] = []
+
+              for (const { file, contentType } of uploads) {
+                const formData = new FormData()
+                formData.append('file', file)
+                formData.append('documentId', doc.id)
+                formData.append('filename', file.name)
+                formData.append('contentType', contentType)
+
+                const response = await fetch('/api/image-enhancer/save-to-document', {
+                  method: 'POST',
+                  body: formData,
+                })
+                const data = await response.json()
+                if (data.success) {
+                  newAttachments.push({
+                    url: data.url,
+                    key: data.key || '',
+                    filename: file.name,
+                    contentType,
+                    size: file.size,
+                    uploadedAt: new Date().toISOString(),
+                  })
+                }
+              }
+
+              if (newAttachments.length > 0) {
+                setAttachments(prev => {
+                  // If updating, remove the old files first
+                  const filtered = replaceFilenames
+                    ? prev.filter(a => !replaceFilenames.includes(a.filename))
+                    : prev
+                  return [...filtered, ...newAttachments]
+                })
+
+                // Also persist the removal + addition to the DB
+                if (replaceFilenames) {
+                  const currentDoc = await supabase
+                    .from('documents')
+                    .select('attachments')
+                    .eq('id', doc.id)
+                    .single()
+                  if (currentDoc.data) {
+                    const dbAttachments = (currentDoc.data.attachments || []).filter(
+                      (a: any) => !replaceFilenames.includes(a.filename)
+                    )
+                    // New attachments were already added by save-to-document route,
+                    // so we just need to remove the old ones
+                    await supabase
+                      .from('documents')
+                      .update({ attachments: [...dbAttachments] })
+                      .eq('id', doc.id)
+                  }
+                }
+
+                showToast(
+                  replaceFilenames ? 'Text artwork updated' : 'Text artwork saved to project files',
+                  'success'
+                )
+              } else {
+                showToast('Failed to save text artwork', 'error')
+              }
+            } catch (err) {
+              console.error('Save text artwork error:', err)
+              showToast('Failed to save text artwork', 'error')
             }
           }}
           onClose={() => {
