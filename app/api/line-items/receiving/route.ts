@@ -8,7 +8,7 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { line_item_id, garment_source, received_quantities, receiving_notes, transfer_status } = body
+  const { line_item_id, garment_source, received_quantities, receiving_notes, transfer_status, garments_sorted } = body
 
   if (!line_item_id) {
     return NextResponse.json({ error: 'line_item_id required' }, { status: 400 })
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
   if (received_quantities !== undefined) updates.received_quantities = received_quantities
   if (receiving_notes !== undefined) updates.receiving_notes = receiving_notes
   if (transfer_status !== undefined) updates.transfer_status = transfer_status
+  if (garments_sorted !== undefined) updates.garments_sorted = garments_sorted
 
   // Auto-compute garment_status from received_quantities
   if (received_quantities !== undefined) {

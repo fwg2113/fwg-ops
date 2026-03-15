@@ -58,6 +58,8 @@ type FADocument = {
   doc_type: string
   status: string
   customer_name: string
+  customer_email?: string
+  customer_phone?: string
   total: number
   category?: string
   in_production: boolean
@@ -66,6 +68,24 @@ type FADocument = {
   line_items: LineItem[]
   folded_counted_sorted?: boolean
   ready_for_customer?: boolean
+  design_approved?: boolean
+  sent_to_zayn?: boolean
+  digitized?: boolean
+  due_date?: string
+  production_sort_order?: number
+  // New pipeline fields
+  ready_for_qc?: boolean
+  qc_passed?: boolean
+  packaged?: boolean
+  shipped?: boolean
+  tracking_number?: string
+  shipping_label_url?: string
+  easypost_shipment_id?: string
+  pickup_location?: string
+  customer_notified_at?: string
+  notification_method?: string
+  fulfillment_type?: string
+  fulfillment_details?: any
 }
 
 type Tab = 'dtf' | 'embroidery' | 'apparel' | 'completed'
@@ -115,9 +135,82 @@ function getStatusStyle(status: string): { bg: string; color: string; label: str
       return { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8', label: 'Completed' }
     case 'cancelled':
       return { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: 'Cancelled' }
+    // Pipeline-derived statuses
+    case 'awaiting_garments':
+      return { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8', label: 'Awaiting Garments' }
+    case 'garments_received':
+      return { bg: 'rgba(34,211,238,0.15)', color: '#22d3ee', label: 'Garments Received' }
+    case 'ready_for_production':
+      return { bg: 'rgba(168,85,247,0.15)', color: '#a855f7', label: 'Ready for Production' }
+    case 'folded_packed':
+      return { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Folded & Packed' }
+    case 'ready_for_qc':
+      return { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: 'Ready for QC' }
+    case 'qc_passed':
+      return { bg: 'rgba(34,211,238,0.15)', color: '#22d3ee', label: 'QC Passed' }
+    case 'packaged':
+      return { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'Packaged' }
     default:
       return { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8', label: status || 'Unknown' }
   }
+}
+
+function getDocPipelineStatus(d: FADocument, tab: Tab): string {
+  // Terminal statuses take precedence
+  if (COMPLETED_STATUSES.includes(d.status) || d.status === 'cancelled') return d.status
+
+  // New pipeline statuses (check most advanced first)
+  if (d.shipped) return 'shipped'
+  if (d.packaged) return 'packaged'
+  if (d.qc_passed) return 'qc_passed'
+  if (d.ready_for_qc) return 'ready_for_qc'
+
+  // Legacy fallbacks
+  if (d.ready_for_customer) return 'ready_for_pickup'
+  if (d.folded_counted_sorted) return 'folded_packed'
+
+  // In production
+  if (d.in_production) return 'in_production'
+
+  // Compute garment track status from line items
+  const apparelItems = d.line_items.filter(li =>
+    li.custom_fields?.apparel_mode === true || li.custom_fields?.apparel_mode === 'true'
+  )
+  const isEmb = tab === 'embroidery'
+  const relevantItems = isEmb
+    ? apparelItems.filter(li => li.category === 'EMBROIDERY')
+    : apparelItems.filter(li => li.category !== 'EMBROIDERY')
+
+  if (relevantItems.length === 0) return d.status
+
+  // Check garments
+  const allGarmentsSorted = relevantItems.every(li => li.garments_sorted)
+  const allGarmentsReceived = relevantItems.every(li => {
+    const src = li.garment_source || li.custom_fields?.garment_source || ''
+    if (!src) return false
+    const rawSizes: Record<string, any> = li.custom_fields?.sizes || {}
+    const totalOrdered = Object.values(rawSizes).reduce((a: number, v: any) => a + (typeof v === 'object' && v !== null ? Number(v.qty ?? v) : Number(v)), 0)
+    const totalReceived = Object.values(li.received_quantities || {}).reduce((a: number, b: any) => a + Number(b), 0)
+    return totalOrdered > 0 && totalReceived >= totalOrdered
+  })
+
+  // Check second track (artwork/transfers)
+  const allArtworkDone = relevantItems.every(li => li.custom_fields?.artwork_source === 'already_done' || li.custom_fields?.artwork_source === 'same_logo')
+  let secondTrackDone = false
+  if (isEmb) {
+    secondTrackDone = (d.digitized || allArtworkDone) ? true : false
+  } else {
+    secondTrackDone = relevantItems.every(li => li.transfers_cut_sorted) || allArtworkDone
+  }
+
+  // Ready for production = both tracks complete
+  if (allGarmentsSorted && secondTrackDone) return 'ready_for_production'
+  if (allGarmentsReceived) return 'garments_received'
+
+  const anySourceSet = relevantItems.some(li => li.garment_source || li.custom_fields?.garment_source)
+  if (anySourceSet) return 'awaiting_garments'
+
+  return d.status
 }
 
 function getItemsSummary(items: any[]): string {
@@ -179,6 +272,8 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
     customerName: string
     email: string
     date: string
+    dueDate: string
+    sortOrder: number
     status: string
     itemsSummary: string
     raw: FAOrder | FADocument
@@ -193,6 +288,8 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
       customerName: o.customer_name || '—',
       email: o.email || '—',
       date: o.created_at,
+      dueDate: '',
+      sortOrder: 0,
       status: o.status,
       itemsSummary: getItemsSummary(o.items),
       raw: o,
@@ -208,7 +305,9 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
         customerName: d.customer_name || '—',
         email: '',
         date: d.created_at,
-        status: d.in_production ? 'in_production' : d.status,
+        dueDate: d.due_date || '',
+        sortOrder: d.production_sort_order || 0,
+        status: getDocPipelineStatus(d, activeTab),
         itemsSummary: `${d.line_items.length} item${d.line_items.length !== 1 ? 's' : ''} (${totalQty} qty)`,
         raw: d,
       }
@@ -237,11 +336,80 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
       )
     }
 
-    // Sort by date descending
-    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    // Sort: custom order first, then by due date (soonest first), then created date
+    list.sort((a, b) => {
+      // Custom sort order takes priority (non-zero means manually ordered)
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+      // Then by due date (soonest first, no due date goes last)
+      if (a.dueDate && b.dueDate) return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      if (a.dueDate) return -1
+      if (b.dueDate) return 1
+      // Then by created date descending
+      return new Date(b.date).getTime() - new Date(a.date).getTime()
+    })
 
     return list
   }, [orders, documents, activeTab, search, getOrderTab, getDocumentTab])
+
+  // Drag and drop state
+  const [dragRowId, setDragRowId] = useState<string | null>(null)
+  const [rowOrder, setRowOrder] = useState<string[]>([])
+  const [hasCustomOrder, setHasCustomOrder] = useState(false)
+
+  // Sync row order from filteredRows
+  useEffect(() => {
+    if (!hasCustomOrder) {
+      setRowOrder(filteredRows.map(r => r.id))
+    }
+  }, [filteredRows, hasCustomOrder])
+
+  const displayRows = useMemo(() => {
+    if (!hasCustomOrder) return filteredRows
+    return rowOrder.map(id => filteredRows.find(r => r.id === id)).filter(Boolean) as typeof filteredRows
+  }, [filteredRows, rowOrder, hasCustomOrder])
+
+  const handleDragStart = (rowId: string) => {
+    setDragRowId(rowId)
+  }
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    if (!dragRowId || dragRowId === targetId) return
+    setRowOrder(prev => {
+      const order = hasCustomOrder ? [...prev] : filteredRows.map(r => r.id)
+      const fromIdx = order.indexOf(dragRowId)
+      const toIdx = order.indexOf(targetId)
+      if (fromIdx === -1 || toIdx === -1) return prev
+      order.splice(fromIdx, 1)
+      order.splice(toIdx, 0, dragRowId)
+      return order
+    })
+    if (!hasCustomOrder) setHasCustomOrder(true)
+  }
+
+  const handleDragEnd = () => {
+    setDragRowId(null)
+  }
+
+  const saveRowOrder = async () => {
+    const updates = rowOrder.map((id, idx) => ({ id, sort_order: idx + 1 }))
+    for (const u of updates) {
+      const row = filteredRows.find(r => r.id === u.id)
+      if (row?.source === 'document') {
+        await fetch(`/api/documents/${u.id}/production-status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ production_sort_order: u.sort_order }),
+        })
+      }
+    }
+    setHasCustomOrder(false)
+  }
+
+  const resetRowOrder = () => {
+    setHasCustomOrder(false)
+    setRowOrder(filteredRows.map(r => r.id))
+  }
 
   return (
     <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -333,11 +501,20 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
           borderRadius: '12px',
           overflow: 'hidden',
         }}>
+          {hasCustomOrder && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'rgba(34,211,238,0.06)', borderBottom: '1px solid rgba(34,211,238,0.15)' }}>
+              <span style={{ fontSize: 12, color: '#22d3ee', fontWeight: 600 }}>Custom order — drag rows to reorder</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={resetRowOrder} style={{ padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8' }}>Reset</button>
+                <button onClick={saveRowOrder} style={{ padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#22d3ee', border: 'none', color: '#000' }}>Save Order</button>
+              </div>
+            </div>
+          )}
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
-                  {['Source', 'Order #', 'Customer Name', 'Date', 'Items', 'Status', 'Actions'].map(col => (
+                  {['Order #', 'Customer Name', 'Due Date', 'Items', 'Status', 'Actions'].map(col => (
                     <th key={col} style={{
                       padding: '14px 16px',
                       textAlign: 'left',
@@ -353,44 +530,72 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map(row => {
+                {displayRows.map(row => {
                   const status = getStatusStyle(row.status)
                   const isExpanded = expandedOrder === row.id
+                  const isDragging = dragRowId === row.id
+                  // Due date row tint
+                  let rowTint = 'transparent'
+                  if (row.dueDate) {
+                    const due = new Date(row.dueDate + 'T00:00:00')
+                    const now = new Date(); now.setHours(0, 0, 0, 0)
+                    const daysLeft = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                    rowTint = daysLeft <= 0 ? 'rgba(239,68,68,0.06)' : daysLeft <= 2 ? 'rgba(239,68,68,0.04)' : daysLeft <= 4 ? 'rgba(245,158,11,0.04)' : 'rgba(34,197,94,0.04)'
+                  }
                   return (
                     <Fragment key={`${row.source}-${row.id}`}>
                       <tr
+                        draggable
+                        onDragStart={() => handleDragStart(row.id)}
+                        onDragOver={(e) => handleDragOver(e, row.id)}
+                        onDragEnd={handleDragEnd}
                         style={{
                           borderBottom: '1px solid rgba(148,163,184,0.05)',
-                          transition: 'background 0.15s ease',
-                          cursor: 'pointer',
+                          transition: 'background 0.15s ease, opacity 0.15s',
+                          cursor: 'grab',
+                          background: rowTint,
+                          opacity: isDragging ? 0.5 : 1,
+                          borderLeft: row.dueDate ? `3px solid ${(() => { const due = new Date(row.dueDate + 'T00:00:00'); const now = new Date(); now.setHours(0,0,0,0); const d = Math.ceil((due.getTime() - now.getTime()) / 86400000); return d <= 0 ? '#ef4444' : d <= 2 ? '#ef4444' : d <= 4 ? '#f59e0b' : '#22c55e' })()}` : '3px solid transparent',
                         }}
                         onClick={() => setExpandedOrder(isExpanded ? null : row.id)}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(148,163,184,0.05)' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                        onMouseEnter={e => { if (!isDragging) e.currentTarget.style.background = 'rgba(148,163,184,0.08)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = rowTint }}
                       >
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.5px',
-                            background: row.source === 'fa_order' ? 'rgba(168,85,247,0.15)' : 'rgba(59,130,246,0.15)',
-                            color: row.source === 'fa_order' ? '#a855f7' : '#3b82f6',
-                          }}>
-                            {row.source === 'fa_order' ? 'FA' : 'FWG'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '14px 16px', color: '#22d3ee', fontSize: '14px', fontWeight: 600 }}>
-                          {row.orderNumber}
+                        <td style={{ padding: '14px 16px', fontSize: '14px', fontWeight: 600 }}>
+                          {row.source === 'document' ? (
+                            <a
+                              href={`/documents/${row.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ color: '#22d3ee', textDecoration: 'none' }}
+                              onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+                              onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+                            >
+                              {row.orderNumber}
+                            </a>
+                          ) : (
+                            <span style={{ color: '#22d3ee' }}>{row.orderNumber}</span>
+                          )}
                         </td>
                         <td style={{ padding: '14px 16px', color: '#f1f5f9', fontSize: '14px' }}>
                           {row.customerName}
                         </td>
-                        <td style={{ padding: '14px 16px', color: '#94a3b8', fontSize: '14px', whiteSpace: 'nowrap' }}>
-                          {row.date ? formatDate(row.date) : '—'}
+                        <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                          {(() => {
+                            if (!row.dueDate) return <span style={{ color: '#475569', fontSize: 13 }}>—</span>
+                            const due = new Date(row.dueDate + 'T00:00:00')
+                            const now = new Date()
+                            now.setHours(0, 0, 0, 0)
+                            const diffMs = due.getTime() - now.getTime()
+                            const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+                            const dueDateColor = daysLeft <= 0 ? '#ef4444' : daysLeft <= 2 ? '#ef4444' : daysLeft <= 4 ? '#f59e0b' : '#22c55e'
+                            const countdown = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'Due today' : `${daysLeft}d left`
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span style={{ color: '#94a3b8', fontSize: 13 }}>{formatDate(row.dueDate)}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: dueDateColor }}>{countdown}</span>
+                              </div>
+                            )
+                          })()}
                         </td>
                         <td style={{ padding: '14px 16px', color: '#94a3b8', fontSize: '14px' }}>
                           {row.itemsSummary}
@@ -422,15 +627,15 @@ export default function FAOrdersList({ faOrders, documents }: { faOrders: FAOrde
                       </tr>
                       {isExpanded && row.source === 'fa_order' && (
                         <tr>
-                          <td colSpan={7} style={{ padding: 0 }}>
+                          <td colSpan={6} style={{ padding: 0 }}>
                             <OrderDetail order={row.raw as FAOrder} onUpdate={handleOrderUpdate} />
                           </td>
                         </tr>
                       )}
                       {isExpanded && row.source === 'document' && (
                         <tr>
-                          <td colSpan={7} style={{ padding: 0 }}>
-                            <DocumentDetail doc={row.raw as FADocument} />
+                          <td colSpan={6} style={{ padding: 0 }}>
+                            <DocumentDetail doc={row.raw as FADocument} mode={activeTab === 'embroidery' ? 'embroidery' : 'apparel'} />
                           </td>
                         </tr>
                       )}
@@ -898,10 +1103,347 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
   )
 }
 
-function DocumentDetail({ doc }: { doc: FADocument }) {
-  const apparelItems = doc.line_items.filter(
+function ShippingLabelModal({ doc, docState, setDocState, showToast, onClose }: { doc: FADocument; docState: any; setDocState: (fn: any) => void; showToast: (m: string, t: 'success' | 'error') => void; onClose: () => void }) {
+  const [step, setStep] = React.useState<'dimensions' | 'rates' | 'purchased'>( docState.shipping_label_url ? 'purchased' : 'dimensions')
+  const [parcel, setParcel] = React.useState({ length: '', width: '', height: '', weight: '' })
+  const [rates, setRates] = React.useState<any[]>([])
+  const [shipmentId, setShipmentId] = React.useState('')
+  const [selectedRate, setSelectedRate] = React.useState<string>('')
+  const [loading, setLoading] = React.useState(false)
+  const [notifying, setNotifying] = React.useState(false)
+
+  const getRates = async () => {
+    if (!parcel.length || !parcel.width || !parcel.height || !parcel.weight) {
+      showToast('Fill in all dimensions', 'error'); return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/shipping/rates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: doc.id, parcel: { length: Number(parcel.length), width: Number(parcel.width), height: Number(parcel.height), weight: Number(parcel.weight) } }),
+      })
+      const data = await res.json()
+      if (!res.ok) { showToast(data.error || 'Failed to get rates', 'error'); return }
+      setRates(data.rates)
+      setShipmentId(data.shipment_id)
+      setStep('rates')
+    } catch { showToast('Failed to get rates', 'error') }
+    finally { setLoading(false) }
+  }
+
+  const buyLabel = async () => {
+    if (!selectedRate) { showToast('Select a rate', 'error'); return }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/shipping/buy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: doc.id, shipment_id: shipmentId, rate_id: selectedRate }),
+      })
+      const data = await res.json()
+      if (!res.ok) { showToast(data.error || 'Failed to buy label', 'error'); return }
+      setDocState((prev: any) => ({ ...prev, shipped: true, tracking_number: data.tracking_number, shipping_label_url: data.label_url }))
+      showToast('Label purchased!', 'success')
+      setStep('purchased')
+    } catch { showToast('Failed to purchase label', 'error') }
+    finally { setLoading(false) }
+  }
+
+  const notifyCustomer = async () => {
+    setNotifying(true)
+    try {
+      const channels = []
+      if (doc.customer_email) channels.push('email')
+      if (doc.customer_phone) channels.push('sms')
+      if (channels.length === 0) { showToast('No customer email or phone on file', 'error'); setNotifying(false); return }
+      const res = await fetch('/api/notifications/customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: doc.id, type: 'shipped', channels }),
+      })
+      if (!res.ok) { showToast('Notification failed', 'error'); return }
+      setDocState((prev: any) => ({ ...prev, customer_notified_at: new Date().toISOString() }))
+      showToast('Customer notified!', 'success')
+    } catch { showToast('Notification failed', 'error') }
+    finally { setNotifying(false) }
+  }
+
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(148,163,184,0.15)', background: 'rgba(255,255,255,0.04)', color: '#f1f5f9', fontSize: 13 }
+
+  return (
+    <>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Shipping Label</div>
+
+      {step === 'dimensions' && (
+        <>
+          <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>Enter package dimensions to get shipping rates.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Length (in)</div>
+              <input type="number" value={parcel.length} onChange={e => setParcel(p => ({ ...p, length: e.target.value }))} style={inputStyle} placeholder="0" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Width (in)</div>
+              <input type="number" value={parcel.width} onChange={e => setParcel(p => ({ ...p, width: e.target.value }))} style={inputStyle} placeholder="0" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Height (in)</div>
+              <input type="number" value={parcel.height} onChange={e => setParcel(p => ({ ...p, height: e.target.value }))} style={inputStyle} placeholder="0" />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Weight (oz)</div>
+              <input type="number" value={parcel.weight} onChange={e => setParcel(p => ({ ...p, weight: e.target.value }))} style={inputStyle} placeholder="0" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={getRates} disabled={loading} style={{ padding: '8px 16px', borderRadius: 6, background: '#22d3ee', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+              {loading ? 'Getting Rates...' : 'Get Rates'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 'rates' && (
+        <>
+          <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>Select a shipping rate:</div>
+          <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 16 }}>
+            {rates.map((r: any) => (
+              <div key={r.id} onClick={() => setSelectedRate(r.id)}
+                style={{ padding: '10px 12px', marginBottom: 6, borderRadius: 8, cursor: 'pointer', border: `2px solid ${selectedRate === r.id ? '#22d3ee' : 'rgba(148,163,184,0.1)'}`, background: selectedRate === r.id ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>{r.carrier} — {r.service}</div>
+                    {r.delivery_days && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{r.delivery_days} business day{r.delivery_days !== 1 ? 's' : ''}</div>}
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#22c55e' }}>${Number(r.rate).toFixed(2)}</div>
+                </div>
+              </div>
+            ))}
+            {rates.length === 0 && <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: 20 }}>No rates available</div>}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <button onClick={() => setStep('dimensions')} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Back</button>
+            <button onClick={buyLabel} disabled={loading || !selectedRate} style={{ padding: '8px 16px', borderRadius: 6, background: '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (loading || !selectedRate) ? 0.5 : 1 }}>
+              {loading ? 'Purchasing...' : '🏷 Buy Label'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 'purchased' && (
+        <>
+          <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#22c55e', marginBottom: 8 }}>Label Purchased!</div>
+            {docState.tracking_number && <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Tracking: <span style={{ color: '#f1f5f9', fontWeight: 500 }}>{docState.tracking_number}</span></div>}
+            {docState.shipping_label_url && <a href={docState.shipping_label_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#22d3ee', textDecoration: 'underline' }}>Print Label →</a>}
+          </div>
+          {!docState.customer_notified_at && (
+            <button onClick={notifyCustomer} disabled={notifying} style={{ width: '100%', padding: '10px 16px', borderRadius: 6, background: '#3b82f6', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: notifying ? 0.6 : 1, marginBottom: 8 }}>
+              {notifying ? 'Sending...' : `📬 Notify Customer${doc.customer_email ? ' (Email' : ''}${doc.customer_email && doc.customer_phone ? ' + SMS)' : doc.customer_email ? ')' : doc.customer_phone ? ' (SMS)' : ''}`}
+            </button>
+          )}
+          {docState.customer_notified_at && (
+            <div style={{ fontSize: 12, color: '#22c55e', textAlign: 'center', marginBottom: 8 }}>✓ Customer notified</div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Close</button>
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
+function ReadyForPickupModal({ doc, docState, setDocState, showToast, onClose }: { doc: FADocument; docState: any; setDocState: (fn: any) => void; showToast: (m: string, t: 'success' | 'error') => void; onClose: () => void }) {
+  const [pickupLocation, setPickupLocation] = React.useState(docState.pickup_location || '')
+  const [notifying, setNotifying] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+
+  const saveLocation = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/production-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pickup_location: pickupLocation }),
+      })
+      if (!res.ok) { showToast('Save failed', 'error'); return }
+      setDocState((prev: any) => ({ ...prev, pickup_location: pickupLocation }))
+      showToast('Location saved', 'success')
+    } catch { showToast('Save failed', 'error') }
+    finally { setSaving(false) }
+  }
+
+  const notifyCustomer = async () => {
+    setNotifying(true)
+    try {
+      const channels = []
+      if (doc.customer_email) channels.push('email')
+      if (doc.customer_phone) channels.push('sms')
+      if (channels.length === 0) { showToast('No customer email or phone on file', 'error'); setNotifying(false); return }
+      const res = await fetch('/api/notifications/customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: doc.id, type: 'pickup', channels, pickup_location: pickupLocation }),
+      })
+      if (!res.ok) { showToast('Notification failed', 'error'); return }
+      setDocState((prev: any) => ({ ...prev, customer_notified_at: new Date().toISOString() }))
+      showToast('Customer notified!', 'success')
+    } catch { showToast('Notification failed', 'error') }
+    finally { setNotifying(false) }
+  }
+
+  return (
+    <>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Ready for Pickup</div>
+      <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>Set the pickup location and notify the customer.</div>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Pickup Location / Shelf</div>
+        <input
+          type="text"
+          value={pickupLocation}
+          onChange={e => setPickupLocation(e.target.value)}
+          placeholder="e.g. Shelf B3, Front counter, etc."
+          style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(148,163,184,0.15)', background: 'rgba(255,255,255,0.04)', color: '#f1f5f9', fontSize: 13 }}
+        />
+        {pickupLocation !== docState.pickup_location && (
+          <button onClick={saveLocation} disabled={saving} style={{ marginTop: 6, padding: '4px 12px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.2)', color: '#22d3ee' }}>
+            {saving ? 'Saving...' : 'Save Location'}
+          </button>
+        )}
+      </div>
+
+      {!docState.customer_notified_at ? (
+        <button onClick={notifyCustomer} disabled={notifying} style={{ width: '100%', padding: '10px 16px', borderRadius: 6, background: '#3b82f6', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: notifying ? 0.6 : 1, marginBottom: 12 }}>
+          {notifying ? 'Sending...' : `📬 Notify Customer${doc.customer_email ? ' (Email' : ''}${doc.customer_email && doc.customer_phone ? ' + SMS)' : doc.customer_email ? ')' : doc.customer_phone ? ' (SMS)' : ''}`}
+        </button>
+      ) : (
+        <div style={{ fontSize: 12, color: '#22c55e', textAlign: 'center', marginBottom: 12 }}>✓ Customer notified</div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Close</button>
+      </div>
+    </>
+  )
+}
+
+function LightboxOverlay({ lightbox, setLightbox }: { lightbox: { images: { url: string; label: string }[]; index: number }; setLightbox: (v: any) => void }) {
+  const [zoomed, setZoomed] = React.useState(false)
+  const [pan, setPan] = React.useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = React.useState(false)
+  const lastPos = React.useRef({ x: 0, y: 0 })
+  const imgRef = React.useRef<HTMLImageElement>(null)
+
+  const img = lightbox.images[lightbox.index]
+  const hasMultiple = lightbox.images.length > 1
+
+  const resetView = () => { setZoomed(false); setPan({ x: 0, y: 0 }); setIsDragging(false) }
+  const goTo = (idx: number) => { resetView(); setLightbox({ ...lightbox, index: idx }) }
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null)
+      if (e.key === 'ArrowLeft' && hasMultiple) goTo((lightbox.index - 1 + lightbox.images.length) % lightbox.images.length)
+      if (e.key === 'ArrowRight' && hasMultiple) goTo((lightbox.index + 1) % lightbox.images.length)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!zoomed) return
+    e.preventDefault()
+    setIsDragging(true)
+    lastPos.current = { x: e.clientX, y: e.clientY }
+    // Pointer capture locks all future pointer events to this element
+    imgRef.current?.setPointerCapture(e.pointerId)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return
+    const dx = e.clientX - lastPos.current.x
+    const dy = e.clientY - lastPos.current.y
+    lastPos.current = { x: e.clientX, y: e.clientY }
+    setPan(p => ({ x: p.x + dx, y: p.y + dy }))
+  }
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDragging) return
+    setIsDragging(false)
+    imgRef.current?.releasePointerCapture(e.pointerId)
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+      onClick={e => { if (e.target === e.currentTarget) setLightbox(null) }}
+    >
+      {/* Close */}
+      <button
+        onClick={() => setLightbox(null)}
+        style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: 24, width: 40, height: 40, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+      >×</button>
+
+      {/* Prev */}
+      {hasMultiple && (
+        <button
+          onClick={() => goTo((lightbox.index - 1 + lightbox.images.length) % lightbox.images.length)}
+          style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: 28, width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+        >‹</button>
+      )}
+
+      {/* Next */}
+      {hasMultiple && (
+        <button
+          onClick={() => goTo((lightbox.index + 1) % lightbox.images.length)}
+          style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: 28, width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+        >›</button>
+      )}
+
+      {/* Image */}
+      <img
+        ref={imgRef}
+        src={img.url}
+        alt={img.label}
+        draggable={false}
+        onDoubleClick={() => { if (zoomed) resetView(); else setZoomed(true) }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={{
+          maxWidth: zoomed ? 'none' : '85vw',
+          maxHeight: zoomed ? 'none' : '85vh',
+          width: zoomed ? '170vw' : undefined,
+          objectFit: 'contain',
+          borderRadius: 6,
+          cursor: zoomed ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+          transform: zoomed ? `translate(${pan.x}px, ${pan.y}px)` : undefined,
+          transition: isDragging ? 'none' : 'transform 0.15s ease',
+          userSelect: 'none',
+          touchAction: 'none',
+        }}
+      />
+
+      {/* Label + counter */}
+      <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
+        <div style={{ color: '#e2e8f0', fontWeight: 500, marginBottom: 2 }}>{img.label}</div>
+        {hasMultiple && <div>{lightbox.index + 1} / {lightbox.images.length}</div>}
+      </div>
+    </div>
+  )
+}
+
+function DocumentDetail({ doc, mode = 'apparel' }: { doc: FADocument; mode?: 'apparel' | 'embroidery' }) {
+  const allApparelModeItems = doc.line_items.filter(
     li => li.custom_fields?.apparel_mode === true || li.custom_fields?.apparel_mode === 'true'
   )
+  const apparelItems = mode === 'embroidery'
+    ? allApparelModeItems.filter(li => li.category === 'EMBROIDERY')
+    : allApparelModeItems.filter(li => li.category !== 'EMBROIDERY')
   const nonApparelItems = doc.line_items.filter(
     li => !li.custom_fields?.apparel_mode && li.custom_fields?.apparel_mode !== 'true'
   )
@@ -913,17 +1455,19 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
     transfer_status: string
     transfers_printed: boolean
     transfers_cut_sorted: boolean
+    garments_sorted: boolean
     saving: boolean
   }>>(() => {
     const init: Record<string, any> = {}
     doc.line_items.forEach(li => {
       init[li.id] = {
-        garment_source: li.garment_source || '',
+        garment_source: li.garment_source || li.custom_fields?.garment_source || '',
         received_quantities: li.received_quantities || {},
         receiving_notes: li.receiving_notes || '',
         transfer_status: li.transfer_status || 'pending',
         transfers_printed: !!li.transfers_printed,
         transfers_cut_sorted: !!li.transfers_cut_sorted,
+        garments_sorted: !!li.garments_sorted,
         saving: false,
       }
     })
@@ -932,16 +1476,29 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
 
   const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [modal, setModal] = React.useState<{
-    type: 'garments_ordered' | 'garments_received' | 'garments_sorted' | 'transfers_printed' | 'transfers_cut_sorted' | 'in_production' | 'folded_counted_sorted' | 'ready_for_customer' | null
+    type: 'garments_ordered' | 'garments_received' | 'garments_sorted' | 'transfers_printed' | 'transfers_cut_sorted' | 'in_production' | 'folded_counted_sorted' | 'ready_for_customer' | 'design_approved' | 'send_to_zayn' | 'digitized' | 'ready_for_qc' | 'qc_passed' | 'packaged' | 'shipping_label' | 'ready_for_pickup' | null
     lineItemId?: string
   }>({ type: null })
+  const [lightbox, setLightbox] = React.useState<{ images: { url: string; label: string }[]; index: number } | null>(null)
+
   const [docState, setDocState] = React.useState({
     in_production: !!doc.in_production,
     folded_counted_sorted: !!doc.folded_counted_sorted,
     ready_for_customer: !!doc.ready_for_customer,
+    design_approved: !!doc.design_approved,
+    sent_to_zayn: !!doc.sent_to_zayn,
+    digitized: !!doc.digitized,
+    ready_for_qc: !!doc.ready_for_qc,
+    qc_passed: !!doc.qc_passed,
+    packaged: !!doc.packaged,
+    shipped: !!doc.shipped,
+    tracking_number: doc.tracking_number || '',
+    shipping_label_url: doc.shipping_label_url || '',
+    pickup_location: doc.pickup_location || '',
+    customer_notified_at: doc.customer_notified_at || '',
   })
 
-  const saveDocField = async (fields: Record<string, boolean>) => {
+  const saveDocField = async (fields: Record<string, any>) => {
     try {
       const res = await fetch(`/api/documents/${doc.id}/production-status`, {
         method: 'PATCH',
@@ -1028,32 +1585,51 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
   const garmentsOrdered = garmentStatuses.some(s => s !== 'pending_source')
   const allGarmentsReceived = garmentStatuses.length > 0 && garmentStatuses.every(s => s === 'received')
   const anyPartial = garmentStatuses.some(s => s === 'partially_received')
-  const allGarmentsSorted = apparelItems.length > 0 && apparelItems.every(li => li.garments_sorted)
+  const allGarmentsSorted = apparelItems.length > 0 && apparelItems.every(li => lineItemStates[li.id]?.garments_sorted)
   const designApproved = true
   const allTransfersPrinted = apparelItems.length > 0 && apparelItems.every(li => lineItemStates[li.id]?.transfers_printed)
   const allTransfersCutSorted = apparelItems.length > 0 && apparelItems.every(li => lineItemStates[li.id]?.transfers_cut_sorted)
-  const readyForProduction = allGarmentsSorted && allTransfersCutSorted
-  const inProduction = !!doc.in_production
-  const foldedCountedSorted = !!doc.folded_counted_sorted
-  const readyForCustomer = !!doc.ready_for_customer
+  // Embroidery artwork track state
+  const allArtworkAlreadyDone = apparelItems.length > 0 && apparelItems.every(li => li.custom_fields?.artwork_source === 'already_done' || li.custom_fields?.artwork_source === 'same_logo')
+  const designApprovedEmb = !!docState.design_approved || allArtworkAlreadyDone
+  const sentToZayn = !!docState.sent_to_zayn || allArtworkAlreadyDone
+  const digitized = !!docState.digitized || allArtworkAlreadyDone
+  const needsDigitizing = mode === 'embroidery' && !allArtworkAlreadyDone && apparelItems.some(li => li.custom_fields?.include_digitizing !== false)
+
+  // Apparel/DTF artwork track — auto-complete transfers track if already vectorized
+  const allTransfersAlreadyDone = mode === 'apparel' && apparelItems.length > 0 && apparelItems.every(li => li.custom_fields?.artwork_source === 'already_done' || li.custom_fields?.artwork_source === 'same_logo')
+
+  const readyForProduction = mode === 'embroidery'
+    ? allGarmentsSorted && (digitized || !needsDigitizing)
+    : allGarmentsSorted && (allTransfersCutSorted || allTransfersAlreadyDone)
+  const inProduction = !!docState.in_production
+  const readyForQC = !!docState.ready_for_qc
+  const qcPassed = !!docState.qc_passed
+  const packaged = !!docState.packaged
+  const shipped = !!docState.shipped
+  const fulfillmentType = doc.fulfillment_type || ''
+  const isShipping = fulfillmentType === 'shipping'
+  // Legacy
+  const foldedCountedSorted = !!docState.folded_counted_sorted
+  const readyForCustomer = !!docState.ready_for_customer
 
   const node = (done: boolean, active: boolean, partial: boolean, icon: string): React.CSSProperties => ({
     width: 32, height: 32, borderRadius: '50%',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 13,
     background: done ? 'rgba(52,211,153,0.15)' : active ? 'rgba(34,211,238,0.12)' : partial ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
-    border: `2px solid ${done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : 'rgba(148,163,184,0.15)'}`,
-    color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
+    border: `2px solid ${done ? '#22c55e' : active ? '#22d3ee' : partial ? '#f59e0b' : 'rgba(148,163,184,0.15)'}`,
+    color: done ? '#22c55e' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
     boxShadow: active ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
     flexShrink: 0,
   })
   const lbl = (done: boolean, active: boolean, partial?: boolean): React.CSSProperties => ({
     fontSize: 9, textAlign: 'center' as const, lineHeight: 1.3, fontWeight: 500, marginTop: 4,
-    color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
+    color: done ? '#22c55e' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
   })
   const line = (done: boolean): React.CSSProperties => ({
     flex: 1, height: 2, minWidth: 20,
-    background: done ? '#34d399' : 'rgba(148,163,184,0.1)',
+    background: done ? '#22c55e' : 'rgba(148,163,184,0.1)',
   })
 
   return (
@@ -1069,156 +1645,178 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
             onClick={e => e.stopPropagation()}
           >
             {/* GARMENTS ORDERED */}
-            {modal.type === 'garments_ordered' && modal.lineItemId && (() => {
-              const li = apparelItems.find(l => l.id === modal.lineItemId)
-              const state = lineItemStates[modal.lineItemId]
-              if (!li || !state) return null
-              return (
-                <>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garment Source — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>How are we getting these garments?</div>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                    {[
-                      { val: 'sanmar', label: 'Order SanMar', color: '#22d3ee' },
-                      { val: 'stock', label: 'Pull from Stock', color: '#84cc16' },
-                      { val: 'external', label: 'Already Ordered', color: '#f97316' },
-                    ].map(opt => (
-                      <button key={opt.val} onClick={() => updateLineItem(modal.lineItemId!, { garment_source: opt.val })}
-                        style={{ padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${state.garment_source === opt.val ? opt.color : 'rgba(148,163,184,0.15)'}`, background: state.garment_source === opt.val ? `${opt.color}18` : 'transparent', color: state.garment_source === opt.val ? opt.color : '#475569', transition: 'all 0.15s' }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {state.garment_source === 'stock' && (
-                    <div style={{ padding: '8px 12px', background: 'rgba(132,204,22,0.08)', border: '1px solid rgba(132,204,22,0.15)', borderRadius: 6, fontSize: 12, color: '#84cc16', marginBottom: 16 }}>
-                      📦 Go to inventory and pull these pieces.
+            {modal.type === 'garments_ordered' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garment Source</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Set the garment source for each line item</div>
+                {apparelItems.map((li, idx) => {
+                  const state = lineItemStates[li.id]
+                  if (!state) return null
+                  const sourceOpts = [
+                    { val: 'sanmar', label: 'Order SanMar', color: '#22d3ee' },
+                    { val: 'stock', label: 'In-House Inventory', color: '#84cc16' },
+                    { val: 'customer_supplied', label: 'Customer Provided', color: '#a78bfa' },
+                    { val: 'external', label: 'Already Ordered', color: '#f97316' },
+                  ]
+                  return (
+                    <div key={li.id} style={{ padding: '12px 0', borderTop: idx > 0 ? '1px solid rgba(148,163,184,0.08)' : 'none' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#c8cdd8', marginBottom: 8 }}>{li.custom_fields?.item_number || 'Item'} {li.custom_fields?.color ? `· ${li.custom_fields.color}` : ''}</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {sourceOpts.map(opt => (
+                          <button key={opt.val} onClick={() => updateLineItem(li.id, { garment_source: opt.val })}
+                            style={{ padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: `1px solid ${state.garment_source === opt.val ? opt.color : 'rgba(148,163,184,0.15)'}`, background: state.garment_source === opt.val ? `${opt.color}18` : 'transparent', color: state.garment_source === opt.val ? opt.color : '#475569', transition: 'all 0.15s' }}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      {state.garment_source === 'stock' && (
+                        <div style={{ padding: '6px 10px', background: 'rgba(132,204,22,0.08)', border: '1px solid rgba(132,204,22,0.15)', borderRadius: 6, fontSize: 11, color: '#84cc16', marginTop: 8 }}>
+                          Go to inventory and pull these pieces.
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { garment_source: state.garment_source }); setModal({ type: null }) }}
-                      style={{ padding: '8px 16px', borderRadius: 6, background: '#22d3ee', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      Save
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
+                  )
+                })}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { for (const li of apparelItems) { await saveLineItemField(li.id, { garment_source: lineItemStates[li.id]?.garment_source }) }; setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: '#22d3ee', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Save All
+                  </button>
+                </div>
+              </>
+            )}
 
             {/* GARMENTS RECEIVED */}
-            {modal.type === 'garments_received' && modal.lineItemId && (() => {
-              const li = apparelItems.find(l => l.id === modal.lineItemId)
-              const state = lineItemStates[modal.lineItemId]
-              if (!li || !state) return null
-              const rawSizes: Record<string, any> = li.custom_fields?.sizes || {}
-              const sizes: Record<string, number> = Object.fromEntries(Object.entries(rawSizes).map(([s, v]) => [s, typeof v === 'object' && v !== null ? Number(v.qty ?? v) : Number(v)]))
-              const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL']
-              const sizeEntries = Object.entries(sizes).filter(([,q]) => Number(q) > 0).sort(([a],[b]) => (SIZE_ORDER.indexOf(a.toUpperCase()) === -1 ? 99 : SIZE_ORDER.indexOf(a.toUpperCase())) - (SIZE_ORDER.indexOf(b.toUpperCase()) === -1 ? 99 : SIZE_ORDER.indexOf(b.toUpperCase())))
-              const totalOrdered = sizeEntries.reduce((a,[,v]) => a + Number(v), 0)
-              const totalReceived = Object.values(state.received_quantities).reduce((a:number,b:any) => a + Number(b), 0)
-              return (
-                <>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garments Received — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>{totalReceived} of {totalOrdered} pieces received</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-                    {sizeEntries.map(([size, qty]) => {
-                      const recvd = state.received_quantities[size] ?? 0
-                      const checked = Number(recvd) >= Number(qty)
-                      return (
-                        <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 56, background: checked ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${checked ? 'rgba(52,211,153,0.2)' : 'rgba(148,163,184,0.1)'}`, borderRadius: 8, padding: '10px 8px' }}>
-                          <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>{size}</div>
-                          <div style={{ fontSize: 11, color: '#64748b' }}>{qty} pcs</div>
-                          <input type="checkbox" checked={checked} onChange={e => updateLineItem(modal.lineItemId!, { received_quantities: { ...state.received_quantities, [size]: e.target.checked ? Number(qty) : 0 } })} style={{ width: 16, height: 16, accentColor: '#34d399', cursor: 'pointer' }} />
-                          <input type="number" value={state.received_quantities[size] ?? ''} min={0} max={Number(qty)} placeholder="0"
-                            onChange={e => updateLineItem(modal.lineItemId!, { received_quantities: { ...state.received_quantities, [size]: Number(e.target.value) } })}
-                            style={{ width: 44, padding: '4px 6px', background: '#0d1220', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 4, color: '#c8cdd8', fontSize: 12, textAlign: 'center' }} />
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <textarea value={state.receiving_notes} onChange={e => updateLineItem(modal.lineItemId!, { receiving_notes: e.target.value })} placeholder="Note (e.g. 2XL backordered, ETA next week)…" rows={2}
-                    style={{ width: '100%', padding: '8px 10px', background: '#0d1220', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 6, color: '#c8cdd8', fontSize: 12, resize: 'none', fontFamily: 'inherit', outline: 'none', marginBottom: 16 }} />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { received_quantities: state.received_quantities, receiving_notes: state.receiving_notes }); setModal({ type: null }) }}
-                      style={{ padding: '8px 16px', borderRadius: 6, background: '#22d3ee', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      Save
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
+            {modal.type === 'garments_received' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garments Received</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Confirm received quantities for each line item</div>
+                {apparelItems.map((li, idx) => {
+                  const state = lineItemStates[li.id]
+                  if (!state) return null
+                  const rawSizes: Record<string, any> = li.custom_fields?.sizes || {}
+                  const sizes: Record<string, number> = Object.fromEntries(Object.entries(rawSizes).map(([s, v]) => [s, typeof v === 'object' && v !== null ? Number(v.qty ?? v) : Number(v)]))
+                  const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL']
+                  const sizeEntries = Object.entries(sizes).filter(([,q]) => Number(q) > 0).sort(([a],[b]) => (SIZE_ORDER.indexOf(a.toUpperCase()) === -1 ? 99 : SIZE_ORDER.indexOf(a.toUpperCase())) - (SIZE_ORDER.indexOf(b.toUpperCase()) === -1 ? 99 : SIZE_ORDER.indexOf(b.toUpperCase())))
+                  const totalOrdered = sizeEntries.reduce((a,[,v]) => a + Number(v), 0)
+                  const totalReceived = Object.values(state.received_quantities).reduce((a:number,b:any) => a + Number(b), 0)
+                  const allReceived = totalReceived >= totalOrdered && totalOrdered > 0
+                  return (
+                    <div key={li.id} style={{ padding: '12px 0', borderTop: idx > 0 ? '1px solid rgba(148,163,184,0.08)' : 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#c8cdd8' }}>{li.custom_fields?.item_number || 'Item'} {li.custom_fields?.color ? `· ${li.custom_fields.color}` : ''}</div>
+                        <div style={{ fontSize: 11, color: allReceived ? '#22c55e' : '#64748b' }}>{totalReceived} of {totalOrdered} received {allReceived ? '✓' : ''}</div>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                        {sizeEntries.map(([size, qty]) => {
+                          const recvd = state.received_quantities[size] ?? 0
+                          const checked = Number(recvd) >= Number(qty)
+                          return (
+                            <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 52, background: checked ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${checked ? 'rgba(52,211,153,0.2)' : 'rgba(148,163,184,0.1)'}`, borderRadius: 8, padding: '8px 6px' }}>
+                              <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>{size}</div>
+                              <div style={{ fontSize: 10, color: '#64748b' }}>{qty} pcs</div>
+                              <input type="checkbox" checked={checked} onChange={e => updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: e.target.checked ? Number(qty) : 0 } })} style={{ width: 14, height: 14, accentColor: '#22c55e', cursor: 'pointer' }} />
+                              <input type="number" value={state.received_quantities[size] ?? ''} min={0} max={Number(qty)} placeholder="0"
+                                onChange={e => updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: Number(e.target.value) } })}
+                                style={{ width: 40, padding: '3px 4px', background: '#0d1220', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 4, color: '#c8cdd8', fontSize: 11, textAlign: 'center' }} />
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <textarea value={state.receiving_notes} onChange={e => updateLineItem(li.id, { receiving_notes: e.target.value })} placeholder="Note (e.g. 2XL backordered, ETA next week)…" rows={1}
+                        style={{ width: '100%', padding: '6px 8px', background: '#0d1220', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 6, color: '#c8cdd8', fontSize: 11, resize: 'none', fontFamily: 'inherit', outline: 'none' }} />
+                    </div>
+                  )
+                })}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { for (const li of apparelItems) { const s = lineItemStates[li.id]; if (s) await saveLineItemField(li.id, { received_quantities: s.received_quantities, receiving_notes: s.receiving_notes }) }; setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: '#22d3ee', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Save All
+                  </button>
+                </div>
+              </>
+            )}
 
             {/* GARMENTS SORTED */}
-            {modal.type === 'garments_sorted' && modal.lineItemId && (() => {
-              const li = apparelItems.find(l => l.id === modal.lineItemId)
-              if (!li) return null
-              const currentlySorted = !!li.garments_sorted
-              return (
-                <>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garments Sorted — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
-                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
-                    {currentlySorted ? 'Mark garments as NOT sorted?' : 'Confirm garments are counted and sorted by size and ready for pressing.'}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={async () => {
-                      await saveLineItemField(modal.lineItemId!, { garments_sorted: !currentlySorted })
-                      updateLineItem(modal.lineItemId!, {})
-                      setModal({ type: null })
-                    }} style={{ padding: '8px 16px', borderRadius: 6, background: currentlySorted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      {currentlySorted ? 'Mark Not Sorted' : '✓ Confirm Sorted'}
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
+            {modal.type === 'garments_sorted' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Garments Sorted</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Confirm garments are counted and sorted by size</div>
+                {apparelItems.map((li, idx) => {
+                  const currentlySorted = !!lineItemStates[li.id]?.garments_sorted
+                  return (
+                    <div key={li.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: idx > 0 ? '1px solid rgba(148,163,184,0.08)' : 'none' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#c8cdd8' }}>{li.custom_fields?.item_number || 'Item'} {li.custom_fields?.color ? `· ${li.custom_fields.color}` : ''}</div>
+                      <button onClick={async () => {
+                        await saveLineItemField(li.id, { garments_sorted: !currentlySorted })
+                        updateLineItem(li.id, { garments_sorted: !currentlySorted })
+                      }} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: currentlySorted ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${currentlySorted ? '#22c55e' : 'rgba(148,163,184,0.15)'}`, color: currentlySorted ? '#22c55e' : '#475569' }}>
+                        {currentlySorted ? '✓ Sorted' : 'Mark Sorted'}
+                      </button>
+                    </div>
+                  )
+                })}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Close</button>
+                </div>
+              </>
+            )}
 
             {/* TRANSFERS PRINTED */}
-            {modal.type === 'transfers_printed' && modal.lineItemId && (() => {
-              const li = apparelItems.find(l => l.id === modal.lineItemId)
-              const state = lineItemStates[modal.lineItemId]
-              if (!li || !state) return null
-              const currentlyPrinted = !!state.transfers_printed
-              return (
-                <>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Transfers Printed — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
-                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
-                    {currentlyPrinted ? 'Mark transfers as NOT printed?' : 'Confirm DTF transfers have been printed and are ready to be cut and sorted.'}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { transfer_status: currentlyPrinted ? 'pending' : 'printed' }); updateLineItem(modal.lineItemId!, { transfers_printed: !currentlyPrinted }); setModal({ type: null }) }}
-                      style={{ padding: '8px 16px', borderRadius: 6, background: currentlyPrinted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      {currentlyPrinted ? 'Mark Not Printed' : '✓ Confirm Printed'}
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
+            {modal.type === 'transfers_printed' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Transfers Printed</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Confirm DTF transfers have been printed</div>
+                {apparelItems.map((li, idx) => {
+                  const state = lineItemStates[li.id]
+                  if (!state) return null
+                  const currentlyPrinted = !!state.transfers_printed
+                  return (
+                    <div key={li.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: idx > 0 ? '1px solid rgba(148,163,184,0.08)' : 'none' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#c8cdd8' }}>{li.custom_fields?.item_number || 'Item'} {li.custom_fields?.color ? `· ${li.custom_fields.color}` : ''}</div>
+                      <button onClick={async () => {
+                        await saveLineItemField(li.id, { transfer_status: currentlyPrinted ? 'pending' : 'printed' })
+                        updateLineItem(li.id, { transfers_printed: !currentlyPrinted })
+                      }} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: currentlyPrinted ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${currentlyPrinted ? '#22c55e' : 'rgba(148,163,184,0.15)'}`, color: currentlyPrinted ? '#22c55e' : '#475569' }}>
+                        {currentlyPrinted ? '✓ Printed' : 'Mark Printed'}
+                      </button>
+                    </div>
+                  )
+                })}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Close</button>
+                </div>
+              </>
+            )}
 
             {/* TRANSFERS CUT & SORTED */}
-            {modal.type === 'transfers_cut_sorted' && modal.lineItemId && (() => {
-              const li = apparelItems.find(l => l.id === modal.lineItemId)
-              const state = lineItemStates[modal.lineItemId]
-              if (!li || !state) return null
-              const currentlyCutSorted = !!state.transfers_cut_sorted
-              return (
-                <>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Transfers Cut & Sorted — {li.custom_fields?.item_number} {li.custom_fields?.color}</div>
-                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
-                    {currentlyCutSorted ? 'Mark transfers as NOT cut and sorted?' : 'Confirm transfers are cut and sorted by order and ready for pressing.'}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                    <button onClick={async () => { await saveLineItemField(modal.lineItemId!, { transfer_status: currentlyCutSorted ? 'printed' : 'ready' }); updateLineItem(modal.lineItemId!, { transfers_cut_sorted: !currentlyCutSorted }); setModal({ type: null }) }}
-                      style={{ padding: '8px 16px', borderRadius: 6, background: currentlyCutSorted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      {currentlyCutSorted ? 'Mark Not Cut & Sorted' : '✓ Confirm Cut & Sorted'}
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
+            {modal.type === 'transfers_cut_sorted' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Transfers Cut & Sorted</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Confirm transfers are cut and sorted by order</div>
+                {apparelItems.map((li, idx) => {
+                  const state = lineItemStates[li.id]
+                  if (!state) return null
+                  const currentlyCutSorted = !!state.transfers_cut_sorted
+                  return (
+                    <div key={li.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: idx > 0 ? '1px solid rgba(148,163,184,0.08)' : 'none' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#c8cdd8' }}>{li.custom_fields?.item_number || 'Item'} {li.custom_fields?.color ? `· ${li.custom_fields.color}` : ''}</div>
+                      <button onClick={async () => {
+                        await saveLineItemField(li.id, { transfer_status: currentlyCutSorted ? 'printed' : 'ready' })
+                        updateLineItem(li.id, { transfers_cut_sorted: !currentlyCutSorted })
+                      }} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: currentlyCutSorted ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${currentlyCutSorted ? '#22c55e' : 'rgba(148,163,184,0.15)'}`, color: currentlyCutSorted ? '#22c55e' : '#475569' }}>
+                        {currentlyCutSorted ? '✓ Cut & Sorted' : 'Mark Cut & Sorted'}
+                      </button>
+                    </div>
+                  )
+                })}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Close</button>
+                </div>
+              </>
+            )}
 
             {/* IN PRODUCTION */}
             {modal.type === 'in_production' && (
@@ -1230,42 +1828,126 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
                   <button onClick={async () => { await saveDocField({ in_production: !docState.in_production }); setModal({ type: null }) }}
-                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.in_production ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.in_production ? '#ef4444' : '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                     {docState.in_production ? 'Mark Not In Production' : '✓ Confirm In Production'}
                   </button>
                 </div>
               </>
             )}
 
-            {/* FOLDED COUNTED SORTED */}
-            {modal.type === 'folded_counted_sorted' && (
+            {/* READY FOR QC */}
+            {modal.type === 'ready_for_qc' && (
               <>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Folded, Counted & Sorted</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Ready for QC</div>
                 <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
-                  {docState.folded_counted_sorted ? 'Mark order as NOT folded/counted/sorted?' : 'Confirm the order has been folded, counted and packed.'}
+                  {readyForQC ? 'Mark order as NOT ready for QC?' : 'This will create a QC action card for Diogo or Mason to inspect the order.'}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={async () => { await saveDocField({ folded_counted_sorted: !docState.folded_counted_sorted }); setModal({ type: null }) }}
-                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.folded_counted_sorted ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    {docState.folded_counted_sorted ? 'Mark Not Done' : '✓ Confirm Folded & Packed'}
+                  <button onClick={async () => { await saveDocField({ ready_for_qc: !readyForQC }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: readyForQC ? '#ef4444' : '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {readyForQC ? 'Mark Not Ready' : '✓ Mark Ready for QC'}
                   </button>
                 </div>
               </>
             )}
 
-            {/* READY FOR CUSTOMER */}
-            {modal.type === 'ready_for_customer' && (
+            {/* QC PASSED */}
+            {modal.type === 'qc_passed' && (
               <>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Ready for Customer</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>QC Passed</div>
                 <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
-                  {docState.ready_for_customer ? 'Mark order as NOT ready for customer?' : 'This will notify Diogo or Mason to do a quick QC check and send the customer a pickup notification.'}
+                  {qcPassed ? 'Mark QC as NOT passed?' : 'Confirm the quality control inspection has passed.'}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                  <button onClick={async () => { await saveDocField({ ready_for_customer: !docState.ready_for_customer }); setModal({ type: null }) }}
-                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.ready_for_customer ? '#ef4444' : '#34d399', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    {docState.ready_for_customer ? 'Mark Not Ready' : '✓ Mark Ready for Customer'}
+                  <button onClick={async () => { await saveDocField({ qc_passed: !qcPassed }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: qcPassed ? '#ef4444' : '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {qcPassed ? 'Mark Not Passed' : '✓ Confirm QC Passed'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* PACKAGED */}
+            {modal.type === 'packaged' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Packaged</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                  {packaged ? 'Mark order as NOT packaged?' : 'Confirm the order has been packaged and is ready for fulfillment.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { await saveDocField({ packaged: !packaged }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: packaged ? '#ef4444' : '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {packaged ? 'Mark Not Packaged' : '✓ Confirm Packaged'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* SHIPPING LABEL */}
+            {modal.type === 'shipping_label' && <ShippingLabelModal doc={doc} docState={docState} setDocState={setDocState} showToast={showToast} onClose={() => setModal({ type: null })} />}
+
+            {/* READY FOR PICKUP */}
+            {modal.type === 'ready_for_pickup' && <ReadyForPickupModal doc={doc} docState={docState} setDocState={setDocState} showToast={showToast} onClose={() => setModal({ type: null })} />}
+
+            {/* DESIGN APPROVED (Embroidery) */}
+            {modal.type === 'design_approved' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Design Approved</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                  {docState.design_approved ? 'Mark design as NOT approved?' : 'Confirm the embroidery design has been approved by the customer.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { await saveDocField({ design_approved: !docState.design_approved }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.design_approved ? '#ef4444' : '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {docState.design_approved ? 'Mark Not Approved' : '✓ Confirm Approved'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* SEND TO ZAYN (Embroidery) */}
+            {modal.type === 'send_to_zayn' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Send to Zayn</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                  {docState.sent_to_zayn
+                    ? 'Mark as NOT sent to Zayn?'
+                    : 'To send the digitizing files to Zayn, open the document detail page and use the "Send to Zayn" button. Once sent, come back here and confirm.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {!docState.sent_to_zayn && (
+                    <a href={`/documents/${doc.id}`} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: 12, color: '#22d3ee', textDecoration: 'underline' }}>
+                      Open Document →
+                    </a>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                    <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={async () => { await saveDocField({ sent_to_zayn: !docState.sent_to_zayn }); setModal({ type: null }) }}
+                      style={{ padding: '8px 16px', borderRadius: 6, background: docState.sent_to_zayn ? '#ef4444' : '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      {docState.sent_to_zayn ? 'Mark Not Sent' : '✓ Confirm Sent to Zayn'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* DIGITIZED (Embroidery) */}
+            {modal.type === 'digitized' && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>Digitized</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20, lineHeight: 1.6 }}>
+                  {docState.digitized ? 'Mark design as NOT digitized?' : 'Confirm the embroidery design has been digitized and the DST file is ready.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setModal({ type: null })} style={{ padding: '8px 16px', borderRadius: 6, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={async () => { await saveDocField({ digitized: !docState.digitized }); setModal({ type: null }) }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: docState.digitized ? '#ef4444' : '#22c55e', border: 'none', color: '#000', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    {docState.digitized ? 'Mark Not Digitized' : '✓ Confirm Digitized'}
                   </button>
                 </div>
               </>
@@ -1313,21 +1995,21 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
               width: 32, height: 32, borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
               background: done ? 'rgba(52,211,153,0.15)' : active ? 'rgba(34,211,238,0.12)' : partial ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.04)',
-              border: `2px solid ${done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : 'rgba(148,163,184,0.15)'}`,
-              color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
+              border: `2px solid ${done ? '#22c55e' : active ? '#22d3ee' : partial ? '#f59e0b' : 'rgba(148,163,184,0.15)'}`,
+              color: done ? '#22c55e' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569',
               boxShadow: active ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
               cursor: onClick ? 'pointer' : 'default',
             }}>{children}</div>
-            <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: done ? '#34d399' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569' }}>{label}</div>
+            <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: done ? '#22c55e' : active ? '#22d3ee' : partial ? '#f59e0b' : '#475569' }}>{label}</div>
           </div>
         )
 
         const Con = ({ done }: { done: boolean }) => (
-          <div style={{ flex: 1, minWidth: 20, height: 2, background: done ? '#34d399' : 'rgba(148,163,184,0.1)', flexShrink: 0, marginBottom: 18 }} />
+          <div style={{ flex: 1, minWidth: 20, height: 2, background: done ? '#22c55e' : 'rgba(148,163,184,0.1)', flexShrink: 0, marginBottom: 18 }} />
         )
 
         const SharedCon = ({ done }: { done: boolean }) => (
-          <div style={{ flex: 1, minWidth: 16, height: 2, background: done ? '#22d3ee' : 'rgba(148,163,184,0.1)', flexShrink: 0, marginBottom: 22 }} />
+          <div style={{ flex: 1, minWidth: 16, height: 2, background: done ? '#22d3ee' : 'rgba(148,163,184,0.1)', flexShrink: 0 }} />
         )
 
         return (
@@ -1341,37 +2023,61 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
                 <div>
                   <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Garments</div>
                   <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                    <PipeNode done={allGarmentsReceived || allGarmentsSorted} active={garmentsOrdered && !allGarmentsReceived && !anyPartial} label={'Garments\nOrdered'} onClick={() => setModal({ type: 'garments_ordered', lineItemId: apparelItems[0]?.id })}>
+                    <PipeNode done={allGarmentsReceived || allGarmentsSorted} active={garmentsOrdered && !allGarmentsReceived && !anyPartial} label={'Garments\nOrdered'} onClick={() => setModal({ type: 'garments_ordered' })}>
                       {allGarmentsReceived || allGarmentsSorted ? '✓' : '📋'}
                     </PipeNode>
                     <Con done={allGarmentsReceived || anyPartial} />
-                    <PipeNode done={allGarmentsSorted} active={allGarmentsReceived && !allGarmentsSorted} partial={anyPartial && !allGarmentsReceived} label={anyPartial && !allGarmentsReceived ? 'Partially\nReceived' : 'Garments\nReceived'} onClick={() => setModal({ type: 'garments_received', lineItemId: apparelItems[0]?.id })}>
+                    <PipeNode done={allGarmentsSorted} active={allGarmentsReceived && !allGarmentsSorted} partial={anyPartial && !allGarmentsReceived} label={anyPartial && !allGarmentsReceived ? 'Partially\nReceived' : 'Garments\nReceived'} onClick={() => setModal({ type: 'garments_received' })}>
                       {allGarmentsSorted ? '✓' : allGarmentsReceived ? '✓' : anyPartial ? '⚠' : '📦'}
                     </PipeNode>
-                    <Con done={allGarmentsSorted} />
-                    <PipeNode done={allGarmentsSorted} active={allGarmentsReceived && !allGarmentsSorted} label={'Garments\nSorted'} onClick={() => setModal({ type: 'garments_sorted', lineItemId: apparelItems[0]?.id })}>
+                    <Con done={allGarmentsReceived} />
+                    <PipeNode done={allGarmentsSorted} active={allGarmentsReceived && !allGarmentsSorted} label={'Garments\nSorted'} onClick={() => setModal({ type: 'garments_sorted' })}>
                       {allGarmentsSorted ? '✓' : '🗂'}
                     </PipeNode>
                   </div>
                 </div>
 
-                {/* TRANSFERS track */}
-                <div>
-                  <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Transfers</div>
-                  <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                    <PipeNode done={allTransfersPrinted || allTransfersCutSorted} active={!allTransfersPrinted} label={'Design\nApproved'}>
-                      {allTransfersPrinted || allTransfersCutSorted ? '✓' : '🎨'}
-                    </PipeNode>
-                    <Con done={allTransfersPrinted} />
-                    <PipeNode done={allTransfersCutSorted} active={allTransfersPrinted && !allTransfersCutSorted} label={'Transfers\nPrinted'} onClick={() => setModal({ type: 'transfers_printed', lineItemId: apparelItems[0]?.id })}>
-                      {allTransfersCutSorted ? '✓' : allTransfersPrinted ? '✓' : '🖨'}
-                    </PipeNode>
-                    <Con done={allTransfersCutSorted} />
-                    <PipeNode done={allTransfersCutSorted} active={allTransfersPrinted && !allTransfersCutSorted} label={'Cut &\nSorted'} onClick={() => setModal({ type: 'transfers_cut_sorted', lineItemId: apparelItems[0]?.id })}>
-                      {allTransfersCutSorted ? '✓' : '✂️'}
-                    </PipeNode>
+                {/* SECOND TRACK: Transfers (apparel) or Artwork (embroidery) */}
+                {mode === 'embroidery' ? (
+                  <div>
+                    <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Artwork</div>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <PipeNode done={designApprovedEmb} active={!designApprovedEmb} label={'Design\nApproved'} onClick={() => setModal({ type: 'design_approved' })}>
+                        {designApprovedEmb ? '✓' : '🎨'}
+                      </PipeNode>
+                      <Con done={designApprovedEmb && (sentToZayn || !needsDigitizing)} />
+                      <PipeNode
+                        done={sentToZayn || !needsDigitizing}
+                        active={designApprovedEmb && !sentToZayn && needsDigitizing}
+                        label={!needsDigitizing ? 'Send to Zayn\n(N/A)' : 'Send to\nZayn'}
+                        onClick={needsDigitizing ? () => setModal({ type: 'send_to_zayn' }) : undefined}
+                      >
+                        {!needsDigitizing ? '—' : sentToZayn ? '✓' : '📧'}
+                      </PipeNode>
+                      <Con done={digitized || !needsDigitizing} />
+                      <PipeNode done={digitized || !needsDigitizing} active={(sentToZayn || !needsDigitizing) && !(digitized || !needsDigitizing)} label={'Digitized'} onClick={() => setModal({ type: 'digitized' })}>
+                        {digitized || !needsDigitizing ? '✓' : '💾'}
+                      </PipeNode>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Transfers</div>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                      <PipeNode done={allTransfersPrinted || allTransfersCutSorted || allTransfersAlreadyDone} active={!allTransfersPrinted && !allTransfersAlreadyDone} label={'Design\nApproved'}>
+                        {allTransfersPrinted || allTransfersCutSorted || allTransfersAlreadyDone ? '✓' : '🎨'}
+                      </PipeNode>
+                      <Con done={allTransfersPrinted || allTransfersAlreadyDone} />
+                      <PipeNode done={allTransfersCutSorted || allTransfersAlreadyDone} active={(allTransfersPrinted && !allTransfersCutSorted) && !allTransfersAlreadyDone} label={'Transfers\nPrinted'} onClick={() => setModal({ type: 'transfers_printed' })}>
+                        {allTransfersCutSorted || allTransfersAlreadyDone ? '✓' : allTransfersPrinted ? '✓' : '🖨'}
+                      </PipeNode>
+                      <Con done={allTransfersCutSorted || allTransfersAlreadyDone} />
+                      <PipeNode done={allTransfersCutSorted || allTransfersAlreadyDone} active={(allTransfersPrinted && !allTransfersCutSorted) && !allTransfersAlreadyDone} label={'Cut &\nSorted'} onClick={() => setModal({ type: 'transfers_cut_sorted' })}>
+                        {allTransfersCutSorted || allTransfersAlreadyDone ? '✓' : '✂️'}
+                      </PipeNode>
+                    </div>
+                  </div>
+                )}
 
               </div>
 
@@ -1379,78 +2085,67 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
               <div style={{ position: 'relative', width: DIAG_W, flexShrink: 0 }}>
                 <svg width={DIAG_W} height="100%" style={{ position: 'absolute', inset: 0 }} preserveAspectRatio="none">
                   {/* Top track diagonal */}
-                  <line x1="0" y1="52" x2={DIAG_W} y2="50%" stroke={allGarmentsSorted ? '#34d399' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
+                  <line x1="0" y1="52" x2={DIAG_W} y2="50%" stroke={allGarmentsSorted ? '#22c55e' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
                   {/* Bottom track diagonal */}
-                  <line x1="0" y1="calc(100% - 52px)" x2={DIAG_W} y2="50%" stroke={allTransfersCutSorted ? '#34d399' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
+                  <line x1="0" y1="calc(100% - 52px)" x2={DIAG_W} y2="50%" stroke={(mode === 'embroidery' ? (digitized || !needsDigitizing) : (allTransfersCutSorted || allTransfersAlreadyDone)) ? '#22c55e' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
                 </svg>
               </div>
 
-              {/* RIGHT: Shared track, vertically centered */}
-              <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', flex: 1 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0,
-                    background: inProduction ? 'rgba(52,211,153,0.15)' : readyForProduction ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: `2px solid ${inProduction ? '#34d399' : readyForProduction ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
-                    color: inProduction ? '#34d399' : readyForProduction ? '#22d3ee' : '#475569',
-                    boxShadow: readyForProduction && !inProduction ? '0 0 0 4px rgba(34,211,238,0.12)' : 'none',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => setModal({ type: 'in_production' })}>
-                    {inProduction || foldedCountedSorted || readyForCustomer ? '✓' : '⚡'}
+              {/* RIGHT: Shared track — vertically centered */}
+              {(() => {
+                const SN = ({ done, active, icon, label, onClick }: { done: boolean; active: boolean; icon: string; label: string; onClick?: () => void }) => (
+                  <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: 52 }}>
+                    <div style={{
+                      width: 30, height: 30, borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0,
+                      background: done ? 'rgba(52,211,153,0.15)' : active ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.04)',
+                      border: `2px solid ${done ? '#22c55e' : active ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
+                      color: done ? '#22c55e' : active ? '#22d3ee' : '#475569',
+                      boxShadow: active ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
+                      cursor: onClick ? 'pointer' : 'default',
+                    }} onClick={onClick}>
+                      {done ? '✓' : icon}
+                    </div>
+                    <div style={{ position: 'absolute', top: '100%', marginTop: 4, fontSize: 8, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, color: done ? '#22c55e' : active ? '#22d3ee' : '#475569', whiteSpace: 'nowrap' }}>{label.split('\n').map((l, i) => <React.Fragment key={i}>{i > 0 && <br/>}{l}</React.Fragment>)}</div>
                   </div>
-                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: inProduction ? '#34d399' : readyForProduction ? '#22d3ee' : '#475569' }}>Ready for<br/>Production</div>
-                </div>
-                <SharedCon done={inProduction} />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
-                    background: foldedCountedSorted ? 'rgba(52,211,153,0.15)' : inProduction ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.04)',
-                    border: `2px solid ${foldedCountedSorted ? '#34d399' : inProduction ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
-                    color: foldedCountedSorted ? '#34d399' : inProduction ? '#22d3ee' : '#475569',
-                    boxShadow: inProduction && !foldedCountedSorted ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => setModal({ type: 'in_production' })}>
-                    {foldedCountedSorted || readyForCustomer ? '✓' : '👕'}
+                )
+
+                // Determine final node state
+                const finalDone = isShipping ? shipped : (packaged && !isShipping)
+                const finalLabel = isShipping ? 'Shipping\nLabel' : 'Ready for\nPickup'
+                const finalIcon = isShipping ? '🏷' : '📍'
+                const finalModal = isShipping ? 'shipping_label' as const : 'ready_for_pickup' as const
+
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', flex: 1 }}>
+                    {/* Ready for Production */}
+                    <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: 52 }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0,
+                        background: inProduction ? 'rgba(52,211,153,0.15)' : readyForProduction ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `2px solid ${inProduction ? '#22c55e' : readyForProduction ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
+                        color: inProduction ? '#22c55e' : readyForProduction ? '#22d3ee' : '#475569',
+                        boxShadow: readyForProduction && !inProduction ? '0 0 0 4px rgba(34,211,238,0.12)' : 'none',
+                        cursor: 'pointer',
+                      }} onClick={() => setModal({ type: 'in_production' })}>
+                        {inProduction ? '✓' : '⚡'}
+                      </div>
+                      <div style={{ position: 'absolute', top: '100%', marginTop: 4, fontSize: 8, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, color: inProduction ? '#22c55e' : readyForProduction ? '#22d3ee' : '#475569', whiteSpace: 'nowrap' }}>Ready for<br/>Production</div>
+                    </div>
+                    <SharedCon done={inProduction} />
+                    <SN done={readyForQC} active={inProduction && !readyForQC} icon="👕" label={'In\nProduction'} onClick={() => setModal({ type: 'in_production' })} />
+                    <SharedCon done={readyForQC} />
+                    <SN done={qcPassed} active={readyForQC && !qcPassed} icon="🔍" label={'Ready\nfor QC'} onClick={() => setModal({ type: 'ready_for_qc' })} />
+                    <SharedCon done={qcPassed} />
+                    <SN done={packaged} active={qcPassed && !packaged} icon="✅" label={'QC\nPassed'} onClick={() => setModal({ type: 'qc_passed' })} />
+                    <SharedCon done={packaged} />
+                    <SN done={finalDone} active={packaged && !finalDone} icon="📦" label={'Packaged'} onClick={() => setModal({ type: 'packaged' })} />
+                    <SharedCon done={finalDone} />
+                    <SN done={finalDone} active={packaged && !finalDone} icon={finalIcon} label={finalLabel} onClick={() => setModal({ type: finalModal })} />
                   </div>
-                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: foldedCountedSorted ? '#34d399' : inProduction ? '#22d3ee' : '#475569' }}>In<br/>Production</div>
-                </div>
-                <SharedCon done={foldedCountedSorted} />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
-                    background: readyForCustomer ? 'rgba(52,211,153,0.15)' : foldedCountedSorted ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.04)',
-                    border: `2px solid ${readyForCustomer ? '#34d399' : foldedCountedSorted ? '#22d3ee' : 'rgba(148,163,184,0.15)'}`,
-                    color: readyForCustomer ? '#34d399' : foldedCountedSorted ? '#22d3ee' : '#475569',
-                    boxShadow: foldedCountedSorted && !readyForCustomer ? '0 0 0 3px rgba(34,211,238,0.12)' : 'none',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => setModal({ type: 'folded_counted_sorted' })}>
-                    {readyForCustomer ? '✓' : '📋'}
-                  </div>
-                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: readyForCustomer ? '#34d399' : foldedCountedSorted ? '#22d3ee' : '#475569' }}>Folded<br/>Counted<br/>Sorted</div>
-                </div>
-                <SharedCon done={readyForCustomer} />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: SHARED_NODE_W }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
-                    background: readyForCustomer ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: `2px solid ${readyForCustomer ? '#34d399' : 'rgba(148,163,184,0.15)'}`,
-                    color: readyForCustomer ? '#34d399' : '#475569',
-                    boxShadow: readyForCustomer ? '0 0 0 3px rgba(52,211,153,0.12)' : 'none',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => setModal({ type: 'ready_for_customer' })}>
-                    {readyForCustomer ? '🎉' : '📦'}
-                  </div>
-                  <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: readyForCustomer ? '#34d399' : '#475569' }}>Ready for<br/>Customer</div>
-                </div>
-              </div>
+                )
+              })()}
 
             </div>
           </div>
@@ -1462,8 +2157,8 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
         <div style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>⚡</span>
           <div>
-            <div style={{ color: '#34d399', fontWeight: 700, fontSize: 13 }}>All garments received · All transfers ready</div>
-            <div style={{ color: '#4a7a5a', fontSize: 11 }}>This order is ready to press.</div>
+            <div style={{ color: '#22c55e', fontWeight: 700, fontSize: 13 }}>{mode === 'embroidery' ? 'All garments received · Artwork digitized' : 'All garments received · All transfers ready'}</div>
+            <div style={{ color: '#4a7a5a', fontSize: 11 }}>{mode === 'embroidery' ? 'This order is ready for embroidery.' : 'This order is ready to press.'}</div>
           </div>
         </div>
       )}
@@ -1496,6 +2191,27 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
           a.label?.toLowerCase().includes('mock') || a.contentType?.startsWith('image/')
         )
 
+        const isSorted = !!lineItemStates[li.id]?.garments_sorted
+        const sourceLabel = state.garment_source === 'customer_supplied' ? 'Customer Provided' : state.garment_source === 'stock' ? 'In-House' : state.garment_source === 'sanmar' ? 'SanMar' : state.garment_source === 'external' ? 'Already Ordered' : ''
+
+        // Collapsed view when fully received
+        if (isFullyReceived) {
+          return (
+            <div key={li.id} style={{ background: 'rgba(52,211,153,0.04)', border: '1px solid rgba(52,211,153,0.12)', borderRadius: 8, marginBottom: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13 }}>{li.custom_fields?.item_number || li.description}</span>
+                {li.custom_fields?.color && <span style={{ color: '#64748b', fontSize: 12 }}>· {li.custom_fields.color}</span>}
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>· {totalOrdered} pcs</span>
+                {sourceLabel && <span style={{ fontSize: 10, color: '#475569', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: 4 }}>{sourceLabel}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}>✓ Received</span>
+                {isSorted && <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}>✓ Sorted</span>}
+              </div>
+            </div>
+          )
+        }
+
         return (
           <div key={li.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 8, marginBottom: 14, overflow: 'hidden' }}>
             {/* Line item header */}
@@ -1506,7 +2222,6 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
                 <span style={{ fontSize: 11, color: '#94a3b8' }}>· {totalOrdered} pcs</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {isFullyReceived && <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>✓ All Received</span>}
                 {isPartial && <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>⚠ {totalReceived}/{totalOrdered} Received</span>}
               </div>
             </div>
@@ -1515,44 +2230,41 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
               {/* Left: Garment sourcing + receiving */}
               <div style={{ padding: '12px 14px', borderRight: '1px solid rgba(148,163,184,0.08)' }}>
                 {/* Source selector */}
-                {!isFullyReceived && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Garment Source</div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {[
-                        { val: 'sanmar', label: 'Order SanMar', color: '#22d3ee' },
-                        { val: 'stock', label: 'Pull from Stock', color: '#84cc16' },
-                        { val: 'external', label: 'Already Ordered', color: '#f97316' },
-                      ].map(opt => (
-                        <button
-                          key={opt.val}
-                          onClick={() => updateLineItem(li.id, { garment_source: opt.val })}
-                          style={{
-                            padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                            border: `1px solid ${state.garment_source === opt.val ? opt.color : 'rgba(148,163,184,0.15)'}`,
-                            background: state.garment_source === opt.val ? `${opt.color}15` : 'transparent',
-                            color: state.garment_source === opt.val ? opt.color : '#475569',
-                            transition: 'all 0.15s',
-                          }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    {state.garment_source === 'stock' && (
-                      <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(132,204,22,0.08)', border: '1px solid rgba(132,204,22,0.15)', borderRadius: 5, fontSize: 11, color: '#84cc16' }}>
-                        📦 Go to inventory and pull these pieces. Check off each size as you grab them.
-                      </div>
-                    )}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Garment Source</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[
+                      { val: 'sanmar', label: 'Order SanMar', color: '#22d3ee' },
+                      { val: 'stock', label: 'Pull from Stock', color: '#84cc16' },
+                      { val: 'customer_supplied', label: 'Customer Provided', color: '#a78bfa' },
+                      { val: 'external', label: 'Already Ordered', color: '#f97316' },
+                    ].map(opt => (
+                      <button
+                        key={opt.val}
+                        onClick={() => updateLineItem(li.id, { garment_source: opt.val })}
+                        style={{
+                          padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          border: `1px solid ${state.garment_source === opt.val ? opt.color : 'rgba(148,163,184,0.15)'}`,
+                          background: state.garment_source === opt.val ? `${opt.color}15` : 'transparent',
+                          color: state.garment_source === opt.val ? opt.color : '#475569',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
-                )}
+                  {state.garment_source === 'stock' && (
+                    <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(132,204,22,0.08)', border: '1px solid rgba(132,204,22,0.15)', borderRadius: 5, fontSize: 11, color: '#84cc16' }}>
+                      Go to inventory and pull these pieces. Check off each size as you grab them.
+                    </div>
+                  )}
+                </div>
 
                 {/* Size receiving grid */}
                 {sizeEntries.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                      {isFullyReceived ? 'Received' : 'Mark Received'}
-                    </div>
+                    <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Mark Received</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {sizeEntries.map(([size, qty]) => {
                         const recvd = state.received_quantities[size] ?? 0
@@ -1561,30 +2273,26 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
                           <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 48 }}>
                             <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>{size}</div>
                             <div style={{ fontSize: 11, color: '#94a3b8' }}>{qty} pcs</div>
-                            {isFullyReceived ? (
-                              <span style={{ color: '#34d399', fontSize: 11 }}>✓</span>
-                            ) : (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={e => {
-                                    const newQty = e.target.checked ? Number(qty) : 0
-                                    updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: newQty } })
-                                  }}
-                                  style={{ width: 13, height: 13, accentColor: '#34d399', cursor: 'pointer' }}
-                                />
-                                <input
-                                  type="number"
-                                  value={state.received_quantities[size] ?? ''}
-                                  min={0}
-                                  max={Number(qty)}
-                                  placeholder="0"
-                                  onChange={e => updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: Number(e.target.value) } })}
-                                  style={{ width: 34, padding: '2px 4px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 3, color: '#c8cdd8', fontSize: 11, textAlign: 'center' }}
-                                />
-                              </div>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={e => {
+                                  const newQty = e.target.checked ? Number(qty) : 0
+                                  updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: newQty } })
+                                }}
+                                style={{ width: 13, height: 13, accentColor: '#22c55e', cursor: 'pointer' }}
+                              />
+                              <input
+                                type="number"
+                                value={state.received_quantities[size] ?? ''}
+                                min={0}
+                                max={Number(qty)}
+                                placeholder="0"
+                                onChange={e => updateLineItem(li.id, { received_quantities: { ...state.received_quantities, [size]: Number(e.target.value) } })}
+                                style={{ width: 34, padding: '2px 4px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 3, color: '#c8cdd8', fontSize: 11, textAlign: 'center' }}
+                              />
+                            </div>
                           </div>
                         )
                       })}
@@ -1611,7 +2319,7 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
                     {state.transfer_status === 'ready' ? (
                       <button
                         onClick={() => updateLineItem(li.id, { transfer_status: 'pending' })}
-                        style={{ padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.25)', color: '#34d399' }}
+                        style={{ padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.25)', color: '#22c55e' }}
                       >
                         ✓ Transfers Ready
                       </button>
@@ -1632,19 +2340,17 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
                     <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Mockups</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {mockups.map((m: any, idx: number) => (
-                        <a
+                        <div
                           key={idx}
-                          href={m.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           title={m.label || `Mockup ${idx + 1}`}
+                          onClick={() => setLightbox({ images: mockups.map((mk: any, i: number) => ({ url: mk.url, label: mk.label || `Mockup ${i + 1}` })), index: idx })}
                           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 72, padding: 6, background: '#0d1220', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 6, cursor: 'pointer', textDecoration: 'none', transition: 'border-color 0.15s' }}
                           onMouseEnter={e => (e.currentTarget.style.borderColor = '#22d3ee')}
                           onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(148,163,184,0.1)')}
                         >
                           <img src={m.url} alt={m.label} style={{ width: 52, height: 52, objectFit: 'contain', borderRadius: 3 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                           <span style={{ fontSize: 9, color: '#475569', textAlign: 'center', lineHeight: 1.2 }}>{m.label || `Mockup ${idx + 1}`}</span>
-                        </a>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1694,6 +2400,9 @@ function DocumentDetail({ doc }: { doc: FADocument }) {
           </div>
         </div>
       )}
+
+      {/* Lightbox overlay */}
+      {lightbox && <LightboxOverlay lightbox={lightbox} setLightbox={setLightbox} />}
     </div>
   )
 }

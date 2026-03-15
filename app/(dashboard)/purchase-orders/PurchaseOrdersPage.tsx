@@ -58,6 +58,33 @@ interface POHistoryItem {
   customer_name: string
 }
 
+interface POTrackingPackage {
+  trackingNumber: string
+  carrier: string
+  shippingMethod: string
+  shipDate: string
+  items: Array<{ style: string; color: string; size: string; quantity: number }>
+}
+
+interface PODeliveryStatus {
+  status: string
+  statusDetail: string
+  estDeliveryDate: string | null
+  deliveredAt: string | null
+}
+
+interface POTrackingInfo {
+  fetched_at: string
+  complete: boolean
+  tracking_numbers: string[]
+  carriers: string[]
+  sales_orders: Array<{
+    salesOrderNumber: string
+    packages: POTrackingPackage[]
+  }>
+  delivery_statuses?: Record<string, PODeliveryStatus>
+}
+
 interface POHistory {
   id: string
   po_number: string
@@ -71,6 +98,7 @@ interface POHistory {
   supplier_confirmation: string
   notes: string
   items: POHistoryItem[]
+  tracking_info?: POTrackingInfo
 }
 
 // Selection state: { lineItemId -> { size -> quantity } }
@@ -97,6 +125,7 @@ export default function PurchaseOrdersPage() {
   const [stockConfirmed, setStockConfirmed] = useState<Record<string, { status: 'confirmed' | 'short'; shortfall: number }>>({})
   const [stockConfirming, setStockConfirming] = useState<Record<string, boolean>>({})
   const [historyFilter, setHistoryFilter] = useState<string>('all')
+  const [fetchingTracking, setFetchingTracking] = useState<Record<string, boolean>>({})
   // Manual product add state
   const [showManualAdd, setShowManualAdd] = useState(false)
   const [manualStyle, setManualStyle] = useState('')
@@ -335,6 +364,54 @@ export default function PurchaseOrdersPage() {
       console.error('PO status update error:', error)
       showToast('Failed to update PO status', 'error')
     }
+  }
+
+  // Fetch tracking info from SanMar for a PO
+  const fetchTracking = async (po: POHistory) => {
+    setFetchingTracking(prev => ({ ...prev, [po.id]: true }))
+    try {
+      const res = await fetch('/api/purchase-orders/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ po_id: po.id, po_number: po.po_number }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        const trackingCount = data.tracking_numbers?.length || 0
+        showToast(
+          trackingCount > 0
+            ? `Found ${trackingCount} tracking number${trackingCount !== 1 ? 's' : ''}`
+            : 'No shipments found yet for this PO',
+          trackingCount > 0 ? 'success' : 'info'
+        )
+        fetchHistory()
+        window.dispatchEvent(new Event('unread-counts-changed'))
+      } else {
+        showToast(data.error || 'Failed to fetch tracking', 'error')
+      }
+    } catch (error) {
+      console.error('Tracking fetch error:', error)
+      showToast('Failed to fetch tracking info', 'error')
+    } finally {
+      setFetchingTracking(prev => ({ ...prev, [po.id]: false }))
+    }
+  }
+
+  // Clear has_update flags on POs when user views the history tab
+  const clearTrackingUpdates = async () => {
+    const posWithUpdates = poHistory.filter(po => (po.tracking_info as any)?.has_update)
+    if (posWithUpdates.length === 0) return
+
+    for (const po of posWithUpdates) {
+      const updatedInfo = { ...po.tracking_info, has_update: false }
+      await fetch('/api/purchase-orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: po.id, tracking_info: updatedInfo }),
+      })
+    }
+    // Trigger sidebar badge refresh
+    window.dispatchEvent(new Event('unread-counts-changed'))
   }
 
   // Resubmit a failed PO by rebuilding the payload from its items
@@ -587,7 +664,10 @@ export default function PurchaseOrdersPage() {
         {(['create', 'history'] as const).map(tab => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              setActiveTab(tab)
+              if (tab === 'history') clearTrackingUpdates()
+            }}
             style={{
               padding: '8px 20px',
               borderRadius: '8px',
@@ -1334,6 +1414,40 @@ export default function PurchaseOrdersPage() {
                       <span style={{ fontSize: '12px', color: '#64748b' }}>
                         {po.submitted_at ? new Date(po.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not submitted'}
                       </span>
+                      {(po.tracking_info?.tracking_numbers?.length ?? 0) > 0 && (() => {
+                        const statuses = po.tracking_info!.delivery_statuses || {}
+                        const tns = po.tracking_info!.tracking_numbers
+                        const allDelivered = tns.every(tn => statuses[tn]?.status === 'delivered')
+                        const anyInTransit = tns.some(tn => ['in_transit', 'out_for_delivery'].includes(statuses[tn]?.status))
+                        const carriers = po.tracking_info!.carriers || []
+                        // Find earliest est delivery or latest delivered date
+                        const estDates = tns.map(tn => statuses[tn]?.estDeliveryDate).filter(Boolean)
+                        const deliveredDates = tns.map(tn => statuses[tn]?.deliveredAt).filter(Boolean)
+                        const dateToShow = allDelivered && deliveredDates.length > 0
+                          ? deliveredDates.sort().pop()
+                          : estDates.length > 0 ? estDates.sort()[0] : null
+                        return (
+                          <>
+                            <span style={{
+                              fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '4px',
+                              background: allDelivered ? 'rgba(34,197,94,0.15)' : anyInTransit ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+                              color: allDelivered ? '#86efac' : anyInTransit ? '#93c5fd' : '#c4b5fd',
+                            }}>
+                              {allDelivered ? 'Delivered' : anyInTransit ? 'In Transit' : `${tns.length} tracking #`}
+                            </span>
+                            {carriers.length > 0 && (
+                              <span style={{ fontSize: '10px', color: '#94a3b8', background: 'rgba(148,163,184,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                                {carriers.join(', ')}
+                              </span>
+                            )}
+                            {dateToShow && (
+                              <span style={{ fontSize: '11px', color: allDelivered ? '#86efac' : '#64748b' }}>
+                                {allDelivered ? '' : 'Est. '}{new Date(dateToShow).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <span style={{ fontSize: '13px', color: '#94a3b8' }}>{po.total_units} units</span>
@@ -1359,7 +1473,83 @@ export default function PurchaseOrdersPage() {
                           Confirmation: {po.supplier_confirmation}
                         </div>
                       )}
-                      {/* Status update buttons */}
+
+                      {/* Tracking Info */}
+                      {po.tracking_info && po.tracking_info.tracking_numbers?.length > 0 && (
+                        <div style={{
+                          marginBottom: '10px', padding: '10px 12px',
+                          background: 'rgba(168,85,247,0.08)', borderRadius: '8px',
+                          border: '1px solid rgba(168,85,247,0.15)',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              Tracking ({po.tracking_info.carriers?.join(', ') || 'Unknown carrier'})
+                            </span>
+                            <span style={{ fontSize: '10px', color: '#64748b' }}>
+                              Updated {new Date(po.tracking_info.fetched_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          {po.tracking_info.sales_orders?.map((so, soIdx) => (
+                            <div key={soIdx}>
+                              {so.salesOrderNumber && (
+                                <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>
+                                  SanMar Order: {so.salesOrderNumber}
+                                </div>
+                              )}
+                              {so.packages.map((pkg, pkgIdx) => {
+                                const ds = po.tracking_info?.delivery_statuses?.[pkg.trackingNumber]
+                                const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+                                  delivered: { bg: 'rgba(34,197,94,0.15)', text: '#86efac', label: 'Delivered' },
+                                  in_transit: { bg: 'rgba(59,130,246,0.15)', text: '#93c5fd', label: 'In Transit' },
+                                  out_for_delivery: { bg: 'rgba(234,179,8,0.15)', text: '#fde047', label: 'Out for Delivery' },
+                                  pre_transit: { bg: 'rgba(148,163,184,0.1)', text: '#94a3b8', label: 'Pre-Transit' },
+                                  failure: { bg: 'rgba(220,38,38,0.15)', text: '#fca5a5', label: 'Exception' },
+                                  unknown: { bg: 'rgba(148,163,184,0.1)', text: '#94a3b8', label: 'Unknown' },
+                                }
+                                const sc = ds ? (statusColors[ds.status] || statusColors.unknown) : null
+                                return (
+                                  <div key={pkgIdx} style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    marginBottom: '4px', fontSize: '13px',
+                                  }}>
+                                    <span style={{ color: '#c4b5fd', fontWeight: 600, fontFamily: 'monospace' }}>
+                                      {pkg.trackingNumber}
+                                    </span>
+                                    {sc && (
+                                      <span style={{
+                                        fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px',
+                                        background: sc.bg, color: sc.text,
+                                      }}>
+                                        {sc.label}
+                                      </span>
+                                    )}
+                                    {pkg.carrier && (
+                                      <span style={{ fontSize: '10px', color: '#94a3b8', background: 'rgba(148,163,184,0.1)', padding: '1px 6px', borderRadius: '4px' }}>
+                                        {pkg.carrier}
+                                      </span>
+                                    )}
+                                    {ds?.status === 'delivered' && ds.deliveredAt ? (
+                                      <span style={{ fontSize: '11px', color: '#86efac' }}>
+                                        {new Date(ds.deliveredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      </span>
+                                    ) : ds?.estDeliveryDate ? (
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                        Est. {new Date(ds.estDeliveryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      </span>
+                                    ) : pkg.shipDate ? (
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                        Shipped {new Date(pkg.shipDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
                       <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
                         {po.status === 'error' && (
                           <button
@@ -1374,46 +1564,19 @@ export default function PurchaseOrdersPage() {
                             {submitting ? 'Resubmitting...' : 'Retry Submission'}
                           </button>
                         )}
-                        {po.status !== 'error' && po.status !== 'draft' && po.items.length > 0 && (
+                        {po.status !== 'cancelled' && po.status !== 'draft' && po.supplier === 'sanmar' && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleResubmit(po) }}
-                            disabled={submitting}
+                            onClick={(e) => { e.stopPropagation(); fetchTracking(po) }}
+                            disabled={fetchingTracking[po.id]}
                             style={{
                               padding: '4px 14px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
-                              border: '1px solid rgba(168,85,247,0.3)', background: 'rgba(168,85,247,0.1)', color: '#c4b5fd',
-                              cursor: submitting ? 'not-allowed' : 'pointer',
+                              border: '1px solid rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.1)', color: '#22d3ee',
+                              cursor: fetchingTracking[po.id] ? 'not-allowed' : 'pointer',
+                              opacity: fetchingTracking[po.id] ? 0.6 : 1,
                             }}
                           >
-                            {submitting ? 'Creating...' : 'Reorder'}
+                            {fetchingTracking[po.id] ? 'Fetching...' : po.tracking_info?.tracking_numbers?.length ? 'Refresh Tracking' : 'Fetch Tracking'}
                           </button>
-                        )}
-                        {po.status !== 'cancelled' && po.status !== 'delivered' && (
-                          <>
-                            {(['confirmed', 'shipped', 'delivered', 'cancelled'] as const)
-                              .filter(s => s !== po.status)
-                              .map(newStatus => {
-                                const btnColors: Record<string, { border: string; color: string; bg: string }> = {
-                                  confirmed: { border: 'rgba(59,130,246,0.3)', color: '#93c5fd', bg: 'rgba(59,130,246,0.1)' },
-                                  shipped: { border: 'rgba(168,85,247,0.3)', color: '#c4b5fd', bg: 'rgba(168,85,247,0.1)' },
-                                  delivered: { border: 'rgba(34,197,94,0.3)', color: '#86efac', bg: 'rgba(34,197,94,0.1)' },
-                                  cancelled: { border: 'rgba(220,38,38,0.3)', color: '#fca5a5', bg: 'rgba(220,38,38,0.1)' },
-                                }
-                                const bc = btnColors[newStatus] || btnColors.confirmed
-                                return (
-                                  <button
-                                    key={newStatus}
-                                    onClick={(e) => { e.stopPropagation(); updatePOStatus(po.id, newStatus) }}
-                                    style={{
-                                      padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
-                                      border: `1px solid ${bc.border}`, background: bc.bg, color: bc.color,
-                                      cursor: 'pointer', textTransform: 'capitalize',
-                                    }}
-                                  >
-                                    Mark {newStatus}
-                                  </button>
-                                )
-                              })}
-                          </>
                         )}
                       </div>
                       <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>

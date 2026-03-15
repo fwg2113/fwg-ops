@@ -124,6 +124,7 @@ type Document = {
   fulfillment_type?: string; fulfillment_details?: any
   send_options_json?: any; pricing_snapshot_json?: any; pricing_locked?: boolean; pricing_snapshot_at?: string
   snoozed?: boolean; snoozed_at?: string
+  due_date?: string | null
 }
 
 type HistoryEntry = {
@@ -263,6 +264,7 @@ export default function DocumentDetail({
   const [customerPhone, setCustomerPhone] = useState(initialDoc.customer_phone || '')
   const [vehicleDescription, setVehicleDescription] = useState(initialDoc.vehicle_description || '')
   const [projectDescription, setProjectDescription] = useState(initialDoc.project_description || '')
+  const [dueDate, setDueDate] = useState(initialDoc.due_date || '')
   
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
@@ -669,9 +671,10 @@ export default function DocumentDetail({
   useEffect(() => {
     const changed = customerName !== (initialDoc.customer_name || '') || companyName !== (initialDoc.company_name || '') ||
       customerEmail !== (initialDoc.customer_email || '') || customerPhone !== (initialDoc.customer_phone || '') ||
-      vehicleDescription !== (initialDoc.vehicle_description || '') || projectDescription !== (initialDoc.project_description || '')
+      vehicleDescription !== (initialDoc.vehicle_description || '') || projectDescription !== (initialDoc.project_description || '') ||
+      dueDate !== (initialDoc.due_date || '')
     if (changed) setIsDirty(true)
-  }, [customerName, companyName, customerEmail, customerPhone, vehicleDescription, projectDescription, initialDoc])
+  }, [customerName, companyName, customerEmail, customerPhone, vehicleDescription, projectDescription, dueDate, initialDoc])
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
@@ -1650,6 +1653,8 @@ export default function DocumentDetail({
       // Garment source fields
       garment_source?: string
       customer_provided?: boolean
+      // Artwork source fields
+      artwork_source?: string
     }
   }
 
@@ -1871,7 +1876,7 @@ export default function DocumentDetail({
       if (item.id !== itemId) return item
       const cf: Record<string, any> = { ...(item.custom_fields || {}), apparel_mode: true }
 
-      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes' || fieldPath === 'garment_source' || fieldPath === 'customer_provided') {
+      if (fieldPath === 'color' || fieldPath === 'item_number' || fieldPath === 'style_id' || fieldPath === 'enabled_sizes' || fieldPath === 'garment_source' || fieldPath === 'customer_provided' || fieldPath === 'artwork_source') {
         cf[fieldPath] = value
         console.log('updateApparelField', fieldPath, value, cf)
       } else if (fieldPath === 'design_fee_per_location' || fieldPath === 'press_fee_per_location' || fieldPath === 'manual_price_override' || fieldPath === 'embroidery_fee_per_location') {
@@ -3025,6 +3030,7 @@ export default function DocumentDetail({
         customer_phone: customerPhone,
         vehicle_description: vehicleDescription,
         project_description: projectDescription,
+        due_date: dueDate || null,
         discount_amount: discountAmountInput,
         discount_percent: discountPercentInput,
         discount_note: discountNote,
@@ -3367,6 +3373,11 @@ export default function DocumentDetail({
                 }
               }
               
+              // Fulfillment Type (available for both quotes and invoices, unless archived)
+              if (!isArchived) {
+                buttons.push(<ActionButton key="fulfillment" onClick={() => setShowFulfillmentModal(true)} variant="secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>{doc.fulfillment_type ? doc.fulfillment_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : 'Set Fulfillment'}</ActionButton>)
+              }
+
               if (isInvoice) {
                 // Send (unless void/paid/archived)
                 if (doc.status !== 'void' && doc.status !== 'paid' && !isArchived) {
@@ -3375,10 +3386,6 @@ export default function DocumentDetail({
                 // Follow Up (if sent, not paid/void/archived)
                 if (hasBeenSent && !isArchived && doc.status !== 'paid' && doc.status !== 'void') {
                   buttons.push(<ActionButton key="followup" onClick={handleOpenFollowUpModal} variant="secondary">Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}</ActionButton>)
-                }
-                // Fulfillment Type (unless archived)
-                if (!isArchived) {
-                  buttons.push(<ActionButton key="fulfillment" onClick={() => setShowFulfillmentModal(true)} variant="secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>{doc.fulfillment_type ? doc.fulfillment_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : 'Set Fulfillment'}</ActionButton>)
                 }
                 // Schedule It (unless archived)
                 if (!isArchived) {
@@ -3481,7 +3488,7 @@ export default function DocumentDetail({
       {/* Customer Information */}
       <div style={cardStyle}>
         <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0' }}>Customer Information</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
           <div style={{ position: 'relative' }}>
             <label style={labelStyle}>Customer Name *</label>
             <input type="text" value={customerName} onChange={(e) => { setCustomerName(e.target.value); setCustomerSearch(e.target.value) }} onFocus={() => customerSearch.length >= 2 && setShowCustomerDropdown(true)} placeholder="Full name" style={inputStyle} />
@@ -3499,6 +3506,7 @@ export default function DocumentDetail({
           <div><label style={labelStyle}>Company</label><input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Company name" style={inputStyle} /></div>
           <div><label style={labelStyle}>Email</label><input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="email@example.com" style={inputStyle} /></div>
           <div><label style={labelStyle}>Phone</label><input type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="(240) 555-1234" style={inputStyle} /></div>
+          <div><label style={labelStyle}>Due Date</label><input type="date" value={dueDate} onChange={(e) => { setDueDate(e.target.value); setIsDirty(true) }} style={{ ...inputStyle, colorScheme: 'dark' }} /></div>
         </div>
         <div style={{ marginTop: '16px' }}><label style={labelStyle}>Vehicle / Subject</label><input type="text" value={vehicleDescription} onChange={(e) => setVehicleDescription(e.target.value)} placeholder="e.g., 2024 Ford Transit - White" style={inputStyle} /></div>
         <div style={{ marginTop: '16px' }}><label style={labelStyle}>Project Description</label><textarea value={projectDescription} onChange={(e) => setProjectDescription(e.target.value)} placeholder="Describe the project scope..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></div>
@@ -3732,39 +3740,127 @@ export default function DocumentDetail({
                       const sizes = af.sizes || {}
                       return (
                         <div key={item.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.1)', padding: '16px' }}>
-                          {/* Garment Source selector */}
+                          {/* Garment Source + Artwork Source selectors */}
                           {(() => {
                             const currentSource = lineItems.find(li => li.id === item.id)?.custom_fields?.garment_source || 'sanmar'
                             const sourceColor = currentSource === 'stock' ? '#f59e0b' : currentSource === 'customer_supplied' ? '#f97316' : '#22d3ee'
+                            const isEmb = isEmbroideryApparel(item)
+                            const isDtf = isDTFApparel(item)
+                            const currentArtwork = af.artwork_source || ''
+                            const artworkColor = currentArtwork === 'send_to_zayn' ? '#a78bfa' : currentArtwork === 'in_house' ? '#22d3ee' : currentArtwork === 'already_done' ? '#34d399' : currentArtwork === 'same_logo' ? '#f59e0b' : '#475569'
                             return (
-                              <div style={{ marginBottom: '10px', maxWidth: '220px' }}>
-                                <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Garment Source</div>
-                                <select
-                                  value={currentSource}
-                                  onChange={(e) => {
-                                    const val = e.target.value
-                                    const extra = val === 'customer_supplied'
-                                      ? { customer_provided: true, enabled_sizes: ['CUSPRO'] }
-                                      : { customer_provided: false }
-                                    updateApparelFields(item.id, { garment_source: val, ...extra })
-                                  }}
-                                  style={{
-                                    width: '100%',
-                                    padding: '6px 10px',
-                                    background: '#0d1220',
-                                    border: `1px solid ${sourceColor}60`,
-                                    borderRadius: '6px',
-                                    color: sourceColor,
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    outline: 'none',
-                                  }}
-                                >
-                                  <option value="sanmar">Order from SanMar</option>
-                                  <option value="stock">In-House Inventory</option>
-                                  <option value="customer_supplied">Customer Supplied</option>
-                                </select>
+                              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                <div style={{ maxWidth: '220px' }}>
+                                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>Garment Source</div>
+                                  <select
+                                    value={currentSource}
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      const extra = val === 'customer_supplied'
+                                        ? { customer_provided: true, enabled_sizes: ['CUSPRO'] }
+                                        : { customer_provided: false }
+                                      updateApparelFields(item.id, { garment_source: val, ...extra })
+                                    }}
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 10px',
+                                      background: '#0d1220',
+                                      border: `1px solid ${sourceColor}60`,
+                                      borderRadius: '6px',
+                                      color: sourceColor,
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      outline: 'none',
+                                    }}
+                                  >
+                                    <option value="sanmar">Order from SanMar</option>
+                                    <option value="stock">In-House Inventory</option>
+                                    <option value="customer_supplied">Customer Supplied</option>
+                                  </select>
+                                </div>
+                                {(isEmb || isDtf) && (
+                                  <div style={{ maxWidth: '220px' }}>
+                                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px' }}>{isEmb ? 'Digitizing' : 'Vectorizing'}</div>
+                                    <select
+                                      value={currentArtwork}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        updateApparelFields(item.id, { artwork_source: val })
+                                        // Auto-add fee if applicable
+                                        const feeKey = isEmb
+                                          ? (val === 'send_to_zayn' ? 'DIGITIZING' : val === 'in_house' ? 'DIGITIZING_INHOUSE' : '')
+                                          : (val === 'vectorize' ? 'VECTORIZING' : '')
+                                        // Check if a digitizing/vectorizing fee already exists
+                                        const existingFeeIdx = fees.findIndex(f => f.fee_type === 'DIGITIZING' || f.fee_type === 'DIGITIZING_INHOUSE' || f.fee_type === 'VECTORIZING')
+                                        if (feeKey) {
+                                          const feeType = feeTypes.find(ft => ft.fee_type_key === feeKey)
+                                          if (feeType) {
+                                            if (existingFeeIdx >= 0) {
+                                              // Update existing fee
+                                              const newFees = [...fees]
+                                              newFees[existingFeeIdx] = { fee_type: feeKey, description: feeType.label, amount: feeType.default_amount }
+                                              setFees(newFees)
+                                              setIsDirty(true)
+                                            } else {
+                                              // Check if another line item already has a paid artwork source (same logo scenario)
+                                              const otherHasPaidArtwork = lineItems.some(li => {
+                                                if (li.id === item.id) return false
+                                                const liAf = (li.custom_fields || {}) as any
+                                                return liAf.artwork_source === 'send_to_zayn' || liAf.artwork_source === 'in_house' || liAf.artwork_source === 'vectorize'
+                                              })
+                                              if (!otherHasPaidArtwork) {
+                                                const newFees = [...fees, { fee_type: feeKey, description: feeType.label, amount: feeType.default_amount }]
+                                                setFees(newFees)
+                                                setIsDirty(true)
+                                              }
+                                            }
+                                          }
+                                        } else if (val === 'already_done' || val === 'same_logo' || val === '') {
+                                          // Remove digitizing/vectorizing fee if no other line item needs it
+                                          const otherNeedsFee = lineItems.some(li => {
+                                            if (li.id === item.id) return false
+                                            const liAf = (li.custom_fields || {}) as any
+                                            return liAf.artwork_source === 'send_to_zayn' || liAf.artwork_source === 'in_house' || liAf.artwork_source === 'vectorize'
+                                          })
+                                          if (!otherNeedsFee && existingFeeIdx >= 0) {
+                                            const newFees = fees.filter((_, i) => i !== existingFeeIdx)
+                                            setFees(newFees)
+                                            setIsDirty(true)
+                                          }
+                                        }
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        padding: '6px 10px',
+                                        background: '#0d1220',
+                                        border: `1px solid ${artworkColor}60`,
+                                        borderRadius: '6px',
+                                        color: artworkColor,
+                                        fontSize: '12px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                      }}
+                                    >
+                                      <option value="">Select...</option>
+                                      {isEmb ? (
+                                        <>
+                                          <option value="send_to_zayn">Send to Zayn ($35)</option>
+                                          <option value="in_house">Digitize In House ($20)</option>
+                                          <option value="already_done">Already Digitized</option>
+                                          <option value="same_logo">Same Logo</option>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <option value="vectorize">Vectorize ($50)</option>
+                                          <option value="already_done">Already Vectorized</option>
+                                          <option value="same_logo">Same Design</option>
+                                        </>
+                                      )}
+                                    </select>
+                                  </div>
+                                )}
                               </div>
                             )
                           })()}
@@ -5835,9 +5931,30 @@ export default function DocumentDetail({
               {fulfillmentType === 'shipping' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: '#1a1a1a', borderRadius: '10px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Shipping Address</label>
-                    <input type="text" value={fulfillmentDetails.shipping_address || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_address: e.target.value })}
-                      placeholder="Full shipping address" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Street Address</label>
+                    <input type="text" value={fulfillmentDetails.shipping_address?.street1 || fulfillmentDetails.shipping_address || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_address: { ...(typeof fulfillmentDetails.shipping_address === 'object' ? fulfillmentDetails.shipping_address : {}), street1: e.target.value } })}
+                      placeholder="Street address" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div>
+                    <input type="text" value={fulfillmentDetails.shipping_address?.street2 || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_address: { ...(typeof fulfillmentDetails.shipping_address === 'object' ? fulfillmentDetails.shipping_address : {}), street2: e.target.value } })}
+                      placeholder="Apt, suite, unit (optional)" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 2 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>City</label>
+                      <input type="text" value={fulfillmentDetails.shipping_address?.city || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_address: { ...(typeof fulfillmentDetails.shipping_address === 'object' ? fulfillmentDetails.shipping_address : {}), city: e.target.value } })}
+                        placeholder="City" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>State</label>
+                      <input type="text" value={fulfillmentDetails.shipping_address?.state || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_address: { ...(typeof fulfillmentDetails.shipping_address === 'object' ? fulfillmentDetails.shipping_address : {}), state: e.target.value } })}
+                        placeholder="MD" maxLength={2} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>ZIP</label>
+                      <input type="text" value={fulfillmentDetails.shipping_address?.zip || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, shipping_address: { ...(typeof fulfillmentDetails.shipping_address === 'object' ? fulfillmentDetails.shipping_address : {}), zip: e.target.value } })}
+                        placeholder="21704" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <div style={{ flex: 1 }}>
@@ -5854,7 +5971,7 @@ export default function DocumentDetail({
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px' }}>Tracking Number</label>
                     <input type="text" value={fulfillmentDetails.tracking_number || ''} onChange={e => setFulfillmentDetails({ ...fulfillmentDetails, tracking_number: e.target.value })}
-                      placeholder="Tracking # (optional)" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
+                      placeholder="Tracking # (auto-filled when label purchased)" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: '#1d1d1d', color: '#f1f5f9', fontSize: '14px' }} />
                   </div>
                 </div>
               )}
