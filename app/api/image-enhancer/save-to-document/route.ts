@@ -15,21 +15,52 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 
 export async function POST(req: NextRequest) {
   try {
-    const { documentId, filename, contentType, imageBase64 } = await req.json()
+    let documentId: string, filename: string, contentType: string, buffer: Buffer
 
-    if (!documentId || !filename || !imageBase64) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    const ct = req.headers.get('content-type') || ''
+
+    if (ct.includes('multipart/form-data')) {
+      // FormData upload (handles large files without JSON size limits)
+      const formData = await req.formData()
+      documentId = formData.get('documentId') as string
+      filename = formData.get('filename') as string
+      contentType = formData.get('contentType') as string || 'application/octet-stream'
+      const file = formData.get('file') as File | null
+      const imageData = formData.get('imageData') as string | null
+
+      if (file) {
+        buffer = Buffer.from(await file.arrayBuffer())
+      } else if (imageData) {
+        // SVG or base64 string sent as text field
+        if (imageData.startsWith('data:')) {
+          buffer = Buffer.from(imageData.split(',')[1], 'base64')
+        } else if (imageData.startsWith('<svg') || imageData.startsWith('<?xml')) {
+          buffer = Buffer.from(imageData, 'utf-8')
+        } else {
+          buffer = Buffer.from(imageData, 'base64')
+        }
+      } else {
+        return NextResponse.json({ error: 'No file or image data provided' }, { status: 400 })
+      }
+    } else {
+      // Legacy JSON body (for smaller payloads)
+      const body = await req.json()
+      documentId = body.documentId
+      filename = body.filename
+      contentType = body.contentType || 'application/octet-stream'
+      const imageBase64 = body.imageBase64
+
+      if (imageBase64.startsWith('data:')) {
+        buffer = Buffer.from(imageBase64.split(',')[1], 'base64')
+      } else if (imageBase64.startsWith('<svg') || imageBase64.startsWith('<?xml')) {
+        buffer = Buffer.from(imageBase64, 'utf-8')
+      } else {
+        buffer = Buffer.from(imageBase64, 'base64')
+      }
     }
 
-    // Decode base64 data URL to buffer
-    let buffer: Buffer
-    if (imageBase64.startsWith('data:')) {
-      const base64Data = imageBase64.split(',')[1]
-      buffer = Buffer.from(base64Data, 'base64')
-    } else if (imageBase64.startsWith('<svg') || imageBase64.startsWith('<?xml')) {
-      buffer = Buffer.from(imageBase64, 'utf-8')
-    } else {
-      buffer = Buffer.from(imageBase64, 'base64')
+    if (!documentId || !filename) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const timestamp = Date.now()
@@ -79,6 +110,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       url: publicUrl,
+      key,
       docNumber: doc.doc_number,
       docType: doc.doc_type,
     })

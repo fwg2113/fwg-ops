@@ -36,6 +36,16 @@ interface TextElement {
   fontFamily: string
   color: string
   rotation: number
+  textAlign: 'left' | 'center' | 'right' | 'justify'
+  fontWeight: number // 300 (thin), 400 (normal), 700 (bold)
+  strokeColor: string
+  strokeWidth: number // 0 = no stroke
+  strokeJoin: 'round' | 'bevel' | 'miter'
+  strokeCap: 'round' | 'butt' | 'square'
+  lineSpacing: number // multiplier, default 1.25
+  offsetPathWidth: number // 0 = no offset path
+  offsetPathColor: string
+  sourceProjectFile?: string // filename of the project file this was loaded from
 }
 
 interface MockupImage {
@@ -58,6 +68,7 @@ interface GarmentMockupBuilderProps {
   onSaveConfig: (logos: Logo[], textElements: TextElement[]) => void
   onClose: () => void
   onFileUpload?: (file: File) => void
+  onSaveTextArtwork?: (pngFile: File, jsonFile: File, replaceFilenames?: string[]) => Promise<void>
   projectFiles?: Array<{ url: string; thumbnail_url?: string; filename: string; contentType?: string }>
 }
 
@@ -72,6 +83,7 @@ export default function GarmentMockupBuilder({
   onSaveConfig,
   onClose,
   onFileUpload,
+  onSaveTextArtwork,
   projectFiles = []
 }: GarmentMockupBuilderProps) {
   const [activeLocation, setActiveLocation] = useState<Location>('Front')
@@ -90,6 +102,13 @@ export default function GarmentMockupBuilder({
   const [resizeStartFontSize, setResizeStartFontSize] = useState(48)
   const [showProjectFiles, setShowProjectFiles] = useState(false)
   const [loadingProjectFile, setLoadingProjectFile] = useState<string | null>(null)
+
+  // Zoom & pan state
+  const [zoom, setZoom] = useState(1)
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 })
+  const [panStartOffset, setPanStartOffset] = useState({ x: 0, y: 0 })
 
   const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
 
@@ -112,29 +131,74 @@ export default function GarmentMockupBuilder({
 
   const currentImageUrl = getLocationImageUrl(activeLocation)
 
-  // Popular Google Fonts
-  const GOOGLE_FONTS = [
-    'Arial',
-    'Roboto',
-    'Open Sans',
-    'Montserrat',
-    'Lato',
-    'Oswald',
-    'Raleway',
-    'Poppins',
-    'Bebas Neue',
-    'Anton',
-    'Pacifico',
-    'Lobster',
-    'Impact',
-    'Georgia',
-    'Times New Roman'
+  // Font list organized by category
+  const FONT_CATEGORIES: { label: string; fonts: string[] }[] = [
+    { label: 'Sans Serif', fonts: [
+      'Arial', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Poppins',
+      'Raleway', 'Nunito', 'Inter', 'Outfit', 'Quicksand',
+    ]},
+    { label: 'Display', fonts: [
+      'Oswald', 'Bebas Neue', 'Anton', 'Righteous', 'Russo One',
+      'Bungee', 'Permanent Marker', 'Bangers', 'Black Ops One', 'Teko',
+    ]},
+    { label: 'Serif', fonts: [
+      'Georgia', 'Times New Roman', 'Playfair Display', 'Merriweather',
+      'Lora', 'Cormorant Garamond',
+    ]},
+    { label: 'Script', fonts: [
+      'Pacifico', 'Lobster', 'Dancing Script', 'Great Vibes',
+      'Satisfy', 'Sacramento', 'Caveat',
+    ]},
+    { label: 'Monospace', fonts: [
+      'Roboto Mono', 'Source Code Pro', 'Space Mono',
+    ]},
   ]
+
+  // Flat list for lookup
+  const ALL_FONTS = FONT_CATEGORIES.flatMap(c => c.fonts)
+
+  // Render a dilated text layer on canvas by drawing text at many offsets in concentric rings.
+  // Used for both stroke and offset path — produces smooth, artifact-free outlines.
+  const renderDilatedTextOnCanvas = (
+    ctx: CanvasRenderingContext2D,
+    lines: string[],
+    color: string,
+    radius: number,
+    anchorX: number,
+    startY: number,
+    lineHeight: number,
+  ) => {
+    if (radius <= 0) return
+    ctx.save()
+    ctx.fillStyle = color
+    const rings = Math.max(3, Math.ceil(radius))
+    for (let r = 1; r <= rings; r++) {
+      const rad = (radius * r) / rings
+      const steps = Math.max(16, Math.ceil(rad * 8))
+      for (let s = 0; s < steps; s++) {
+        const angle = (2 * Math.PI * s) / steps
+        const dx = Math.cos(angle) * rad
+        const dy = Math.sin(angle) * rad
+        for (let i = 0; i < lines.length; i++) {
+          const ly = startY + i * lineHeight
+          ctx.fillText(lines[i], anchorX + dx, ly + dy)
+        }
+      }
+    }
+    ctx.restore()
+  }
+
+  // Google Fonts that need loading (exclude system fonts)
+  const SYSTEM_FONTS = ['Arial', 'Georgia', 'Times New Roman', 'Impact']
+  const GOOGLE_FONT_NAMES = ALL_FONTS.filter(f => !SYSTEM_FONTS.includes(f))
 
   // Load Google Fonts dynamically
   useEffect(() => {
+    const families = GOOGLE_FONT_NAMES.map(f =>
+      `family=${f.replace(/ /g, '+')}:wght@300;400;700`
+    ).join('&')
     const link = document.createElement('link')
-    link.href = `https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;600&family=Lato:wght@400;600&family=Oswald:wght@400;600&family=Raleway:wght@400;600&family=Poppins:wght@400;600&family=Bebas+Neue&family=Anton&family=Pacifico&family=Lobster&display=swap`
+    link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`
     link.rel = 'stylesheet'
     document.head.appendChild(link)
 
@@ -793,7 +857,43 @@ export default function GarmentMockupBuilder({
   const handleProjectFileClick = async (projectFile: { url: string; filename: string; contentType?: string }) => {
     setLoadingProjectFile(projectFile.url)
     try {
-      const response = await fetch(projectFile.url)
+      // Proxy R2 URLs through our API to avoid CORS issues
+      const fetchUrl = projectFile.url.includes('r2.dev') || projectFile.url.includes('cloudflarestorage')
+        ? `/api/image-enhancer/proxy-file?url=${encodeURIComponent(projectFile.url)}`
+        : projectFile.url
+
+      // Check if this is a text artwork JSON config
+      if (projectFile.filename.startsWith('text-artwork_') && projectFile.filename.endsWith('.json')) {
+        const response = await fetch(fetchUrl)
+        const config = await response.json()
+        const newText: TextElement = {
+          id: `text_${Date.now()}_${Math.random()}`,
+          location: activeLocation,
+          x: 0.35,
+          y: 0.4,
+          text: config.text || 'Text',
+          fontSize: config.fontSize || 48,
+          fontFamily: config.fontFamily || 'Arial',
+          color: config.color || '#000000',
+          rotation: config.rotation || 0,
+          textAlign: config.textAlign || 'center',
+          fontWeight: config.fontWeight || 400,
+          strokeColor: config.strokeColor || '#000000',
+          strokeWidth: config.strokeWidth || 0,
+          strokeJoin: config.strokeJoin || 'round',
+          strokeCap: config.strokeCap || 'round',
+          lineSpacing: config.lineSpacing || 1.25,
+          offsetPathWidth: config.offsetPathWidth || 0,
+          offsetPathColor: config.offsetPathColor || '#000000',
+          sourceProjectFile: projectFile.filename,
+        }
+        setTextElements(prev => [...prev, newText])
+        setSelectedTextId(newText.id)
+        setSelectedLogoId(null)
+        return
+      }
+
+      const response = await fetch(fetchUrl)
       const blob = await response.blob()
       const mimeType = projectFile.contentType || blob.type || 'application/octet-stream'
       const file = new File([blob], projectFile.filename, { type: mimeType })
@@ -888,7 +988,16 @@ export default function GarmentMockupBuilder({
       fontSize: 48,
       fontFamily: 'Arial',
       color: '#000000',
-      rotation: 0
+      rotation: 0,
+      textAlign: 'center',
+      fontWeight: 400,
+      strokeColor: '#000000',
+      strokeWidth: 0,
+      strokeJoin: 'round',
+      strokeCap: 'round',
+      lineSpacing: 1.25,
+      offsetPathWidth: 0,
+      offsetPathColor: '#000000',
     }
     setTextElements(prev => [...prev, newText])
     setSelectedTextId(newText.id)
@@ -907,6 +1016,92 @@ export default function GarmentMockupBuilder({
     setTextElements(prev => prev.filter(t => t.id !== id))
     if (selectedTextId === id) {
       setSelectedTextId(null)
+    }
+  }
+
+  // Render a text element to a standalone canvas (for saving as artwork)
+  const renderTextToCanvas = (text: TextElement): HTMLCanvasElement => {
+    const lines = text.text.split('\n')
+    const weight = text.fontWeight || 400
+    const lineHeight = text.fontSize * (text.lineSpacing || 1.25)
+
+    // Measure text width
+    const measureCanvas = document.createElement('canvas')
+    const mCtx = measureCanvas.getContext('2d')!
+    mCtx.font = `${weight} ${text.fontSize}px ${text.fontFamily}`
+    const maxLineWidth = Math.max(...lines.map(l => mCtx.measureText(l).width))
+
+    const extraPad = Math.max(text.strokeWidth > 0 ? text.strokeWidth * 2 : 0, text.offsetPathWidth || 0)
+    const padding = extraPad + 8
+    const w = Math.ceil(maxLineWidth + padding * 2)
+    const h = Math.ceil(lines.length * lineHeight + padding * 2)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')!
+
+    ctx.font = `${weight} ${text.fontSize}px ${text.fontFamily}`
+    ctx.fillStyle = text.color
+    ctx.textAlign = (text.textAlign === 'justify' ? 'left' : text.textAlign) || 'center'
+    ctx.textBaseline = 'top'
+
+    let anchorX = w / 2
+    if (text.textAlign === 'left') anchorX = padding
+    else if (text.textAlign === 'right') anchorX = w - padding
+
+    // 1) Offset path (outermost layer) — dilated by offset + stroke combined
+    if ((text.offsetPathWidth || 0) > 0) {
+      const totalRadius = (text.offsetPathWidth || 0) + (text.strokeWidth > 0 ? text.strokeWidth : 0)
+      renderDilatedTextOnCanvas(ctx, lines, text.offsetPathColor || '#000000', totalRadius, anchorX, padding, lineHeight)
+    }
+
+    // 2) Stroke (middle layer) — dilated fill, not strokeText (avoids glyph-point artifacts)
+    if (text.strokeWidth > 0) {
+      renderDilatedTextOnCanvas(ctx, lines, text.strokeColor || '#000000', text.strokeWidth, anchorX, padding, lineHeight)
+    }
+
+    // 3) Fill (top layer)
+    for (let i = 0; i < lines.length; i++) {
+      const ly = padding + i * lineHeight
+      ctx.fillText(lines[i], anchorX, ly)
+    }
+
+    return canvas
+  }
+
+  // Save selected text element as a project file (PNG preview + JSON config)
+  const [savingTextArtwork, setSavingTextArtwork] = useState(false)
+  const saveTextAsProjectFile = async (mode: 'new' | 'update' = 'new') => {
+    if (!selectedText || !onSaveTextArtwork) return
+    setSavingTextArtwork(true)
+    try {
+      const canvas = renderTextToCanvas(selectedText)
+      const pngBlob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob(b => resolve(b!), 'image/png')
+      })
+      const safeName = selectedText.text.replace(/[^a-zA-Z0-9 ]/g, '').trim().slice(0, 30) || 'text'
+      const ts = Date.now()
+      const pngFile = new File([pngBlob], `text-artwork_${safeName}_${ts}.png`, { type: 'image/png' })
+
+      // Save JSON config alongside the PNG so we can reload as editable text
+      const { id, location, x, y, sourceProjectFile, ...config } = selectedText
+      const jsonBlob = new Blob([JSON.stringify(config)], { type: 'application/json' })
+      const jsonFile = new File([jsonBlob], `text-artwork_${safeName}_${ts}.json`, { type: 'application/json' })
+
+      // If updating, pass the old filenames to remove
+      const replaceFilenames = mode === 'update' && sourceProjectFile
+        ? [sourceProjectFile, sourceProjectFile.replace('.json', '.png')]
+        : undefined
+
+      await onSaveTextArtwork(pngFile, jsonFile, replaceFilenames)
+
+      // Update the sourceProjectFile to the new filename
+      updateTextElement(selectedText.id, { sourceProjectFile: jsonFile.name })
+    } catch (err) {
+      console.error('Failed to save text artwork:', err)
+    } finally {
+      setSavingTextArtwork(false)
     }
   }
 
@@ -1030,6 +1225,11 @@ export default function GarmentMockupBuilder({
         const width = Math.max(0.05, mouseX - logo.x)
         const height = logo.aspectRatio ? width / logo.aspectRatio : width
         updateLogo(selectedLogoId, { width, height })
+      } else if (selectedTextId) {
+        // Resize text (font size based on vertical drag distance)
+        const deltaY = mouseY - dragStart.y
+        const newSize = Math.max(12, Math.min(200, resizeStartFontSize + deltaY * 300))
+        updateTextElement(selectedTextId, { fontSize: Math.round(newSize) })
       }
     } else if (isRotating) {
       if (selectedLogoId) {
@@ -1095,12 +1295,69 @@ export default function GarmentMockupBuilder({
     if (text) {
       setResizeStartFontSize(text.fontSize)
     }
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (rect) {
+      setDragStart({
+        x: (e.clientX - rect.left) / rect.width,
+        y: (e.clientY - rect.top) / rect.height,
+      })
+    }
   }
 
   const handleMouseUp = () => {
     setIsDragging(false)
     setIsResizing(false)
     setIsRotating(false)
+    setIsPanning(false)
+  }
+
+  // Pan: start when clicking on empty space (not on a logo or text element)
+  const handleCanvasBgMouseDown = (e: React.MouseEvent) => {
+    const el = e.target as HTMLElement
+    // If the click is on a logo/text child element, don't pan — let their handlers take over
+    // We allow clicks on: the wrapper divs themselves, the garment image (pointer-events:none falls through),
+    // or the canvasRef container
+    const isOnElement = el.closest('[data-logo-id]') || el.closest('[data-text-id]')
+    if (isOnElement) return
+    // Deselect everything
+    setSelectedLogoId(null)
+    setSelectedTextId(null)
+    // Start panning if zoomed in
+    if (zoom > 1) {
+      e.preventDefault()
+      setIsPanning(true)
+      setPanStart({ x: e.clientX, y: e.clientY })
+      setPanStartOffset({ ...panOffset })
+    }
+  }
+
+  // Pan: mouse move
+  const handlePanMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      const dx = e.clientX - panStart.x
+      const dy = e.clientY - panStart.y
+      setPanOffset({ x: panStartOffset.x + dx, y: panStartOffset.y + dy })
+    }
+  }
+
+  // Zoom: mouse wheel (attached via ref to avoid passive listener issue)
+  const canvasAreaRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = canvasAreaRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -0.1 : 0.1
+      setZoom(prev => Math.max(0.5, Math.min(5, prev + delta)))
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
+
+  // Reset zoom & pan
+  const resetZoom = () => {
+    setZoom(1)
+    setPanOffset({ x: 0, y: 0 })
   }
 
   // Handle clicks on resize handle
@@ -1238,19 +1495,47 @@ export default function GarmentMockupBuilder({
     }
 
     // Draw text elements for this location
+    // Scale text size proportionally — fontSize is in preview-container pixels,
+    // but the export canvas is higher resolution
+    const scaleRatio = CANVAS_W / containerW
     const locationTexts = textElements.filter(t => t.location === location)
     for (const text of locationTexts) {
       const textX = text.x * canvas.width
       const textY = text.y * canvas.height
+      const scaledFontSize = text.fontSize * scaleRatio
+      const lines = text.text.split('\n')
+      const lineHeight = scaledFontSize * (text.lineSpacing || 1.25)
+      const weight = text.fontWeight || 400
 
       ctx.save()
       ctx.translate(textX, textY)
       ctx.rotate((text.rotation * Math.PI) / 180)
-      ctx.font = `${text.fontSize}px ${text.fontFamily}`
+      ctx.font = `${weight} ${scaledFontSize}px ${text.fontFamily}`
       ctx.fillStyle = text.color
-      ctx.textAlign = 'center'
+      ctx.textAlign = (text.textAlign === 'justify' ? 'left' : text.textAlign) || 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(text.text, 0, 0)
+
+      // Calculate vertical offset to center the block
+      const totalHeight = (lines.length - 1) * lineHeight
+      const startY = -totalHeight / 2
+
+      // 1) Offset path (outermost layer) — dilated by offset + stroke combined
+      if ((text.offsetPathWidth || 0) > 0) {
+        const totalRadius = ((text.offsetPathWidth || 0) + (text.strokeWidth > 0 ? text.strokeWidth : 0)) * scaleRatio
+        renderDilatedTextOnCanvas(ctx, lines, text.offsetPathColor || '#000000', totalRadius, 0, startY, lineHeight)
+      }
+
+      // 2) Stroke (middle layer) — dilated fill, not strokeText
+      if (text.strokeWidth > 0) {
+        renderDilatedTextOnCanvas(ctx, lines, text.strokeColor || '#000000', text.strokeWidth * scaleRatio, 0, startY, lineHeight)
+      }
+
+      // 3) Fill (top layer)
+      for (let i = 0; i < lines.length; i++) {
+        const ly = startY + i * lineHeight
+        ctx.fillText(lines[i], 0, ly)
+      }
+
       ctx.restore()
     }
 
@@ -1435,14 +1720,35 @@ export default function GarmentMockupBuilder({
               })}
             </div>
 
-            {/* Canvas Container */}
-            <div style={{
-              flex: 1,
-              padding: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
+            {/* Canvas Container with zoom/pan */}
+            <div
+              style={{
+                flex: 1,
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                position: 'relative',
+              }}
+              ref={canvasAreaRef}
+            >
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                overflow: 'hidden',
+                cursor: isPanning ? 'grabbing' : zoom > 1 ? 'grab' : 'default',
+              }}
+              onMouseDown={handleCanvasBgMouseDown}
+              onMouseMove={(e) => { handlePanMouseMove(e); handleMouseMove(e) }}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            >
             <div
               ref={canvasRef}
               style={{
@@ -1451,11 +1757,11 @@ export default function GarmentMockupBuilder({
                 maxHeight: '600px',
                 width: '100%',
                 aspectRatio: '4/5',
-                cursor: isDragging ? 'grabbing' : 'default'
+                transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
+                transformOrigin: 'center center',
+                transition: isPanning || isDragging ? 'none' : 'transform 0.1s ease-out',
+                cursor: isDragging ? 'grabbing' : isPanning ? 'grabbing' : 'default',
               }}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
             >
               {/* Garment Image */}
               <img
@@ -1474,6 +1780,7 @@ export default function GarmentMockupBuilder({
               {activeLogos.map(logo => (
                 <div
                   key={logo.id}
+                  data-logo-id={logo.id}
                   onMouseDown={(e) => handleMouseDown(e, logo.id)}
                   style={{
                     position: 'absolute',
@@ -1543,10 +1850,49 @@ export default function GarmentMockupBuilder({
                 </div>
               ))}
 
+              {/* SVG Filters for Stroke + Offset Path (feMorphology dilate = smooth, artifact-free) */}
+              <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+                <defs>
+                  {activeTexts.filter(t => t.strokeWidth > 0 || (t.offsetPathWidth || 0) > 0).map(t => {
+                    const hasStroke = t.strokeWidth > 0
+                    const hasOffset = (t.offsetPathWidth || 0) > 0
+                    return (
+                    <filter key={`text-fx-${t.id}`} id={`text-fx-${t.id}`}
+                      x="-50%" y="-50%" width="200%" height="200%"
+                    >
+                      {/* Build layers bottom-up, then merge */}
+                      {hasOffset && (
+                        <>
+                          <feMorphology operator="dilate" radius={(t.offsetPathWidth || 0) + (hasStroke ? t.strokeWidth : 0)} in="SourceAlpha" result="offsetDilated" />
+                          <feFlood floodColor={t.offsetPathColor} result="offsetColor" />
+                          <feComposite in="offsetColor" in2="offsetDilated" operator="in" result="offsetLayer" />
+                        </>
+                      )}
+                      {hasStroke && (
+                        <>
+                          <feMorphology operator="dilate" radius={t.strokeWidth} in="SourceAlpha" result="strokeDilated" />
+                          <feFlood floodColor={t.strokeColor} result="strokeColor" />
+                          <feComposite in="strokeColor" in2="strokeDilated" operator="in" result="strokeLayer" />
+                        </>
+                      )}
+                      <feMerge>
+                        {hasOffset && <feMergeNode in="offsetLayer" />}
+                        {hasStroke && <feMergeNode in="strokeLayer" />}
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    )
+                  })}
+                </defs>
+              </svg>
+
               {/* Text Elements */}
-              {activeTexts.map(text => (
+              {activeTexts.map(text => {
+                const hasEffect = text.strokeWidth > 0 || (text.offsetPathWidth || 0) > 0
+                return (
                 <div
                   key={text.id}
+                  data-text-id={text.id}
                   onMouseDown={(e) => handleTextMouseDown(e, text.id)}
                   style={{
                     position: 'absolute',
@@ -1559,15 +1905,23 @@ export default function GarmentMockupBuilder({
                     padding: '4px 8px',
                     borderRadius: '4px',
                     transition: selectedTextId === text.id ? 'none' : 'border 0.15s ease',
+                    userSelect: 'none',
+                  } as React.CSSProperties}
+                >
+                  {/* Inner span carries all text styling + filter so the selection border is unaffected */}
+                  <span style={{
                     fontFamily: text.fontFamily,
                     fontSize: `${text.fontSize}px`,
                     color: text.color,
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    userSelect: 'none'
-                  }}
-                >
-                  {text.text}
+                    fontWeight: text.fontWeight || 400,
+                    lineHeight: text.lineSpacing || 1.25,
+                    whiteSpace: 'pre-wrap',
+                    textAlign: text.textAlign || 'center',
+                    display: 'block',
+                    filter: hasEffect ? `url(#text-fx-${text.id})` : undefined,
+                  } as React.CSSProperties}>
+                    {text.text}
+                  </span>
 
                   {selectedTextId === text.id && (
                     <>
@@ -1608,7 +1962,85 @@ export default function GarmentMockupBuilder({
                     </>
                   )}
                 </div>
-              ))}
+              )})}
+            </div>
+            </div>
+
+            {/* Zoom Controls */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 0 0 0',
+              flexShrink: 0,
+            }}>
+              <button
+                onClick={() => setZoom(prev => Math.max(0.5, prev - 0.25))}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  background: '#282a30',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  borderRadius: '6px',
+                  color: '#94a3b8',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                −
+              </button>
+              <input
+                type="range"
+                min="0.5"
+                max="5"
+                step="0.1"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                style={{ width: '140px' }}
+              />
+              <button
+                onClick={() => setZoom(prev => Math.min(5, prev + 0.25))}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  background: '#282a30',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  borderRadius: '6px',
+                  color: '#94a3b8',
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                +
+              </button>
+              <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 600, minWidth: '40px' }}>
+                {Math.round(zoom * 100)}%
+              </span>
+              {zoom !== 1 && (
+                <button
+                  onClick={resetZoom}
+                  style={{
+                    padding: '4px 10px',
+                    background: 'rgba(139,92,246,0.15)',
+                    border: '1px solid rgba(139,92,246,0.3)',
+                    borderRadius: '6px',
+                    color: '#a78bfa',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reset
+                </button>
+              )}
             </div>
             </div>
           </div>
@@ -1692,17 +2124,40 @@ export default function GarmentMockupBuilder({
                   <span>Project Files ({projectFiles.length})</span>
                   <span style={{ fontSize: '12px', transition: 'transform 0.2s', transform: showProjectFiles ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
                 </button>
-                {showProjectFiles && (
+                {showProjectFiles && (() => {
+                  // Build a set of PNG filenames that are companions to text artwork JSON files
+                  const textArtworkPngs = new Set<string>()
+                  projectFiles.forEach(pf => {
+                    if (pf.filename.startsWith('text-artwork_') && pf.filename.endsWith('.json')) {
+                      textArtworkPngs.add(pf.filename.replace('.json', '.png'))
+                    }
+                  })
+
+                  // Filter out companion PNGs — the JSON entry represents the text artwork
+                  const visibleFiles = projectFiles.filter(pf => !textArtworkPngs.has(pf.filename))
+
+                  // Find matching PNG thumbnail for a text artwork JSON
+                  const findTextArtworkThumbnail = (jsonFilename: string): string | undefined => {
+                    const pngName = jsonFilename.replace('.json', '.png')
+                    const pngFile = projectFiles.find(pf => pf.filename === pngName)
+                    return pngFile?.url
+                  }
+
+                  return (
                   <div style={{
                     marginTop: '8px',
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: '8px'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
                   }}>
-                    {projectFiles.map((pf, idx) => {
+                    {visibleFiles.map((pf, idx) => {
                       const isImage = pf.contentType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(pf.filename)
+                      const isTextArtwork = pf.filename.startsWith('text-artwork_') && pf.filename.endsWith('.json')
                       const isLoading = loadingProjectFile === pf.url
                       const ext = pf.filename.split('.').pop()?.toUpperCase() || '?'
+                      const thumbnailUrl = isTextArtwork ? findTextArtworkThumbnail(pf.filename) : undefined
                       return (
                         <button
                           key={idx}
@@ -1710,34 +2165,68 @@ export default function GarmentMockupBuilder({
                           disabled={isLoading}
                           title={pf.filename}
                           style={{
-                            padding: '4px',
+                            padding: '6px',
                             background: '#1e1f25',
-                            border: '1px solid rgba(148,163,184,0.2)',
+                            border: `1px solid ${isTextArtwork ? 'rgba(59,130,246,0.3)' : 'rgba(148,163,184,0.2)'}`,
                             borderRadius: '6px',
                             cursor: isLoading ? 'wait' : 'pointer',
                             display: 'flex',
-                            flexDirection: 'column',
+                            flexDirection: 'row',
                             alignItems: 'center',
-                            gap: '4px',
-                            opacity: isLoading ? 0.5 : 1
+                            gap: '10px',
+                            opacity: isLoading ? 0.5 : 1,
+                            width: '100%',
+                            textAlign: 'left',
                           }}
                         >
-                          {isImage ? (
+                          {isTextArtwork ? (
+                            thumbnailUrl ? (
+                              <img
+                                src={thumbnailUrl}
+                                alt="Text artwork"
+                                style={{
+                                  width: '48px',
+                                  height: '48px',
+                                  objectFit: 'contain',
+                                  borderRadius: '4px',
+                                  background: '#fff',
+                                  flexShrink: 0,
+                                }}
+                              />
+                            ) : (
+                              <div style={{
+                                width: '48px',
+                                height: '48px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                                borderRadius: '4px',
+                                color: '#3b82f6',
+                                fontSize: '18px',
+                                fontWeight: 800,
+                                flexShrink: 0,
+                              }}>
+                                Aa
+                              </div>
+                            )
+                          ) : isImage ? (
                             <img
                               src={pf.thumbnail_url || pf.url}
                               alt={pf.filename}
                               style={{
-                                width: '100%',
-                                height: '60px',
+                                width: '48px',
+                                height: '48px',
                                 objectFit: 'contain',
                                 borderRadius: '4px',
-                                background: '#fff'
+                                background: '#fff',
+                                flexShrink: 0,
                               }}
                             />
                           ) : (
                             <div style={{
-                              width: '100%',
-                              height: '60px',
+                              width: '48px',
+                              height: '48px',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -1745,27 +2234,35 @@ export default function GarmentMockupBuilder({
                               borderRadius: '4px',
                               color: '#94a3b8',
                               fontSize: '11px',
-                              fontWeight: 700
+                              fontWeight: 700,
+                              flexShrink: 0,
                             }}>
                               {ext}
                             </div>
                           )}
-                          <span style={{
-                            color: '#94a3b8',
-                            fontSize: '10px',
-                            width: '100%',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            textAlign: 'center'
-                          }}>
-                            {pf.filename}
-                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              color: isTextArtwork ? '#93c5fd' : '#f1f5f9',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {isTextArtwork ? pf.filename.replace('text-artwork_', '').replace(/(_\d+)?\.json$/, '') : pf.filename}
+                            </div>
+                            {isTextArtwork && (
+                              <div style={{ color: '#3b82f6', fontSize: '10px', marginTop: '2px' }}>
+                                Editable Text
+                              </div>
+                            )}
+                          </div>
                         </button>
                       )
                     })}
                   </div>
-                )}
+                  )
+                })()}
               </div>
             )}
 
@@ -2098,15 +2595,20 @@ export default function GarmentMockupBuilder({
                   Edit Text
                 </h3>
 
-                {/* Text Input */}
-                <div style={{ marginBottom: '16px' }}>
+                {/* Text Input - Textarea for multi-line */}
+                <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
-                    Text
+                    Text <span style={{ color: '#64748b', fontSize: '11px' }}>(Shift+Enter for new line)</span>
                   </label>
-                  <input
-                    type="text"
+                  <textarea
                     value={selectedText.text}
                     onChange={(e) => updateTextElement(selectedText.id, { text: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault() // plain Enter does nothing (Shift+Enter inserts newline)
+                      }
+                    }}
+                    rows={Math.min(5, Math.max(2, selectedText.text.split('\n').length))}
                     style={{
                       width: '100%',
                       padding: '8px',
@@ -2114,13 +2616,76 @@ export default function GarmentMockupBuilder({
                       border: '1px solid rgba(148,163,184,0.2)',
                       borderRadius: '6px',
                       color: '#f1f5f9',
-                      fontSize: '13px'
+                      fontSize: '13px',
+                      resize: 'vertical',
+                      fontFamily: 'inherit',
+                      lineHeight: 1.4,
                     }}
                   />
                 </div>
 
-                {/* Font Family */}
-                <div style={{ marginBottom: '16px' }}>
+                {/* Toolbar row: Alignment + Weight */}
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                  {/* Alignment buttons */}
+                  {(['left', 'center', 'right', 'justify'] as const).map(align => {
+                    const icons: Record<string, string> = { left: '≡◁', center: '≡', right: '▷≡', justify: '⊞' }
+                    const labels: Record<string, string> = { left: 'Left', center: 'Center', right: 'Right', justify: 'Justify' }
+                    const isActive = (selectedText.textAlign || 'center') === align
+                    return (
+                      <button
+                        key={align}
+                        onClick={() => updateTextElement(selectedText.id, { textAlign: align })}
+                        title={labels[align]}
+                        style={{
+                          flex: 1,
+                          padding: '6px 0',
+                          background: isActive ? '#3b82f6' : '#1d1d1d',
+                          border: `1px solid ${isActive ? '#3b82f6' : 'rgba(148,163,184,0.2)'}`,
+                          borderRadius: '4px',
+                          color: isActive ? 'white' : '#94a3b8',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {labels[align]}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Weight buttons */}
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                  {([
+                    { value: 300, label: 'Thin' },
+                    { value: 400, label: 'Normal' },
+                    { value: 700, label: 'Bold' },
+                  ] as const).map(w => {
+                    const isActive = (selectedText.fontWeight || 400) === w.value
+                    return (
+                      <button
+                        key={w.value}
+                        onClick={() => updateTextElement(selectedText.id, { fontWeight: w.value })}
+                        style={{
+                          flex: 1,
+                          padding: '6px 0',
+                          background: isActive ? '#3b82f6' : '#1d1d1d',
+                          border: `1px solid ${isActive ? '#3b82f6' : 'rgba(148,163,184,0.2)'}`,
+                          borderRadius: '4px',
+                          color: isActive ? 'white' : '#94a3b8',
+                          fontSize: '11px',
+                          fontWeight: w.value,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {w.label}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Font Family - categorized */}
+                <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
                     Font
                   </label>
@@ -2134,34 +2699,55 @@ export default function GarmentMockupBuilder({
                       border: '1px solid rgba(148,163,184,0.2)',
                       borderRadius: '6px',
                       color: '#f1f5f9',
-                      fontSize: '13px'
+                      fontSize: '13px',
+                      fontFamily: selectedText.fontFamily,
                     }}
                   >
-                    {GOOGLE_FONTS.map(font => (
-                      <option key={font} value={font}>{font}</option>
+                    {FONT_CATEGORIES.map(cat => (
+                      <optgroup key={cat.label} label={cat.label}>
+                        {cat.fonts.map(font => (
+                          <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
 
                 {/* Font Size */}
-                <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
                     Size: {selectedText.fontSize}px
                   </label>
                   <input
                     type="range"
-                    min="16"
-                    max="120"
+                    min="12"
+                    max="200"
                     value={selectedText.fontSize}
                     onChange={(e) => updateTextElement(selectedText.id, { fontSize: parseInt(e.target.value) })}
                     style={{ width: '100%' }}
                   />
                 </div>
 
-                {/* Color */}
-                <div style={{ marginBottom: '16px' }}>
+                {/* Line Spacing */}
+                <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
-                    Color
+                    Line Spacing: {(selectedText.lineSpacing || 1.25).toFixed(2)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0.8"
+                    max="3"
+                    step="0.05"
+                    value={selectedText.lineSpacing || 1.25}
+                    onChange={(e) => updateTextElement(selectedText.id, { lineSpacing: parseFloat(e.target.value) })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* Fill Color */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Fill Color
                   </label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input
@@ -2169,11 +2755,12 @@ export default function GarmentMockupBuilder({
                       value={selectedText.color}
                       onChange={(e) => updateTextElement(selectedText.id, { color: e.target.value })}
                       style={{
-                        width: '50px',
-                        height: '36px',
+                        width: '40px',
+                        height: '32px',
                         border: '1px solid rgba(148,163,184,0.2)',
                         borderRadius: '6px',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        flexShrink: 0,
                       }}
                     />
                     <input
@@ -2182,19 +2769,118 @@ export default function GarmentMockupBuilder({
                       onChange={(e) => updateTextElement(selectedText.id, { color: e.target.value })}
                       style={{
                         flex: 1,
-                        padding: '8px',
+                        padding: '6px 8px',
                         background: '#1d1d1d',
                         border: '1px solid rgba(148,163,184,0.2)',
                         borderRadius: '6px',
                         color: '#f1f5f9',
-                        fontSize: '13px'
+                        fontSize: '12px',
+                        fontFamily: 'monospace',
                       }}
                     />
                   </div>
                 </div>
 
+                {/* Stroke */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Stroke: {selectedText.strokeWidth > 0 ? `${selectedText.strokeWidth}px` : 'Off'}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={selectedText.strokeWidth || 0}
+                    onChange={(e) => updateTextElement(selectedText.id, { strokeWidth: parseFloat(e.target.value) })}
+                    style={{ width: '100%', marginBottom: '8px' }}
+                  />
+                  {selectedText.strokeWidth > 0 && (
+                    <>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                        <input
+                          type="color"
+                          value={selectedText.strokeColor || '#000000'}
+                          onChange={(e) => updateTextElement(selectedText.id, { strokeColor: e.target.value })}
+                          style={{
+                            width: '40px',
+                            height: '32px',
+                            border: '1px solid rgba(148,163,184,0.2)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={selectedText.strokeColor || '#000000'}
+                          onChange={(e) => updateTextElement(selectedText.id, { strokeColor: e.target.value })}
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            background: '#1d1d1d',
+                            border: '1px solid rgba(148,163,184,0.2)',
+                            borderRadius: '6px',
+                            color: '#f1f5f9',
+                            fontSize: '12px',
+                            fontFamily: 'monospace',
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Offset Path */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
+                    Offset Path: {(selectedText.offsetPathWidth || 0) > 0 ? `${selectedText.offsetPathWidth}px` : 'Off'}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={selectedText.offsetPathWidth || 0}
+                    onChange={(e) => updateTextElement(selectedText.id, { offsetPathWidth: parseFloat(e.target.value) })}
+                    style={{ width: '100%', marginBottom: '8px' }}
+                  />
+                  {(selectedText.offsetPathWidth || 0) > 0 && (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="color"
+                        value={selectedText.offsetPathColor || '#000000'}
+                        onChange={(e) => updateTextElement(selectedText.id, { offsetPathColor: e.target.value })}
+                        style={{
+                          width: '40px',
+                          height: '32px',
+                          border: '1px solid rgba(148,163,184,0.2)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={selectedText.offsetPathColor || '#000000'}
+                        onChange={(e) => updateTextElement(selectedText.id, { offsetPathColor: e.target.value })}
+                        style={{
+                          flex: 1,
+                          padding: '6px 8px',
+                          background: '#1d1d1d',
+                          border: '1px solid rgba(148,163,184,0.2)',
+                          borderRadius: '6px',
+                          color: '#f1f5f9',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 {/* Rotation */}
-                <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
                     Rotation: {selectedText.rotation}°
                   </label>
@@ -2207,6 +2893,67 @@ export default function GarmentMockupBuilder({
                     style={{ width: '100%' }}
                   />
                 </div>
+
+                {/* Save as Project File */}
+                {onSaveTextArtwork && (
+                  selectedText.sourceProjectFile ? (
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                      <button
+                        onClick={() => saveTextAsProjectFile('update')}
+                        disabled={savingTextArtwork}
+                        style={{
+                          flex: 1,
+                          padding: '8px 4px',
+                          background: savingTextArtwork ? '#282a30' : 'rgba(59,130,246,0.15)',
+                          border: '1px solid rgba(59,130,246,0.3)',
+                          borderRadius: '6px',
+                          color: savingTextArtwork ? '#64748b' : '#3b82f6',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: savingTextArtwork ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {savingTextArtwork ? '...' : 'Update'}
+                      </button>
+                      <button
+                        onClick={() => saveTextAsProjectFile('new')}
+                        disabled={savingTextArtwork}
+                        style={{
+                          flex: 1,
+                          padding: '8px 4px',
+                          background: savingTextArtwork ? '#282a30' : 'rgba(34,197,94,0.15)',
+                          border: '1px solid rgba(34,197,94,0.3)',
+                          borderRadius: '6px',
+                          color: savingTextArtwork ? '#64748b' : '#22c55e',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: savingTextArtwork ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {savingTextArtwork ? '...' : 'Save as New'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => saveTextAsProjectFile('new')}
+                      disabled={savingTextArtwork}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        marginBottom: '8px',
+                        background: savingTextArtwork ? '#282a30' : 'rgba(34,197,94,0.15)',
+                        border: '1px solid rgba(34,197,94,0.3)',
+                        borderRadius: '6px',
+                        color: savingTextArtwork ? '#64748b' : '#22c55e',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: savingTextArtwork ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {savingTextArtwork ? 'Saving...' : 'Save Text as Project File'}
+                    </button>
+                  )
+                )}
 
                 {/* Delete */}
                 <button
@@ -2281,7 +3028,7 @@ export default function GarmentMockupBuilder({
                     }}
                   >
                     <div style={{ color: '#94a3b8', fontSize: '13px' }}>
-                      Text {index + 1}: <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{text.text}</span>
+                      Text {index + 1}: <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{text.text.split('\n')[0]}{text.text.includes('\n') ? '...' : ''}</span>
                     </div>
                   </div>
                 ))}
