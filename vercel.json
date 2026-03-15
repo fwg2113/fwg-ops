@@ -1,5 +1,14 @@
 {
+  "crons": [
+    {
+      "path": "/api/purchase-orders/tracking-poll",
+      "schedule": "0 * * * *"
+    }
+  ],
   "functions": {
+    "app/api/purchase-orders/tracking-poll/route.ts": {
+      "maxDuration": 60
+    },
     "app/api/image-enhancer/[action]/route.ts": {
       "maxDuration": 60,
       "memory": 1024

@@ -337,19 +337,28 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const { id, status, notes } = await request.json()
+    const { id, status, notes, tracking_info } = await request.json()
 
-    if (!id || !status) {
-      return NextResponse.json({ error: 'id and status are required' }, { status: 400 })
+    if (!id) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    const validStatuses = ['draft', 'submitted', 'confirmed', 'shipped', 'delivered', 'cancelled', 'error']
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 })
+    const update: Record<string, any> = {}
+
+    if (status) {
+      const validStatuses = ['draft', 'submitted', 'confirmed', 'shipped', 'delivered', 'cancelled', 'error']
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 })
+      }
+      update.status = status
     }
 
-    const update: Record<string, any> = { status }
     if (notes !== undefined) update.notes = notes
+    if (tracking_info !== undefined) update.tracking_info = tracking_info
+
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    }
 
     const { data, error } = await supabase
       .from('purchase_orders')

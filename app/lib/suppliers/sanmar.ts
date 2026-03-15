@@ -134,8 +134,8 @@ const cache = new SimpleCache()
  * Extract text content from an XML tag. Handles self-closing tags and missing tags.
  */
 function xmlValue(xml: string, tag: string): string {
-  // Match <tag>content</tag> or <tag /> (self-closing)
-  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i')
+  // Match <tag>content</tag> or <ns:tag>content</ns:tag> (with optional namespace prefix)
+  const regex = new RegExp(`<(?:\\w+:)?${tag}[^>]*>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'i')
   const match = xml.match(regex)
   if (match) return match[1].trim()
   return ''
@@ -145,7 +145,7 @@ function xmlValue(xml: string, tag: string): string {
  * Extract all occurrences of an XML block
  */
 function xmlAll(xml: string, tag: string): string[] {
-  const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?</${tag}>`, 'gi')
+  const regex = new RegExp(`<(?:\\w+:)?${tag}[^>]*>[\\s\\S]*?</(?:\\w+:)?${tag}>`, 'gi')
   return xml.match(regex) || []
 }
 
@@ -779,6 +779,147 @@ export class SanMarClient {
     } catch (error) {
       console.error('SanMar submitPO failed:', error)
       throw error
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Order Tracking / Shipment Notification (PromoStandards)
+  // --------------------------------------------------------------------------
+
+  private promoStandardsUrl = 'https://ws.sanmar.com:8080/promostandards/OrderShipmentNotificationServiceBinding'
+
+  /**
+   * Get shipment/tracking info for a purchase order using PromoStandards
+   * OrderShipmentNotificationService.
+   *
+   * queryType 1 = by PO number (referenceNumber = our PO number)
+   */
+  async getOrderShipmentNotification(poNumber: string): Promise<{
+    success: boolean
+    complete: boolean
+    salesOrders: Array<{
+      salesOrderNumber: string
+      packages: Array<{
+        trackingNumber: string
+        carrier: string
+        shippingMethod: string
+        shipDate: string
+        items: Array<{
+          style: string
+          color: string
+          size: string
+          quantity: number
+        }>
+      }>
+    }>
+    errorMessage?: string
+    rawResponse?: string
+  }> {
+    const ns = 'http://www.promostandards.org/WSDL/OrderShipmentNotificationService/1.0.0/'
+    const sharedNs = 'http://www.promostandards.org/WSDL/OrderShipmentNotificationService/1.0.0/SharedObjects/'
+
+    const soapBody = `<tns:GetOrderShipmentNotificationRequest xmlns:tns="${ns}" xmlns:ns3="${sharedNs}">
+      <ns3:wsVersion>1.0.0</ns3:wsVersion>
+      <ns3:id>${this.username}</ns3:id>
+      <ns3:password>${this.password}</ns3:password>
+      <tns:queryType>1</tns:queryType>
+      <tns:referenceNumber>${poNumber}</tns:referenceNumber>
+    </tns:GetOrderShipmentNotificationRequest>`
+
+    const envelope = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Header/>
+  <soapenv:Body>
+    ${soapBody}
+  </soapenv:Body>
+</soapenv:Envelope>`
+
+    try {
+      const response = await fetch(this.promoStandardsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          'SOAPAction': '',
+        },
+        body: envelope,
+      })
+
+      const responseXml = await response.text()
+
+      if (!response.ok) {
+        console.error(`SanMar PromoStandards error (${response.status}):`, responseXml.substring(0, 500))
+        return { success: false, complete: false, salesOrders: [], errorMessage: `HTTP ${response.status}`, rawResponse: responseXml }
+      }
+
+      // Check for error message
+      const errorCode = xmlValue(responseXml, 'code')
+      const errorDescription = xmlValue(responseXml, 'description')
+      if (errorCode && errorCode !== '0') {
+        return {
+          success: false,
+          complete: false,
+          salesOrders: [],
+          errorMessage: errorDescription || `Error code ${errorCode}`,
+          rawResponse: responseXml,
+        }
+      }
+
+      // Parse OrderShipmentNotification blocks
+      const notifications = xmlAll(responseXml, 'OrderShipmentNotification')
+      const salesOrders: Array<{
+        salesOrderNumber: string
+        packages: Array<{
+          trackingNumber: string
+          carrier: string
+          shippingMethod: string
+          shipDate: string
+          items: Array<{ style: string; color: string; size: string; quantity: number }>
+        }>
+      }> = []
+
+      let complete = false
+      for (const notification of notifications) {
+        const completeBool = xmlValue(notification, 'complete')
+        if (completeBool === 'true') complete = true
+
+        const salesOrderBlocks = xmlAll(notification, 'SalesOrder')
+        for (const so of salesOrderBlocks) {
+          const salesOrderNumber = xmlValue(so, 'salesOrderNumber')
+          const packageBlocks = xmlAll(so, 'Package')
+          const packages: typeof salesOrders[0]['packages'] = []
+
+          for (const pkg of packageBlocks) {
+            const trackingNumber = xmlValue(pkg, 'trackingNumber')
+            const carrier = xmlValue(pkg, 'carrier')
+            const shippingMethod = xmlValue(pkg, 'shippingMethod')
+            const shipDate = xmlValue(pkg, 'shipmentDate') || xmlValue(pkg, 'shipDate')
+
+            const itemBlocks = xmlAll(pkg, 'ShipmentItem') || xmlAll(pkg, 'Item')
+            const items: Array<{ style: string; color: string; size: string; quantity: number }> = []
+            for (const item of itemBlocks) {
+              items.push({
+                style: xmlValue(item, 'style') || xmlValue(item, 'supplierProductId'),
+                color: decodeXml(xmlValue(item, 'color') || xmlValue(item, 'supplierColorId')),
+                size: xmlValue(item, 'size') || xmlValue(item, 'supplierSizeId'),
+                quantity: parseInt(xmlValue(item, 'quantity'), 10) || 0,
+              })
+            }
+
+            if (trackingNumber) {
+              packages.push({ trackingNumber, carrier, shippingMethod, shipDate, items })
+            }
+          }
+
+          if (salesOrderNumber || packages.length > 0) {
+            salesOrders.push({ salesOrderNumber, packages })
+          }
+        }
+      }
+
+      return { success: true, complete, salesOrders, rawResponse: responseXml }
+    } catch (error) {
+      console.error('SanMar getOrderShipmentNotification failed:', error)
+      return { success: false, complete: false, salesOrders: [], errorMessage: String(error) }
     }
   }
 
