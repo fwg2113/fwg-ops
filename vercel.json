@@ -3,6 +3,10 @@
     {
       "path": "/api/purchase-orders/tracking-poll",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/conversions/batch-upload",
+      "schedule": "0 9 * * *"
     }
   ],
   "functions": {
