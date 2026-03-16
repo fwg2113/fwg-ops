@@ -164,7 +164,13 @@ export default function LeadForm({
         throw new Error(data.error || 'Submission failed')
       }
 
-      router.push('/thank-you')
+      // Pass gclid through to thank-you page for conversion tracking
+      const thankYouParams = new URLSearchParams()
+      if (attrRef.current.gclid) thankYouParams.set('gclid', attrRef.current.gclid)
+      if (attrRef.current.gbraid) thankYouParams.set('gbraid', attrRef.current.gbraid)
+      if (attrRef.current.wbraid) thankYouParams.set('wbraid', attrRef.current.wbraid)
+      const qs = thankYouParams.toString()
+      router.push(`/thank-you${qs ? `?${qs}` : ''}`)
       return
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Something went wrong'

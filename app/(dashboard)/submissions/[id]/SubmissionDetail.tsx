@@ -265,6 +265,10 @@ const FORM_TYPE_LABELS: Record<string, string> = {
   'commercial_wrap': 'Commercial Wrap',
   'automotive_styling': 'Automotive Styling',
   'ppf': 'Paint Protection Film',
+  'ppf_landing': 'PPF',
+  'ppf_pricing': 'PPF - Pricing',
+  'ppf_tesla': 'PPF - Tesla',
+  'ppf_luxury': 'PPF - Luxury',
   'cafe_wrap': 'Café Equipment Wrap',
   'sticker_label': 'Stickers & Labels',
   'signage_promo': 'Signage & Promo',
@@ -736,8 +740,8 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                 fontSize: '10px',
                 fontWeight: 600,
                 textTransform: 'uppercase',
-                background: submission.form_type === 'ppf' ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : submission.form_type === 'sticker_label' ? 'rgba(168, 85, 247, 0.15)' : submission.form_type === 'embroidery' ? 'rgba(236, 72, 153, 0.15)' : submission.form_type === 'ad_landing' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                color: submission.form_type === 'ppf' ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : submission.form_type === 'sticker_label' ? '#a855f7' : submission.form_type === 'embroidery' ? '#ec4899' : submission.form_type === 'ad_landing' ? '#ef4444' : '#3b82f6',
+                background: (submission.form_type || '').startsWith('ppf') ? 'rgba(34, 197, 94, 0.15)' : submission.form_type === 'automotive_styling' ? 'rgba(249, 115, 22, 0.15)' : submission.form_type === 'cafe_wrap' ? 'rgba(234, 179, 8, 0.15)' : submission.form_type === 'sticker_label' ? 'rgba(168, 85, 247, 0.15)' : submission.form_type === 'embroidery' ? 'rgba(236, 72, 153, 0.15)' : submission.form_type === 'ad_landing' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                color: (submission.form_type || '').startsWith('ppf') ? '#22c55e' : submission.form_type === 'automotive_styling' ? '#f97316' : submission.form_type === 'cafe_wrap' ? '#eab308' : submission.form_type === 'sticker_label' ? '#a855f7' : submission.form_type === 'embroidery' ? '#ec4899' : submission.form_type === 'ad_landing' ? '#ef4444' : '#3b82f6',
               }}>
                 {FORM_TYPE_LABELS[submission.form_type || 'commercial_wrap'] || 'Commercial Wrap'}
               </span>
