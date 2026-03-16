@@ -1,57 +1,86 @@
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-import { supabase } from '../../lib/supabase'
-import ProductionFlow from './ProductionFlow'
+
+import { createClient } from '@supabase/supabase-js'
+import ProductionList from './ProductionList'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+)
 
 export default async function ProductionPage() {
-  // Fetch invoices in production
-  const { data: productionJobs, error: jobsError } = await supabase
-    .from('documents')
-    .select(`
-      id,
-      doc_number,
-      doc_type,
-      status,
-      customer_id,
-      total,
-      category,
-      paid_at,
-      customer_name,
-      vehicle_description,
-      project_description,
-      snoozed,
-      snoozed_at
-    `)
-    .eq('in_production', true)
-    .order('created_at', { ascending: false })
-
-  if (jobsError) {
-    console.error('Error fetching production jobs:', jobsError)
-  }
-
-  // Fetch production tasks for these jobs (excluding archived)
-  const jobIds = productionJobs?.map(j => j.id) || []
-  const { data: tasks } = await supabase
-    .from('tasks')
-    .select(`
-      *,
-      line_items:line_item_id (
-        id,
-        description,
-        category
-      )
-    `)
-    .in('document_id', jobIds)
-    .eq('auto_generated', true)
-    .or('archived.is.null,archived.eq.false')
+  // Fetch active categories to determine groupings
+  const { data: dbCategories } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('active', true)
     .order('sort_order', { ascending: true })
 
+  const categoriesData = dbCategories || []
+  const apparelCatKeys = categoriesData.filter(c => c.parent_category === 'APPAREL').map(c => c.category_key)
+  const nonApparelCatKeys = categoriesData.filter(c => c.parent_category !== 'APPAREL').map(c => c.category_key)
+
+  // Fetch documents that are paid or in production
+  const { data: docs } = await supabase
+    .from('documents')
+    .select('*')
+    .or('status.eq.paid,in_production.eq.true')
+    .order('created_at', { ascending: false })
+
+  const docIds = (docs || []).map(d => d.id)
+
+  // Fetch all line items for those documents
+  let lineItems: any[] = []
+  if (docIds.length > 0) {
+    const { data } = await supabase
+      .from('line_items')
+      .select('*')
+      .in('document_id', docIds)
+    lineItems = data || []
+  }
+
+  // Fetch calendar events linked to these documents
+  let calendarEvents: any[] = []
+  if (docIds.length > 0) {
+    const { data } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .in('document_id', docIds)
+    calendarEvents = data || []
+  }
+
+  const calendarByDocId: Record<string, any[]> = {}
+  for (const ev of calendarEvents) {
+    if (!calendarByDocId[ev.document_id]) calendarByDocId[ev.document_id] = []
+    calendarByDocId[ev.document_id].push(ev)
+  }
+
+  // Fetch production pipeline configs from DB
+  const { data: pipelineConfigs } = await supabase
+    .from('production_pipeline_configs')
+    .select('*')
+    .order('category_key')
+    .order('sort_order')
+
+  // Only include documents that have at least one non-apparel line item
+  const documents = (docs || [])
+    .map(d => ({
+      ...d,
+      line_items: lineItems.filter(li => li.document_id === d.id),
+      calendar_events: calendarByDocId[d.id] || [],
+    }))
+    .filter(d =>
+      d.line_items.some((li: any) =>
+        nonApparelCatKeys.includes(li.category)
+      )
+    )
+
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <ProductionFlow
-        initialJobs={productionJobs || []}
-        initialTasks={tasks || []}
-      />
-    </div>
+    <ProductionList
+      documents={documents}
+      pipelineConfigs={pipelineConfigs || []}
+      categoriesData={categoriesData}
+    />
   )
 }

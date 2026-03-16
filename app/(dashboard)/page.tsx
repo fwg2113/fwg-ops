@@ -41,36 +41,128 @@ export default async function DashboardPage() {
     .select('*, documents:document_id(id, customer_name, doc_number, doc_type, total, vehicle_description, project_description, category, status)')
     .order('sort_order', { ascending: true })
 
-  // Fetch production task stats for in-production documents
+  // Fetch categories for parent_category grouping
+  const { data: dbCategories } = await supabase
+    .from('categories')
+    .select('category_key, parent_category')
+    .eq('active', true)
+  const catParentMap: Record<string, string> = {}
+  for (const c of (dbCategories || [])) { catParentMap[c.category_key] = c.parent_category }
+
+  // Fetch production pipeline data — include all paid OR in_production documents
+  // (matches what the /production page shows)
   const inProductionIds = [
-    ...((quotes || []).filter(q => q.in_production).map(q => q.id)),
-    ...((invoices || []).filter(i => i.in_production).map(i => i.id))
+    ...((quotes || []).filter(q => q.in_production || q.status === 'paid').map(q => q.id)),
+    ...((invoices || []).filter(i => i.in_production || i.status === 'paid').map(i => i.id))
   ]
 
-  let productionStatus: Record<string, { total: number; completed: number }> = {}
-  let nextProductionTasks: Record<string, { id: string; title: string; status: string; sort_order: number }> = {}
-  if (inProductionIds.length > 0) {
-    const { data: prodTasks } = await supabase
-      .from('tasks')
-      .select('document_id, status, id, title, sort_order')
-      .eq('auto_generated', true)
-      .or('archived.is.null,archived.eq.false')
-      .in('document_id', inProductionIds)
-      .order('sort_order', { ascending: true })
+  // Fetch pipeline configs and line items for production status computation
+  const { data: pipelineDbConfigs } = await supabase
+    .from('production_pipeline_configs')
+    .select('*')
+    .order('category_key')
+    .order('sort_order')
 
-    if (prodTasks) {
-      for (const t of prodTasks) {
-        if (!t.document_id) continue
-        if (!productionStatus[t.document_id]) {
-          productionStatus[t.document_id] = { total: 0, completed: 0 }
+  let productionStatus: Record<string, { total: number; completed: number }> = {}
+  let nextProductionTasks: Record<string, { id: string; title: string; status: string; sort_order: number; track?: string }> = {}
+
+  if (inProductionIds.length > 0) {
+    const { data: prodLineItems } = await supabase
+      .from('line_items')
+      .select('id, document_id, category, line_type, production_checklist')
+      .in('document_id', inProductionIds)
+
+    if (prodLineItems && pipelineDbConfigs) {
+      const { getTasksWithDb } = await import('../lib/production/checklist-config')
+      const dbRows = pipelineDbConfigs as any[]
+
+      for (const docId of inProductionIds) {
+        const docItems = prodLineItems.filter(li => li.document_id === docId)
+        let totalTasks = 0
+        let completedTasks = 0
+        let nextTask: typeof nextProductionTasks[string] | null = null
+
+        for (const li of docItems) {
+          const tasks = getTasksWithDb(li.category, dbRows, li.line_type)
+          const checklist = (li.production_checklist || {}) as Record<string, any>
+
+          // Also count ad-hoc custom tasks
+          const customKeys = Object.keys(checklist).filter(k => k.startsWith('custom_'))
+          const allTaskKeys = [...tasks.map(t => t.key), ...customKeys]
+
+          totalTasks += allTaskKeys.length
+          for (const key of allTaskKeys) {
+            if (checklist[key]?.done) {
+              completedTasks++
+            } else if (!nextTask) {
+              // First incomplete task across all line items = the "next" task
+              const taskDef = tasks.find(t => t.key === key)
+              const label = taskDef?.label || checklist[key]?.label || key.replace(/_/g, ' ')
+              const track = checklist[key]?.track || (tasks.find(t => t.key === key) ? undefined : undefined)
+              // Determine track from pipeline config
+              let taskTrack = ''
+              for (const cfg of dbRows) {
+                if (cfg.category_key === li.category && cfg.task_key === key) { taskTrack = cfg.track; break }
+                if (li.line_type && cfg.category_key === li.line_type && cfg.task_key === key) { taskTrack = cfg.track; break }
+              }
+              nextTask = { id: li.id, title: label.replace(/\\n/g, ' ').replace(/\n/g, ' '), status: 'TODO', sort_order: 0, track: taskTrack || checklist[key]?.track }
+            }
+          }
         }
-        productionStatus[t.document_id].total++
-        if (t.status === 'COMPLETED') {
-          productionStatus[t.document_id].completed++
+
+        // If no pipeline tasks found, check for apparel line items and use apparel-style status
+        if (totalTasks === 0) {
+          const apparelCats = ['APPAREL', 'DTF_TRANSFER', 'DTF', 'EMBROIDERY', 'SCREEN_PRINT']
+          const apparelItems = docItems.filter(li => apparelCats.includes(li.category))
+          if (apparelItems.length > 0) {
+            // Find the document to check its apparel pipeline flags
+            const doc = [...(quotes || []), ...(invoices || [])].find(d => d.id === docId)
+            if (doc) {
+              // Build a simple progress from document-level apparel flags
+              const apparelSteps = [
+                { key: 'in_production', label: 'In Production', done: !!doc.in_production },
+                { key: 'ready_for_qc', label: 'Ready for QC', done: !!doc.ready_for_qc },
+                { key: 'qc_passed', label: 'QC Passed', done: !!doc.qc_passed },
+                { key: 'packaged', label: 'Packaged', done: !!doc.packaged },
+                { key: 'shipped', label: 'Shipped/Picked Up', done: !!doc.shipped || !!doc.ready_for_customer },
+              ]
+              totalTasks = apparelSteps.length
+              completedTasks = apparelSteps.filter(s => s.done).length
+              const nextStep = apparelSteps.find(s => !s.done)
+              if (nextStep) {
+                nextTask = { id: docId, title: nextStep.label, status: 'TODO', sort_order: 0 }
+              }
+            }
+          }
         }
-        // Track the first non-completed task as the "next" task
-        if (t.status !== 'COMPLETED' && !nextProductionTasks[t.document_id]) {
-          nextProductionTasks[t.document_id] = { id: t.id, title: t.title, status: t.status, sort_order: t.sort_order }
+
+        if (totalTasks > 0) {
+          productionStatus[docId] = { total: totalTasks, completed: completedTasks }
+        }
+        if (nextTask) {
+          nextProductionTasks[docId] = nextTask
+        }
+      }
+    }
+  }
+
+  // Build doc → parent_categories + specific categories mapping for production sub-tabs
+  const productionDocCategories: Record<string, string[]> = {}
+  if (inProductionIds.length > 0) {
+    const { data: allProdLineItems } = await supabase
+      .from('line_items')
+      .select('document_id, category')
+      .in('document_id', inProductionIds)
+    if (allProdLineItems) {
+      for (const li of allProdLineItems) {
+        if (!productionDocCategories[li.document_id]) productionDocCategories[li.document_id] = []
+        const parent = catParentMap[li.category]
+        if (parent && !productionDocCategories[li.document_id].includes(parent)) {
+          productionDocCategories[li.document_id].push(parent)
+        }
+        // Also store specific category for DTF/Embroidery distinction
+        if (!productionDocCategories[li.document_id].includes(li.category)) {
+          productionDocCategories[li.document_id].push(li.category)
         }
       }
     }
@@ -116,6 +208,7 @@ export default async function DashboardPage() {
     customerActions: customerActions || [],
     productionStatus,
     nextProductionTasks,
+    productionDocCategories,
     pinnedItems: pinnedItems || [],
     metrics: {
       monthlyRevenue: liveMetrics.fwgMtdTotal,

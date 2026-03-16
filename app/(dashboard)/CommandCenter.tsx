@@ -49,6 +49,7 @@ type Document = {
   balance_due?: number
   fulfillment_type?: string
   fulfillment_details?: any
+  due_date?: string
   snoozed?: boolean
   snoozed_at?: string
 }
@@ -116,7 +117,8 @@ type DashboardData = {
   tasks: Task[]
   customerActions: CustomerAction[]
   productionStatus: Record<string, { total: number; completed: number }>
-  nextProductionTasks: Record<string, { id: string; title: string; status: string; sort_order: number }>
+  nextProductionTasks: Record<string, { id: string; title: string; status: string; sort_order: number; track?: string }>
+  productionDocCategories: Record<string, string[]>
   pinnedItems: PinnedItem[]
   metrics: {
     monthlyRevenue: number
@@ -143,6 +145,8 @@ type ActionQueueItem = {
   nextActionId?: string // customer_action or task id to complete
   canComplete: boolean // whether the next action has a completable button
   productionProgress?: { completed: number; total: number }
+  parentCategories?: string[]
+  dueDate?: string
   waitingDays?: number
   viewed?: boolean
   priority: number // lower = more urgent
@@ -245,8 +249,9 @@ const getCardState = (
   productionStatus: Record<string, { total: number; completed: number }>
 ): 'action_needed' | 'waiting' | 'in_production' | 'production_complete' | 'idle' => {
   const prodStat = productionStatus[doc.id]
-  if (doc.in_production && prodStat && prodStat.completed < prodStat.total) return 'in_production'
-  if (doc.in_production && prodStat && prodStat.total > 0 && prodStat.completed >= prodStat.total) return 'production_complete'
+  const hasProduction = doc.in_production || (doc.status === 'paid' && prodStat && prodStat.total > 0)
+  if (hasProduction && prodStat && prodStat.completed < prodStat.total) return 'in_production'
+  if (hasProduction && prodStat && prodStat.total > 0 && prodStat.completed >= prodStat.total) return 'production_complete'
   if (todoActions.length > 0) return 'action_needed'
   if (doc.status === 'sent' || doc.status === 'viewed') return 'waiting'
   return 'idle'
@@ -299,6 +304,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const [archiveReason, setArchiveReason] = useState<'won' | 'cold'>('cold')
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'NORMAL', due_date: '' })
   const [queueFilter, setQueueFilter] = useState<string>('action_needed')
+  const [productionSubTab, setProductionSubTab] = useState<string>('all')
 
   // Sync with server data on refresh
   useEffect(() => { setData(initialData) }, [initialData])
@@ -520,6 +526,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       nextActionId,
       canComplete,
       waitingDays: daysWaiting,
+      parentCategories: data.productionDocCategories[doc.id] || [],
+      dueDate: doc.due_date || undefined,
       viewed: doc.status === 'viewed',
       priority: stateOrderMap[state] ?? 4,
       snoozed: !!doc.snoozed,
@@ -566,6 +574,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       nextActionId,
       canComplete,
       productionProgress: prodStat,
+      parentCategories: data.productionDocCategories[doc.id] || [],
+      dueDate: doc.due_date || undefined,
       priority: stateOrderMap[state] ?? 4,
       snoozed: !!doc.snoozed,
     })
@@ -595,11 +605,30 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
   const activeQueue = actionQueue.filter(item => !item.snoozed)
 
   // Filter
-  const filteredQueue = queueFilter === 'snoozed'
+  let filteredQueue = queueFilter === 'snoozed'
     ? snoozedQueue
     : queueFilter === 'all'
       ? activeQueue
       : activeQueue.filter(item => item.state === queueFilter)
+
+  // Apply production sub-tab filtering
+  if (queueFilter === 'in_production' && productionSubTab !== 'all') {
+    if (productionSubTab === 'completed') {
+      filteredQueue = activeQueue.filter(item => item.state === 'production_complete')
+    } else {
+      filteredQueue = filteredQueue.filter(item => {
+        const cats = item.parentCategories || []
+        switch (productionSubTab) {
+          case 'automotive': return cats.includes('AUTOMOTIVE')
+          case 'signage': return cats.includes('SIGNAGE')
+          case 'apparel': return cats.includes('APPAREL')
+          case 'dtf': return cats.includes('DTF_TRANSFER') || cats.includes('DTF')
+          case 'embroidery': return cats.includes('EMBROIDERY')
+          default: return true
+        }
+      })
+    }
+  }
 
   // Count by state for filter badges (only non-snoozed items)
   const stateCounts = activeQueue.reduce((acc, item) => {
@@ -711,7 +740,7 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
             { key: 'idle', label: 'Up to Date', count: stateCounts['idle'] || 0, color: '#64748b' },
             { key: 'snoozed', label: 'Snoozed', count: snoozedQueue.length, color: '#f59e0b' },
           ].filter(f => f.key === 'all' || f.count > 0).map(f => (
-            <button key={f.key} onClick={() => setQueueFilter(f.key)} style={{
+            <button key={f.key} onClick={() => { setQueueFilter(f.key); if (f.key !== 'in_production') setProductionSubTab('all') }} style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '6px 12px', borderRadius: '8px', border: 'none',
               background: queueFilter === f.key ? `${f.color}20` : 'transparent',
@@ -728,6 +757,40 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
             </button>
           ))}
         </div>
+
+        {/* Production Sub-Tabs */}
+        {queueFilter === 'in_production' && (
+          <div style={{
+            display: 'flex', gap: '4px', padding: '8px 20px 4px',
+            borderBottom: '1px solid rgba(148,163,184,0.06)',
+          }}>
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'automotive', label: 'Automotive', color: '#a855f7' },
+              { key: 'signage', label: 'Signage', color: '#14b8a6' },
+              { key: 'apparel', label: 'Apparel', color: '#3b82f6' },
+              { key: 'dtf', label: 'DTF', color: '#22d3ee' },
+              { key: 'embroidery', label: 'Embroidery', color: '#ec4899' },
+              { key: 'completed', label: 'Completed', color: '#22c55e' },
+            ].map(tab => {
+              const isActive = productionSubTab === tab.key
+              const c = tab.color || '#a855f7'
+              return (
+                <button key={tab.key} onClick={() => setProductionSubTab(tab.key)}
+                  style={{
+                    padding: '5px 14px', borderRadius: '6px', border: 'none',
+                    background: isActive ? `${c}20` : 'transparent',
+                    color: isActive ? c : '#475569',
+                    fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 0.15s', whiteSpace: 'nowrap',
+                    borderBottom: isActive ? `2px solid ${c}` : '2px solid transparent',
+                  }}>
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Queue Items */}
         <div style={{ padding: '8px 12px 12px' }}>
@@ -1044,16 +1107,29 @@ function ActionQueueRow({ item, stateConfig, typeConfig, onClick, onComplete, on
         </div>
       </div>
 
+      {/* Due Date */}
+      {item.dueDate && (() => {
+        const due = new Date(item.dueDate + 'T00:00:00')
+        const now = new Date(); now.setHours(0, 0, 0, 0)
+        const daysLeft = Math.ceil((due.getTime() - now.getTime()) / 86400000)
+        const color = daysLeft <= 0 ? '#ef4444' : daysLeft <= 2 ? '#ef4444' : daysLeft <= 4 ? '#f59e0b' : '#64748b'
+        const text = daysLeft < 0 ? `${Math.abs(daysLeft)}d late` : daysLeft === 0 ? 'Today' : `${daysLeft}d`
+        return (
+          <div style={{ flexShrink: 0, textAlign: 'center', minWidth: 36 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color }}>{text}</div>
+          </div>
+        )
+      })()}
+
       {/* Next Action - THE KEY PIECE */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: '8px',
         padding: '6px 12px', borderRadius: '8px',
         background: stateConfig.bg,
-        flexShrink: 0, maxWidth: '220px'
+        flexShrink: 0,
       }}>
         <span style={{
           fontSize: '13px', fontWeight: 600, color: stateConfig.color,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
         }}>
           {item.nextAction}
         </span>
