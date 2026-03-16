@@ -187,7 +187,7 @@ type NotificationSettings = {
   email_alert_address: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers'
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'pipelines' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers'
 
 type DtfPricingMatrix = {
   id: string
@@ -223,7 +223,9 @@ export default function SettingsView({
   initialCustomerWorkflows,
   initialDtfPricing,
   initialEmbroideryMarkupPricing,
-  initialEmbroideryFeePricing
+  initialEmbroideryFeePricing,
+  initialPipelineConfigs,
+  initialLineItemTypes
 }: {
   initialCategories: Category[]
   initialMaterials: Material[]
@@ -244,6 +246,8 @@ export default function SettingsView({
   initialDtfPricing?: DtfPricingMatrix | null
   initialEmbroideryMarkupPricing?: DtfPricingMatrix | null
   initialEmbroideryFeePricing?: DtfPricingMatrix | null
+  initialPipelineConfigs: any[]
+  initialLineItemTypes: any[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('categories')
   const [categories, setCategories] = useState<Category[]>(initialCategories)
@@ -253,6 +257,14 @@ export default function SettingsView({
   const [templates, setTemplates] = useState<ProductionTemplate[]>(initialTemplates)
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>(initialTaskStatuses)
   const [taskPriorities, setTaskPriorities] = useState<TaskPriority[]>(initialTaskPriorities)
+  const [pipelineConfigs, setPipelineConfigs] = useState<any[]>(initialPipelineConfigs)
+  const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null)
+  const [addingPipelineTask, setAddingPipelineTask] = useState<{ category: string; track: string } | null>(null)
+  const [newPipelineTask, setNewPipelineTask] = useState({ task_key: '', task_label: '', task_icon: '○' })
+  const [editingPipelineTask, setEditingPipelineTask] = useState<string | null>(null)
+  const [copyFromTarget, setCopyFromTarget] = useState<string | null>(null)
+  const [dragPipelineTaskId, setDragPipelineTaskId] = useState<string | null>(null)
+  const [editPipelineValues, setEditPipelineValues] = useState({ task_label: '', task_icon: '' })
   const [showAddPhone, setShowAddPhone] = useState(false)
   const [newPhone, setNewPhone] = useState({ name: '', phone: '', sip_uri: '' })
   const [editingSipId, setEditingSipId] = useState<string | null>(null)
@@ -582,6 +594,7 @@ export default function SettingsView({
     {
       group: 'Production',
       tabs: [
+        { key: 'pipelines', label: 'Production Pipelines' },
         { key: 'production', label: 'Production Templates' },
         { key: 'workflows', label: 'Customer Workflows' },
         { key: 'statuses', label: 'Task Statuses' },
@@ -1895,6 +1908,305 @@ export default function SettingsView({
           </div>
         </div>
       )}
+
+      {/* Production Pipelines Tab */}
+      {activeTab === 'pipelines' && (() => {
+        // Group categories from DB by parent_category, exclude apparel
+        const nonApparelCategories = categories.filter((c: any) => c.parent_category !== 'APPAREL' && c.active)
+        const parentGroups = ['AUTOMOTIVE', 'SIGNAGE']
+
+        // Build grouped structure: each category + its sub-types
+        type PipelineEntry = { key: string; label: string; isType: boolean; parentCategoryKey?: string }
+        const grouped: { label: string; entries: PipelineEntry[] }[] = parentGroups.map(pg => {
+          const catsInGroup = nonApparelCategories.filter((c: any) => c.parent_category === pg).sort((a: any, b: any) => a.sort_order - b.sort_order)
+          const entries: PipelineEntry[] = []
+          for (const cat of catsInGroup) {
+            entries.push({ key: cat.category_key, label: cat.label, isType: false })
+            // Add sub-types if category has_types
+            if ((cat as any).has_types) {
+              const types = initialLineItemTypes.filter((t: any) => t.category_key === cat.category_key)
+              for (const t of types) {
+                entries.push({ key: t.type_key, label: t.label, isType: true, parentCategoryKey: cat.category_key })
+              }
+            }
+          }
+          return { label: pg, entries }
+        }).filter(g => g.entries.length > 0)
+
+        // Orphaned pipeline configs (no matching category) are hidden — clean them up in the DB if needed
+
+        const getCatLabel = (key: string) => {
+          const cat = categories.find((c: any) => c.category_key === key)
+          if (cat) return cat.label
+          const typ = initialLineItemTypes.find((t: any) => t.type_key === key)
+          if (typ) return typ.label
+          return key.replace(/_/g, ' ')
+        }
+
+        const getConfigsForCategory = (catKey: string) => pipelineConfigs.filter((p: any) => p.category_key === catKey)
+        const getTrackTasks = (catKey: string, track: string) =>
+          pipelineConfigs.filter((p: any) => p.category_key === catKey && p.track === track).sort((a: any, b: any) => a.sort_order - b.sort_order)
+        const getTrackLabel = (catKey: string, track: string) => {
+          const row = pipelineConfigs.find((p: any) => p.category_key === catKey && p.track === track)
+          return row?.track_label || (track === 'prep' ? 'Prep' : track === 'design' ? 'Design' : 'Production')
+        }
+
+        const refreshConfigs = async () => {
+          const res = await fetch('/api/settings/production-pipelines')
+          const data = await res.json()
+          if (data.configs) setPipelineConfigs(data.configs)
+        }
+
+        const handleAddTask = async (categoryKey: string, track: string) => {
+          if (!newPipelineTask.task_key.trim() || !newPipelineTask.task_label.trim()) return
+          const existing = getTrackTasks(categoryKey, track)
+          const trackLabel = getTrackLabel(categoryKey, track)
+          const res = await fetch('/api/settings/production-pipelines', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'add_task',
+              category_key: categoryKey,
+              track,
+              track_label: trackLabel,
+              task_key: newPipelineTask.task_key.trim(),
+              task_label: newPipelineTask.task_label.trim(),
+              task_icon: newPipelineTask.task_icon || '○',
+              sort_order: existing.length + 1,
+            }),
+          })
+          if (res.ok) {
+            await refreshConfigs()
+            setAddingPipelineTask(null)
+            setNewPipelineTask({ task_key: '', task_label: '', task_icon: '○' })
+          }
+        }
+
+        const handleDeleteTask = async (id: string) => {
+          const res = await fetch('/api/settings/production-pipelines', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete_task', id }),
+          })
+          if (res.ok) await refreshConfigs()
+        }
+
+        const handleUpdateTask = async (id: string) => {
+          const res = await fetch('/api/settings/production-pipelines', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'update_task', id, task_label: editPipelineValues.task_label, task_icon: editPipelineValues.task_icon }),
+          })
+          if (res.ok) { await refreshConfigs(); setEditingPipelineTask(null) }
+        }
+
+        const renderTrack = (catKey: string, track: string) => {
+          const tasks = getTrackTasks(catKey, track)
+          const label = getTrackLabel(catKey, track)
+          const isAdding = addingPipelineTask?.category === catKey && addingPipelineTask?.track === track
+
+          return (
+            <div key={track} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: track === 'prep' ? '#60a5fa' : track === 'design' ? '#c084fc' : '#22c55e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {label}
+                </span>
+                <span style={{ fontSize: 10, color: '#475569' }}>({track} track)</span>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(148,163,184,0.08)', borderRadius: 8, overflow: 'hidden' }}>
+                {tasks.map((t: any, idx: number) => {
+                  const isEditing = editingPipelineTask === t.id
+                  const isDragging = dragPipelineTaskId === t.id
+                  return (
+                    <div
+                      key={t.id}
+                      draggable={!isEditing}
+                      onDragStart={() => setDragPipelineTaskId(t.id)}
+                      onDragEnd={() => setDragPipelineTaskId(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        if (!dragPipelineTaskId || dragPipelineTaskId === t.id) return
+                        // Only allow reorder within same track
+                        const draggedTask = tasks.find((x: any) => x.id === dragPipelineTaskId)
+                        if (!draggedTask) return
+                        // Reorder optimistically in state
+                        const newConfigs = [...pipelineConfigs]
+                        const fromIdx = newConfigs.findIndex((c: any) => c.id === dragPipelineTaskId)
+                        const toIdx = newConfigs.findIndex((c: any) => c.id === t.id)
+                        if (fromIdx === -1 || toIdx === -1) return
+                        const [moved] = newConfigs.splice(fromIdx, 1)
+                        newConfigs.splice(toIdx, 0, moved)
+                        // Update sort_order for all tasks in this track
+                        let order = 1
+                        for (const c of newConfigs) {
+                          if ((c as any).category_key === catKey && (c as any).track === track) {
+                            (c as any).sort_order = order++
+                          }
+                        }
+                        setPipelineConfigs(newConfigs)
+                      }}
+                      onDrop={async () => {
+                        // Save the new order
+                        const trackTasks = pipelineConfigs.filter((c: any) => c.category_key === catKey && c.track === track)
+                        await fetch('/api/settings/production-pipelines', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'reorder', tasks: trackTasks.map((c: any, i: number) => ({ id: c.id, sort_order: i + 1 })) }),
+                        })
+                        setDragPipelineTaskId(null)
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                        borderBottom: idx < tasks.length - 1 ? '1px solid rgba(148,163,184,0.05)' : 'none',
+                        cursor: isEditing ? 'default' : 'grab', opacity: isDragging ? 0.4 : 1,
+                        transition: 'opacity 0.15s',
+                      }}
+                    >
+                      {!isEditing && <span style={{ color: '#334155', fontSize: 12, cursor: 'grab', userSelect: 'none' }}>≡</span>}
+                      <span style={{ fontSize: 14, width: 24, textAlign: 'center' }}>{t.task_icon}</span>
+                      {isEditing ? (
+                        <>
+                          <input value={editPipelineValues.task_icon} onChange={e => setEditPipelineValues(v => ({ ...v, task_icon: e.target.value }))} style={{ width: 36, padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#f1f5f9', fontSize: 14, textAlign: 'center' }} />
+                          <input value={editPipelineValues.task_label} onChange={e => setEditPipelineValues(v => ({ ...v, task_label: e.target.value }))} style={{ flex: 1, padding: '4px 8px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#f1f5f9', fontSize: 13 }} />
+                          <button onClick={() => handleUpdateTask(t.id)} style={{ padding: '4px 10px', borderRadius: 4, background: '#22c55e', border: 'none', color: '#000', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+                          <button onClick={() => setEditingPipelineTask(null)} style={{ padding: '4px 10px', borderRadius: 4, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ flex: 1, fontSize: 13, color: '#e2e8f0', fontWeight: 500 }}>{t.task_label.replace(/\\n/g, ' ').replace(/\n/g, ' ')}</span>
+                          <button onClick={() => { setEditingPipelineTask(t.id); setEditPipelineValues({ task_label: t.task_label, task_icon: t.task_icon }) }} style={{ padding: '3px 8px', borderRadius: 4, background: 'transparent', border: '1px solid rgba(148,163,184,0.1)', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>Edit</button>
+                          <button onClick={() => handleDeleteTask(t.id)} style={{ padding: '3px 8px', borderRadius: 4, background: 'transparent', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', fontSize: 11, cursor: 'pointer' }}>Delete</button>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+                {tasks.length === 0 && (
+                  <div style={{ padding: '12px', color: '#475569', fontSize: 12, textAlign: 'center' }}>No tasks configured</div>
+                )}
+                {/* Add task row */}
+                {isAdding ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderTop: tasks.length > 0 ? '1px solid rgba(148,163,184,0.05)' : 'none', background: 'rgba(168,85,247,0.04)' }}>
+                    <input value={newPipelineTask.task_icon} onChange={e => setNewPipelineTask(v => ({ ...v, task_icon: e.target.value }))} placeholder="○" style={{ width: 36, padding: '4px 6px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#f1f5f9', fontSize: 14, textAlign: 'center' }} />
+                    <input value={newPipelineTask.task_label} onChange={e => setNewPipelineTask(v => ({ ...v, task_label: e.target.value, task_key: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') }))} placeholder="Task Label" style={{ flex: 1, padding: '4px 8px', background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 4, color: '#f1f5f9', fontSize: 13 }} />
+                    <button onClick={() => handleAddTask(catKey, track)} style={{ padding: '4px 12px', borderRadius: 4, background: '#a855f7', border: 'none', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                    <button onClick={() => { setAddingPipelineTask(null); setNewPipelineTask({ task_key: '', task_label: '', task_icon: '○' }) }} style={{ padding: '4px 8px', borderRadius: 4, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                  </div>
+                ) : (
+                  <div style={{ padding: '6px 12px', borderTop: tasks.length > 0 ? '1px solid rgba(148,163,184,0.05)' : 'none' }}>
+                    <button onClick={() => { setAddingPipelineTask({ category: catKey, track }); setNewPipelineTask({ task_key: '', task_label: '', task_icon: '○' }) }}
+                      style={{ padding: '4px 12px', borderRadius: 4, background: 'transparent', border: '1px dashed rgba(148,163,184,0.15)', color: '#64748b', fontSize: 11, cursor: 'pointer', width: '100%' }}>
+                      + Add Task
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Production Pipelines</h2>
+              <p style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', margin: 0 }}>Configure the two-track pipeline tasks for each line item category. Changes take effect immediately on the production page.</p>
+            </div>
+
+            {grouped.map(group => (
+              <div key={group.label}>
+                <div style={{ padding: '12px 20px 6px', fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{group.label}</div>
+                {group.entries.map(entry => {
+                  const catKey = entry.key
+                  const configs = getConfigsForCategory(catKey)
+                  const isExpanded = expandedPipeline === catKey
+                  const prepCount = configs.filter((c: any) => c.track === 'prep').length
+                  const designCount = configs.filter((c: any) => c.track === 'design').length
+                  const prodCount = configs.filter((c: any) => c.track === 'production').length
+
+                  return (
+                    <div key={catKey} style={{ borderBottom: '1px solid rgba(148,163,184,0.05)' }}>
+                      <div
+                        onClick={() => setExpandedPipeline(isExpanded ? null : catKey)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: entry.isType ? '10px 20px 10px 44px' : '12px 20px', cursor: 'pointer', transition: 'background 0.15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(148,163,184,0.05)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ color: '#475569', fontSize: 14 }}>{isExpanded ? '▼' : '▶'}</span>
+                          {entry.isType && <span style={{ fontSize: 9, color: '#64748b', border: '1px solid rgba(148,163,184,0.15)', padding: '1px 6px', borderRadius: 3 }}>TYPE</span>}
+                          <span style={{ fontSize: entry.isType ? 13 : 14, fontWeight: 600, color: entry.isType ? '#c8cdd8' : '#f1f5f9' }}>{entry.label}</span>
+                          <span style={{ fontSize: 10, color: '#475569', fontFamily: 'monospace' }}>{catKey}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {configs.length > 0 ? (
+                            <>
+                              <span style={{ fontSize: 10, color: '#60a5fa' }}>{prepCount} prep</span>
+                              <span style={{ fontSize: 10, color: '#475569' }}>·</span>
+                              <span style={{ fontSize: 10, color: '#c084fc' }}>{designCount} design</span>
+                              <span style={{ fontSize: 10, color: '#475569' }}>·</span>
+                              <span style={{ fontSize: 10, color: '#22c55e' }}>{prodCount} prod</span>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: 10, color: '#f59e0b' }}>No pipeline</span>
+                          )}
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div style={{ padding: entry.isType ? '8px 20px 16px 64px' : '8px 20px 16px 44px' }}>
+                          {/* Copy From button */}
+                          <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {copyFromTarget === catKey ? (
+                              <>
+                                <span style={{ fontSize: 12, color: '#94a3b8' }}>Copy all tracks from:</span>
+                                <select
+                                  onChange={async (e) => {
+                                    const sourceKey = e.target.value
+                                    if (!sourceKey) return
+                                    const sourceName = getCatLabel(sourceKey)
+                                    if (configs.length > 0) {
+                                      if (!window.confirm(`⚠️ WARNING: "${entry.label}" already has ${configs.length} tasks configured.\n\nCopying from "${sourceName}" will DELETE all existing tasks and replace them.\n\nAre you sure?`)) { e.target.value = ''; return }
+                                      if (!window.confirm(`FINAL CONFIRMATION: This cannot be undone. Delete ${configs.length} tasks from "${entry.label}" and replace with tasks from "${sourceName}"?`)) { e.target.value = ''; return }
+                                    }
+                                    const res = await fetch('/api/settings/production-pipelines', {
+                                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ action: 'copy_from', source_category_key: sourceKey, target_category_key: catKey }),
+                                    })
+                                    if (res.ok) { await refreshConfigs(); setCopyFromTarget(null) }
+                                  }}
+                                  style={{ padding: '5px 10px', borderRadius: 6, background: '#111', border: '1px solid rgba(148,163,184,0.2)', color: '#f1f5f9', fontSize: 12 }}
+                                  defaultValue=""
+                                >
+                                  <option value="" disabled>Select source...</option>
+                                  {grouped.map(g => (
+                                    <optgroup key={g.label} label={g.label}>
+                                      {g.entries.filter(e => e.key !== catKey).map(e => (
+                                        <option key={e.key} value={e.key}>{e.isType ? '  ↳ ' : ''}{e.label}</option>
+                                      ))}
+                                    </optgroup>
+                                  ))}
+                                </select>
+                                <button onClick={() => setCopyFromTarget(null)} style={{ padding: '4px 10px', borderRadius: 4, background: 'transparent', border: '1px solid rgba(148,163,184,0.15)', color: '#64748b', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                              </>
+                            ) : (
+                              <button onClick={() => setCopyFromTarget(catKey)}
+                                style={{ padding: '5px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                Copy From...
+                              </button>
+                            )}
+                          </div>
+                          {renderTrack(catKey, 'prep')}
+                          {renderTrack(catKey, 'design')}
+                          {renderTrack(catKey, 'production')}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Production Templates Tab */}
       {activeTab === 'production' && (() => {

@@ -10,6 +10,12 @@ export default async function SettingsPage() {
     .select('*')
     .order('sort_order', { ascending: true })
   
+  const { data: lineItemTypes } = await supabase
+    .from('line_item_types')
+    .select('*')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+
   const { data: materials } = await supabase
     .from('materials')
     .select('*')
@@ -137,6 +143,13 @@ export default async function SettingsPage() {
     .select('*')
     .order('created_at', { ascending: false })
 
+  // Production pipeline configs
+  const { data: pipelineConfigs } = await supabase
+    .from('production_pipeline_configs')
+    .select('*')
+    .order('category_key')
+    .order('sort_order')
+
   const calendarConnected = !!calendarSettings?.value
   const gmailConnected = !!gmailSettings?.value
 
@@ -161,6 +174,8 @@ export default async function SettingsPage() {
       initialDtfPricing={dtfPricing}
       initialEmbroideryMarkupPricing={embroideryMarkupPricing}
       initialEmbroideryFeePricing={embroideryFeePricing}
+      initialPipelineConfigs={pipelineConfigs || []}
+      initialLineItemTypes={lineItemTypes || []}
     />
   )
 }

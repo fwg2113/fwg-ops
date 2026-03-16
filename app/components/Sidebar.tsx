@@ -41,7 +41,7 @@ const navSections = [
     items: [
       { href: '/calendar', label: 'Job', labelGradient: 'Calendar', icon: 'calendar' },
       { href: '/tasks', label: 'Task', labelGradient: 'Board', icon: 'tasks' },
-      { href: '/production', label: 'Production', labelGradient: 'Flow', icon: 'layers' },
+      { href: '/production', label: 'Production', labelGradient: '', icon: 'layers' },
       { href: '/analytics', label: 'Production', labelGradient: 'Analytics', icon: 'chart' },
     ]
   },
