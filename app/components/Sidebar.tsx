@@ -34,6 +34,7 @@ const navSections = [
       { href: '/fa-orders', label: 'FA', labelGradient: 'Orders', icon: 'shirt', badgeKey: 'fa-orders' },
       { href: '/purchase-orders', label: 'Purchase', labelGradient: 'Orders', icon: 'truck', badgeKey: 'purchase-orders' },
       { href: '/image-enhancer', label: 'Image', labelGradient: 'Enhancer', icon: 'sparkle' },
+      { href: '/gang-sheet-builder', label: 'Gang Sheet', labelGradient: 'Builder', icon: 'gangs' },
     ]
   },
   {
@@ -171,6 +172,14 @@ const icons: Record<string, React.ReactElement> = {
   sparkle: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"></path>
+    </svg>
+  ),
+  gangs: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <rect x="2" y="2" width="8" height="8" rx="1"></rect>
+      <rect x="14" y="2" width="8" height="8" rx="1"></rect>
+      <rect x="2" y="14" width="8" height="8" rx="1"></rect>
+      <rect x="14" y="14" width="8" height="8" rx="1"></rect>
     </svg>
   ),
   bug: (

@@ -445,6 +445,7 @@ export default function DocumentDetail({
   const [mockupColorName, setMockupColorName] = useState<string>('')
   const [mockupInitialLogos, setMockupInitialLogos] = useState<any[]>([])
   const [mockupInitialTextElements, setMockupInitialTextElements] = useState<any[]>([])
+  const [mockupInitialRoster, setMockupInitialRoster] = useState<any[]>([])
 
   // Product cache for line items (stores fetched product data from any supplier)
   const [ssProductCache, setSsProductCache] = useState<Record<string, any>>({})
@@ -1642,6 +1643,7 @@ export default function DocumentDetail({
       mockup_config?: {
         logos: any[]
         textElements: any[]
+        roster?: any[]
       }
       // DTF Pricing fields
       design_fee_per_location?: number  // Default $5, editable
@@ -2178,11 +2180,12 @@ export default function DocumentDetail({
     setMockupColorName(colorName)
     setMockupInitialLogos(mockupConfig.logos)
     setMockupInitialTextElements(mockupConfig.textElements)
+    setMockupInitialRoster(mockupConfig.roster || [])
     setMockupBuilderOpen(true)
   }
 
   // Save mockup as line item attachments
-  const handleSaveMockup = async (mockups: Array<{ location: string, dataUrl: string }>, logos: any[], textElements: any[]) => {
+  const handleSaveMockup = async (mockups: Array<{ location: string, dataUrl: string }>, logos: any[], textElements: any[], roster?: any[]) => {
     if (!mockupLineItemId) return
 
     try {
@@ -2231,12 +2234,13 @@ export default function DocumentDetail({
       )
       const updatedAttachments = [...existingAttachments, ...newAttachments]
 
-      // Save mockup configuration to custom_fields
+      // Save mockup configuration to custom_fields (including roster if present)
       const updatedCustomFields = {
         ...(item.custom_fields || {}),
         mockup_config: {
           logos,
-          textElements
+          textElements,
+          ...(roster && roster.length > 0 ? { roster } : {}),
         }
       }
 
@@ -2295,7 +2299,7 @@ export default function DocumentDetail({
   }
 
   // Save mockup config only (no new images)
-  const handleSaveConfigOnly = async (logos: any[], textElements: any[]) => {
+  const handleSaveConfigOnly = async (logos: any[], textElements: any[], roster?: any[]) => {
     if (!mockupLineItemId) return
 
     try {
@@ -2307,7 +2311,8 @@ export default function DocumentDetail({
         ...(item.custom_fields || {}),
         mockup_config: {
           logos,
-          textElements
+          textElements,
+          ...(roster && roster.length > 0 ? { roster } : {}),
         }
       }
 
@@ -6640,8 +6645,12 @@ export default function DocumentDetail({
           colorName={mockupColorName}
           initialLogos={mockupInitialLogos}
           initialTextElements={mockupInitialTextElements}
+          initialRoster={mockupInitialRoster}
           onSave={handleSaveMockup}
           onSaveConfig={handleSaveConfigOnly}
+          documentId={doc.id}
+          customerId={doc.customer_id}
+          orderNumber={String(doc.doc_number)}
           onFileUpload={async (file) => {
             if (!mockupLineItemId) return
             const item = lineItems.find(i => i.id === mockupLineItemId)
