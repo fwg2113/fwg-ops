@@ -6,6 +6,11 @@ const ALLOWED_DOMAINS = [
   'ssactivewear.com',
 ]
 
+// Also allow R2 public bucket domains
+const ALLOWED_DOMAIN_SUFFIXES = [
+  '.r2.dev',
+]
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url')
   if (!url) {
@@ -14,7 +19,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const parsed = new URL(url)
-    if (!ALLOWED_DOMAINS.includes(parsed.hostname)) {
+    const domainAllowed = ALLOWED_DOMAINS.includes(parsed.hostname) ||
+      ALLOWED_DOMAIN_SUFFIXES.some(suffix => parsed.hostname.endsWith(suffix))
+    if (!domainAllowed) {
       return new Response('Domain not allowed', { status: 403 })
     }
 

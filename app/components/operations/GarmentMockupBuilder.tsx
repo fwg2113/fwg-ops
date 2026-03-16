@@ -1,6 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import JSZip from 'jszip'
+import opentype from 'opentype.js'
 import { renderDSTFile, parseDST, renderDSTToCanvas } from '@/app/lib/dstParser'
 
 type Location = 'Front' | 'Back' | 'Sleeves'
@@ -46,6 +49,13 @@ interface TextElement {
   offsetPathWidth: number // 0 = no offset path
   offsetPathColor: string
   sourceProjectFile?: string // filename of the project file this was loaded from
+  isVariable?: boolean // marks this text as a roster variable
+  variableName?: string // label shown in roster table header (e.g. "Player Name", "Number")
+}
+
+interface RosterEntry {
+  id: string
+  values: Record<string, string> // variableName → value
 }
 
 interface MockupImage {
@@ -64,12 +74,17 @@ interface GarmentMockupBuilderProps {
   colorName: string
   initialLogos?: Logo[]
   initialTextElements?: TextElement[]
-  onSave: (mockups: MockupImage[], logos: Logo[], textElements: TextElement[]) => void
-  onSaveConfig: (logos: Logo[], textElements: TextElement[]) => void
+  initialRoster?: RosterEntry[]
+  onSave: (mockups: MockupImage[], logos: Logo[], textElements: TextElement[], roster?: RosterEntry[]) => void
+  onSaveConfig: (logos: Logo[], textElements: TextElement[], roster?: RosterEntry[]) => void
   onClose: () => void
   onFileUpload?: (file: File) => void
   onSaveTextArtwork?: (pngFile: File, jsonFile: File, replaceFilenames?: string[]) => Promise<void>
   projectFiles?: Array<{ url: string; thumbnail_url?: string; filename: string; contentType?: string }>
+  onGeneratePrints?: (roster: RosterEntry[], textElements: TextElement[], logos: Logo[]) => Promise<void>
+  documentId?: string
+  customerId?: string
+  orderNumber?: string
 }
 
 export default function GarmentMockupBuilder({
@@ -79,12 +94,17 @@ export default function GarmentMockupBuilder({
   colorName,
   initialLogos,
   initialTextElements,
+  initialRoster,
   onSave,
   onSaveConfig,
   onClose,
   onFileUpload,
   onSaveTextArtwork,
-  projectFiles = []
+  projectFiles = [],
+  onGeneratePrints,
+  documentId,
+  customerId,
+  orderNumber,
 }: GarmentMockupBuilderProps) {
   const [activeLocation, setActiveLocation] = useState<Location>('Front')
   const [logos, setLogos] = useState<Logo[]>(initialLogos || [])
@@ -97,11 +117,23 @@ export default function GarmentMockupBuilder({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const canvasRef = useRef<HTMLDivElement>(null)
+  const [canvasContainerWidth, setCanvasContainerWidth] = useState(480)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const [resizeStartFontSize, setResizeStartFontSize] = useState(48)
   const [showProjectFiles, setShowProjectFiles] = useState(false)
   const [loadingProjectFile, setLoadingProjectFile] = useState<string | null>(null)
+
+  // Roster / Team Design state
+  const [roster, setRoster] = useState<RosterEntry[]>(initialRoster || [])
+  const [showRosterPanel, setShowRosterPanel] = useState(false)
+  const [showCsvModal, setShowCsvModal] = useState(false)
+  const [csvText, setCsvText] = useState('')
+  const [generatingPrints, setGeneratingPrints] = useState(false)
+  const [generateProgress, setGenerateProgress] = useState({ current: 0, total: 0 })
+  const [lastGeneratedSvgs, setLastGeneratedSvgs] = useState<{ filename: string; svgContent: string }[]>([])
+  const [showVariableBadges, setShowVariableBadges] = useState(true)
+  const router = useRouter()
 
   // Zoom & pan state
   const [zoom, setZoom] = useState(1)
@@ -1354,6 +1386,20 @@ export default function GarmentMockupBuilder({
     return () => el.removeEventListener('wheel', handler)
   }, [])
 
+  // Track canvas container width for proportional text scaling
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setCanvasContainerWidth(entry.contentRect.width || 480)
+      }
+    })
+    ro.observe(el)
+    setCanvasContainerWidth(el.clientWidth || 480)
+    return () => ro.disconnect()
+  }, [])
+
   // Reset zoom & pan
   const resetZoom = () => {
     setZoom(1)
@@ -1399,8 +1445,570 @@ export default function GarmentMockupBuilder({
     return img
   }
 
-  // Generate mockup image for a specific location
-  const generateMockupForLocation = async (location: Location): Promise<string> => {
+  // Generate a pure SVG string for a location (vector output for print).
+  // No garment background — only artwork (text + logos).
+  // SVG viewBox is tightly cropped to the artwork bounding box.
+  const generateSvgForLocation = async (location: Location, rosterEntry?: RosterEntry): Promise<string> => {
+    const containerEl = canvasRef.current
+    const containerW = containerEl?.clientWidth || 480
+    const containerH = containerEl?.clientHeight || 600
+
+    const locationLogos = logos.filter(l => l.location === location && !l.isPlaceholder)
+    const locationTexts = textElements.filter(t => t.location === location)
+
+    // Load fonts via opentype.js for text-to-path conversion
+    const fontCache = new Map<string, opentype.Font>()
+
+    const loadFont = async (family: string, weight: number): Promise<opentype.Font | null> => {
+      const cacheKey = `${family}-${weight}`
+      if (fontCache.has(cacheKey)) return fontCache.get(cacheKey)!
+
+      try {
+        const wght = weight >= 700 ? '700' : weight >= 500 ? '500' : '400'
+
+        // Fetch TTF via server-side proxy (browser always gets WOFF2 from Google Fonts).
+        // Add cache-bust param and no-cache to avoid stale responses from earlier proxy versions.
+        const proxyUrl = `/api/proxy-font?family=${encodeURIComponent(family)}&weight=${wght}&v=3`
+        const fontRes = await fetch(proxyUrl, { cache: 'no-cache' })
+        if (!fontRes.ok) {
+          const errText = await fontRes.text()
+          console.warn(`[loadFont] Proxy error ${fontRes.status} for ${family} ${wght}:`, errText)
+          return null
+        }
+        const fontBuffer = await fontRes.arrayBuffer()
+        const font = opentype.parse(fontBuffer)
+        fontCache.set(cacheKey, font)
+        return font
+      } catch (err) {
+        console.warn(`[loadFont] Failed to load ${family}:`, err)
+        return null
+      }
+    }
+
+    // Pre-load all fonts needed for text elements
+    for (const text of locationTexts) {
+      if (!SYSTEM_FONTS.includes(text.fontFamily)) {
+        await loadFont(text.fontFamily, text.fontWeight || 400)
+      }
+    }
+
+    // --- Collect element bounds for tight bounding box ---
+    interface Rect { x: number; y: number; w: number; h: number }
+    const elementBounds: Rect[] = []
+
+    // Measure text using an offscreen canvas for accurate width
+    const measureCanvas = document.createElement('canvas')
+    const measureCtx = measureCanvas.getContext('2d')!
+
+    // Pre-compute text bounds for each text element
+    const textBoundsMap = new Map<string, Rect>()
+    for (const text of locationTexts) {
+      const displayText = rosterEntry && text.isVariable && text.variableName
+        ? (rosterEntry.values[text.variableName] || text.text)
+        : getDisplayText(text)
+      const lines = displayText.split('\n')
+      const weight = text.fontWeight || 400
+
+      // Use opentype font for measurement if available, otherwise canvas
+      const otFont = fontCache.get(`${text.fontFamily}-${weight}`) || null
+      measureCtx.font = `${weight} ${text.fontSize}px "${text.fontFamily}"`
+
+      let maxLineWidth = 0
+      for (const line of lines) {
+        if (otFont) {
+          maxLineWidth = Math.max(maxLineWidth, otFont.getAdvanceWidth(line || ' ', text.fontSize))
+        } else {
+          const m = measureCtx.measureText(line || ' ')
+          maxLineWidth = Math.max(maxLineWidth, m.width)
+        }
+      }
+
+      const lineHeight = text.fontSize * (text.lineSpacing || 1.25)
+      const textHeight = text.fontSize + (lines.length - 1) * lineHeight
+      const textX = text.x * containerW
+      const textY = text.y * containerH
+
+      // Anchor offset: text is centered at (textX, textY) with text-anchor and dominant-baseline
+      const align = text.textAlign || 'center'
+      let anchorOffsetX = 0
+      if (align === 'center') anchorOffsetX = -maxLineWidth / 2
+      else if (align === 'right') anchorOffsetX = -maxLineWidth
+
+      // Expand for stroke/offset path effects (feMorphology dilate)
+      let expand = 0
+      if ((text.offsetPathWidth || 0) > 0) expand += (text.offsetPathWidth || 0) + (text.strokeWidth > 0 ? text.strokeWidth : 0)
+      else if (text.strokeWidth > 0) expand += text.strokeWidth
+
+      const rect: Rect = {
+        x: textX + anchorOffsetX - expand,
+        y: textY - textHeight / 2 - expand,
+        w: maxLineWidth + expand * 2,
+        h: textHeight + expand * 2,
+      }
+      textBoundsMap.set(text.id, rect)
+      elementBounds.push(rect)
+    }
+
+    // Build logo elements — SVG logos inlined as vector, raster logos as high-res PNG base64
+    interface LogoDrawInfo {
+      cx: number; cy: number; drawW: number; drawH: number; rotation: number
+      inlineSvg?: string  // for SVG logos: the raw SVG content to nest inline
+      imageHref?: string  // for raster logos: base64 PNG data URL
+    }
+    const logoDrawInfos: LogoDrawInfo[] = []
+
+    for (const logo of locationLogos) {
+      const logoX = logo.x * containerW
+      const logoY = logo.y * containerH
+      const maxW = logo.width * containerW
+      const maxH = logo.height * containerH
+      const cx = logoX + maxW / 2
+      const cy = logoY + maxH / 2
+
+      let naturalW = maxW
+      let naturalH = maxH
+      let inlineSvg: string | undefined
+      let imageHref: string | undefined
+
+      if (logo.isSvg && logo.svgContent) {
+        // SVG logo — inline as nested <svg> to keep full vector quality
+        const svgContent = logo.colorMap
+          ? applySvgColorMap(logo.svgContent, logo.colorMap)
+          : logo.svgContent
+
+        // Extract viewBox or width/height from the SVG to get natural dimensions
+        const vbMatch = svgContent.match(/viewBox=["']([^"']+)["']/)
+        const svgWMatch = svgContent.match(/\bwidth=["']([0-9.]+)/)
+        const svgHMatch = svgContent.match(/\bheight=["']([0-9.]+)/)
+        if (vbMatch) {
+          const parts = vbMatch[1].trim().split(/\s+/)
+          naturalW = parseFloat(parts[2]) || maxW
+          naturalH = parseFloat(parts[3]) || maxH
+        } else if (svgWMatch && svgHMatch) {
+          naturalW = parseFloat(svgWMatch[1]) || maxW
+          naturalH = parseFloat(svgHMatch[1]) || maxH
+        }
+
+        inlineSvg = svgContent
+      } else {
+        // Raster logo — fetch via proxy and embed as base64 PNG
+        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(logo.url)}`
+        try {
+          const res = await fetch(proxyUrl)
+          if (!res.ok) throw new Error(`Proxy fetch failed: ${res.status}`)
+          const blob = await res.blob()
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+          const img = new Image()
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve()
+            img.onerror = reject
+            img.src = base64
+          })
+          naturalW = img.naturalWidth
+          naturalH = img.naturalHeight
+          imageHref = base64
+        } catch (err) {
+          console.warn('[generateSvg] Could not embed raster logo:', logo.url, err)
+          // Last resort: try direct fetch
+          try {
+            const res = await fetch(logo.url)
+            if (res.ok) {
+              const blob = await res.blob()
+              const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result as string)
+                reader.readAsDataURL(blob)
+              })
+              imageHref = base64
+              const img = new Image()
+              await new Promise<void>((resolve) => { img.onload = () => resolve(); img.src = base64 })
+              naturalW = img.naturalWidth
+              naturalH = img.naturalHeight
+            }
+          } catch {
+            console.warn('[generateSvg] All embed strategies failed for logo:', logo.url)
+            imageHref = logo.url // absolute last resort
+          }
+        }
+      }
+
+      // Fit image within bounding box preserving aspect ratio
+      const imgAR = naturalW / naturalH
+      const boxAR = maxW / maxH
+      let drawW: number, drawH: number
+      if (imgAR > boxAR) {
+        drawW = maxW
+        drawH = maxW / imgAR
+      } else {
+        drawH = maxH
+        drawW = maxH * imgAR
+      }
+
+      const rotation = logo.rotation || 0
+      logoDrawInfos.push({ cx, cy, drawW, drawH, rotation, inlineSvg, imageHref })
+
+      // Bounding box for rotated logo
+      if (rotation === 0) {
+        elementBounds.push({ x: cx - drawW / 2, y: cy - drawH / 2, w: drawW, h: drawH })
+      } else {
+        const rad = (rotation * Math.PI) / 180
+        const cos = Math.abs(Math.cos(rad))
+        const sin = Math.abs(Math.sin(rad))
+        const rotW = drawW * cos + drawH * sin
+        const rotH = drawW * sin + drawH * cos
+        elementBounds.push({ x: cx - rotW / 2, y: cy - rotH / 2, w: rotW, h: rotH })
+      }
+    }
+
+    // Compute tight bounding box from all element bounds
+    if (elementBounds.length === 0) {
+      // No artwork — return empty SVG
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" width="1" height="1"/>`
+    }
+
+    let bbMinX = Infinity, bbMinY = Infinity, bbMaxX = -Infinity, bbMaxY = -Infinity
+    for (const r of elementBounds) {
+      bbMinX = Math.min(bbMinX, r.x)
+      bbMinY = Math.min(bbMinY, r.y)
+      bbMaxX = Math.max(bbMaxX, r.x + r.w)
+      bbMaxY = Math.max(bbMaxY, r.y + r.h)
+    }
+
+    // Small padding (2px) to avoid clipping filter edges
+    const pad = 2
+    bbMinX -= pad
+    bbMinY -= pad
+    bbMaxX += pad
+    bbMaxY += pad
+    const bbW = bbMaxX - bbMinX
+    const bbH = bbMaxY - bbMinY
+
+    // --- Build SVG elements with original absolute positions (viewBox handles the crop) ---
+
+    const logoElements: string[] = []
+    for (const info of logoDrawInfos) {
+      if (info.inlineSvg) {
+        // SVG logo — inline as vector content with clipPath (no nested <svg> to avoid opaque viewport)
+        const cleaned = info.inlineSvg.replace(/<\?xml[^?]*\?>\s*/g, '')
+        const svgTagMatch = cleaned.match(/^<svg[^>]*>/)
+        const svgTag = svgTagMatch ? svgTagMatch[0] : ''
+
+        // Extract viewBox — if missing, construct from width/height attributes
+        const vbMatch = svgTag.match(/viewBox=["']([^"']+)["']/)
+        let viewBox: string
+        if (vbMatch) {
+          viewBox = vbMatch[1]
+        } else {
+          // Fallback: use original width/height to construct viewBox
+          const origWMatch = svgTag.match(/\bwidth=["']([0-9.]+)/)
+          const origHMatch = svgTag.match(/\bheight=["']([0-9.]+)/)
+          const origW = origWMatch ? parseFloat(origWMatch[1]) : info.drawW
+          const origH = origHMatch ? parseFloat(origHMatch[1]) : info.drawH
+          viewBox = `0 0 ${origW} ${origH}`
+        }
+
+        // Extract inner content (everything between <svg ...> and </svg>)
+        let innerContent = cleaned
+          .replace(/^<svg[^>]*>/, '')
+          .replace(/<\/svg>\s*$/, '')
+
+        // Namespace CSS classes to avoid collisions when multiple SVGs are inlined
+        // into the same document (e.g. two SVGs both using class ".d" with different fills).
+        const logoIdx = logoDrawInfos.indexOf(info)
+        const prefix = `l${logoIdx}_`
+        // Replace class names in <style> blocks: .d { -> .l0_d {
+        innerContent = innerContent.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_match, css: string) => {
+          const namespacedCss = css.replace(/\.([a-zA-Z_][a-zA-Z0-9_-]*)/g, `.${prefix}$1`)
+          return `<style>${namespacedCss}</style>`
+        })
+        // Replace class attributes on elements: class="d" -> class="l0_d"
+        innerContent = innerContent.replace(/\bclass="([^"]+)"/g, (_match, classes: string) => {
+          const namespacedClasses = classes.split(/\s+/).map(c => `${prefix}${c}`).join(' ')
+          return `class="${namespacedClasses}"`
+        })
+        innerContent = innerContent.replace(/\bclass='([^']+)'/g, (_match, classes: string) => {
+          const namespacedClasses = classes.split(/\s+/).map(c => `${prefix}${c}`).join(' ')
+          return `class='${namespacedClasses}'`
+        })
+
+        // Strip white background rects using DOM parsing (far more reliable than regex).
+        // Parses the SVG fragment, finds all <rect> elements with white-ish computed fill,
+        // and removes any that look like a background (large size or first element).
+        {
+          const vbParts = viewBox.split(/\s+/).map(Number)
+          const [vbX = 0, vbY = 0, vbW = 0, vbH = 0] = vbParts
+
+          const wrapSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${innerContent}</svg>`
+          const parser = new DOMParser()
+          const doc = parser.parseFromString(wrapSvg, 'image/svg+xml')
+          const rects = doc.querySelectorAll('rect')
+
+          const whiteRgbValues = ['rgb(255, 255, 255)', 'rgb(255,255,255)']
+          const whiteHexValues = ['#fff', '#ffffff', '#ffffffff']
+
+          const isWhiteColor = (color: string): boolean => {
+            const c = color.toLowerCase().trim()
+            if (c === 'white') return true
+            if (whiteHexValues.includes(c)) return true
+            if (whiteRgbValues.includes(c.replace(/\s/g, '').replace('rgb(', 'rgb( ').replace(')', ' )').trim())) return true
+            // Normalize: check rgb(255, 255, 255) with any whitespace
+            const rgbMatch = c.match(/^rgb\(\s*255\s*,\s*255\s*,\s*255\s*\)$/)
+            if (rgbMatch) return true
+            return whiteHexValues.includes(c) || c === 'white'
+          }
+
+          const rectsToRemove: Element[] = []
+          rects.forEach((rect) => {
+            // Check fill — attribute, style, or computed
+            const fillAttr = rect.getAttribute('fill')
+            const styleFill = rect.style?.fill
+            const fill = fillAttr || styleFill || ''
+
+            if (!isWhiteColor(fill)) return
+
+            const w = parseFloat(rect.getAttribute('width') || '0')
+            const h = parseFloat(rect.getAttribute('height') || '0')
+            const x = parseFloat(rect.getAttribute('x') || '0')
+            const y = parseFloat(rect.getAttribute('y') || '0')
+
+            // Check if it's a background-like rect:
+            // 1. Full viewBox size
+            const isFullSize = vbW > 0 && Math.abs(w - vbW) < 2 && Math.abs(h - vbH) < 2
+            // 2. Large rect covering >50% of viewBox at origin
+            const isLarge = vbW > 0 && (w * h) > (vbW * vbH * 0.5) &&
+                            Math.abs(x - vbX) < 2 && Math.abs(y - vbY) < 2
+            // 3. 100% width/height
+            const widthAttr = rect.getAttribute('width') || ''
+            const heightAttr = rect.getAttribute('height') || ''
+            const isPercent = widthAttr === '100%' && heightAttr === '100%'
+
+            if (isFullSize || isLarge || isPercent) {
+              rectsToRemove.push(rect)
+            }
+          })
+
+          // If no size-based match but the very first child element is a white rect, remove it
+          if (rectsToRemove.length === 0 && rects.length > 0) {
+            const svgRoot = doc.documentElement
+            // Find first non-metadata child element
+            for (const child of Array.from(svgRoot.children)) {
+              const tag = child.tagName.toLowerCase()
+              if (['defs', 'style', 'title', 'desc', 'metadata'].includes(tag)) continue
+              if (tag === 'rect') {
+                const fillAttr = child.getAttribute('fill')
+                const styleFill = (child as HTMLElement).style?.fill
+                if (isWhiteColor(fillAttr || styleFill || '')) {
+                  rectsToRemove.push(child)
+                }
+              }
+              break // only check the very first visible element
+            }
+          }
+
+          if (rectsToRemove.length > 0) {
+            rectsToRemove.forEach(rect => rect.remove())
+            // Re-serialize the inner content
+            const serializer = new XMLSerializer()
+            const svgRoot = doc.documentElement
+            innerContent = Array.from(svgRoot.childNodes)
+              .map(node => serializer.serializeToString(node))
+              .join('')
+          }
+        }
+
+        // Use <g> + <clipPath> instead of nested <svg> to avoid opaque viewport in Illustrator.
+        // Nested <svg> creates a white background in Illustrator because it's treated as a separate viewport.
+        const clipId = `clip-logo-${logoDrawInfos.indexOf(info)}`
+        const vbNums = viewBox.split(/\s+/).map(Number)
+        const [svgVbX = 0, svgVbY = 0, svgVbW = 1, svgVbH = 1] = vbNums
+        // Scale factor to fit the SVG content into the target draw area
+        const scaleX = info.drawW / svgVbW
+        const scaleY = info.drawH / svgVbH
+        const scale = Math.min(scaleX, scaleY)
+        const scaledW = svgVbW * scale
+        const scaledH = svgVbH * scale
+
+        logoElements.push(
+          `<defs>
+      <clipPath id="${clipId}">
+        <rect x="${-scaledW / 2}" y="${-scaledH / 2}" width="${scaledW}" height="${scaledH}"/>
+      </clipPath>
+    </defs>
+    <g transform="translate(${info.cx}, ${info.cy}) rotate(${info.rotation})" clip-path="url(#${clipId})">
+      <g transform="translate(${-scaledW / 2}, ${-scaledH / 2}) scale(${scale}) translate(${-svgVbX}, ${-svgVbY})">
+        ${innerContent}
+      </g>
+    </g>`
+        )
+      } else {
+        // Raster logo — embed as base64 PNG
+        logoElements.push(
+          `<g transform="translate(${info.cx}, ${info.cy}) rotate(${info.rotation})">
+      <image xlink:href="${info.imageHref}" x="${-info.drawW / 2}" y="${-info.drawH / 2}" width="${info.drawW}" height="${info.drawH}" preserveAspectRatio="xMidYMid meet"/>
+    </g>`
+        )
+      }
+    }
+
+    // Build text elements as outlined paths (no editable text, no font dependencies).
+    // Uses opentype.js to convert text to SVG path data.
+    // Stroke/offset effects use native SVG stroke on paths (Illustrator-compatible).
+    const textElements_svg: string[] = []
+    for (const text of locationTexts) {
+      const textX = text.x * containerW
+      const textY = text.y * containerH
+
+      // Get display text (with roster substitution)
+      const displayText = rosterEntry && text.isVariable && text.variableName
+        ? (rosterEntry.values[text.variableName] || text.text)
+        : getDisplayText(text)
+      const lines = displayText.split('\n')
+
+      const weight = text.fontWeight || 400
+      const rotation = text.rotation || 0
+      const hasStroke = text.strokeWidth > 0
+      const hasOffset = (text.offsetPathWidth || 0) > 0
+
+      // Try to load the font for path conversion
+      const font = SYSTEM_FONTS.includes(text.fontFamily)
+        ? null
+        : fontCache.get(`${text.fontFamily}-${weight}`) || null
+
+      const lineHeight = text.fontSize * (text.lineSpacing || 1.25)
+
+      const blockHeight = text.fontSize + (lines.length - 1) * lineHeight
+
+      // Build path data for each line using opentype.js
+      const pathLayers: string[] = []
+
+      if (font) {
+        // Convert text to outlined paths — fully vector, no font dependency
+        // Position to match canvas textBaseline='middle': the em-square center is at Y=0.
+        // The alphabetic baseline offset from center = (ascender - descender) / 2 scaled to fontSize.
+        const unitsPerEm = font.unitsPerEm || 1000
+        const fontAscent = (font.ascender / unitsPerEm) * text.fontSize
+        const fontDescent = Math.abs((font.descender || 0) / unitsPerEm) * text.fontSize
+        // Baseline relative to center: matches canvas textBaseline='middle'
+        const baselineFromCenter = (fontAscent - fontDescent) / 2
+        const allPathData: string[] = []
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i] || ' '
+          const lineY = baselineFromCenter + i * lineHeight
+
+          // Measure line width for alignment
+          const lineWidth = font.getAdvanceWidth(line, text.fontSize)
+          const align = text.textAlign || 'center'
+          let lineX = 0
+          if (align === 'center') lineX = -lineWidth / 2
+          else if (align === 'right') lineX = -lineWidth
+
+          // opentype.js getPath: y is the baseline position
+          const path = font.getPath(line, lineX, lineY, text.fontSize)
+          const pathData = path.toPathData(2)
+          if (pathData && pathData !== 'M0 0') {
+            allPathData.push(pathData)
+          }
+        }
+
+        const combinedPath = allPathData.join(' ')
+
+        // Layer 1 (bottom): Offset path
+        if (hasOffset) {
+          const totalRadius = (text.offsetPathWidth || 0) + (hasStroke ? text.strokeWidth : 0)
+          pathLayers.push(
+            `<path d="${combinedPath}" fill="none" stroke="${text.offsetPathColor || '#000000'}" stroke-width="${totalRadius * 2}" stroke-linejoin="round"/>`
+          )
+        }
+
+        // Layer 2 (middle): Stroke
+        if (hasStroke) {
+          pathLayers.push(
+            `<path d="${combinedPath}" fill="none" stroke="${text.strokeColor || '#000000'}" stroke-width="${text.strokeWidth * 2}" stroke-linejoin="round"/>`
+          )
+        }
+
+        // Layer 3 (top): Fill
+        pathLayers.push(
+          `<path d="${combinedPath}" fill="${text.color}"/>`
+        )
+      } else {
+        // Fallback for system fonts: use <text> elements (opentype.js can't load system fonts)
+        const anchorMap: Record<string, string> = { left: 'start', center: 'middle', right: 'end', justify: 'start' }
+        const textAnchor = anchorMap[text.textAlign || 'center'] || 'middle'
+        const ascent = text.fontSize * 0.65
+        const firstBaselineY = -blockHeight / 2 + ascent
+
+        const tspans = lines.map((line, i) => {
+          const y = firstBaselineY + i * lineHeight
+          return `<tspan x="0" y="${y.toFixed(2)}">${escapeXml(line || ' ')}</tspan>`
+        }).join('')
+
+        const fontAttrs = `font-family="${escapeXml(text.fontFamily)}" font-size="${text.fontSize}" font-weight="${weight}" text-anchor="${textAnchor}"`
+
+        if (hasOffset) {
+          const totalRadius = (text.offsetPathWidth || 0) + (hasStroke ? text.strokeWidth : 0)
+          pathLayers.push(
+            `<text ${fontAttrs} fill="none" stroke="${text.offsetPathColor || '#000000'}" stroke-width="${totalRadius * 2}" stroke-linejoin="round">${tspans}</text>`
+          )
+        }
+        if (hasStroke) {
+          pathLayers.push(
+            `<text ${fontAttrs} fill="none" stroke="${text.strokeColor || '#000000'}" stroke-width="${text.strokeWidth * 2}" stroke-linejoin="round">${tspans}</text>`
+          )
+        }
+        pathLayers.push(
+          `<text ${fontAttrs} fill="${text.color}">${tspans}</text>`
+        )
+      }
+
+      textElements_svg.push(
+        `<g transform="translate(${textX}, ${textY}) rotate(${rotation})">
+      ${pathLayers.join('\n      ')}
+    </g>`
+      )
+    }
+
+    // Set real-world print dimensions (10" max width, height proportional)
+    const printWidthIn = 10
+    const printHeightIn = printWidthIn * (bbH / bbW)
+
+    // Only include font imports if any text fell back to <text> elements (system fonts)
+    const needsFontImports = locationTexts.some(t => SYSTEM_FONTS.includes(t.fontFamily))
+    const fontsUsed = new Set<string>()
+    if (needsFontImports) {
+      locationTexts.forEach(t => {
+        if (!SYSTEM_FONTS.includes(t.fontFamily) && !fontCache.has(`${t.fontFamily}-${t.fontWeight || 400}`)) {
+          fontsUsed.add(t.fontFamily)
+        }
+      })
+    }
+    const fontImports = fontsUsed.size > 0
+      ? `<style>
+    ${[...fontsUsed].map(f => `@import url('https://fonts.googleapis.com/css2?family=${f.replace(/ /g, '+')}:wght@300;400;700&amp;display=swap');`).join('\n    ')}
+  </style>`
+      : ''
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+  viewBox="${bbMinX} ${bbMinY} ${bbW} ${bbH}" width="${printWidthIn}in" height="${printHeightIn.toFixed(4)}in">
+  ${fontImports}
+  ${logoElements.join('\n  ')}
+  ${textElements_svg.join('\n  ')}
+</svg>`
+  }
+
+  // Helper to escape XML special characters
+  const escapeXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  // Generate mockup image for a specific location.
+  // rosterEntry: substitutes variable text values for a specific player.
+  // printMode: if true, skips garment background (transparent) and uses higher resolution for print output.
+  const generateMockupForLocation = async (location: Location, rosterEntry?: RosterEntry, printMode?: boolean): Promise<string> => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Canvas context not available')
@@ -1415,13 +2023,14 @@ export default function GarmentMockupBuilder({
     const containerH = containerEl?.clientHeight || 600
     const containerAspect = containerW / containerH
 
-    // Use high resolution while preserving the container's aspect ratio
-    const CANVAS_W = 1200
+    // Print mode: 4x resolution for high-quality output. Mockup preview: 1200px.
+    const CANVAS_W = printMode ? 4800 : 1200
     const CANVAS_H = Math.round(CANVAS_W / containerAspect)
     canvas.width = CANVAS_W
     canvas.height = CANVAS_H
 
     // Draw garment image with object-fit:contain behaviour (matches preview)
+    // In print mode, skip the garment — only render artwork on transparent background
     const imgAspect = garmentImg.naturalWidth / garmentImg.naturalHeight
     const canvasAspect = CANVAS_W / CANVAS_H
 
@@ -1437,7 +2046,9 @@ export default function GarmentMockupBuilder({
       gx = (CANVAS_W - gw) / 2
       gy = 0
     }
-    ctx.drawImage(garmentImg, gx, gy, gw, gh)
+    if (!printMode) {
+      ctx.drawImage(garmentImg, gx, gy, gw, gh)
+    }
 
     // Draw logos for this location
     const locationLogos = logos.filter(l => l.location === location)
@@ -1503,7 +2114,11 @@ export default function GarmentMockupBuilder({
       const textX = text.x * canvas.width
       const textY = text.y * canvas.height
       const scaledFontSize = text.fontSize * scaleRatio
-      const lines = text.text.split('\n')
+      // Use roster entry substitution if provided, otherwise use preview substitution
+      const displayText = rosterEntry && text.isVariable && text.variableName
+        ? (rosterEntry.values[text.variableName] || text.text)
+        : getDisplayText(text)
+      const lines = displayText.split('\n')
       const lineHeight = scaledFontSize * (text.lineSpacing || 1.25)
       const weight = text.fontWeight || 400
 
@@ -1567,13 +2182,13 @@ export default function GarmentMockupBuilder({
       return
     }
 
-    onSave(mockups, logos, textElements)
+    onSave(mockups, logos, textElements, roster.length > 0 ? roster : undefined)
   }
 
   // Handle close - save config before closing
   const handleClose = () => {
-    // Save the current config (logos and text) before closing
-    onSaveConfig(logos, textElements)
+    // Save the current config (logos, text, roster) before closing
+    onSaveConfig(logos, textElements, roster.length > 0 ? roster : undefined)
     onClose()
   }
 
@@ -1583,6 +2198,87 @@ export default function GarmentMockupBuilder({
 
   const selectedLogo = logos.find(l => l.id === selectedLogoId)
   const selectedText = textElements.find(t => t.id === selectedTextId)
+
+  // Variable text elements for roster feature
+  const variableTexts = textElements.filter(t => t.isVariable && t.variableName)
+  const hasVariables = variableTexts.length > 0
+
+  // Get display text for a text element (substituted if roster has entries)
+  const getDisplayText = (text: TextElement): string => {
+    if (!text.isVariable || !text.variableName || roster.length === 0) return text.text
+    const firstEntry = roster[0]
+    return firstEntry.values[text.variableName] || text.text
+  }
+
+  // CSV parsing helper
+  const parseCsvText = (raw: string): RosterEntry[] => {
+    const lines = raw.trim().split('\n').filter(l => l.trim())
+    if (lines.length === 0) return []
+
+    // Detect delimiter
+    const firstLine = lines[0]
+    const delimiter = firstLine.includes('\t') ? '\t' : ','
+
+    const firstCols = lines[0].split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''))
+    const entries: RosterEntry[] = []
+    const varNames = variableTexts.map(t => t.variableName!)
+
+    // Detect if first row is a header or data:
+    // It's a header if any column matches a variable name (case-insensitive)
+    const hasHeaderRow = firstCols.some(h =>
+      varNames.some(v => v.toLowerCase() === h.toLowerCase())
+    )
+
+    const headerMap: Record<number, string> = {}
+    if (hasHeaderRow) {
+      // Match headers to variable names
+      firstCols.forEach((h, i) => {
+        const exact = varNames.find(v => v.toLowerCase() === h.toLowerCase())
+        if (exact) {
+          headerMap[i] = exact
+        } else if (i < varNames.length) {
+          headerMap[i] = varNames[i]
+        }
+      })
+    } else {
+      // No header — map columns by order to variable names
+      firstCols.forEach((_, i) => {
+        if (i < varNames.length) {
+          headerMap[i] = varNames[i]
+        }
+      })
+    }
+
+    const startRow = hasHeaderRow ? 1 : 0
+    for (let r = startRow; r < lines.length; r++) {
+      const cols = lines[r].split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, ''))
+      const values: Record<string, string> = {}
+      Object.entries(headerMap).forEach(([colIdx, varName]) => {
+        values[varName] = cols[parseInt(colIdx)] || ''
+      })
+      if (Object.values(values).some(v => v)) {
+        entries.push({ id: `roster-${Date.now()}-${r}`, values })
+      }
+    }
+    return entries
+  }
+
+  // Add empty roster row
+  const addRosterRow = () => {
+    const values: Record<string, string> = {}
+    variableTexts.forEach(t => { values[t.variableName!] = '' })
+    setRoster(prev => [...prev, { id: `roster-${Date.now()}`, values }])
+  }
+
+  // Remove roster row
+  const removeRosterRow = (id: string) => {
+    setRoster(prev => prev.filter(r => r.id !== id))
+  }
+
+  // Update roster cell
+  const updateRosterCell = (id: string, varName: string, value: string) => {
+    setRoster(prev => prev.map(r => r.id === id ? { ...r, values: { ...r.values, [varName]: value } } : r))
+  }
 
   // Get count of decorations per location
   const getLocationCount = (location: Location) => {
@@ -1886,9 +2582,11 @@ export default function GarmentMockupBuilder({
                 </defs>
               </svg>
 
-              {/* Text Elements */}
+              {/* Text Elements — fontSize scales proportionally with container width */}
               {activeTexts.map(text => {
                 const hasEffect = text.strokeWidth > 0 || (text.offsetPathWidth || 0) > 0
+                // Scale fontSize relative to the 480px reference width so text scales with the container
+                const textScale = canvasContainerWidth / 480
                 return (
                 <div
                   key={text.id}
@@ -1901,27 +2599,53 @@ export default function GarmentMockupBuilder({
                     transform: `translate(-50%, -50%) rotate(${text.rotation}deg)`,
                     transformOrigin: 'center center',
                     cursor: isDragging && selectedTextId === text.id ? 'grabbing' : 'grab',
-                    border: selectedTextId === text.id ? '2px solid #3b82f6' : '2px dashed transparent',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    transition: selectedTextId === text.id ? 'none' : 'border 0.15s ease',
                     userSelect: 'none',
                   } as React.CSSProperties}
                 >
-                  {/* Inner span carries all text styling + filter so the selection border is unaffected */}
-                  <span style={{
-                    fontFamily: text.fontFamily,
-                    fontSize: `${text.fontSize}px`,
-                    color: text.color,
-                    fontWeight: text.fontWeight || 400,
-                    lineHeight: text.lineSpacing || 1.25,
-                    whiteSpace: 'pre-wrap',
-                    textAlign: text.textAlign || 'center',
-                    display: 'block',
-                    filter: hasEffect ? `url(#text-fx-${text.id})` : undefined,
-                  } as React.CSSProperties}>
-                    {text.text}
-                  </span>
+                  {/* Variable badge */}
+                  {showVariableBadges && text.isVariable && text.variableName && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '-18px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: '#8b5cf6',
+                      color: 'white',
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: '3px',
+                      whiteSpace: 'nowrap',
+                      letterSpacing: '0.5px',
+                      pointerEvents: 'none',
+                    }}>{text.variableName}</div>
+                  )}
+                  {/* Border wrapper — separate from filter so dilate doesn't affect the border */}
+                  <div style={{
+                    border: selectedTextId === text.id ? '2px solid #3b82f6' : '2px dashed transparent',
+                    borderRadius: '2px',
+                    padding: 0,
+                    transition: selectedTextId === text.id ? 'none' : 'border 0.15s ease',
+                    display: 'inline-block',
+                    lineHeight: 0,
+                  }}>
+                    <span style={{
+                      fontFamily: text.fontFamily,
+                      fontSize: `${text.fontSize * textScale}px`,
+                      color: text.color,
+                      fontWeight: text.fontWeight || 400,
+                      lineHeight: 1,
+                      textAlign: text.textAlign || 'center',
+                      display: 'inline-block',
+                      filter: hasEffect ? `url(#text-fx-${text.id})` : undefined,
+                    } as React.CSSProperties}>
+                      {getDisplayText(text).split('\n').map((line, i) => (
+                        <div key={i} style={{
+                          marginTop: i > 0 ? `${((text.lineSpacing || 1.25) - 1) * text.fontSize * textScale}px` : 0,
+                        }}>{line || '\u00A0'}</div>
+                      ))}
+                    </span>
+                  </div>
 
                   {selectedTextId === text.id && (
                     <>
@@ -2879,6 +3603,49 @@ export default function GarmentMockupBuilder({
                   )}
                 </div>
 
+                {/* Roster Variable Toggle */}
+                <div style={{
+                  marginBottom: '12px',
+                  padding: '10px',
+                  background: selectedText.isVariable ? 'rgba(139,92,246,0.1)' : 'transparent',
+                  border: `1px solid ${selectedText.isVariable ? 'rgba(139,92,246,0.3)' : 'rgba(148,163,184,0.15)'}`,
+                  borderRadius: '8px',
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#94a3b8', fontSize: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!selectedText.isVariable}
+                      onChange={(e) => {
+                        const isVar = e.target.checked
+                        updateTextElement(selectedText.id, {
+                          isVariable: isVar,
+                          variableName: isVar ? (selectedText.variableName || selectedText.text.split('\n')[0].trim()) : undefined,
+                        })
+                      }}
+                      style={{ accentColor: '#8b5cf6' }}
+                    />
+                    <span>Use as Roster Variable</span>
+                  </label>
+                  {selectedText.isVariable && (
+                    <input
+                      type="text"
+                      value={selectedText.variableName || ''}
+                      onChange={(e) => updateTextElement(selectedText.id, { variableName: e.target.value })}
+                      placeholder="Variable name (e.g. Player Name)"
+                      style={{
+                        width: '100%',
+                        marginTop: '8px',
+                        padding: '6px 8px',
+                        background: '#1d1d1d',
+                        border: '1px solid rgba(139,92,246,0.3)',
+                        borderRadius: '6px',
+                        color: '#f1f5f9',
+                        fontSize: '12px',
+                      }}
+                    />
+                  )}
+                </div>
+
                 {/* Rotation */}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>
@@ -3027,8 +3794,11 @@ export default function GarmentMockupBuilder({
                       cursor: 'pointer'
                     }}
                   >
-                    <div style={{ color: '#94a3b8', fontSize: '13px' }}>
+                    <div style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       Text {index + 1}: <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{text.text.split('\n')[0]}{text.text.includes('\n') ? '...' : ''}</span>
+                      {text.isVariable && (
+                        <span style={{ background: '#8b5cf6', color: 'white', fontSize: '9px', fontWeight: 700, padding: '1px 4px', borderRadius: '3px' }}>VAR</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -3036,6 +3806,292 @@ export default function GarmentMockupBuilder({
             )}
           </div>
         </div>
+
+        {/* Team Roster Panel */}
+        {hasVariables && (
+          <div style={{
+            borderTop: '1px solid rgba(148,163,184,0.2)',
+            padding: '12px 24px',
+            background: '#161618',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <button
+                onClick={() => setShowRosterPanel(!showRosterPanel)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#8b5cf6',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <span style={{ transform: showRosterPanel ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block' }}>&#9654;</span>
+                Team Roster ({roster.length} player{roster.length !== 1 ? 's' : ''})
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {roster.length > 0 && showRosterPanel && (
+                  <span style={{ color: '#64748b', fontSize: '11px' }}>
+                    Previewing: Player 1 of {roster.length}
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowVariableBadges(!showVariableBadges)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: showVariableBadges ? '#8b5cf6' : '#475569',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    padding: '2px 6px',
+                  }}
+                  title={showVariableBadges ? 'Hide variable badges' : 'Show variable badges'}
+                >{showVariableBadges ? 'Hide Badges' : 'Show Badges'}</button>
+              </div>
+            </div>
+
+            {showRosterPanel && (
+              <div>
+                {/* Roster Table */}
+                <div style={{ overflowX: 'auto', marginBottom: '10px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: '6px 8px', color: '#64748b', fontSize: '11px', fontWeight: 600, textAlign: 'left', borderBottom: '1px solid rgba(148,163,184,0.2)' }}>#</th>
+                        {variableTexts.map(vt => (
+                          <th key={vt.id} style={{ padding: '6px 8px', color: '#8b5cf6', fontSize: '11px', fontWeight: 600, textAlign: 'left', borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
+                            {vt.variableName}
+                          </th>
+                        ))}
+                        <th style={{ padding: '6px 8px', width: '30px', borderBottom: '1px solid rgba(148,163,184,0.2)' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roster.map((entry, idx) => (
+                        <tr key={entry.id}>
+                          <td style={{ padding: '4px 8px', color: '#64748b', fontSize: '11px' }}>{idx + 1}</td>
+                          {variableTexts.map(vt => (
+                            <td key={vt.id} style={{ padding: '2px 4px' }}>
+                              <input
+                                type="text"
+                                value={entry.values[vt.variableName!] || ''}
+                                onChange={(e) => updateRosterCell(entry.id, vt.variableName!, e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '4px 6px',
+                                  background: '#1d1d1d',
+                                  border: '1px solid rgba(148,163,184,0.15)',
+                                  borderRadius: '4px',
+                                  color: '#f1f5f9',
+                                  fontSize: '12px',
+                                }}
+                              />
+                            </td>
+                          ))}
+                          <td style={{ padding: '2px 4px' }}>
+                            <button
+                              onClick={() => removeRosterRow(entry.id)}
+                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '2px 6px' }}
+                            >&times;</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={addRosterRow}
+                    style={{
+                      padding: '6px 12px',
+                      background: 'rgba(139,92,246,0.15)',
+                      border: '1px solid rgba(139,92,246,0.3)',
+                      borderRadius: '6px',
+                      color: '#8b5cf6',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >+ Add Row</button>
+                  <button
+                    onClick={() => { setCsvText(''); setShowCsvModal(true) }}
+                    style={{
+                      padding: '6px 12px',
+                      background: 'rgba(59,130,246,0.15)',
+                      border: '1px solid rgba(59,130,246,0.3)',
+                      borderRadius: '6px',
+                      color: '#3b82f6',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >Paste from Spreadsheet</button>
+                  {roster.length > 0 && (
+                    <button
+                      onClick={() => setRoster([])}
+                      style={{
+                        padding: '6px 12px',
+                        background: 'rgba(239,68,68,0.1)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        borderRadius: '6px',
+                        color: '#ef4444',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >Clear All</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CSV Paste Modal */}
+        {showCsvModal && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}>
+            <div style={{
+              background: '#1e1e20',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '500px',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              border: '1px solid rgba(148,163,184,0.2)',
+            }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>
+                Paste Roster from Spreadsheet
+              </h3>
+              <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '12px' }}>
+                Paste tab-separated or comma-separated data. First row should be headers matching your variable names: {variableTexts.map(v => v.variableName).join(', ')}
+              </p>
+              <textarea
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                placeholder={`${variableTexts.map(v => v.variableName).join('\t')}\nJohn Smith\t23\nJane Doe\t7`}
+                style={{
+                  width: '100%',
+                  height: '200px',
+                  padding: '10px',
+                  background: '#161618',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  borderRadius: '8px',
+                  color: '#f1f5f9',
+                  fontSize: '13px',
+                  fontFamily: 'monospace',
+                  resize: 'vertical',
+                  marginBottom: '12px',
+                }}
+              />
+              {/* CSV file input */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{
+                  display: 'inline-block',
+                  padding: '6px 12px',
+                  background: 'rgba(148,163,184,0.1)',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  borderRadius: '6px',
+                  color: '#94a3b8',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}>
+                  Or upload .csv file
+                  <input
+                    type="file"
+                    accept=".csv,.tsv,.txt"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onload = (ev) => {
+                          setCsvText(ev.target?.result as string || '')
+                        }
+                        reader.readAsText(file)
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              {/* Preview */}
+              {csvText.trim() && (() => {
+                const parsed = parseCsvText(csvText)
+                return parsed.length > 0 ? (
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ color: '#22c55e', fontSize: '12px', marginBottom: '6px' }}>
+                      Preview: {parsed.length} player{parsed.length !== 1 ? 's' : ''} detected
+                    </div>
+                    <div style={{ maxHeight: '120px', overflow: 'auto', background: '#161618', borderRadius: '6px', padding: '8px' }}>
+                      {parsed.slice(0, 5).map((entry, i) => (
+                        <div key={i} style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '2px' }}>
+                          {i + 1}. {Object.entries(entry.values).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                        </div>
+                      ))}
+                      {parsed.length > 5 && (
+                        <div style={{ color: '#64748b', fontSize: '11px' }}>...and {parsed.length - 5} more</div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: '#f59e0b', fontSize: '12px', marginBottom: '12px' }}>
+                    Could not parse any rows. Check your format.
+                  </div>
+                )
+              })()}
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowCsvModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'transparent',
+                    border: '1px solid rgba(148,163,184,0.2)',
+                    borderRadius: '6px',
+                    color: '#94a3b8',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >Cancel</button>
+                <button
+                  onClick={() => {
+                    const parsed = parseCsvText(csvText)
+                    if (parsed.length > 0) {
+                      setRoster(parsed)
+                      setShowCsvModal(false)
+                      setShowRosterPanel(true)
+                    }
+                  }}
+                  disabled={!csvText.trim()}
+                  style={{
+                    padding: '8px 16px',
+                    background: csvText.trim() ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : '#282a30',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: csvText.trim() ? 'pointer' : 'not-allowed',
+                  }}
+                >Import Roster</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div style={{
@@ -3076,6 +4132,101 @@ export default function GarmentMockupBuilder({
           >
             Save Mockup
           </button>
+          {hasVariables && roster.length > 0 && (
+            <button
+              onClick={async () => {
+                if (!roster.every(r => variableTexts.every(vt => r.values[vt.variableName!]?.trim()))) {
+                  alert('Some roster entries have empty values. Please fill in all fields.')
+                  return
+                }
+                setGeneratingPrints(true)
+                setGenerateProgress({ current: 0, total: roster.length })
+                try {
+                  // Step 1: Generate SVG files for each player
+                  const svgFiles: { filename: string; svgContent: string }[] = []
+                  const multipleLocations = LOCATIONS.filter(loc =>
+                    logos.some(l => l.location === loc) || textElements.some(t => t.location === loc)
+                  ).length > 1
+
+                  for (let i = 0; i < roster.length; i++) {
+                    setGenerateProgress({ current: i + 1, total: roster.length })
+                    const entry = roster[i]
+                    const playerLabel = Object.values(entry.values).filter(Boolean).join('_').replace(/[^a-zA-Z0-9_-]/g, '_') || `player_${i + 1}`
+
+                    for (const location of LOCATIONS) {
+                      const locLogos = logos.filter(l => l.location === location)
+                      const locTexts = textElements.filter(t => t.location === location)
+                      if (locLogos.length === 0 && locTexts.length === 0) continue
+
+                      const svgContent = await generateSvgForLocation(location, entry)
+                      const locationSuffix = multipleLocations ? `_${location}` : ''
+                      svgFiles.push({
+                        filename: `${playerLabel}${locationSuffix}.svg`,
+                        svgContent,
+                      })
+                    }
+                  }
+
+                  // Step 2: Bundle SVGs into a zip and download
+                  const zip = new JSZip()
+                  for (const file of svgFiles) {
+                    zip.file(file.filename, file.svgContent)
+                  }
+                  const zipBlob = await zip.generateAsync({ type: 'blob' })
+                  const zipUrl = URL.createObjectURL(zipBlob)
+                  const link = document.createElement('a')
+                  link.href = zipUrl
+                  link.download = `${orderNumber || 'team'}_print_files.zip`
+                  link.click()
+                  URL.revokeObjectURL(zipUrl)
+
+                  setLastGeneratedSvgs(svgFiles)
+                  alert(`Generated ${svgFiles.length} print file${svgFiles.length !== 1 ? 's' : ''}${documentId ? ' and saved to project files' : ''}. Zip downloaded.`)
+                } catch (err) {
+                  console.error('Error generating print files:', err)
+                  alert('Failed to generate print files. Check console for details.')
+                } finally {
+                  setGeneratingPrints(false)
+                }
+              }}
+              disabled={generatingPrints}
+              style={{
+                padding: '10px 24px',
+                background: generatingPrints ? '#282a30' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: generatingPrints ? 'wait' : 'pointer',
+              }}
+            >
+              {generatingPrints
+                ? `Generating ${generateProgress.current}/${generateProgress.total}...`
+                : `Generate Print Files (${roster.length})`
+              }
+            </button>
+          )}
+          {lastGeneratedSvgs.length > 0 && (
+            <button
+              onClick={() => {
+                sessionStorage.setItem('gangSheetFiles', JSON.stringify(lastGeneratedSvgs))
+                router.push('/gang-sheet-builder')
+              }}
+              style={{
+                padding: '10px 24px',
+                background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Create Gang Sheet ({lastGeneratedSvgs.length})
+            </button>
+          )}
         </div>
       </div>
     </div>
