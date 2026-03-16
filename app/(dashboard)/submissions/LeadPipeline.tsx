@@ -114,10 +114,14 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
 
       // Apply form type filter
       const subFormType = sub.form_type || 'commercial_wrap'
-      if (formTypeFilter !== 'all' && subFormType !== formTypeFilter) return
+      if (formTypeFilter !== 'all') {
+        if (formTypeFilter === 'ppf') {
+          if (!subFormType.startsWith('ppf')) return
+        } else if (subFormType !== formTypeFilter) return
+      }
 
       const isStyling = subFormType === 'automotive_styling'
-      const isPPF = subFormType === 'ppf'
+      const isPPF = subFormType.startsWith('ppf')
       const isCafe = subFormType === 'cafe_wrap'
       const isSticker = subFormType === 'sticker_label'
       const isSignage = subFormType === 'signage_promo'
@@ -335,8 +339,9 @@ export default function LeadPipeline({ submissions, quotes, invoices }: Props) {
   }
 
   const getFormTypeBadge = (formType?: string) => {
-    if (formType === 'ppf') {
-      return { label: 'PPF', bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }
+    if (formType?.startsWith('ppf')) {
+      const PPF_BADGE_LABELS: Record<string, string> = { ppf: 'PPF', ppf_landing: 'PPF', ppf_pricing: 'PPF - PRICING', ppf_tesla: 'PPF - TESLA', ppf_luxury: 'PPF - LUXURY' }
+      return { label: PPF_BADGE_LABELS[formType] || 'PPF', bg: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }
     }
     if (formType === 'automotive_styling') {
       return { label: 'STYLING', bg: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }
