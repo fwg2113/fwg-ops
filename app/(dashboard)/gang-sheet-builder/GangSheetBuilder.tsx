@@ -11,6 +11,7 @@ interface SvgFile {
   nativeW: number
   nativeH: number
   qty: number
+  widthOverride?: number // per-file width in inches; if set, overrides global designWidth
 }
 
 interface PlacedItem {
@@ -143,15 +144,16 @@ function packWithRotations(
 
   for (const { file, copyIndex } of expanded) {
     const rotation = getRotation(file, copyIndex, indexInRow)
+    const fileWidth = file.widthOverride || designWidthIn
     const aspect = file.nativeH / file.nativeW
     let w: number, h: number
 
     if (rotation === 90 || rotation === 270) {
-      h = designWidthIn
-      w = designWidthIn * aspect
+      h = fileWidth
+      w = fileWidth * aspect
     } else {
-      w = designWidthIn
-      h = designWidthIn * aspect
+      w = fileWidth
+      h = fileWidth * aspect
     }
 
     if (cursorX > 0 && cursorX + w > SHEET_WIDTH_IN) {
@@ -316,6 +318,19 @@ export default function GangSheetBuilder() {
     setFiles(prev => prev.map(f => f.id === id ? { ...f, qty: Math.max(1, Math.min(999, qty)) } : f))
   }, [])
 
+  const updateWidthOverride = useCallback((id: string, value: string) => {
+    setFiles(prev => prev.map(f => {
+      if (f.id !== id) return f
+      if (value === '' || value === '0') {
+        const { widthOverride: _, ...rest } = f
+        return rest as SvgFile
+      }
+      const v = parseFloat(value)
+      if (v > 0 && v <= SHEET_WIDTH_IN) return { ...f, widthOverride: v }
+      return f
+    }))
+  }, [])
+
   const downloadGangSheet = useCallback(() => {
     if (placed.length === 0) return
     const svgString = buildCombinedSvg(files, placed)
@@ -470,6 +485,24 @@ export default function GangSheetBuilder() {
           <span style={{ fontSize: '12px', color: '#6b7280' }}>
             {placed[selectedIndex].w.toFixed(2)}&quot; &times; {placed[selectedIndex].h.toFixed(2)}&quot;
           </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>W:</span>
+            <input
+              type="number"
+              value={(() => {
+                const f = files.find(f => f.id === placed[selectedIndex!].fileId)
+                return f?.widthOverride ?? ''
+              })()}
+              placeholder={String(designWidth)}
+              onChange={e => {
+                const fileId = placed[selectedIndex!].fileId
+                updateWidthOverride(fileId, e.target.value)
+              }}
+              step={0.25} min={0.5} max={SHEET_WIDTH_IN}
+              style={{ width: '52px', padding: '2px 4px', background: '#1e1e24', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', color: '#e2e8f0', fontSize: '12px', textAlign: 'center' }}
+            />
+            <span style={{ fontSize: '11px', color: '#6b7280' }}>in</span>
+          </div>
           <span style={{ fontSize: '12px', color: '#6b7280' }}>
             Rot: {placed[selectedIndex].rotation}°
           </span>
@@ -517,20 +550,37 @@ export default function GangSheetBuilder() {
               </div>
               <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
                 {files.map(f => (
-                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '12px' }}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2" style={{ width: 14, height: 14, flexShrink: 0 }}>
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
-                      <polyline points="14 2 14 8 20 8" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    <span style={{ flex: 1, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.filename}</span>
-                    <span style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>qty:</span>
-                    <input type="number" value={f.qty} onChange={e => updateQty(f.id, parseInt(e.target.value) || 1)} min={1} max={999} style={{ width: '42px', padding: '2px 4px', background: '#1e1e24', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', color: '#e2e8f0', fontSize: '12px', textAlign: 'center', flexShrink: 0 }} />
-                    <button onClick={() => removeFile(f.id)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
-                        <line x1="18" y1="6" x2="6" y2="18" strokeLinecap="round"/>
-                        <line x1="6" y1="6" x2="18" y2="18" strokeLinecap="round"/>
+                  <div key={f.id} style={{ padding: '6px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2" style={{ width: 14, height: 14, flexShrink: 0 }}>
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" strokeLinecap="round" strokeLinejoin="round"/>
+                        <polyline points="14 2 14 8 20 8" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                    </button>
+                      <span style={{ flex: 1, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.filename}</span>
+                      <span style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>qty:</span>
+                      <input type="number" value={f.qty} onChange={e => updateQty(f.id, parseInt(e.target.value) || 1)} min={1} max={999} style={{ width: '42px', padding: '2px 4px', background: '#1e1e24', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', color: '#e2e8f0', fontSize: '12px', textAlign: 'center', flexShrink: 0 }} />
+                      <button onClick={() => removeFile(f.id)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
+                          <line x1="18" y1="6" x2="6" y2="18" strokeLinecap="round"/>
+                          <line x1="6" y1="6" x2="18" y2="18" strokeLinecap="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', paddingLeft: '20px' }}>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>width:</span>
+                      <input
+                        type="number"
+                        value={f.widthOverride ?? ''}
+                        placeholder={String(designWidth)}
+                        onChange={e => updateWidthOverride(f.id, e.target.value)}
+                        step={0.25} min={0.5} max={SHEET_WIDTH_IN}
+                        style={{ width: '52px', padding: '2px 4px', background: f.widthOverride ? '#1a1a2e' : '#1e1e24', border: `1px solid ${f.widthOverride ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', color: f.widthOverride ? '#c084fc' : '#6b7280', fontSize: '11px', textAlign: 'center' }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>in</span>
+                      {f.widthOverride && (
+                        <button onClick={() => updateWidthOverride(f.id, '')} title="Reset to global" style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: '0 2px', fontSize: '11px' }}>✕</button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
