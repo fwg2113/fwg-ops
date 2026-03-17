@@ -58,10 +58,15 @@ export async function POST(req: Request) {
     stream.push(buffer)
     stream.push(null)
 
+    // Sanitize filename — remove characters that break Drive API
+    const safeName = (file.name || `content-${Date.now()}.${fileType === 'video' ? 'mp4' : 'jpg'}`)
+      .replace(/[^\w\s.\-()]/g, '_')
+
     const driveFile = await drive.files.create({
       requestBody: {
-        name: file.name || `content-${Date.now()}.${fileType === 'video' ? 'mp4' : 'jpg'}`,
+        name: safeName,
         parents: [folderId],
+        driveId: folderId,
       },
       media: {
         mimeType,
@@ -101,8 +106,10 @@ export async function POST(req: Request) {
       memberName: member.name,
     })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Content upload failed'
-    console.error('[content-upload] error:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gErr = err as any
+    const detail = gErr?.errors?.[0]?.message || gErr?.message || 'Content upload failed'
+    console.error('[content-upload] error:', detail, JSON.stringify(gErr?.errors || gErr?.message || err))
+    return NextResponse.json({ error: detail }, { status: 500 })
   }
 }
