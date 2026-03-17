@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { BoardData, NihTask, NihTeamMember, NihPrize, NihCompletionLog, NihWeeklyWinner, ViewBucket, TaskBucket } from '../types'
 import { BUCKET_CONFIG } from '../types'
 import HandsLogo from './HandsLogo'
@@ -40,8 +41,13 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [showPinModal, setShowPinModal] = useState(false)
   const pinCallbackRef = useRef<PinCallback | null>(null)
 
-  // V2: Bucket navigation
-  const [activeBucket, setActiveBucket] = useState<ViewBucket>('recurring')
+  // V2: Bucket navigation — read initial bucket from URL query param
+  const searchParams = useSearchParams()
+  const [activeBucket, setActiveBucket] = useState<ViewBucket>(() => {
+    const param = searchParams.get('bucket')
+    if (param && param in BUCKET_CONFIG) return param as ViewBucket
+    return 'recurring'
+  })
   const [leaderboardExpanded, setLeaderboardExpanded] = useState(false)
   const [showContentUpload, setShowContentUpload] = useState(false)
 

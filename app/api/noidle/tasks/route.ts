@@ -15,7 +15,7 @@ const NIH_TEAM_PHONES: Record<string, string> = {
   'Trinity': '2406565570',
 }
 
-async function sendTaskNotifications(title: string, description: string | null, totalPoints: number, isProject?: boolean) {
+async function sendTaskNotifications(title: string, description: string | null, totalPoints: number, isProject?: boolean, taskBucket?: string) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   const authToken = process.env.TWILIO_AUTH_TOKEN
   const fromNumber = process.env.TWILIO_PHONE_NUMBER
@@ -34,6 +34,12 @@ async function sendTaskNotifications(title: string, description: string | null, 
   } else {
     body += `\n\n⭐ ${totalPoints} point${totalPoints !== 1 ? 's' : ''}`
   }
+
+  const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.NEXT_PUBLIC_SITE_URL || 'https://fwg-ops.vercel.app'
+  const bucket = taskBucket || 'whenever'
+  body += `\n\n👉 ${baseUrl}/hands?bucket=${bucket}`
 
   const phones = Object.values(NIH_TEAM_PHONES)
 
@@ -130,7 +136,7 @@ export async function POST(req: Request) {
   // Send SMS notifications for top-level tasks (not subtasks)
   if (task && !parent_id) {
     // Fire and forget — don't block the response
-    sendTaskNotifications(task.title, task.description, task.points || 0, task.is_project).catch((e) =>
+    sendTaskNotifications(task.title, task.description, task.points || 0, task.is_project, task.task_bucket).catch((e) =>
       console.error('Task notification error:', e)
     )
   }
