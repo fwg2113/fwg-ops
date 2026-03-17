@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import type { NihTask, NihCategory, NihLocation, NihTeamMember } from '../types'
-import { URGENCY_LABELS, TIME_ESTIMATES } from '../types'
+import type { NihTask, NihCategory, NihLocation, NihTeamMember, TaskBucket } from '../types'
+import { URGENCY_LABELS, TIME_ESTIMATES, BUCKET_CONFIG } from '../types'
 
 interface TaskModalProps {
   task: NihTask | null
   categories: NihCategory[]
   locations: NihLocation[]
   teamMembers: NihTeamMember[]
+  defaultBucket?: TaskBucket
   onSave: (data: Record<string, unknown>) => Promise<void>
   onClose: () => void
 }
@@ -36,7 +37,7 @@ const inputStyle: React.CSSProperties = {
   minHeight: '48px',
 }
 
-export default function TaskModal({ task, categories, locations, teamMembers, onSave, onClose }: TaskModalProps) {
+export default function TaskModal({ task, categories, locations, teamMembers, defaultBucket, onSave, onClose }: TaskModalProps) {
   const [title, setTitle] = useState(task?.title || '')
   const [description, setDescription] = useState(task?.description || '')
   const [categoryId, setCategoryId] = useState(task?.category_id || '')
@@ -51,6 +52,9 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
   )
   const [isRecurring, setIsRecurring] = useState(task?.is_recurring || false)
   const [recurringDays, setRecurringDays] = useState<string[]>(task?.recurring_days || [])
+  const [taskBucket, setTaskBucket] = useState<TaskBucket>(
+    task?.task_bucket || (defaultBucket === 'recurring' ? 'recurring' : defaultBucket) || 'whenever'
+  )
   const [saving, setSaving] = useState(false)
 
   const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -75,6 +79,7 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
       assignee_ids: assigneeIds,
       is_recurring: isRecurring,
       recurring_days: isRecurring ? recurringDays : [],
+      task_bucket: isRecurring ? 'recurring' : taskBucket,
     })
     setSaving(false)
   }
@@ -193,6 +198,44 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* Bucket selector */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={labelStyle}>Bucket</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+            {(['recurring', 'urgent', 'whenever', 'bonus'] as TaskBucket[]).map(bucket => {
+              const cfg = BUCKET_CONFIG[bucket]
+              const active = taskBucket === bucket
+              const locked = isRecurring && bucket !== 'recurring'
+              return (
+                <button
+                  key={bucket}
+                  type="button"
+                  onClick={() => {
+                    if (locked) return
+                    setTaskBucket(bucket)
+                    if (bucket === 'recurring') setIsRecurring(true)
+                  }}
+                  style={{
+                    padding: '10px 0',
+                    borderRadius: '10px',
+                    border: `2px solid ${active ? cfg.color : '#3f4451'}`,
+                    background: active ? `${cfg.color}22` : 'transparent',
+                    color: active ? cfg.color : locked ? '#3f4451' : '#6b7280',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: locked ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    minHeight: '44px',
+                    opacity: locked ? 0.4 : 1,
+                  }}
+                >
+                  {cfg.label}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -333,7 +376,12 @@ export default function TaskModal({ task, categories, locations, teamMembers, on
             <input
               type="checkbox"
               checked={isRecurring}
-              onChange={e => setIsRecurring(e.target.checked)}
+              onChange={e => {
+                const checked = e.target.checked
+                setIsRecurring(checked)
+                if (checked) setTaskBucket('recurring')
+                else if (taskBucket === 'recurring') setTaskBucket('whenever')
+              }}
               style={{ accentColor: '#22d3ee', width: '20px', height: '20px' }}
             />
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

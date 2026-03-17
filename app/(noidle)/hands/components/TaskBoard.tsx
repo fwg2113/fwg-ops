@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import type { BoardData, NihTask, NihTeamMember, NihPrize, NihCompletionLog, NihWeeklyWinner } from '../types'
+import type { BoardData, NihTask, NihTeamMember, NihPrize, NihCompletionLog, NihWeeklyWinner, ViewBucket, TaskBucket } from '../types'
+import { BUCKET_CONFIG } from '../types'
 import HandsLogo from './HandsLogo'
 import TaskCard from './TaskCard'
 import TaskModal from './TaskModal'
@@ -11,6 +12,8 @@ import Leaderboard from './Leaderboard'
 import PointsToast from './PointsToast'
 import PhotoGallery from './PhotoGallery'
 import PinModal from './PinModal'
+import BucketNav from './BucketNav'
+import ContentUploadModal from './ContentUploadModal'
 
 interface ToastData {
   points: number
@@ -34,9 +37,13 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const [completingParentAutoComplete, setCompletingParentAutoComplete] = useState<NihTask | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [toast, setToast] = useState<ToastData | null>(null)
-  const [showGallery, setShowGallery] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
   const pinCallbackRef = useRef<PinCallback | null>(null)
+
+  // V2: Bucket navigation
+  const [activeBucket, setActiveBucket] = useState<ViewBucket>('recurring')
+  const [leaderboardExpanded, setLeaderboardExpanded] = useState(false)
+  const [showContentUpload, setShowContentUpload] = useState(false)
 
   const handleRequestPin = useCallback((callback: PinCallback) => {
     pinCallbackRef.current = callback
@@ -56,26 +63,38 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
   const dragContext = useRef<'tasks' | 'subtasks'>('tasks')
   const dragParentId = useRef<string | null>(null)
 
-  const [showCompleted, setShowCompleted] = useState(false)
+  // ── Derived task lists by bucket ──
+  const byOrder = (a: NihTask, b: NihTask) => a.sort_order - b.sort_order
 
-  const topLevelTasks = useMemo(
-    () => tasks.filter(t => !t.parent_id && t.status !== 'completed' && !t.is_recurring).sort((a, b) => a.sort_order - b.sort_order),
-    [tasks]
-  )
+  const bucketTasks = useMemo(() => {
+    const topLevel = tasks.filter(t => !t.parent_id)
+    return {
+      recurring: topLevel.filter(t => t.task_bucket === 'recurring' && t.status !== 'completed').sort(byOrder),
+      urgent: topLevel.filter(t => t.task_bucket === 'urgent' && t.status !== 'completed').sort(byOrder),
+      whenever: topLevel.filter(t => t.task_bucket === 'whenever' && t.status !== 'completed').sort(byOrder),
+      bonus: topLevel.filter(t => t.task_bucket === 'bonus' && t.status !== 'completed').sort(byOrder),
+      completed: topLevel.filter(t => t.status === 'completed').sort((a, b) => {
+        const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0
+        const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0
+        return bTime - aTime
+      }),
+    }
+  }, [tasks])
 
-  const recurringTasks = useMemo(
-    () => tasks.filter(t => !t.parent_id && t.is_recurring && t.status !== 'completed').sort((a, b) => a.sort_order - b.sort_order),
-    [tasks]
-  )
+  const bucketCounts: Record<ViewBucket, number> = useMemo(() => ({
+    recurring: bucketTasks.recurring.length,
+    urgent: bucketTasks.urgent.length,
+    whenever: bucketTasks.whenever.length,
+    bonus: bucketTasks.bonus.length,
+    completed: completionLog.length || bucketTasks.completed.length,
+    gallery: completionLog.filter(c => c.photo_url).length,
+  }), [bucketTasks, completionLog])
 
-  const completedTasks = useMemo(
-    () => tasks.filter(t => !t.parent_id && t.status === 'completed').sort((a, b) => {
-      const aTime = a.completed_at ? new Date(a.completed_at).getTime() : 0
-      const bTime = b.completed_at ? new Date(b.completed_at).getTime() : 0
-      return bTime - aTime
-    }),
-    [tasks]
-  )
+  // Current bucket's active task list (for drag-and-drop and rendering)
+  const activeTasks = useMemo(() => {
+    if (activeBucket === 'completed' || activeBucket === 'gallery') return []
+    return bucketTasks[activeBucket] || []
+  }, [activeBucket, bucketTasks])
 
   const subtasksMap = useMemo(() => {
     const map: Record<string, NihTask[]> = {}
@@ -175,11 +194,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         return
       }
 
-      const oldIndex = topLevelTasks.findIndex(t => t.id === dragId)
-      const newIndex = topLevelTasks.findIndex(t => t.id === targetId)
+      const oldIndex = activeTasks.findIndex(t => t.id === dragId)
+      const newIndex = activeTasks.findIndex(t => t.id === targetId)
       if (oldIndex === -1 || newIndex === -1) return
 
-      const reordered = [...topLevelTasks]
+      const reordered = [...activeTasks]
       const [moved] = reordered.splice(oldIndex, 1)
       reordered.splice(newIndex, 0, moved)
 
@@ -194,7 +213,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
 
       persistOrder(reordered.map(t => t.id))
     },
-    [dragId, topLevelTasks, tasks, persistOrder]
+    [dragId, activeTasks, tasks, persistOrder]
   )
 
   const handleDragEnd = useCallback(() => {
@@ -361,7 +380,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [refreshTasks, refreshTeamMembers]
   )
 
-  // Toggle a completed subtask back to open (uncomplete)
   const handleSubtaskToggle = useCallback(
     async (subtask: NihTask) => {
       const res = await fetch(`/api/noidle/tasks/${subtask.id}`, {
@@ -374,7 +392,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [refreshTasks]
   )
 
-  // Open CompleteModal for a subtask (when checking it off)
   const handleSubtaskCompleteStart = useCallback(
     (subtask: NihTask) => {
       setCompletingSubtask(subtask)
@@ -382,7 +399,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     []
   )
 
-  // Actually complete a subtask via the complete API (points, photo, team members)
   const handleSubtaskComplete = useCallback(
     async (subtaskId: string, notes: string, photoUrl: string | null, completedByIds: string[]) => {
       const res = await fetch(`/api/noidle/tasks/${subtaskId}/complete`, {
@@ -428,7 +444,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     [completingSubtask, refreshTasks, refreshTeamMembers, refreshCompletionLog]
   )
 
-  // Auto-complete a parent task (photo only, no points — points were on subtasks)
   const handleParentAutoComplete = useCallback(
     async (parentId: string, notes: string, photoUrl: string | null) => {
       const res = await fetch(`/api/noidle/tasks/${parentId}/complete`, {
@@ -455,6 +470,25 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
     []
   )
 
+  // ── Leaderboard summary (collapsed view) ──
+  const leaderboardSummary = useMemo(() => {
+    const sorted = [...teamMembers].filter(m => m.is_active).sort((a, b) => b.total_points - a.total_points)
+    return sorted.slice(0, 3)
+  }, [teamMembers])
+
+  // Total available points for active bucket
+  const bucketPoints = useMemo(() => {
+    return activeTasks.reduce((sum, t) => {
+      const subs = subtasksMap[t.id]
+      if (subs?.length) return sum + subs.reduce((s, st) => s + (st.status !== 'completed' ? st.points : 0), 0)
+      return sum + (t.points || 0)
+    }, 0)
+  }, [activeTasks, subtasksMap])
+
+  // ── Render ──
+  const isTaskBucket = activeBucket !== 'completed' && activeBucket !== 'gallery'
+  const defaultBucket: TaskBucket | undefined = isTaskBucket ? activeBucket as TaskBucket : undefined
+
   return (
     <div style={{ paddingBottom: '60px' }}>
       <style>{`@keyframes nih-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
@@ -463,266 +497,219 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
       <header style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: '10px',
-        padding: '18px 16px 14px',
+        justifyContent: 'space-between',
+        padding: '14px 16px 10px',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}>
-        <button
-          onClick={() => handleRequestPin(() => setShowTaskModal(true))}
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-          title="Add new task"
-        >
-          <HandsLogo size={72} />
-        </button>
-        <h1 style={{ fontSize: '40px', fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
-          No Idle Hands
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <HandsLogo size={44} />
+          <h1 style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-0.01em', margin: 0 }}>
+            No Idle Hands
+          </h1>
+        </div>
+        {isTaskBucket && (
+          <button
+            onClick={() => handleRequestPin(() => setShowTaskModal(true))}
+            style={{
+              background: '#CE0000',
+              border: 'none',
+              borderRadius: 10,
+              padding: '8px 14px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            Add
+          </button>
+        )}
       </header>
 
-      {/* Total Available Points */}
-      {(() => {
-        const openTasks = tasks.filter(t => t.status !== 'completed')
-        const totalPts = openTasks.reduce((sum, t) => sum + (t.points || 0), 0)
-        if (totalPts <= 0) return null
-        return (
+      {/* Leaderboard — collapsed summary, expandable */}
+      <div
+        onClick={() => setLeaderboardExpanded(!leaderboardExpanded)}
+        style={{
+          padding: '8px 16px',
+          cursor: 'pointer',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        {!leaderboardExpanded ? (
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '6px',
-            padding: '10px 16px 0',
+            gap: '16px',
+            fontSize: '13px',
+            fontWeight: 600,
           }}>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: 700,
-              color: '#d71cd1',
-              background: 'rgba(215,28,209,0.12)',
-              padding: '4px 12px',
-              borderRadius: '8px',
-            }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
-              </svg>
-              {totalPts} pts available
-            </span>
+            {leaderboardSummary.map((m, i) => {
+              const medals = ['🥇', '🥈', '🥉']
+              return (
+                <span key={m.id} style={{ color: i === 0 ? '#fbbf24' : i === 1 ? '#9ca3af' : '#cd7f32' }}>
+                  {medals[i]} {m.name.split(' ')[0]} ({m.total_points})
+                </span>
+              )
+            })}
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ color: '#6b7280', flexShrink: 0 }}>
+              <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </div>
-        )
-      })()}
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px', color: '#6b7280', fontWeight: 600 }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ transform: 'rotate(180deg)' }}>
+              <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Collapse Leaderboard
+          </div>
+        )}
+      </div>
 
-      {/* Leaderboard */}
-      <div style={{ paddingTop: '12px' }}>
-        <Leaderboard
-          teamMembers={teamMembers}
-          prizes={prizes}
-          onPrizesUpdate={setPrizes}
-          onPointsUpdate={handlePointsUpdate}
-          weeklyWinners={weeklyWinners}
-          onWeeklyReset={(winners, updatedMembers) => {
-            setWeeklyWinners(winners)
-            setTeamMembers(prev => prev.map(m => {
-              const updated = updatedMembers.find((u: NihTeamMember) => u.id === m.id)
-              return updated ? { ...m, total_points: updated.total_points } : m
-            }))
-          }}
+      {leaderboardExpanded && (
+        <div onClick={e => e.stopPropagation()}>
+          <Leaderboard
+            teamMembers={teamMembers}
+            prizes={prizes}
+            onPrizesUpdate={setPrizes}
+            onPointsUpdate={handlePointsUpdate}
+            weeklyWinners={weeklyWinners}
+            onWeeklyReset={(winners, updatedMembers) => {
+              setWeeklyWinners(winners)
+              setTeamMembers(prev => prev.map(m => {
+                const updated = updatedMembers.find((u: NihTeamMember) => u.id === m.id)
+                return updated ? { ...m, total_points: updated.total_points } : m
+              }))
+            }}
+          />
+        </div>
+      )}
+
+      {/* Add Content + Bucket Navigation — sticky together */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: '#111113' }}>
+        <div style={{ padding: '8px 16px 0' }}>
+          <button
+            onClick={() => setShowContentUpload(true)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '10px',
+              borderRadius: 12,
+              border: '1.5px solid #d71cd1',
+              background: '#d71cd118',
+              color: '#d71cd1',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="6" width="20" height="14" rx="3" />
+              <circle cx="12" cy="13" r="4" />
+              <path d="M8 6L9 3H15L16 6" />
+            </svg>
+            Add Content
+            <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.7 }}>
+              1pt per Photo | 3pts per Video
+            </span>
+          </button>
+        </div>
+        <BucketNav
+          activeBucket={activeBucket}
+          onChange={setActiveBucket}
+          counts={bucketCounts}
         />
       </div>
 
-      {/* Task list */}
+      {/* Bucket points banner */}
+      {isTaskBucket && bucketPoints > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '6px 16px 0',
+        }}>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '13px',
+            fontWeight: 700,
+            color: BUCKET_CONFIG[activeBucket].color,
+            background: `${BUCKET_CONFIG[activeBucket].color}18`,
+            padding: '3px 10px',
+            borderRadius: '8px',
+          }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+              <polygon points="8,1 10,6 15,6.5 11,10 12.5,15 8,12 3.5,15 5,10 1,6.5 6,6" stroke="currentColor" strokeWidth="1.2" fill="currentColor" opacity="0.8" />
+            </svg>
+            {bucketPoints} pts available
+          </span>
+        </div>
+      )}
+
+      {/* ── Active Bucket Content ── */}
       <div style={{ padding: '0 16px', maxWidth: '960px', margin: '0 auto' }}>
-        {topLevelTasks.length === 0 && recurringTasks.length === 0 ? (
-          <EmptyState onAddTask={() => handleRequestPin(() => setShowTaskModal(true))} hasFilters={false} />
-        ) : topLevelTasks.length > 0 && (
+        {/* Task buckets: recurring, urgent, whenever, bonus */}
+        {isTaskBucket && (
           <>
-            <div style={{
-              fontSize: '12px',
-              fontWeight: 600,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: '#6b7280',
-              padding: '16px 4px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              Open
-              <span style={{
-                background: 'rgba(255,255,255,0.06)',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 600,
-              }}>
-                {topLevelTasks.length}
-              </span>
-            </div>
-
-            {topLevelTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                subtasks={subtasksMap[task.id] || []}
-                onEdit={t => setEditingTask(t)}
-                onComplete={t => setCompletingTask(t)}
-                onDelete={handleDeleteTask}
-                onStatusToggle={handleStatusToggle}
-                onSubtaskToggle={handleSubtaskToggle}
-                onSubtaskComplete={handleSubtaskCompleteStart}
-                onAddSubtask={handleAddSubtask}
-                onEditSubtask={handleEditSubtask}
-                onDeleteSubtask={handleDeleteSubtask}
-                onRequestPin={handleRequestPin}
-                isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
-                onDragStart={() => handleTaskDragStart(task.id)}
-                onDragOver={() => handleTaskDragOver(task.id)}
-                onDrop={() => handleTaskDrop(task.id)}
-                onDragEnd={handleDragEnd}
-                subtaskDragOverId={dragOverId}
-                onSubtaskDragStart={handleSubtaskDragStart}
-                onSubtaskDragOver={handleSubtaskDragOver}
-                onSubtaskDrop={handleSubtaskDrop}
+            {activeTasks.length === 0 ? (
+              <EmptyState
+                onAddTask={() => handleRequestPin(() => setShowTaskModal(true))}
+                hasFilters={false}
               />
-            ))}
+            ) : (
+              <div style={{ paddingTop: '8px' }}>
+                {activeTasks.map(task => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    subtasks={subtasksMap[task.id] || []}
+                    onEdit={t => setEditingTask(t)}
+                    onComplete={t => setCompletingTask(t)}
+                    onDelete={handleDeleteTask}
+                    onStatusToggle={handleStatusToggle}
+                    onSubtaskToggle={handleSubtaskToggle}
+                    onSubtaskComplete={handleSubtaskCompleteStart}
+                    onAddSubtask={handleAddSubtask}
+                    onEditSubtask={handleEditSubtask}
+                    onDeleteSubtask={handleDeleteSubtask}
+                    onRequestPin={handleRequestPin}
+                    isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
+                    onDragStart={() => handleTaskDragStart(task.id)}
+                    onDragOver={() => handleTaskDragOver(task.id)}
+                    onDrop={() => handleTaskDrop(task.id)}
+                    onDragEnd={handleDragEnd}
+                    subtaskDragOverId={dragOverId}
+                    onSubtaskDragStart={handleSubtaskDragStart}
+                    onSubtaskDragOver={handleSubtaskDragOver}
+                    onSubtaskDrop={handleSubtaskDrop}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
 
-        {/* Recurring section */}
-        {recurringTasks.length > 0 && (
-          <>
-            <div style={{
-              fontSize: '12px',
-              fontWeight: 600,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: '#22d3ee',
-              padding: '20px 4px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                <path d="M2 8C2 4.7 4.7 2 8 2C10.2 2 12.1 3.3 13 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M14 8C14 11.3 11.3 14 8 14C5.8 14 3.9 12.7 3 10.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M13 2V5.2H9.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M3 14V10.8H6.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Recurring
-              <span style={{
-                background: 'rgba(34,211,238,0.1)',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 600,
-              }}>
-                {recurringTasks.length}
-              </span>
-            </div>
-
-            {recurringTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                subtasks={subtasksMap[task.id] || []}
-                onEdit={t => setEditingTask(t)}
-                onComplete={t => setCompletingTask(t)}
-                onDelete={handleDeleteTask}
-                onStatusToggle={handleStatusToggle}
-                onSubtaskToggle={handleSubtaskToggle}
-                onSubtaskComplete={handleSubtaskCompleteStart}
-                onAddSubtask={handleAddSubtask}
-                onEditSubtask={handleEditSubtask}
-                onDeleteSubtask={handleDeleteSubtask}
-                onRequestPin={handleRequestPin}
-                isDragOver={dragOverId === task.id && dragContext.current === 'tasks'}
-                onDragStart={() => handleTaskDragStart(task.id)}
-                onDragOver={() => handleTaskDragOver(task.id)}
-                onDrop={() => handleTaskDrop(task.id)}
-                onDragEnd={handleDragEnd}
-                subtaskDragOverId={dragOverId}
-                onSubtaskDragStart={handleSubtaskDragStart}
-                onSubtaskDragOver={handleSubtaskDragOver}
-                onSubtaskDrop={handleSubtaskDrop}
-              />
-            ))}
-          </>
-        )}
-
-        {/* Completed section — shows completion history records + legacy completed tasks */}
-        {(completionLog.length > 0 || completedTasks.length > 0) && (
-          <>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '20px 4px 10px',
-            }}>
-              <button
-                onClick={() => setShowCompleted(!showCompleted)}
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: '#6b7280',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  fontFamily: 'inherit',
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
-                  style={{ transform: showCompleted ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Completed
-                <span style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                }}>
-                  {completionLog.length || completedTasks.length}
-                </span>
-              </button>
-
-              {/* Gallery button */}
-              {completionLog.some(c => c.photo_url) && (
-                <button
-                  onClick={() => setShowGallery(true)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '4px 10px',
-                    borderRadius: '999px',
-                    border: '1px solid rgba(215,28,209,0.3)',
-                    background: 'rgba(215,28,209,0.08)',
-                    color: '#d71cd1',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    marginLeft: 'auto',
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                    <rect x="2" y="6" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.5" />
-                    <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M8 6L9 3H15L16 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Gallery
-                </button>
-              )}
-            </div>
-
-            {showCompleted && (
+        {/* Completed bucket */}
+        {activeBucket === 'completed' && (
+          <div style={{ paddingTop: '8px' }}>
+            {completionLog.length === 0 && bucketTasks.completed.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#6b7280', fontSize: '14px' }}>
+                No completed tasks yet.
+              </div>
+            ) : (
               <>
                 {/* Completion history records */}
                 {completionLog.map(completion => (
@@ -734,7 +721,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                       border: '1px solid rgba(255,255,255,0.06)',
                       marginBottom: '10px',
                       overflow: 'hidden',
-                      opacity: 0.45,
+                      opacity: 0.65,
                     }}
                   >
                     <div style={{ padding: '14px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -815,8 +802,8 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                   </div>
                 ))}
 
-                {/* Completed tasks (including recurring tasks awaiting reset) */}
-                {completedTasks.map(task => (
+                {/* Completed tasks (including recurring awaiting reset) */}
+                {bucketTasks.completed.map(task => (
                   <div
                     key={task.id}
                     style={{
@@ -974,52 +961,17 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 ))}
               </>
             )}
-          </>
+          </div>
         )}
-      {/* Photo Gallery */}
-        {completionLog.some(e => e.photo_url) && (
-          <>
-            <button
-              onClick={() => setShowGallery(!showGallery)}
-              style={{
-                fontSize: '12px',
-                fontWeight: 600,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                color: '#d71cd1',
-                padding: '20px 4px 10px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                width: '100%',
-                fontFamily: 'inherit',
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
-                style={{ transform: showGallery ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <rect x="2" y="6" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.5" />
-                <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M8 6L9 3H15L16 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Photo Gallery
-              <span style={{
-                background: 'rgba(215,28,209,0.1)',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 600,
-              }}>
-                {completionLog.filter(e => e.photo_url).length}
-              </span>
-            </button>
 
-            {showGallery && (
+        {/* Gallery bucket */}
+        {activeBucket === 'gallery' && (
+          <div style={{ paddingTop: '8px' }}>
+            {completionLog.filter(e => e.photo_url).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#6b7280', fontSize: '14px' }}>
+                No photos yet. Complete tasks with photos to fill the gallery.
+              </div>
+            ) : (
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
@@ -1079,80 +1031,11 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
                 ))}
               </div>
             )}
-          </>
-        )}
-
-        {/* Completion History */}
-        {completionLog.length > 0 && (
-          <>
-            <div style={{
-              fontSize: '12px',
-              fontWeight: 600,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: '#6b7280',
-              padding: '16px 4px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                <path d="M8 2L8 8.5L12 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-              Activity Log
-              <span style={{
-                background: 'rgba(255,255,255,0.06)',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 600,
-              }}>
-                {completionLog.length}
-              </span>
-            </div>
-
-            {completionLog.slice(0, 20).map(entry => (
-              <div
-                key={entry.id}
-                style={{
-                  background: '#1a1a1c',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  marginBottom: '6px',
-                  padding: '10px 14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  opacity: 0.7,
-                }}
-              >
-                {entry.photo_url && (
-                  <img
-                    src={entry.photo_url}
-                    alt=""
-                    onClick={() => setLightboxUrl(entry.photo_url)}
-                    style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover', cursor: 'pointer', flexShrink: 0 }}
-                  />
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#9ca3af', textDecoration: 'line-through' }}>{entry.task_title}</div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                    {entry.completed_by_names && <span>{entry.completed_by_names} · </span>}
-                    {new Date(entry.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                    {entry.points_awarded > 0 && <span style={{ color: '#d71cd1', fontWeight: 600 }}> · +{entry.points_awarded}pts</span>}
-                  </div>
-                  {entry.completion_notes && (
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{entry.completion_notes}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </>
+          </div>
         )}
       </div>
 
-      {/* PIN modal — used for add task, edit task, subtask operations */}
+      {/* PIN modal */}
       {showPinModal && (
         <PinModal
           onSuccess={() => {
@@ -1179,6 +1062,7 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
           categories={categories}
           locations={locations}
           teamMembers={teamMembers}
+          defaultBucket={defaultBucket}
           onSave={
             editingTask
               ? data => handleUpdateTask(editingTask.id, data)
@@ -1200,7 +1084,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         />
       )}
 
-      {/* Subtask completion modal */}
       {completingSubtask && (
         <CompleteModal
           task={completingSubtask}
@@ -1210,7 +1093,6 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         />
       )}
 
-      {/* Parent auto-complete modal (photo only, no points) */}
       {completingParentAutoComplete && (
         <CompleteModal
           task={completingParentAutoComplete}
@@ -1221,21 +1103,25 @@ export default function TaskBoard({ initialData }: { initialData: BoardData }) {
         />
       )}
 
+      {/* Content upload modal */}
+      {showContentUpload && (
+        <ContentUploadModal
+          teamMembers={teamMembers}
+          onClose={() => setShowContentUpload(false)}
+          onSuccess={(memberId, newTotalPoints) => {
+            setTeamMembers(prev => prev.map(m =>
+              m.id === memberId ? { ...m, total_points: newTotalPoints } : m
+            ))
+          }}
+        />
+      )}
+
       {/* Points toast */}
       {toast && (
         <PointsToast
           points={toast.points}
           names={toast.names}
           onDone={() => setToast(null)}
-        />
-      )}
-
-      {/* Photo gallery */}
-      {showGallery && (
-        <PhotoGallery
-          completionLog={completionLog}
-          onDelete={handleDeleteCompletion}
-          onClose={() => setShowGallery(false)}
         />
       )}
 

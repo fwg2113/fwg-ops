@@ -34,6 +34,18 @@ export interface NihTaskAssignee {
   nih_team_members: NihTeamMember
 }
 
+export type TaskBucket = 'recurring' | 'urgent' | 'whenever' | 'bonus'
+export type ViewBucket = TaskBucket | 'completed' | 'gallery'
+
+export const BUCKET_CONFIG: Record<ViewBucket, { label: string; color: string }> = {
+  recurring:  { label: 'Recurring',  color: '#22d3ee' },
+  urgent:     { label: 'Urgent',     color: '#ef4444' },
+  whenever:   { label: 'Whenever',   color: '#a78bfa' },
+  bonus:      { label: 'Bonus',      color: '#fbbf24' },
+  completed:  { label: 'Completed',  color: '#22c55e' },
+  gallery:    { label: 'Gallery',    color: '#d71cd1' },
+}
+
 export interface NihTask {
   id: string
   title: string
@@ -55,6 +67,7 @@ export interface NihTask {
   points: number
   is_recurring: boolean
   recurring_days: string[]
+  task_bucket: TaskBucket
   created_by: string | null
   created_at: string
   updated_at: string
@@ -86,15 +99,6 @@ export interface BoardData {
   weeklyWinners: NihWeeklyWinner[]
 }
 
-export type FilterState = {
-  category: string | null
-  urgency: string | null
-  timeEstimate: string | null
-  location: string | null
-  assignee: string | null
-  showCompleted: boolean
-}
-
 export const URGENCY_COLORS: Record<string, string> = {
   low: '#6b7280',
   medium: '#f59e0b',
@@ -108,18 +112,6 @@ export const URGENCY_LABELS: Record<string, string> = {
   high: 'High',
   critical: 'Critical',
 }
-export interface NihCompletionLog {
-  id: string
-  task_id: string | null
-  task_title: string
-  photo_url: string | null
-  completion_notes: string | null
-  completed_by_names: string | null
-  completed_by_ids: string[]
-  points_awarded: number
-  completed_at: string
-  created_at: string
-}
 
 export const TIME_ESTIMATES = [
   '15 min',
@@ -131,12 +123,27 @@ export const TIME_ESTIMATES = [
   'Multi-day',
 ]
 
+export interface NihContentUpload {
+  id: string
+  uploaded_by_id: string
+  uploaded_by_name: string
+  file_name: string
+  mime_type: string
+  file_type: 'photo' | 'video'
+  points_awarded: number
+  drive_file_id: string | null
+  drive_file_url: string | null
+  created_at: string
+}
+
 export interface NihWeeklyWinner {
   id: string
   week_start: string
+  week_end: string
   position: number
   team_member_id: string
-  team_member_name: string
+  member_name: string
+  member_avatar_color: string
   points: number
   prize_text: string | null
   created_at: string

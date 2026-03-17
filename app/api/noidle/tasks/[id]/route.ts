@@ -4,7 +4,7 @@ import { supabase } from '../../../../lib/supabase'
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
-  const { title, description, category_id, location_id, urgency, time_estimate, status, is_project, point_of_contact, assignee_ids, completed_at, completion_notes, completed_by, points, is_recurring, recurring_days } = body
+  const { title, description, category_id, location_id, urgency, time_estimate, status, is_project, point_of_contact, assignee_ids, completed_at, completion_notes, completed_by, points, is_recurring, recurring_days, task_bucket } = body
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (title !== undefined) updates.title = title
@@ -22,6 +22,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (points !== undefined) updates.points = points
   if (is_recurring !== undefined) updates.is_recurring = is_recurring
   if (recurring_days !== undefined) updates.recurring_days = recurring_days
+  if (task_bucket !== undefined) updates.task_bucket = task_bucket
+  // Force recurring bucket when is_recurring is toggled on
+  if (is_recurring === true) updates.task_bucket = 'recurring'
+  // If toggling recurring off and bucket is still 'recurring', switch to 'whenever'
+  if (is_recurring === false && (task_bucket === 'recurring' || task_bucket === undefined)) {
+    updates.task_bucket = task_bucket && task_bucket !== 'recurring' ? task_bucket : 'whenever'
+  }
 
   const { data: task, error } = await supabase
     .from('nih_tasks')
