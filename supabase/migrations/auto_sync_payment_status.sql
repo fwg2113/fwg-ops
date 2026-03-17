@@ -16,8 +16,8 @@ BEGIN
   FROM documents
   WHERE id = COALESCE(NEW.document_id, OLD.document_id);
 
-  -- Calculate total paid from all payments for this document
-  SELECT COALESCE(SUM(amount), 0) INTO total_paid
+  -- Calculate total paid from all payments, excluding processing fees
+  SELECT COALESCE(SUM(amount - COALESCE(processing_fee, 0)), 0) INTO total_paid
   FROM payments
   WHERE document_id = COALESCE(NEW.document_id, OLD.document_id);
 
