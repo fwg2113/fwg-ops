@@ -37,7 +37,7 @@ async function sendTaskNotifications(title: string, description: string | null, 
 
   const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.NEXT_PUBLIC_SITE_URL || 'https://fwg-ops.vercel.app'
+    : process.env.NEXT_PUBLIC_SITE_URL || 'https://hands.frederickwraps.com'
   const bucket = taskBucket || 'whenever'
   body += `\n\n👉 ${baseUrl}/hands?bucket=${bucket}`
 
