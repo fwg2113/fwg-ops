@@ -66,7 +66,6 @@ export async function POST(req: Request) {
       requestBody: {
         name: safeName,
         parents: [folderId],
-        driveId: folderId,
       },
       media: {
         mimeType,
