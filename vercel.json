@@ -7,6 +7,10 @@
     {
       "path": "/api/conversions/batch-upload",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/noidle/weekly-reset",
+      "schedule": "0 5 * * 1"
     }
   ],
   "functions": {

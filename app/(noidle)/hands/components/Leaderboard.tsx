@@ -490,6 +490,113 @@ export default function Leaderboard({ teamMembers, prizes, onPrizesUpdate, onPoi
         </div>
       )}
 
+      {/* Last Week's Winners */}
+      {weeklyWinners.length > 0 && (
+        <div style={{
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          padding: '10px 16px 12px',
+          background: 'linear-gradient(135deg, rgba(251,191,36,0.06) 0%, rgba(215,28,209,0.04) 100%)',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '8px',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M4 2H12V6C12 9 10.2 11 8 11.5C5.8 11 4 9 4 6V2Z" stroke="#fbbf24" strokeWidth="1.3" fill="rgba(251,191,36,0.2)" strokeLinejoin="round" />
+              <path d="M6.5 14H9.5" stroke="#fbbf24" strokeWidth="1.3" strokeLinecap="round" />
+              <path d="M8 11.5V14" stroke="#fbbf24" strokeWidth="1.3" />
+            </svg>
+            <span style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: '#fbbf24',
+            }}>
+              Last Week&apos;s Winners
+            </span>
+            <span style={{
+              fontSize: '10px',
+              color: '#6b7280',
+              marginLeft: 'auto',
+            }}>
+              {new Date(weeklyWinners[0].week_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {' - '}
+              {new Date(weeklyWinners[0].week_end + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {weeklyWinners.map((winner, i) => (
+              <div
+                key={winner.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 8px',
+                  borderRadius: '8px',
+                  background: `linear-gradient(135deg, ${RANK_COLORS[i]}11 0%, transparent 100%)`,
+                  border: `1px solid ${RANK_COLORS[i]}22`,
+                }}
+              >
+                {/* Rank badge */}
+                <span style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '6px',
+                  background: `linear-gradient(135deg, ${RANK_COLORS[i]}, ${RANK_COLORS[i]}88)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: '#000',
+                  flexShrink: 0,
+                  boxShadow: `0 0 8px ${RANK_COLORS[i]}44`,
+                }}>
+                  {RANK_LABELS[i]}
+                </span>
+
+                {/* Avatar */}
+                <span style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '999px',
+                  background: winner.member_avatar_color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: '#fff',
+                  flexShrink: 0,
+                }}>
+                  {winner.member_name[0]}
+                </span>
+
+                {/* Name + Prize */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
+                    {winner.member_name}
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: '#d71cd1', marginLeft: '6px' }}>
+                      {winner.points} pts
+                    </span>
+                  </div>
+                  {winner.prize_text && (
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '1px' }}>
+                      {winner.prize_text}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* PIN modal for editing prizes */}
       {showPinModal && (
         <PinModal
