@@ -16,6 +16,44 @@ interface FilePreview {
   points: number
 }
 
+// Compress images client-side to stay under Vercel's 4.5MB body limit
+function compressImage(file: File, maxDimension = 2000, quality = 0.8): Promise<File> {
+  return new Promise((resolve) => {
+    // Skip non-images (videos)
+    if (!file.type.startsWith('image/')) { resolve(file); return }
+    // Skip small files (under 3MB)
+    if (file.size < 3 * 1024 * 1024) { resolve(file); return }
+
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width > maxDimension || height > maxDimension) {
+        const scale = maxDimension / Math.max(width, height)
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
+          } else {
+            resolve(file)
+          }
+        },
+        'image/jpeg',
+        quality,
+      )
+    }
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 export default function ContentUploadModal({ teamMembers, onClose, onSuccess }: Props) {
   const [selectedMemberId, setSelectedMemberId] = useState<string>('')
   const [files, setFiles] = useState<FilePreview[]>([])
@@ -70,9 +108,12 @@ export default function ContentUploadModal({ teamMembers, onClose, onSuccess }: 
       for (let i = 0; i < files.length; i++) {
         setUploadProgress({ current: i + 1, total: files.length })
 
+        // Compress large images to stay under Vercel body limit
+        const fileToUpload = await compressImage(files[i].file)
+
         const formData = new FormData()
         formData.append('teamMemberId', selectedMemberId)
-        formData.append('file', files[i].file)
+        formData.append('file', fileToUpload)
 
         const res = await fetch('/api/noidle/content-upload', {
           method: 'POST',
@@ -80,8 +121,9 @@ export default function ContentUploadModal({ teamMembers, onClose, onSuccess }: 
         })
 
         if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error || `Upload failed for file ${i + 1}`)
+          let errMsg = `Upload failed for file ${i + 1}`
+          try { const data = await res.json(); errMsg = data.error || errMsg } catch { /* non-JSON response */ }
+          throw new Error(errMsg)
         }
 
         const data = await res.json()
