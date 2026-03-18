@@ -7,6 +7,7 @@ import { isAutomationEnabled } from '../../../lib/automation-settings'
 import ProductLookup from '@/app/components/operations/ProductLookup'
 import { SupplierKey, DEFAULT_SUPPLIER } from '@/app/lib/suppliers/types'
 import GarmentMockupBuilder from '@/app/components/operations/GarmentMockupBuilder'
+import { pdfToImage } from '@/app/lib/pdfToImage'
 
 const buttonStyles = `
   .action-btn {
@@ -2619,7 +2620,19 @@ export default function DocumentDetail({
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const filesArray = Array.from(files)
+    // Convert any PDF files to PNG images before processing
+    const filesArray = await Promise.all(Array.from(files).map(async (f) => {
+      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+        try {
+          const result = await pdfToImage(f)
+          return result.file
+        } catch (err) {
+          console.error('PDF conversion failed:', err)
+          return f
+        }
+      }
+      return f
+    }))
 
     // Check if any file is an image
     const imageFiles = filesArray.filter(f => f.type.startsWith('image/'))
@@ -2841,7 +2854,19 @@ export default function DocumentDetail({
     const item = lineItems.find(i => i.id === itemId)
     if (!item) return
 
-    const filesArray = Array.from(files)
+    // Convert any PDF files to PNG images before processing
+    let filesArray = await Promise.all(Array.from(files).map(async (f) => {
+      if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+        try {
+          const result = await pdfToImage(f)
+          return result.file
+        } catch (err) {
+          console.error('PDF conversion failed:', err)
+          return f
+        }
+      }
+      return f
+    }))
 
     // Check if any file is an image
     const imageFiles = filesArray.filter(f => f.type.startsWith('image/'))

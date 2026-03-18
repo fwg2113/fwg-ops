@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import JSZip from 'jszip'
 import opentype from 'opentype.js'
 import { renderDSTFile, parseDST, renderDSTToCanvas } from '@/app/lib/dstParser'
+import { pdfToImage } from '@/app/lib/pdfToImage'
 
 type Location = 'Front' | 'Back' | 'Sleeves'
 
@@ -112,6 +113,7 @@ export default function GarmentMockupBuilder({
   const [textElements, setTextElements] = useState<TextElement[]>(initialTextElements || [])
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [canvasDragOver, setCanvasDragOver] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [isRotating, setIsRotating] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -801,18 +803,31 @@ export default function GarmentMockupBuilder({
           setSelectedLogoId(newLogo.id)
         })
       } else if (isPdf) {
-        const pdfUrl = URL.createObjectURL(file)
-        const placeholderUrl = createDesignFilePlaceholder(file.name)
-        const newLogo: Logo = {
-          id: `logo_${Date.now()}_${Math.random()}`,
-          url: placeholderUrl, originalUrl: placeholderUrl,
-          backgroundRemoved: false, location: activeLocation,
-          x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
-          isSvg: false, aspectRatio: 1
-        }
-        setLogos(prev => [...prev, newLogo])
-        setSelectedLogoId(newLogo.id)
-        URL.revokeObjectURL(pdfUrl)
+        pdfToImage(file).then(({ dataUrl, width, height }) => {
+          const aspectRatio = width / height
+          const logoHeight = 0.3 / aspectRatio
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url: dataUrl, originalUrl: dataUrl,
+            backgroundRemoved: false, location: activeLocation,
+            x: 0.35, y: 0.3, width: 0.3, height: logoHeight, rotation: 0,
+            isSvg: false, aspectRatio
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
+        }).catch((err) => {
+          console.error('PDF render failed, falling back to placeholder:', err)
+          const placeholderUrl = createDesignFilePlaceholder(file.name)
+          const newLogo: Logo = {
+            id: `logo_${Date.now()}_${Math.random()}`,
+            url: placeholderUrl, originalUrl: placeholderUrl,
+            backgroundRemoved: false, location: activeLocation,
+            x: 0.35, y: 0.3, width: 0.3, height: 0.3, rotation: 0,
+            isSvg: false, aspectRatio: 1
+          }
+          setLogos(prev => [...prev, newLogo])
+          setSelectedLogoId(newLogo.id)
+        })
       } else {
         const placeholderUrl = createDesignFilePlaceholder(file.name)
         const newLogo: Logo = {
@@ -884,6 +899,30 @@ export default function GarmentMockupBuilder({
     if (!files || files.length === 0) return
     Array.from(files).forEach(file => processUploadedFile(file))
     e.target.value = ''
+  }
+
+  const handleCanvasDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCanvasDragOver(false)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      Array.from(files).forEach(file => processUploadedFile(file))
+    }
+  }
+
+  const handleCanvasDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer.types.includes('Files')) {
+      setCanvasDragOver(true)
+    }
+  }
+
+  const handleCanvasDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCanvasDragOver(false)
   }
 
   const handleProjectFileClick = async (projectFile: { url: string; filename: string; contentType?: string }) => {
@@ -2429,7 +2468,22 @@ export default function GarmentMockupBuilder({
                 position: 'relative',
               }}
               ref={canvasAreaRef}
+              onDrop={handleCanvasDrop}
+              onDragOver={handleCanvasDragOver}
+              onDragLeave={handleCanvasDragLeave}
             >
+            {canvasDragOver && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 50,
+                background: 'rgba(139, 92, 246, 0.15)',
+                border: '3px dashed #8b5cf6',
+                borderRadius: '12px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'none',
+              }}>
+                <div style={{ color: '#8b5cf6', fontSize: '18px', fontWeight: 700 }}>Drop artwork here</div>
+              </div>
+            )}
             <div
               style={{
                 flex: 1,

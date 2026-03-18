@@ -5,6 +5,7 @@ import { analyzeImage, generateEdgeHeatmap, type ImageAnalysis } from './utils/a
 import { applyAlphaThreshold, previewAlphaThreshold } from './utils/cleanEdges'
 import { applyEdgeSmoothing, previewEdgeSmoothing } from './utils/edgeSmoothing'
 import { trimTransparency } from './utils/trimTransparency'
+import { pdfToImage } from '@/app/lib/pdfToImage'
 
 type CardStatus = 'idle' | 'loading' | 'done' | 'error'
 
@@ -312,6 +313,20 @@ export default function ImageEnhancerInternal() {
 
   const handleFile = useCallback(async (f: File) => {
     if (f.size > MAX_FILE_SIZE) { alert('File exceeds 20MB limit.'); return }
+
+    // Convert PDF to PNG before processing
+    const isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
+    if (isPdf) {
+      try {
+        const result = await pdfToImage(f)
+        f = result.file
+      } catch (err) {
+        console.error('PDF conversion failed:', err)
+        alert('Failed to convert PDF. Please try a different file.')
+        return
+      }
+    }
+
     setFile(f)
     setFileUrl('')
     setUploading(true)
