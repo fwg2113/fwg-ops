@@ -166,6 +166,18 @@ async function handlePaymentIntentSucceeded(paymentIntent: any) {
 async function recordPayment(session: any, documentId: string) {
   const paymentIntentId = session.payment_intent
 
+  // Idempotency: if payment already recorded (by another webhook event), skip
+  const { data: existingPayment } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('processor_txn_id', paymentIntentId)
+    .maybeSingle()
+
+  if (existingPayment) {
+    console.log(`[stripe-webhook] Payment already recorded for ${paymentIntentId} — skipping recordPayment`)
+    return
+  }
+
   const { data: doc } = await supabase
     .from('documents')
     .select('*')

@@ -2784,7 +2784,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         {/* ================================================================ */}
         {/* GROUPED LINE ITEMS WITH INLINE ATTACHMENTS (non-options mode) */}
         {/* ================================================================ */}
-        {!isOptionsMode && lineItems.length > 0 && (() => {
+        {!isOptionsMode && (lineItems.length > 0 || fees.length > 0) && (() => {
           // Build groups from line items
           const groupOrder: string[] = []
           const groupMap: Record<string, LineItem[]> = {}
@@ -3528,10 +3528,12 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
 
               {/* Totals */}
               <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '2px solid #f1f5f9' }}>
+                {lineItems.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ color: '#6b7280' }}>Subtotal</span>
                   <span style={{ color: '#1a1a1a' }}>{formatCurrency(subtotal)}</span>
                 </div>
+                )}
                 
                 {fees.length > 0 && fees.map((fee, index) => (
                   <div key={index} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
