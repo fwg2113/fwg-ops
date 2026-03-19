@@ -659,6 +659,7 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
   const [showShipForm, setShowShipForm] = useState(false)
   const [trackingNumber, setTrackingNumber] = useState('')
   const [printFileUrl, setPrintFileUrl] = useState<string | null>(null)
+  const [individualFiles, setIndividualFiles] = useState<Array<{ name: string; url: string }>>([])
   const [printFileLoading, setPrintFileLoading] = useState(false)
   const [printFileNotFound, setPrintFileNotFound] = useState(false)
   const [driveStatus, setDriveStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
@@ -677,6 +678,7 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
       .then(data => {
         if (data?.url) setPrintFileUrl(data.url)
         else setPrintFileNotFound(true)
+        if (data?.individualFiles?.length) setIndividualFiles(data.individualFiles)
       })
       .catch(() => setPrintFileNotFound(true))
       .finally(() => setPrintFileLoading(false))
@@ -986,6 +988,47 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
               )}
             </div>
           ) : null}
+
+          {/* Individual Files */}
+          {individualFiles.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>
+                Individual Files ({individualFiles.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {individualFiles.map((file: { name: string; url: string }, i: number) => (
+                  <a
+                    key={i}
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      color: '#cbd5e1',
+                      fontSize: '12px',
+                      textDecoration: 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={e => { (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+                    onMouseLeave={e => { (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.03)' }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14, flexShrink: 0 }}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    {file.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

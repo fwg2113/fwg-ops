@@ -11,12 +11,14 @@ const s3 = new S3Client({
 })
 
 const BUCKET = process.env.R2_BUCKET_NAME || 'fwg-uploads'
+const ASSETS_BASE = 'https://assets.frederickapparel.com'
 
 /**
  * GET /api/fa-orders/print-file?session_token=xxx
  *
- * Lists objects in fa/artwork/{session_token}/print-ready/ and returns
- * the first file found as { key, url }.
+ * Lists all files in fa/artwork/{session_token}/print-ready/ and returns:
+ * - key, url: the gang sheet PDF (first .pdf found) — for backward compatibility
+ * - files[]: all files (PDF + individual artwork files)
  */
 export async function GET(request: NextRequest) {
   const sessionToken = request.nextUrl.searchParams.get('session_token')
@@ -31,19 +33,41 @@ export async function GET(request: NextRequest) {
     const result = await s3.send(new ListObjectsV2Command({
       Bucket: BUCKET,
       Prefix: prefix,
-      MaxKeys: 10,
+      MaxKeys: 50,
     }))
 
-    const files = (result.Contents || []).filter(obj => obj.Key && obj.Key !== prefix)
+    const allFiles = (result.Contents || [])
+      .filter(obj => obj.Key && obj.Key !== prefix)
+      .map(obj => {
+        const key = obj.Key!
+        const name = key.split('/').pop() ?? key
+        const isPdf = name.endsWith('.pdf')
+        return {
+          key,
+          name,
+          url: `${ASSETS_BASE}/${key}`,
+          type: isPdf ? 'gang-sheet' as const : 'individual' as const,
+          sizeBytes: obj.Size ?? 0,
+        }
+      })
 
-    if (files.length === 0) {
+    if (allFiles.length === 0) {
       return NextResponse.json({ error: 'No print file found' }, { status: 404 })
     }
 
-    const key = files[0].Key!
-    const url = `https://assets.frederickapparel.com/${key}`
+    // Find the gang sheet PDF for backward compatibility
+    const gangSheetPdf = allFiles.find(f => f.type === 'gang-sheet')
+    const individualFiles = allFiles.filter(f => f.type === 'individual')
 
-    return NextResponse.json({ key, url })
+    return NextResponse.json({
+      // Backward compatible — existing UI reads these
+      key: gangSheetPdf?.key ?? allFiles[0].key,
+      url: gangSheetPdf?.url ?? allFiles[0].url,
+      // New: all files for enhanced UI
+      files: allFiles,
+      gangSheet: gangSheetPdf ?? null,
+      individualFiles,
+    })
   } catch (error) {
     console.error('Print file lookup error:', error)
     return NextResponse.json({ error: 'Failed to look up print file' }, { status: 500 })
