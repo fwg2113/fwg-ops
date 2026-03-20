@@ -1541,6 +1541,67 @@ function DocumentDetail({ doc, mode = 'apparel' }: { doc: FADocument; mode?: 'ap
     customer_notified_at: doc.customer_notified_at || '',
   })
 
+  // Print files state
+  const [printFiles, setPrintFiles] = React.useState<Array<{ name: string; url: string; qty: number; type: string }>>([])
+  const [generatingPrintFiles, setGeneratingPrintFiles] = React.useState(false)
+  const [printFileDriveStatus, setPrintFileDriveStatus] = React.useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({})
+
+  const hasMockupConfigs = apparelItems.some(li => {
+    const mc = li.custom_fields?.mockup_config as { logos?: unknown[]; textElements?: unknown[] } | undefined
+    return mc && ((mc.logos?.length ?? 0) > 0 || (mc.textElements?.length ?? 0) > 0)
+  })
+
+  const handleGeneratePrintFiles = async () => {
+    setGeneratingPrintFiles(true)
+    setPrintFiles([])
+    try {
+      const res = await fetch('/api/fa-orders/apparel-print-files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: doc.id }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        showToast(data.error || 'Failed to generate print files', 'error')
+        return
+      }
+      setPrintFiles(data.files)
+      showToast(`Generated ${data.files.length} print file${data.files.length === 1 ? '' : 's'}`, 'success')
+    } catch {
+      showToast('Failed to generate print files', 'error')
+    } finally {
+      setGeneratingPrintFiles(false)
+    }
+  }
+
+  const handleSendPrintFileToDrive = async (file: { name: string; url: string }) => {
+    setPrintFileDriveStatus(prev => ({ ...prev, [file.url]: 'sending' }))
+    try {
+      const res = await fetch(`/api/fa-orders/${doc.id}/send-to-drive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ printFileUrl: file.url, orderNumber: `${doc.doc_number}_${file.name.replace('.pdf', '')}` }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setPrintFileDriveStatus(prev => ({ ...prev, [file.url]: 'error' }))
+        showToast(data.error || 'Drive upload failed', 'error')
+        return
+      }
+      setPrintFileDriveStatus(prev => ({ ...prev, [file.url]: 'sent' }))
+      showToast(`Sent ${file.name} to Drive`, 'success')
+    } catch {
+      setPrintFileDriveStatus(prev => ({ ...prev, [file.url]: 'error' }))
+      showToast('Drive upload failed', 'error')
+    }
+  }
+
+  const handleSendAllPrintFilesToDrive = async () => {
+    for (const file of printFiles) {
+      await handleSendPrintFileToDrive(file)
+    }
+  }
+
   const saveDocField = async (fields: Record<string, any>) => {
     try {
       const res = await fetch(`/api/documents/${doc.id}/production-status`, {
@@ -2414,6 +2475,113 @@ function DocumentDetail({ doc, mode = 'apparel' }: { doc: FADocument; mode?: 'ap
           </div>
         )
       })}
+
+      {/* Apparel Print Files */}
+      {hasMockupConfigs && (
+        <div style={{ marginTop: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(148,163,184,0.1)', borderRadius: 8, padding: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: printFiles.length > 0 ? 12 : 0 }}>
+            <div style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Print Files</div>
+            <button
+              onClick={handleGeneratePrintFiles}
+              disabled={generatingPrintFiles}
+              style={{
+                padding: '5px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                cursor: generatingPrintFiles ? 'not-allowed' : 'pointer',
+                background: generatingPrintFiles ? 'rgba(148,163,184,0.1)' : 'rgba(34,211,238,0.08)',
+                border: '1px solid rgba(34,211,238,0.2)',
+                color: generatingPrintFiles ? '#64748b' : '#22d3ee',
+                display: 'flex', alignItems: 'center', gap: 6,
+                opacity: generatingPrintFiles ? 0.6 : 1,
+              }}
+            >
+              {generatingPrintFiles && (
+                <div style={{ width: 12, height: 12, border: '2px solid rgba(34,211,238,0.3)', borderTop: '2px solid #22d3ee', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              )}
+              {generatingPrintFiles ? 'Generating...' : printFiles.length > 0 ? 'Regenerate' : 'Generate Print Files'}
+            </button>
+          </div>
+
+          {printFiles.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {printFiles.map((file, idx) => {
+                const driveStatus = printFileDriveStatus[file.url] || 'idle'
+                return (
+                  <div key={idx} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                    background: '#0d1220', borderRadius: 6, border: '1px solid rgba(148,163,184,0.08)',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {file.name}
+                      </div>
+                      <div style={{ color: '#475569', fontSize: 10, marginTop: 1 }}>
+                        {file.type === 'text' ? 'Vector Text' : 'Logo'} · {file.qty} pcs
+                      </div>
+                    </div>
+                    <a
+                      href={file.url}
+                      download={file.name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                        background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.2)',
+                        color: '#22d3ee', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      PDF
+                    </a>
+                    <button
+                      onClick={() => handleSendPrintFileToDrive(file)}
+                      disabled={driveStatus === 'sending' || driveStatus === 'sent'}
+                      style={{
+                        padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                        cursor: driveStatus === 'sending' || driveStatus === 'sent' ? 'not-allowed' : 'pointer',
+                        background: driveStatus === 'sent' ? 'rgba(52,211,153,0.1)' : 'rgba(66,133,244,0.1)',
+                        border: `1px solid ${driveStatus === 'sent' ? 'rgba(52,211,153,0.25)' : 'rgba(66,133,244,0.25)'}`,
+                        color: driveStatus === 'sent' ? '#22c55e' : '#4285f4',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        opacity: driveStatus === 'sending' ? 0.6 : 1,
+                      }}
+                    >
+                      {driveStatus === 'sending' ? (
+                        <div style={{ width: 10, height: 10, border: '2px solid rgba(66,133,244,0.3)', borderTop: '2px solid #4285f4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 12, height: 12 }}>
+                          <path d="M7.71 3.5L1.15 15l3.43 5.95h6.86l-3.43-5.95L7.71 3.5zm1.14 0l6.56 11.5H22l-6.56-11.5H8.85zM14.29 15.95L17.71 22H4.57l3.43-5.95h6.29z" />
+                        </svg>
+                      )}
+                      {driveStatus === 'sent' ? '✓ Sent' : driveStatus === 'sending' ? 'Sending...' : 'Drive'}
+                    </button>
+                  </div>
+                )
+              })}
+
+              {/* Send All to Drive */}
+              {printFiles.length > 1 && (
+                <button
+                  onClick={handleSendAllPrintFilesToDrive}
+                  style={{
+                    marginTop: 4, padding: '6px 12px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', background: 'rgba(66,133,244,0.1)', border: '1px solid rgba(66,133,244,0.25)',
+                    color: '#4285f4', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 12, height: 12 }}>
+                    <path d="M7.71 3.5L1.15 15l3.43 5.95h6.86l-3.43-5.95L7.71 3.5zm1.14 0l6.56 11.5H22l-6.56-11.5H8.85zM14.29 15.95L17.71 22H4.57l3.43-5.95h6.29z" />
+                  </svg>
+                  Send All to Drive
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Non-apparel line items fallback */}
       {nonApparelItems.length > 0 && (
