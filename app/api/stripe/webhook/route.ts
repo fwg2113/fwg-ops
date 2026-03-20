@@ -161,7 +161,8 @@ async function handlePaymentIntentSucceeded(paymentIntent: any) {
 
 /**
  * Shared payment recording logic.
- * Creates a payment record, updates invoice balance, triggers automations.
+ * Creates a payment record — the DB trigger (sync_document_payment_status)
+ * automatically updates the document's amount_paid, balance_due, and status.
  */
 async function recordPayment(session: any, documentId: string) {
   const paymentIntentId = session.payment_intent
@@ -189,17 +190,26 @@ async function recordPayment(session: any, documentId: string) {
     return
   }
 
+  // Determine payment type and calculate processing fee
   const stripeAmount = (session.amount_total || 0) / 100
-  const baseAmount = session.metadata?.base_amount
-    ? parseFloat(session.metadata.base_amount)
-    : stripeAmount
-  const processingFee = stripeAmount - baseAmount
   const paymentType = session.metadata?.payment_type === 'bank_transfer' ? 'bank_transfer' : 'card'
 
-  // Update invoice balance
-  const newAmountPaid = (doc.amount_paid || 0) + baseAmount
-  const newBalanceDue = (doc.total || 0) - newAmountPaid
-  const isPaidInFull = newBalanceDue <= 0
+  let baseAmount: number
+  let processingFee: number
+
+  if (session.metadata?.base_amount) {
+    // Use metadata if available (set by checkout session creation)
+    baseAmount = parseFloat(session.metadata.base_amount)
+    processingFee = Math.round((stripeAmount - baseAmount) * 100) / 100
+  } else if (paymentType === 'card') {
+    // Reverse-calculate: stripeAmount = base * 1.029 + 0.30
+    baseAmount = Math.round(((stripeAmount - 0.30) / 1.029) * 100) / 100
+    processingFee = Math.round((stripeAmount - baseAmount) * 100) / 100
+  } else {
+    // ACH / bank transfer — no surcharge
+    baseAmount = stripeAmount
+    processingFee = 0
+  }
 
   // Convert quote to invoice if needed
   if (doc.doc_type === 'quote') {
@@ -223,18 +233,35 @@ async function recordPayment(session: any, documentId: string) {
     console.log(`[stripe-webhook] Converted quote #${doc.doc_number} → invoice #${nextDocNumber}`)
   }
 
-  // Update document status
-  await supabase
-    .from('documents')
-    .update({
-      status: isPaidInFull ? 'paid' : 'partial',
-      amount_paid: newAmountPaid,
-      balance_due: Math.max(0, newBalanceDue),
-      paid_at: isPaidInFull ? new Date().toISOString() : null,
-    })
-    .eq('id', documentId)
+  // Insert payment record — the DB trigger handles updating the document's
+  // amount_paid, balance_due, status, and paid_at automatically
+  const { data: paymentRecord, error: paymentError } = await supabase
+    .from('payments')
+    .upsert({
+      document_id: documentId,
+      amount: stripeAmount,
+      processing_fee: processingFee > 0 ? processingFee : 0,
+      payment_method: paymentType,
+      processor: 'stripe',
+      processor_txn_id: paymentIntentId,
+      status: 'completed',
+      read: false,
+      created_at: new Date().toISOString(),
+    }, { onConflict: 'processor_txn_id', ignoreDuplicates: true })
+    .select()
+    .single()
 
-  console.log(`[stripe-webhook] Document ${documentId} updated: ${isPaidInFull ? 'paid' : 'partial'} ($${baseAmount})`)
+  if (paymentError) {
+    console.error('[stripe-webhook] Failed to upsert payment:', paymentError)
+    return
+  }
+
+  console.log(`[stripe-webhook] Payment recorded: ${paymentRecord.id} ($${stripeAmount} total, $${baseAmount} base, $${processingFee} fee)`)
+
+  // Calculate paid status locally for notifications/automations
+  const newAmountPaid = (doc.amount_paid || 0) + baseAmount
+  const newBalanceDue = (doc.total || 0) - newAmountPaid
+  const isPaidInFull = newBalanceDue <= 0
 
   // Auto-move to production on payment
   if (baseAmount > 0 && !doc.in_production) {
@@ -263,40 +290,14 @@ async function recordPayment(session: any, documentId: string) {
     }
   }
 
-  // Upsert payment record (idempotent — handles duplicate webhook deliveries)
-  const { data: paymentRecord, error: paymentError } = await supabase
-    .from('payments')
-    .upsert({
-      document_id: documentId,
-      amount: stripeAmount,
-      processing_fee: processingFee > 0 ? processingFee : 0,
-      payment_method: paymentType,
-      processor: 'stripe',
-      processor_txn_id: paymentIntentId,
-      status: 'completed',
-      read: false,
-      created_at: new Date().toISOString(),
-    }, { onConflict: 'processor_txn_id', ignoreDuplicates: true })
-    .select()
-    .single()
-
-  if (paymentError) {
-    console.error('[stripe-webhook] Failed to upsert payment:', paymentError)
-    return
-  }
-
-  console.log(`[stripe-webhook] Payment recorded: ${paymentRecord.id}`)
-
   // Sync to Google Sheets
-  if (paymentRecord) {
-    try {
-      const sheetResult = await syncPaymentToSheet(paymentRecord.id)
-      if (sheetResult.success) {
-        console.log(`[stripe-webhook] Synced to Sheets: ${sheetResult.rowsAdded} rows`)
-      }
-    } catch (sheetError) {
-      console.error('[stripe-webhook] Sheet sync failed:', sheetError)
+  try {
+    const sheetResult = await syncPaymentToSheet(paymentRecord.id)
+    if (sheetResult.success) {
+      console.log(`[stripe-webhook] Synced to Sheets: ${sheetResult.rowsAdded} rows`)
     }
+  } catch (sheetError) {
+    console.error('[stripe-webhook] Sheet sync failed:', sheetError)
   }
 
   // Send notification email

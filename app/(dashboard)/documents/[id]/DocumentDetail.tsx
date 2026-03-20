@@ -126,6 +126,7 @@ type Document = {
   send_options_json?: any; pricing_snapshot_json?: any; pricing_locked?: boolean; pricing_snapshot_at?: string
   snoozed?: boolean; snoozed_at?: string
   due_date?: string | null
+  expected_revenue?: boolean
 }
 
 type HistoryEntry = {
@@ -587,14 +588,12 @@ export default function DocumentDetail({
   const calculatedTax = taxableSubtotal * 0.06
   const taxAmount = calculatedTax
   const total = subtotal + feesTotal - discountAmount + taxAmount
-  // Calculate actual amount paid from payments (doc.amount_paid may be stale)
+  // Calculate actual amount paid from payments (subtract processing fees from Stripe card payments)
   const actualAmountPaid = (() => {
     const fromPayments = (payments || []).filter(p => p.status === 'completed').reduce((sum, p) => {
       const amt = parseFloat(String(p.amount)) || 0
       const fee = parseFloat(String(p.processing_fee)) || 0
-      if (fee > 0 && fee < amt) return sum + (amt - fee)
-      if (fee >= amt && p.payment_method === 'card') return sum + Math.round(((amt - 0.30) / 1.029) * 100) / 100
-      return sum + amt
+      return sum + (amt - fee)
     }, 0)
     return Math.max(fromPayments, parseFloat(String(doc.amount_paid)) || 0)
   })()
@@ -1450,10 +1449,48 @@ export default function DocumentDetail({
 
   const handleMarkPaid = async () => {
     setIsSaving(true)
-    await supabase.from('documents').update({ status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 }).eq('id', doc.id)
+    // Create a payment record for the remaining balance so the DB trigger
+    // correctly updates amount_paid, balance_due, status, and paid_at
+    const remaining = Math.max(0, total - actualAmountPaid)
+    if (remaining > 0) {
+      await supabase.from('payments').insert({
+        document_id: doc.id,
+        amount: remaining,
+        payment_method: 'other',
+        processor: 'manual',
+        status: 'completed',
+        read: true,
+        notes: 'Marked as paid in full',
+        created_at: new Date().toISOString()
+      })
+    } else {
+      // Already fully paid by existing payments, just ensure status is correct
+      await supabase.from('documents').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', doc.id)
+    }
     setDoc({ ...doc, status: 'paid', paid_at: new Date().toISOString(), amount_paid: total, balance_due: 0 })
     await appendHistory('Marked Paid', `Manually marked as paid in full`)
     setIsSaving(false)
+  }
+
+  const [showExpectedRevenueConfirm, setShowExpectedRevenueConfirm] = useState(false)
+
+  const handleToggleExpectedRevenue = async () => {
+    if (doc.expected_revenue) {
+      // Removing — no confirmation needed
+      await supabase.from('documents').update({ expected_revenue: false }).eq('id', doc.id)
+      setDoc({ ...doc, expected_revenue: false })
+      showToast('Removed from Expected Revenue', 'success')
+    } else {
+      // Adding — show confirmation
+      setShowExpectedRevenueConfirm(true)
+    }
+  }
+
+  const confirmExpectedRevenue = async () => {
+    await supabase.from('documents').update({ expected_revenue: true }).eq('id', doc.id)
+    setDoc({ ...doc, expected_revenue: true })
+    setShowExpectedRevenueConfirm(false)
+    showToast('Added to Expected Revenue', 'success')
   }
 
   const handleSendRevisionReply = async () => {
@@ -1524,23 +1561,13 @@ export default function DocumentDetail({
         .single()
       
       if (paymentError) throw paymentError
-      
-      // Update document totals
+
+      // The DB trigger (sync_document_payment_status) automatically updates
+      // the document's amount_paid, balance_due, status, and paid_at
+      // Calculate locally for optimistic UI update and automation logic
       const newAmountPaid = actualAmountPaid + paymentAmount
       const newBalanceDue = total - newAmountPaid
       const isPaidInFull = newBalanceDue <= 0
-      
-      const { error: docError } = await supabase
-        .from('documents')
-        .update({
-          status: isPaidInFull ? 'paid' : 'partial',
-          amount_paid: newAmountPaid,
-          balance_due: Math.max(0, newBalanceDue),
-          paid_at: new Date().toISOString()
-        })
-        .eq('id', doc.id)
-      
-      if (docError) throw docError
 
       // Automation #1: Auto-move to production on payment (any payment amount)
       let automationRan = false
@@ -3438,6 +3465,16 @@ export default function DocumentDetail({
                 }
               }
               
+              // Expected Revenue toggle (for quotes and invoices not yet fully paid)
+              if (!isArchived && doc.status !== 'paid') {
+                buttons.push(
+                  <ActionButton key="expected-revenue" onClick={handleToggleExpectedRevenue} variant={doc.expected_revenue ? 'success-outline' : 'secondary'} style={doc.expected_revenue ? { color: '#22c55e', borderColor: 'rgba(34, 197, 94, 0.4)' } : {}}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    {doc.expected_revenue ? '✓ Expected Revenue' : 'Expected Revenue'}
+                  </ActionButton>
+                )
+              }
+
               // Fulfillment Type (available for both quotes and invoices, unless archived)
               if (!isArchived) {
                 buttons.push(<ActionButton key="fulfillment" onClick={() => setShowFulfillmentModal(true)} variant="secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13" rx="2" ry="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>{doc.fulfillment_type ? doc.fulfillment_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : 'Set Fulfillment'}</ActionButton>)
@@ -6203,6 +6240,36 @@ export default function DocumentDetail({
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 {schedulingEvent ? 'Scheduling...' : 'Schedule Project'}
               </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expected Revenue Confirmation Modal */}
+      {showExpectedRevenueConfirm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowExpectedRevenueConfirm(false)}>
+          <div style={{ background: '#111111', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '24px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 600, margin: 0 }}>Add to Expected Revenue?</h3>
+            </div>
+            <p style={{ color: '#94a3b8', fontSize: '13px', lineHeight: '1.6', margin: '0 0 8px 0' }}>
+              Only use this for jobs you are <strong style={{ color: '#f1f5f9' }}>confident will be paid</strong>. This is for:
+            </p>
+            <ul style={{ color: '#94a3b8', fontSize: '13px', lineHeight: '1.8', margin: '0 0 16px 0', paddingLeft: '20px' }}>
+              <li>Invoices waiting on customer payment</li>
+              <li>Jobs that are scheduled or already completed</li>
+              <li>Partially paid jobs with remaining balance</li>
+              <li>Approved quotes the customer has committed to</li>
+            </ul>
+            <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 20px 0', fontStyle: 'italic' }}>
+              This is not for general quotes or potential sales. It tracks real money you expect to collect.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowExpectedRevenueConfirm(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.2)', background: 'transparent', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={confirmExpectedRevenue} style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Yes, Add to Expected Revenue</button>
             </div>
           </div>
         </div>
