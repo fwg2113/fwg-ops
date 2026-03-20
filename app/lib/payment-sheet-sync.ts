@@ -86,16 +86,46 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       .select('category, line_total')
       .eq('document_id', payment.document_id)
 
-    // Build revenue breakdown by category from line items
+    // Fetch the document fees (design fees, rush fees, etc.)
+    const { data: feeDoc } = await supabase
+      .from('documents')
+      .select('fees')
+      .eq('id', payment.document_id)
+      .single()
+
+    // Fee type to sheet category mapping
+    const feeTypeToSheet: Record<string, string> = {
+      'DESIGN': 'Design Fee Revenue',
+      'VECTORIZING': 'Design Fee Revenue',
+      'DIGITIZING_INHOUSE': 'Design Fee Revenue',
+      'RUSH': 'Other Revenue',
+      'DELIVERY': 'Other Revenue',
+    }
+
+    // Build revenue breakdown by category from line items + fees
     const categoryTotals: Record<string, number> = {}
-    let lineItemsTotal = 0
+    let baseTotal = 0
 
     if (lineItems && lineItems.length > 0) {
       for (const item of lineItems) {
         const cat = getSheetCategory(item.category)
         const amount = parseFloat(String(item.line_total)) || 0
         categoryTotals[cat] = (categoryTotals[cat] || 0) + amount
-        lineItemsTotal += amount
+        baseTotal += amount
+      }
+    }
+
+    // Add document-level fees as their own categories
+    if (feeDoc?.fees) {
+      const fees = typeof feeDoc.fees === 'string' ? JSON.parse(feeDoc.fees) : feeDoc.fees
+      if (Array.isArray(fees)) {
+        for (const f of fees) {
+          const amt = parseFloat(String(f.amount)) || 0
+          if (amt <= 0) continue
+          const cat = feeTypeToSheet[f.fee_type] || 'Other Revenue'
+          categoryTotals[cat] = (categoryTotals[cat] || 0) + amt
+          baseTotal += amt
+        }
       }
     }
 
@@ -107,12 +137,12 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
     }
 
     // Recalculate total from non-zero categories only
-    lineItemsTotal = Object.values(categoryTotals).reduce((sum, v) => sum + v, 0)
+    baseTotal = Object.values(categoryTotals).reduce((sum, v) => sum + v, 0)
 
-    // Fallback: if no line items with revenue found, use Other Revenue
+    // Fallback: if no line items or fees found, use Other Revenue
     if (Object.keys(categoryTotals).length === 0) {
       categoryTotals['Other Revenue'] = 1
-      lineItemsTotal = 1
+      baseTotal = 1
     }
 
     // Payment basics
@@ -163,7 +193,7 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
           // Last category gets the remainder to avoid rounding drift
           revenueRows.push({ category: cat, amount: Math.round((revenueAmount - allocated) * 100) / 100 })
         } else {
-          const proportion = catTotal / lineItemsTotal
+          const proportion = catTotal / baseTotal
           const catAmount = Math.round(revenueAmount * proportion * 100) / 100
           revenueRows.push({ category: cat, amount: catAmount })
           allocated += catAmount

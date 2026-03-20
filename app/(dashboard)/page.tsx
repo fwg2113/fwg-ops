@@ -41,10 +41,10 @@ export default async function DashboardPage() {
     .select('*, documents:document_id(id, customer_name, doc_number, doc_type, total, vehicle_description, project_description, category, status)')
     .order('sort_order', { ascending: true })
 
-  // Fetch categories for parent_category grouping
+  // Fetch categories for parent_category grouping and label display
   const { data: dbCategories } = await supabase
     .from('categories')
-    .select('category_key, parent_category')
+    .select('category_key, parent_category, label')
     .eq('active', true)
   const catParentMap: Record<string, string> = {}
   for (const c of (dbCategories || [])) { catParentMap[c.category_key] = c.parent_category }
@@ -177,8 +177,8 @@ export default async function DashboardPage() {
     .select('document_id')
     .not('document_id', 'is', null)
 
-  // Fetch LIVE metrics from Google Sheets
-  let liveMetrics = {
+  // Fetch YTD from Google Sheets (historical data goes back further)
+  let sheetsMetrics = {
     fwgMtdTotal: 0,
     fwgYtdTotal: 0,
     bonusEligibleMtd: 0,
@@ -187,15 +187,142 @@ export default async function DashboardPage() {
     categoryMtd: {} as Record<string, number>
   }
   try {
-    liveMetrics = await getCommandCenterMetrics()
+    sheetsMetrics = await getCommandCenterMetrics()
   } catch (error) {
     console.error('Error fetching Google Sheets metrics:', error)
   }
 
+  // Fetch MTD metrics from Supabase (payments + line items = source of truth)
+  // This gives accurate revenue by category based on actual payments received
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  const { data: mtdPayments } = await supabase
+    .from('payments')
+    .select('document_id, amount, processing_fee')
+    .eq('status', 'completed')
+    .gte('created_at', monthStart)
+
+  // Build category label map from categories table
+  const catLabelMap: Record<string, string> = {}
+  for (const c of (dbCategories || [])) { catLabelMap[c.category_key] = c.label || c.category_key }
+
+  // Bonus-eligible categories (automotive + signage parent categories, excluding window tint)
+  const bonusEligibleKeys = (dbCategories || [])
+    .filter(c => ['AUTOMOTIVE', 'SIGNAGE'].includes(c.parent_category) && c.category_key !== 'WINDOW_TINT')
+    .map(c => c.category_key)
+
+  let fwgMtdTotal = 0
+  let bonusEligibleMtd = 0
+  let embroideryMtd = 0
+  const categoryMtd: Record<string, number> = {}
+
+  // Fee type display labels
+  const feeTypeLabels: Record<string, string> = {
+    'DESIGN': 'Design Fee',
+    'RUSH': 'Rush Fee',
+    'DELIVERY': 'Delivery',
+    'VECTORIZING': 'Design Fee',
+    'DIGITIZING_INHOUSE': 'Design Fee',
+  }
+
+  if (mtdPayments && mtdPayments.length > 0) {
+    // Group payments by document, summing net amounts
+    const docPayments: Record<string, number> = {}
+    for (const p of mtdPayments) {
+      const net = (parseFloat(String(p.amount)) || 0) - (parseFloat(String(p.processing_fee)) || 0)
+      docPayments[p.document_id] = (docPayments[p.document_id] || 0) + net
+      fwgMtdTotal += net
+    }
+
+    // Get line items AND document fees for all paid documents
+    const paidDocIds = Object.keys(docPayments)
+    const { data: paidLineItems } = await supabase
+      .from('line_items')
+      .select('document_id, category, line_total')
+      .in('document_id', paidDocIds)
+
+    const { data: paidDocs } = await supabase
+      .from('documents')
+      .select('id, fees')
+      .in('id', paidDocIds)
+
+    // Parse document-level fees into a flat list
+    type FeeEntry = { document_id: string; label: string; amount: number }
+    const docFees: FeeEntry[] = []
+    if (paidDocs) {
+      for (const d of paidDocs) {
+        if (!d.fees) continue
+        const fees = typeof d.fees === 'string' ? JSON.parse(d.fees) : d.fees
+        if (!Array.isArray(fees)) continue
+        for (const f of fees) {
+          const amt = parseFloat(String(f.amount)) || 0
+          if (amt <= 0) continue
+          docFees.push({
+            document_id: d.id,
+            label: feeTypeLabels[f.fee_type] || f.description || 'Other Fee',
+            amount: amt
+          })
+        }
+      }
+    }
+
+    // Calculate base total per document (line items + fees) for proportional allocation
+    const docBaseTotals: Record<string, number> = {}
+    for (const li of (paidLineItems || [])) {
+      docBaseTotals[li.document_id] = (docBaseTotals[li.document_id] || 0) + (li.line_total || 0)
+    }
+    for (const f of docFees) {
+      docBaseTotals[f.document_id] = (docBaseTotals[f.document_id] || 0) + f.amount
+    }
+
+    // Allocate each document's net payment proportionally by line item category
+    for (const li of (paidLineItems || [])) {
+      const baseTotal = docBaseTotals[li.document_id] || 0
+      if (baseTotal <= 0) continue
+      const proportion = (li.line_total || 0) / baseTotal
+      const allocated = (docPayments[li.document_id] || 0) * proportion
+      const label = catLabelMap[li.category] || li.category
+      categoryMtd[label] = (categoryMtd[label] || 0) + allocated
+
+      if (bonusEligibleKeys.includes(li.category)) {
+        bonusEligibleMtd += allocated
+      }
+      if (li.category === 'EMBROIDERY') {
+        embroideryMtd += allocated
+      }
+    }
+
+    // Allocate fees proportionally too
+    for (const f of docFees) {
+      const baseTotal = docBaseTotals[f.document_id] || 0
+      if (baseTotal <= 0) continue
+      const proportion = f.amount / baseTotal
+      const allocated = (docPayments[f.document_id] || 0) * proportion
+      categoryMtd[f.label] = (categoryMtd[f.label] || 0) + allocated
+    }
+  }
+
+  // Round category values
+  for (const key of Object.keys(categoryMtd)) {
+    categoryMtd[key] = Math.round(categoryMtd[key] * 100) / 100
+  }
+
+  const bonus25Pct = bonusEligibleMtd * 0.025
+  const embroideryBonus10Pct = embroideryMtd * 0.10
+
   // Convert category breakdown to array format
-  const categoryBreakdown = Object.entries(liveMetrics.categoryMtd || {})
-    .map(([category, amount]) => ({ category, amount: amount as number }))
+  const categoryBreakdown = Object.entries(categoryMtd)
+    .map(([category, amount]) => ({ category, amount: Math.round(amount) }))
     .sort((a, b) => b.amount - a.amount)
+
+  // Fetch documents flagged as Expected Revenue (confirmed jobs waiting on payment)
+  // Include docs where balance_due > 0 OR balance_due = 0 but status is not 'paid'
+  // (quotes may have balance_due=0 because it's not set until payments are made)
+  const { data: expectedRevenueDocs } = await supabase
+    .from('documents')
+    .select('id, doc_number, doc_type, customer_name, total, balance_due, amount_paid, status')
+    .eq('expected_revenue', true)
+    .neq('status', 'paid')
+    .order('total', { ascending: false })
 
   // Get invoice IDs that have calendar events scheduled
   const scheduledInvoiceIds = new Set((calendarEvents || []).map(e => e.document_id))
@@ -211,13 +338,28 @@ export default async function DashboardPage() {
     productionDocCategories,
     pinnedItems: pinnedItems || [],
     metrics: {
-      monthlyRevenue: liveMetrics.fwgMtdTotal,
-      commissionPool: liveMetrics.bonusEligibleMtd,
-      bonus25Pct: liveMetrics.bonus25Pct,
-      embroideryBonus10Pct: liveMetrics.embroideryBonus10Pct,
-      yearlyRevenue: liveMetrics.fwgYtdTotal,
+      monthlyRevenue: Math.round(fwgMtdTotal),
+      commissionPool: Math.round(bonusEligibleMtd),
+      bonus25Pct: Math.round(bonus25Pct),
+      embroideryBonus10Pct: Math.round(embroideryBonus10Pct),
+      yearlyRevenue: sheetsMetrics.fwgYtdTotal,
     },
-    categoryBreakdown
+    categoryBreakdown,
+    expectedRevenue: (expectedRevenueDocs || []).map(d => {
+      const total = parseFloat(String(d.total)) || 0
+      const amountPaid = parseFloat(String(d.amount_paid)) || 0
+      const balanceDue = parseFloat(String(d.balance_due)) || 0
+      // Use balance_due if set, otherwise calculate from total - amount_paid
+      const effectiveBalance = balanceDue > 0 ? balanceDue : Math.max(0, total - amountPaid)
+      return {
+        id: d.id,
+        doc_number: d.doc_number,
+        doc_type: d.doc_type,
+        customer_name: d.customer_name,
+        total,
+        balance_due: effectiveBalance,
+      }
+    }).filter(d => d.balance_due > 0)
   }
 
   return (

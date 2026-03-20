@@ -69,15 +69,8 @@ function getDoc(payment: Payment): PaymentDoc {
   return Array.isArray(payment.documents) ? payment.documents[0] : payment.documents
 }
 
-// Calculate the real Stripe fee (the DB processing_fee column has bad data)
-// Stripe charges 2.9% + $0.30 on card payments
-// The amount stored includes the surcharge, so: base = (amount - 0.30) / 1.029, fee = amount - base
-function getRealFee(payment: Payment): number {
-  const isStripeCard = payment.processor === 'stripe' &&
-    (payment.payment_method === 'card' || payment.payment_method === 'card_present')
-  if (!isStripeCard) return 0
-  const base = Math.round(((payment.amount - 0.30) / 1.029) * 100) / 100
-  return Math.round((payment.amount - base) * 100) / 100
+function getPaymentFee(payment: Payment): number {
+  return payment.processing_fee || 0
 }
 
 export default function PaymentList({ initialPayments }: { initialPayments: Payment[] }) {
@@ -177,7 +170,7 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
 
   // Summary stats
   const totalAmount = filtered.reduce((sum, p) => sum + p.amount, 0)
-  const totalFees = filtered.reduce((sum, p) => sum + getRealFee(p), 0)
+  const totalFees = filtered.reduce((sum, p) => sum + getPaymentFee(p), 0)
 
   // Method breakdown
   const methodCounts = useMemo(() => {
@@ -348,8 +341,8 @@ export default function PaymentList({ initialPayments }: { initialPayments: Paym
                 {/* Amount */}
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600 }}>${payment.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                  {getRealFee(payment) > 0 && (
-                    <div style={{ color: '#64748b', fontSize: '11px' }}>-${getRealFee(payment).toFixed(2)} fee</div>
+                  {getPaymentFee(payment) > 0 && (
+                    <div style={{ color: '#64748b', fontSize: '11px' }}>-${getPaymentFee(payment).toFixed(2)} fee</div>
                   )}
                 </div>
 

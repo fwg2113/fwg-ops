@@ -947,19 +947,13 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   const total = hasAnyCustomerEdits
     ? subtotal + feesTotal - discountAmount + taxAmount
     : (parseFloat(String(doc.total)) || subtotal + feesTotal - discountAmount + taxAmount)
-  // Calculate actual amount paid from payments table (doc.amount_paid may not be updated)
+  // Calculate actual amount paid from payments (subtract processing fees from Stripe card payments)
   const actualAmountPaid = (() => {
     const fromPayments = payments.filter(p => p.status === 'completed').reduce((sum, p) => {
       const amt = parseFloat(String(p.amount)) || 0
       const fee = parseFloat(String(p.processing_fee)) || 0
-      // If processing_fee is valid (> 0 and less than amount), subtract it
-      if (fee > 0 && fee < amt) return sum + (amt - fee)
-      // If processing_fee equals amount (known bug), reverse-calculate net from card fee formula
-      if (fee >= amt && p.payment_method === 'card') return sum + Math.round(((amt - 0.30) / 1.029) * 100) / 100
-      // Bank transfer or no fee — full amount goes toward balance
-      return sum + amt
+      return sum + (amt - fee)
     }, 0)
-    // Use whichever is higher: calculated from payments or doc.amount_paid
     return Math.max(fromPayments, parseFloat(String(doc.amount_paid)) || 0)
   })()
   const balanceDue = total - actualAmountPaid
@@ -3567,20 +3561,19 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                       <span style={{ color: '#22c55e' }}>Amount Paid</span>
                       <span style={{ color: '#22c55e' }}>-{formatCurrency(actualAmountPaid)}</span>
                     </div>
-                    {payments.filter(p => (parseFloat(String(p.processing_fee)) || 0) > 0 && p.payment_method === 'card').map(p => {
+                    {payments.filter(p => p.status === 'completed' && (parseFloat(String(p.processing_fee)) || 0) > 0).map(p => {
                       const amt = parseFloat(String(p.amount)) || 0
-                      const rawFee = parseFloat(String(p.processing_fee)) || 0
-                      // If fee is bugged (equals or exceeds amount), calculate the actual fee
-                      const actualFee = (rawFee >= amt) ? Math.round((amt - (amt - 0.30) / 1.029) * 100) / 100 : rawFee
+                      const fee = parseFloat(String(p.processing_fee)) || 0
+                      const base = amt - fee
                       return (
-                        <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                          <span style={{ color: '#6b7280', fontSize: '12px' }}>+ {formatCurrency(actualFee)} credit card processing fee applied at checkout</span>
+                        <div key={p.id} style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px', textAlign: 'right' }}>
+                          Paid {formatCurrency(amt)} via card ({formatCurrency(base)} + {formatCurrency(fee)} processing fee)
                         </div>
                       )
                     })}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
                       <span style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Balance Due</span>
-                      <span style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b' }}>{formatCurrency(balanceDue)}</span>
+                      <span style={{ fontSize: '20px', fontWeight: 700, color: balanceDue > 0.01 ? '#f59e0b' : '#22c55e' }}>{formatCurrency(Math.max(0, balanceDue))}</span>
                     </div>
                   </>
                 )}
@@ -3730,14 +3723,14 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
               {payments.filter(p => p.status === 'completed').map(p => {
                 const amt = parseFloat(String(p.amount)) || 0
                 const fee = parseFloat(String(p.processing_fee)) || 0
-                const netAmt = (fee > 0 && fee < amt) ? amt - fee : amt
+                const netAmt = amt - fee
                 return (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
                     <div>
                       <div style={{ fontSize: '14px', fontWeight: 600, color: '#166534' }}>{formatCurrency(netAmt)}</div>
                       <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
                         {p.payment_method === 'card' ? 'Credit Card' : p.payment_method === 'bank_transfer' ? 'Bank Transfer' : p.payment_method === 'cash' ? 'Cash' : p.payment_method === 'check' ? 'Check' : 'Payment'}
-                        {fee > 0 && fee < amt && <span style={{ color: '#9ca3af' }}> (incl. {formatCurrency(fee)} processing fee)</span>}
+                        {fee > 0 && <span style={{ color: '#9ca3af' }}> ({formatCurrency(amt)} incl. {formatCurrency(fee)} processing fee)</span>}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

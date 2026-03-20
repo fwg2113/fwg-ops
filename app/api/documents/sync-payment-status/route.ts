@@ -38,42 +38,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: paymentsError.message }, { status: 500 })
     }
 
-    // Calculate total amount paid (exclude CC processing fees from balance calculation)
-    const totalPaid = (payments || []).reduce((sum, p) => {
-      const amt = Number(p.amount) || 0
-      const fee = Number(p.processing_fee) || 0
-      // Subtract processing fee so only the base invoice amount counts toward balance
-      if (fee > 0 && fee < amt) return sum + (amt - fee)
-      return sum + amt
-    }, 0)
-    const balanceDue = Math.max(0, Number(doc.total) - totalPaid)
-
-    // Determine status
-    let status = 'draft'
-    if (totalPaid === 0) {
-      status = 'sent' // Or keep existing status if no payments
-    } else if (balanceDue === 0) {
-      status = 'paid'
+    // Trigger the DB trigger to recalculate document payment status
+    // by doing a touch-update on the most recent payment (the trigger
+    // fires on UPDATE and recalculates amount_paid, balance_due, status, paid_at)
+    if (payments && payments.length > 0) {
+      await supabase
+        .from('payments')
+        .update({ status: 'completed' })
+        .eq('document_id', documentId)
+        .eq('status', 'completed')
+        .limit(1)
     } else {
-      status = 'partial'
+      // No payments exist — reset document to unpaid state
+      await supabase
+        .from('documents')
+        .update({ amount_paid: 0, balance_due: doc.total, status: 'sent', paid_at: null })
+        .eq('id', documentId)
     }
 
-    // Get the first payment date for paid_at
-    const paidAt = totalPaid > 0 && balanceDue === 0 && payments && payments.length > 0
-      ? payments[payments.length - 1].created_at // Last payment that made it fully paid
-      : null
-
-    // Update the document
+    // Re-fetch the document after trigger has run
     const { data: updated, error: updateError } = await supabase
       .from('documents')
-      .update({
-        amount_paid: totalPaid.toFixed(2),
-        balance_due: balanceDue.toFixed(2),
-        status,
-        paid_at: paidAt
-      })
+      .select('*')
       .eq('id', documentId)
-      .select()
       .single()
 
     if (updateError) {
@@ -81,15 +68,15 @@ export async function POST(request: Request) {
     }
 
     // Auto-complete customer actions triggered by this payment status
-    await autoCompleteActions(documentId, status).catch(() => {})
+    await autoCompleteActions(documentId, updated.status).catch(() => {})
 
     return NextResponse.json({
       success: true,
       document: updated,
       payments: payments || [],
-      totalPaid,
-      balanceDue,
-      status
+      totalPaid: updated.amount_paid,
+      balanceDue: updated.balance_due,
+      status: updated.status
     })
   } catch (error: any) {
     console.error('Error syncing payment status:', error)

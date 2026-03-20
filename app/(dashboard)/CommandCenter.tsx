@@ -128,6 +128,7 @@ type DashboardData = {
     yearlyRevenue: number
   }
   categoryBreakdown: { category: string; amount: number }[]
+  expectedRevenue: { id: string; doc_number: number; doc_type: string; customer_name: string; total: number; balance_due: number }[]
 }
 
 // Action Queue item - flattened view of all active projects
@@ -865,6 +866,42 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
           ))}
         </div>
       </div>
+
+      {/* Expected Revenue */}
+      {data.expectedRevenue.length > 0 && (() => {
+        const expectedTotal = data.expectedRevenue.reduce((sum, d) => sum + d.balance_due, 0)
+        return (
+          <div style={{
+            background: '#111111', border: '1px solid rgba(34, 197, 94, 0.3)',
+            borderRadius: '16px', padding: '20px', marginBottom: '20px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#22c55e' }}>Expected Revenue</div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>{data.expectedRevenue.length} job{data.expectedRevenue.length !== 1 ? 's' : ''}</div>
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '12px' }}>Confirmed jobs waiting on payment — scheduled, in progress, or completed work we expect to collect on.</div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#22c55e', marginBottom: '16px' }}>
+              ${expectedTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {data.expectedRevenue.map(d => (
+                <div key={d.id}
+                  onClick={() => router.push(`/documents/${d.id}`)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#1d1d1d', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#252525')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#1d1d1d')}
+                >
+                  <div>
+                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>#{d.doc_number}</span>
+                    <span style={{ color: '#f1f5f9', fontSize: '13px', marginLeft: '8px' }}>{d.customer_name}</span>
+                  </div>
+                  <span style={{ color: '#22c55e', fontSize: '13px', fontWeight: 600 }}>${d.balance_due.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* MTD by Category */}
       {data.categoryBreakdown.length > 0 && (
