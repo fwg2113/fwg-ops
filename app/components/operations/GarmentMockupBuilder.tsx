@@ -6,6 +6,10 @@ import JSZip from 'jszip'
 import opentype from 'opentype.js'
 import { renderDSTFile, parseDST, renderDSTToCanvas } from '@/app/lib/dstParser'
 import { pdfToImage } from '@/app/lib/pdfToImage'
+import { ImagePrepModal } from '@/app/components/shared/image-tools/ImagePrepModal'
+import type { UploadedImage } from '@/app/components/shared/image-tools/types'
+import { analyzeImage } from '@/app/(dashboard)/image-enhancer/utils/analyzeImage'
+import { trimTransparency } from '@/app/(dashboard)/image-enhancer/utils/trimTransparency'
 
 type Location = 'Front' | 'Back' | 'Sleeves'
 
@@ -143,6 +147,13 @@ export default function GarmentMockupBuilder({
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
   const [panStartOffset, setPanStartOffset] = useState({ x: 0, y: 0 })
+
+  const [isSavingMockup, setIsSavingMockup] = useState(false)
+
+  // AI Enhance modal state
+  const [enhanceLogoId, setEnhanceLogoId] = useState<string | null>(null)
+  const [enhanceImage, setEnhanceImage] = useState<UploadedImage | null>(null)
+  const [enhanceAiState, setEnhanceAiState] = useState<Record<string, { removingBg?: boolean; upscaling?: boolean; vectorizing?: boolean }>>({})
 
   const LOCATIONS: Location[] = ['Front', 'Back', 'Sleeves']
 
@@ -1047,6 +1058,149 @@ export default function GarmentMockupBuilder({
       removeBackground(logoId)
     }
   }
+
+  // ── AI Enhance: open ImagePrepModal for a logo ──
+  const API_BASE = '/api/image-enhancer'
+
+  const openEnhanceModal = useCallback(async (logoId: string) => {
+    const logo = logos.find(l => l.id === logoId)
+    if (!logo) return
+
+    // Load image to get dimensions
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(); img.src = logo.url })
+
+    const dummyFile = new File([], logo.url.split('/').pop() || 'logo.png', { type: 'image/png' })
+    const analysis = await analyzeImage({
+      fileName: dummyFile.name,
+      fileType: dummyFile.type,
+      objectUrl: logo.url,
+      nativeWidth: img.naturalWidth,
+      nativeHeight: img.naturalHeight,
+    })
+
+    const uploaded: UploadedImage = {
+      id: `logo-${logoId}`,
+      fileName: dummyFile.name,
+      originalFile: dummyFile,
+      objectUrl: logo.url,
+      nativeWidth: img.naturalWidth,
+      nativeHeight: img.naturalHeight,
+      aspectRatio: img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : 1,
+      isRaster: !logo.isSvg,
+      analysis,
+    }
+
+    setEnhanceLogoId(logoId)
+    setEnhanceImage(uploaded)
+  }, [logos])
+
+  const enhanceReanalyze = useCallback(async (img: UploadedImage): Promise<UploadedImage> => {
+    try {
+      const a = await analyzeImage({ fileName: img.fileName, fileType: img.originalFile.type, objectUrl: img.objectUrl, nativeWidth: img.nativeWidth, nativeHeight: img.nativeHeight })
+      return { ...img, analysis: a }
+    } catch { return img }
+  }, [])
+
+  const enhanceHandleRemoveBg = useCallback(async (imageId: string): Promise<boolean> => {
+    if (!enhanceImage || enhanceImage.id !== imageId) return false
+    setEnhanceAiState(prev => ({ ...prev, [imageId]: { ...prev[imageId], removingBg: true } }))
+    try {
+      // Upload to R2 first, then proxy
+      const blob = await (await fetch(enhanceImage.objectUrl)).blob()
+      const fd = new FormData(); fd.append('file', blob, 'logo.png')
+      const uploadRes = await fetch('/api/image-enhancer/presign', { method: 'POST', body: fd })
+      if (!uploadRes.ok) return false
+      const { fileUrl } = await uploadRes.json() as { fileUrl: string }
+
+      const res = await fetch(`${API_BASE}/remove-background`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fileUrl }) })
+      if (!res.ok) return false
+      const data = await res.json() as { imageBase64?: string }
+      if (!data.imageBase64) return false
+      const trimmed = await trimTransparency(data.imageBase64, 'image/png')
+      const updated: UploadedImage = { ...enhanceImage, objectUrl: trimmed.url, nativeWidth: trimmed.width, nativeHeight: trimmed.height, aspectRatio: trimmed.height > 0 ? trimmed.width / trimmed.height : 1 }
+      setEnhanceImage(await enhanceReanalyze(updated))
+      return true
+    } catch { return false }
+    finally { setEnhanceAiState(prev => ({ ...prev, [imageId]: { ...prev[imageId], removingBg: false } })) }
+  }, [enhanceImage, enhanceReanalyze])
+
+  const enhanceHandleUpscale = useCallback(async (imageId: string): Promise<boolean> => {
+    if (!enhanceImage || enhanceImage.id !== imageId) return false
+    setEnhanceAiState(prev => ({ ...prev, [imageId]: { ...prev[imageId], upscaling: true } }))
+    try {
+      const blob = await (await fetch(enhanceImage.objectUrl)).blob()
+      const base64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onloadend = () => resolve(r.result as string); r.onerror = reject; r.readAsDataURL(blob) })
+      const res = await fetch(`${API_BASE}/upscale`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: base64 }) })
+      if (!res.ok) return false
+      const data = await res.json() as { imageBase64?: string }
+      if (!data.imageBase64) return false
+      const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => { const i = new Image(); i.onload = () => resolve({ width: i.naturalWidth, height: i.naturalHeight }); i.onerror = reject; i.src = data.imageBase64! })
+      const updated: UploadedImage = { ...enhanceImage, objectUrl: data.imageBase64!, nativeWidth: dims.width, nativeHeight: dims.height, aspectRatio: dims.height > 0 ? dims.width / dims.height : 1 }
+      setEnhanceImage(await enhanceReanalyze(updated))
+      return true
+    } catch { return false }
+    finally { setEnhanceAiState(prev => ({ ...prev, [imageId]: { ...prev[imageId], upscaling: false } })) }
+  }, [enhanceImage, enhanceReanalyze])
+
+  const enhanceHandleVectorize = useCallback(async (imageId: string): Promise<boolean> => {
+    if (!enhanceImage || enhanceImage.id !== imageId) return false
+    setEnhanceAiState(prev => ({ ...prev, [imageId]: { ...prev[imageId], vectorizing: true } }))
+    try {
+      const blob = await (await fetch(enhanceImage.objectUrl)).blob()
+      const base64 = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onloadend = () => resolve(r.result as string); r.onerror = reject; r.readAsDataURL(blob) })
+      const res = await fetch(`${API_BASE}/vectorize`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageBase64: base64 }) })
+      if (!res.ok) return false
+      const data = await res.json() as { svg?: string }
+      if (!data.svg) return false
+      const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(data.svg)))}`
+      const updated: UploadedImage = { ...enhanceImage, objectUrl: svgDataUrl }
+      setEnhanceImage(await enhanceReanalyze(updated))
+      return true
+    } catch { return false }
+    finally { setEnhanceAiState(prev => ({ ...prev, [imageId]: { ...prev[imageId], vectorizing: false } })) }
+  }, [enhanceImage, enhanceReanalyze])
+
+  const enhanceHandleCleanEdges = useCallback(async (imageId: string, threshold: number = 50): Promise<boolean> => {
+    if (!enhanceImage || enhanceImage.id !== imageId) return false
+    try {
+      const { applyAlphaThreshold } = await import('@/app/(dashboard)/image-enhancer/utils/cleanEdges')
+      const result = await applyAlphaThreshold(enhanceImage.objectUrl, enhanceImage.nativeWidth, enhanceImage.nativeHeight, threshold)
+      const updated: UploadedImage = { ...enhanceImage, objectUrl: result.url, nativeWidth: result.width, nativeHeight: result.height, aspectRatio: result.height > 0 ? result.width / result.height : 1 }
+      setEnhanceImage(await enhanceReanalyze(updated))
+      return true
+    } catch { return false }
+  }, [enhanceImage, enhanceReanalyze])
+
+  const enhanceHandleSmoothEdges = useCallback(async (imageId: string, contractionRadius: number, smoothingRadius: number): Promise<boolean> => {
+    if (!enhanceImage || enhanceImage.id !== imageId) return false
+    try {
+      const { applyEdgeSmoothing } = await import('@/app/(dashboard)/image-enhancer/utils/edgeSmoothing')
+      const result = await applyEdgeSmoothing(enhanceImage.objectUrl, enhanceImage.nativeWidth, enhanceImage.nativeHeight, contractionRadius, smoothingRadius)
+      const updated: UploadedImage = { ...enhanceImage, objectUrl: result.url, nativeWidth: result.width, nativeHeight: result.height, aspectRatio: result.height > 0 ? result.width / result.height : 1 }
+      setEnhanceImage(await enhanceReanalyze(updated))
+      return true
+    } catch { return false }
+  }, [enhanceImage, enhanceReanalyze])
+
+  const enhanceHandleLocalEdit = useCallback(async (imageId: string, newDataUrl: string, width: number, height: number) => {
+    if (!enhanceImage || enhanceImage.id !== imageId) return
+    const updated: UploadedImage = { ...enhanceImage, objectUrl: newDataUrl, nativeWidth: width, nativeHeight: height, aspectRatio: height > 0 ? width / height : 1 }
+    setEnhanceImage(await enhanceReanalyze(updated))
+  }, [enhanceImage, enhanceReanalyze])
+
+  const enhanceHandleComplete = useCallback(() => {
+    if (enhanceLogoId && enhanceImage) {
+      updateLogo(enhanceLogoId, {
+        url: enhanceImage.objectUrl,
+        backgroundRemoved: true, // Mark as processed
+      })
+    }
+    setEnhanceLogoId(null)
+    setEnhanceImage(null)
+    setEnhanceAiState({})
+  }, [enhanceLogoId, enhanceImage])
 
   // Add text element
   const addTextElement = () => {
@@ -2199,29 +2353,36 @@ export default function GarmentMockupBuilder({
 
   // Generate mockup images for all locations with designs and save
   const handleSaveMockup = async () => {
-    const mockups: MockupImage[] = []
+    setIsSavingMockup(true)
+    try {
+      const mockups: MockupImage[] = []
 
-    // Generate a mockup for each location that has designs
-    for (const location of LOCATIONS) {
-      const locationLogos = logos.filter(l => l.location === location)
-      const locationTexts = textElements.filter(t => t.location === location)
+      // Generate a mockup for each location that has designs
+      for (const location of LOCATIONS) {
+        const locationLogos = logos.filter(l => l.location === location)
+        const locationTexts = textElements.filter(t => t.location === location)
 
-      // Only generate mockup if this location has designs
-      if (locationLogos.length > 0 || locationTexts.length > 0) {
-        try {
-          const dataUrl = await generateMockupForLocation(location)
-          mockups.push({ location, dataUrl })
-        } catch (error) {
-          console.error(`Error generating mockup for ${location}:`, error)
+        // Only generate mockup if this location has designs
+        if (locationLogos.length > 0 || locationTexts.length > 0) {
+          try {
+            const dataUrl = await generateMockupForLocation(location)
+            mockups.push({ location, dataUrl })
+          } catch (error) {
+            console.error(`Error generating mockup for ${location}:`, error)
+          }
         }
       }
-    }
 
-    if (mockups.length === 0) {
-      return
-    }
+      if (mockups.length === 0) {
+        return
+      }
 
-    onSave(mockups, logos, textElements, roster.length > 0 ? roster : undefined)
+      onSave(mockups, logos, textElements, roster.length > 0 ? roster : undefined)
+      onSaveConfig(logos, textElements, roster.length > 0 ? roster : undefined)
+      onClose()
+    } finally {
+      setIsSavingMockup(false)
+    }
   }
 
   // Handle close - save config before closing
@@ -3317,6 +3478,37 @@ export default function GarmentMockupBuilder({
                   </div>
                 )}
 
+                {/* AI Enhance — full tool suite */}
+                {!selectedLogo.isDst && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <button
+                      onClick={() => openEnhanceModal(selectedLogo.id)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: 'rgba(34,211,238,0.1)',
+                        border: '1px solid rgba(34,211,238,0.3)',
+                        borderRadius: '6px',
+                        color: '#22d3ee',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <span>✦</span>
+                      <span>Enhance with AI</span>
+                    </button>
+                    <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', textAlign: 'center' }}>
+                      Remove BG, upscale, vectorize, crop, color replace
+                    </p>
+                  </div>
+                )}
+
                 {/* Replace with Upload */}
                 {selectedLogo.isPlaceholder && (
                   <>
@@ -4171,20 +4363,33 @@ export default function GarmentMockupBuilder({
           </button>
           <button
             onClick={handleSaveMockup}
-            disabled={logos.length === 0 && textElements.length === 0}
+            disabled={isSavingMockup || (logos.length === 0 && textElements.length === 0)}
             style={{
               padding: '10px 24px',
-              background: logos.length === 0 && textElements.length === 0 ? '#282a30' : 'linear-gradient(135deg, #22c55e, #16a34a)',
+              background: logos.length === 0 && textElements.length === 0 ? '#282a30' : isSavingMockup ? '#16a34a' : 'linear-gradient(135deg, #22c55e, #16a34a)',
               border: 'none',
               borderRadius: '8px',
               color: 'white',
               fontSize: '14px',
               fontWeight: 600,
-              cursor: logos.length === 0 && textElements.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: logos.length === 0 && textElements.length === 0 ? 0.5 : 1
+              cursor: logos.length === 0 && textElements.length === 0 || isSavingMockup ? 'not-allowed' : 'pointer',
+              opacity: logos.length === 0 && textElements.length === 0 ? 0.5 : isSavingMockup ? 0.7 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
             }}
           >
-            Save Mockup
+            {isSavingMockup && (
+              <div style={{
+                width: 16, height: 16,
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTop: '2px solid white',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+              }} />
+            )}
+            {isSavingMockup ? 'Saving...' : 'Save Mockup'}
           </button>
           {hasVariables && roster.length > 0 && (
             <button
@@ -4283,6 +4488,21 @@ export default function GarmentMockupBuilder({
           )}
         </div>
       </div>
+
+      {/* AI Enhance Modal */}
+      {enhanceImage && (
+        <ImagePrepModal
+          images={[enhanceImage]}
+          onRemoveBg={enhanceHandleRemoveBg}
+          onUpscale={enhanceHandleUpscale}
+          onVectorize={enhanceHandleVectorize}
+          onCleanEdges={enhanceHandleCleanEdges}
+          onSmoothEdges={enhanceHandleSmoothEdges}
+          onComplete={enhanceHandleComplete}
+          onApplyLocalEdit={enhanceHandleLocalEdit}
+          aiProcessingState={enhanceAiState}
+        />
+      )}
     </div>
   )
 }
