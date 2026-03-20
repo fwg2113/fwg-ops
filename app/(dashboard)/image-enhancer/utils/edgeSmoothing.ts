@@ -226,3 +226,51 @@ export async function findBestEdgeRegion(
     size: Math.min(nativeSize, Math.min(nativeWidth, nativeHeight)),
   }
 }
+
+/**
+ * Generate a zoomed preview of a specific edge region.
+ * Crops the region from the source image at native resolution,
+ * applies contraction + contour smoothing, then magnifies by `zoom`x.
+ */
+export async function generateZoomPreview(
+  src: string,
+  nativeWidth: number,
+  nativeHeight: number,
+  region: { x: number; y: number; size: number },
+  contractionRadius: number,
+  smoothingRadius: number,
+  zoom: number = 4,
+): Promise<string> {
+  const img = await loadImage(src)
+
+  // Clamp region to image bounds
+  const x = Math.max(0, Math.min(nativeWidth - region.size, region.x))
+  const y = Math.max(0, Math.min(nativeHeight - region.size, region.y))
+  const size = Math.min(region.size, Math.min(nativeWidth, nativeHeight))
+
+  // Crop the region at native resolution
+  const cropCanvas = document.createElement('canvas')
+  cropCanvas.width = size
+  cropCanvas.height = size
+  const cropCtx = cropCanvas.getContext('2d')!
+  cropCtx.drawImage(img, x, y, size, size, 0, 0, size, size)
+
+  // Apply contraction then contour smoothing
+  if (contractionRadius > 0 || smoothingRadius > 0) {
+    const imageData = cropCtx.getImageData(0, 0, size, size)
+    contractAlpha(imageData.data, size, size, contractionRadius)
+    contourSmooth(imageData.data, size, size, smoothingRadius)
+    cropCtx.putImageData(imageData, 0, 0)
+  }
+
+  // Scale up by zoom factor
+  const outSize = Math.round(size * zoom)
+  const outCanvas = document.createElement('canvas')
+  outCanvas.width = outSize
+  outCanvas.height = outSize
+  const outCtx = outCanvas.getContext('2d')!
+  outCtx.imageSmoothingEnabled = false // Nearest-neighbor for pixel-level detail
+  outCtx.drawImage(cropCanvas, 0, 0, outSize, outSize)
+
+  return outCanvas.toDataURL('image/png')
+}

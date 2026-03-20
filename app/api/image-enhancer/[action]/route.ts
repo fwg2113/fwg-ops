@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 const FORMDATA_ACTIONS = new Set(['analyze-image', 'enhance', 'remove-background'])
-const JSON_ACTIONS = new Set(['vectorize'])
+const JSON_ACTIONS = new Set(['vectorize', 'upscale'])
 const FA_API_BASE = 'https://frederickapparel.com/api/ai'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
