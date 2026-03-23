@@ -663,6 +663,7 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
   const [printFileLoading, setPrintFileLoading] = useState(false)
   const [printFileNotFound, setPrintFileNotFound] = useState(false)
   const [driveStatus, setDriveStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [regenerating, setRegenerating] = useState(false)
 
   const items = order.items || []
   const artworkToken = order.metadata?.artwork_session_token
@@ -734,6 +735,40 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
     } catch {
       setDriveStatus('error')
       showToast('Drive upload failed', 'error')
+    }
+  }
+
+  const handleRegenerate = async () => {
+    if (!artworkToken) return
+    setRegenerating(true)
+    setPrintFileNotFound(false)
+    try {
+      // Trigger PDF regeneration on FA
+      const genRes = await fetch('https://frederickapparel.com/api/artwork/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: artworkToken }),
+      })
+      if (!genRes.ok) {
+        const err = await genRes.json().catch(() => ({ error: 'Unknown error' }))
+        showToast(err.error || 'Regeneration failed', 'error')
+        return
+      }
+      // Re-fetch the print file URL
+      const fileRes = await fetch(`/api/fa-orders/print-file?session_token=${encodeURIComponent(artworkToken)}`)
+      if (fileRes.ok) {
+        const data = await fileRes.json()
+        if (data?.url) {
+          setPrintFileUrl(data.url)
+          setPrintFileNotFound(false)
+          if (data?.individualFiles?.length) setIndividualFiles(data.individualFiles)
+          showToast('Print file regenerated', 'success')
+        }
+      }
+    } catch {
+      showToast('Regeneration failed', 'error')
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -893,7 +928,30 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
           {printFileLoading ? (
             <span style={{ fontSize: '13px', color: '#94a3b8' }}>Loading print file...</span>
           ) : printFileNotFound ? (
-            <span style={{ fontSize: '13px', color: '#64748b' }}>No print file found</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '13px', color: '#64748b' }}>No print file found</span>
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                  background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.2)',
+                  color: '#22d3ee', cursor: regenerating ? 'not-allowed' : 'pointer',
+                  opacity: regenerating ? 0.6 : 1,
+                }}
+              >
+                {regenerating ? (
+                  <div style={{ width: 12, height: 12, border: '2px solid rgba(34,211,238,0.3)', borderTop: '2px solid #22d3ee', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 12, height: 12 }}>
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                )}
+                {regenerating ? 'Generating...' : 'Generate'}
+              </button>
+            </div>
           ) : printFileUrl ? (
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <a
@@ -986,6 +1044,35 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
                   {driveStatus === 'sending' ? 'Sending...' : 'Send to Drive'}
                 </button>
               )}
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  background: 'rgba(148,163,184,0.08)',
+                  border: '1px solid rgba(148,163,184,0.2)',
+                  color: '#94a3b8',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: regenerating ? 'not-allowed' : 'pointer',
+                  opacity: regenerating ? 0.6 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {regenerating ? (
+                  <div style={{ width: 14, height: 14, border: '2px solid rgba(148,163,184,0.3)', borderTop: '2px solid #94a3b8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                )}
+                {regenerating ? 'Regenerating...' : 'Regenerate'}
+              </button>
             </div>
           ) : null}
 
