@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
           url: `${ASSETS_BASE}/${key}`,
           type: isPdf ? 'gang-sheet' as const : 'individual' as const,
           sizeBytes: obj.Size ?? 0,
+          lastModified: obj.LastModified?.getTime() ?? 0,
         }
       })
 
@@ -55,8 +56,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No print file found' }, { status: 404 })
     }
 
-    // Find the gang sheet PDF for backward compatibility
-    const gangSheetPdf = allFiles.find(f => f.type === 'gang-sheet')
+    // Find the most recent gang sheet PDF (sorted by last modified, descending)
+    const gangSheetPdfs = allFiles
+      .filter(f => f.type === 'gang-sheet')
+      .sort((a, b) => b.lastModified - a.lastModified)
+    const gangSheetPdf = gangSheetPdfs[0] ?? null
     const individualFiles = allFiles.filter(f => f.type === 'individual')
 
     return NextResponse.json({
