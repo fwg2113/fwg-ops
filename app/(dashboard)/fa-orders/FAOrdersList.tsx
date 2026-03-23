@@ -743,8 +743,8 @@ function OrderDetail({ order, onUpdate }: { order: FAOrder; onUpdate: (o: FAOrde
     setRegenerating(true)
     setPrintFileNotFound(false)
     try {
-      // Trigger PDF regeneration on FA
-      const genRes = await fetch('https://frederickapparel.com/api/artwork/generate-pdf', {
+      // Trigger PDF regeneration via local proxy (avoids CORS)
+      const genRes = await fetch('/api/fa-orders/regenerate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_token: artworkToken }),
