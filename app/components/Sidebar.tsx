@@ -47,6 +47,15 @@ const navSections = [
     ]
   },
   {
+    title: 'MATERIALS',
+    items: [
+      { href: '/materials', label: 'Materials', labelGradient: 'List', icon: 'rolls' },
+      { href: '/inventory', label: 'Inventory', labelGradient: '', icon: 'box' },
+      { href: '/media-guide', label: 'Media', labelGradient: 'Guide', icon: 'compass' },
+      { href: '/blade-guide', label: 'Blade', labelGradient: 'Guide', icon: 'blade' },
+    ]
+  },
+  {
     title: 'ACCOUNT',
     items: [
       { href: '/dev', label: 'Dev', labelGradient: 'Requests', icon: 'bug' },
@@ -180,6 +189,31 @@ const icons: Record<string, React.ReactElement> = {
       <rect x="14" y="2" width="8" height="8" rx="1"></rect>
       <rect x="2" y="14" width="8" height="8" rx="1"></rect>
       <rect x="14" y="14" width="8" height="8" rx="1"></rect>
+    </svg>
+  ),
+  rolls: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <circle cx="12" cy="12" r="9"></circle>
+      <circle cx="12" cy="12" r="4"></circle>
+      <circle cx="12" cy="12" r="1"></circle>
+    </svg>
+  ),
+  box: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+  ),
+  compass: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <circle cx="12" cy="12" r="10"></circle>
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+    </svg>
+  ),
+  blade: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
     </svg>
   ),
   bug: (
