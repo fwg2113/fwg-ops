@@ -8,6 +8,7 @@ import ProductLookup from '@/app/components/operations/ProductLookup'
 import { SupplierKey, DEFAULT_SUPPLIER } from '@/app/lib/suppliers/types'
 import GarmentMockupBuilder from '@/app/components/operations/GarmentMockupBuilder'
 import { pdfToImage } from '@/app/lib/pdfToImage'
+import ModalBackdrop from '@/app/components/ModalBackdrop'
 
 const buttonStyles = `
   .action-btn {
@@ -5413,7 +5414,7 @@ export default function DocumentDetail({
 
       {/* Add Section Modal */}
       {showSectionModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowSectionModal(false)}>
+        <ModalBackdrop onClose={() => setShowSectionModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>{optionsMode ? 'Add Option' : 'Add Section'}</h2>
@@ -5439,11 +5440,11 @@ export default function DocumentDetail({
               ))}
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
       {/* Follow-Up Modal */}
       {showFollowUpModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowFollowUpModal(false)}>
+        <ModalBackdrop onClose={() => setShowFollowUpModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Follow Up</h2>
@@ -5548,7 +5549,7 @@ export default function DocumentDetail({
               </ActionButton>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Pricing Changed Modal */}
@@ -5685,7 +5686,7 @@ export default function DocumentDetail({
 
       {/* Send Modal */}
       {showSendModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowSendModal(false)}>
+        <ModalBackdrop onClose={() => setShowSendModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Send {doc.doc_type === 'quote' ? 'Quote' : 'Invoice'}</h2>
@@ -5844,12 +5845,12 @@ export default function DocumentDetail({
               </div>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Archive Modal */}
       {showArchiveModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowArchiveModal(false)}>
+        <ModalBackdrop onClose={() => setShowArchiveModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Archive {isQuote ? 'Quote' : 'Invoice'}</h2>
@@ -5904,12 +5905,12 @@ export default function DocumentDetail({
               <ActionButton onClick={handleArchive} disabled={isSaving || (archiveBucket === 'lost' && !archiveReason) || (archiveReason === 'OTHER' && !archiveOtherReason)} variant="primary">Archive</ActionButton>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Reset Approval Modal */}
       {showResetApprovalModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowResetApprovalModal(false)}>
+        <ModalBackdrop onClose={() => setShowResetApprovalModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Reset Approval</h2>
@@ -5933,12 +5934,12 @@ export default function DocumentDetail({
               <ActionButton onClick={handleResetApproval} disabled={isSaving} variant="warning">Reset Approval</ActionButton>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Fulfillment Type Modal */}
       {showFulfillmentModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowFulfillmentModal(false)}>
+        <ModalBackdrop onClose={() => setShowFulfillmentModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Fulfillment Method</h2>
@@ -6096,12 +6097,12 @@ export default function DocumentDetail({
               <button onClick={handleSaveFulfillment} disabled={isSaving} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>Save Fulfillment</button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowDeleteModal(false)}>
+        <ModalBackdrop onClose={() => setShowDeleteModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', width: '100%', maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -6154,12 +6155,12 @@ export default function DocumentDetail({
               </ActionButton>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Schedule Modal */}
       {showScheduleModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowScheduleModal(false)}>
+        <ModalBackdrop onClose={() => setShowScheduleModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Schedule Project</h2>
@@ -6242,12 +6243,12 @@ export default function DocumentDetail({
               </ActionButton>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Expected Revenue Confirmation Modal */}
       {showExpectedRevenueConfirm && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowExpectedRevenueConfirm(false)}>
+        <ModalBackdrop onClose={() => setShowExpectedRevenueConfirm(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', width: '100%', maxWidth: '440px', padding: '24px' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -6272,12 +6273,12 @@ export default function DocumentDetail({
               <button onClick={confirmExpectedRevenue} style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#22c55e', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Yes, Add to Expected Revenue</button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Record Payment Modal */}
       {showRecordPaymentModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowRecordPaymentModal(false)}>
+        <ModalBackdrop onClose={() => setShowRecordPaymentModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Record Payment</h2>
@@ -6329,7 +6330,7 @@ export default function DocumentDetail({
               </ActionButton>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Line Item Lightbox */}
@@ -6385,7 +6386,7 @@ export default function DocumentDetail({
 
       {/* Send to Zayn Modal */}
       {showZaynModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={() => !zaynSending && setShowZaynModal(false)}>
+        <ModalBackdrop onClose={() => !zaynSending && setShowZaynModal(false)} zIndex={1000}>
           <div style={{ background: '#111111', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ padding: '24px 24px 0' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: 600, margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -6606,7 +6607,7 @@ export default function DocumentDetail({
               </div>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Toast Notifications */}

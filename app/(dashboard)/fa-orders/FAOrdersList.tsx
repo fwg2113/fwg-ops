@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, Fragment, useCallback, useEffect } from 'react'
+import ModalBackdrop from '../../components/ModalBackdrop'
 
 type OrderItem = {
   id: string
@@ -1827,10 +1828,7 @@ function DocumentDetail({ doc, mode = 'apparel' }: { doc: FADocument; mode?: 'ap
     <div style={{ padding: '20px 20px 24px 48px', background: 'rgba(59,130,246,0.02)', borderBottom: '1px solid rgba(148,163,184,0.08)' }}>
       {/* Pipeline Step Modal */}
       {modal.type && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => setModal({ type: null })}
-        >
+        <ModalBackdrop onClose={() => setModal({ type: null })} zIndex={1000}>
           <div
             style={{ background: '#111826', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 12, padding: 24, width: 480, maxWidth: '90vw', maxHeight: '80vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}
@@ -2144,7 +2142,7 @@ function DocumentDetail({ doc, mode = 'apparel' }: { doc: FADocument; mode?: 'ap
               </>
             )}
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {toast && (
