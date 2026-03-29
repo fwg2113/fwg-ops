@@ -5,9 +5,9 @@ import { isAutomationEnabled } from '../../../lib/automation-settings'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { taskId, status, title, description, priority, due_date, notes } = body
+    const { taskId, status, title, description, priority, due_date, notes, parent_task_id } = body
 
-    console.log('[API /tasks/update] Received request:', { taskId, status, title, description, priority, due_date, notes })
+    console.log('[API /tasks/update] Received request:', { taskId, status, title, description, priority, due_date, notes, parent_task_id })
 
     // Build update object with only provided fields
     const updateData: any = {}
@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     if (priority !== undefined) updateData.priority = priority
     if (due_date !== undefined) updateData.due_date = due_date || null
     if (notes !== undefined) updateData.notes = notes
+    if (parent_task_id !== undefined) updateData.parent_task_id = parent_task_id
 
     console.log('[API /tasks/update] Updating task with data:', updateData)
 
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
       .from('tasks')
       .update(updateData)
       .eq('id', taskId)
-      .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes, started_at, time_spent_minutes, line_item_id, document_id')
+      .select('*')
       .single()
 
     if (error) {

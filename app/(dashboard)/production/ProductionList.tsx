@@ -184,8 +184,9 @@ export default function ProductionList({ documents, pipelineConfigs, categoriesD
     done: number; total: number; description: string; raw: ProductionDocument
   }
 
-  const filteredRows = useMemo(() => {
-    const rows: UnifiedRow[] = documents.map(d => {
+  // Compute all rows once for tab counts and filtering
+  const allRows = useMemo(() => {
+    return documents.map(d => {
       const itemsWithOverrides = d.line_items.map(li => ({ ...li, production_checklist: getChecklist(li) }))
       const { status, label, done, total } = computeDocProductionStatusWithDb(itemsWithOverrides, d.status, pipelineConfigs)
       return {
@@ -195,6 +196,24 @@ export default function ProductionList({ documents, pipelineConfigs, categoriesD
         description: d.vehicle_description || d.project_description || '', raw: d,
       }
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents, checklistOverrides])
+
+  const tabCounts = useMemo(() => {
+    const isComplete = (r: UnifiedRow) => COMPLETED_STATUSES.includes(r.raw.status) || r.status === 'complete'
+    const isAutoRow = (r: UnifiedRow) => docHasAutomotive(r.raw) || (!docHasAutomotive(r.raw) && !docHasSignage(r.raw) && r.raw.line_items.some(li => isOtherCat(li.category)))
+    const isSignRow = (r: UnifiedRow) => docHasSignage(r.raw)
+    return {
+      all: allRows.filter(r => !isComplete(r)).length,
+      automotive: allRows.filter(r => !isComplete(r) && isAutoRow(r)).length,
+      signage: allRows.filter(r => !isComplete(r) && isSignRow(r)).length,
+      completed: allRows.filter(r => isComplete(r)).length,
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows])
+
+  const filteredRows = useMemo(() => {
+    const rows = allRows
 
     let list: UnifiedRow[]
     if (activeTab === 'completed') {
@@ -227,12 +246,14 @@ export default function ProductionList({ documents, pipelineConfigs, categoriesD
     })
     return list
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documents, activeTab, search, checklistOverrides])
+  }, [allRows, activeTab, search])
 
   // Drag and drop
   const [dragRowId, setDragRowId] = useState<string | null>(null)
   const [rowOrder, setRowOrder] = useState<string[]>([])
   const [hasCustomOrder, setHasCustomOrder] = useState(false)
+  const [savingOrder, setSavingOrder] = useState(false)
+  const [orderToast, setOrderToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => { if (!hasCustomOrder) setRowOrder(filteredRows.map(r => r.id)) }, [filteredRows, hasCustomOrder])
 
@@ -254,11 +275,39 @@ export default function ProductionList({ documents, pipelineConfigs, categoriesD
     if (!hasCustomOrder) setHasCustomOrder(true)
   }
   const handleDragEnd = () => setDragRowId(null)
-  const saveRowOrder = async () => { for (let i = 0; i < rowOrder.length; i++) { await fetch(`/api/documents/${rowOrder[i]}/production-status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ production_sort_order: i + 1 }) }) }; setHasCustomOrder(false) }
+  const saveRowOrder = async () => {
+    setSavingOrder(true)
+    try {
+      let failed = false
+      for (let i = 0; i < rowOrder.length; i++) {
+        const res = await fetch(`/api/documents/${rowOrder[i]}/production-status`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ production_sort_order: i + 1 }),
+        })
+        if (!res.ok) { failed = true; break }
+      }
+      if (failed) {
+        setOrderToast({ message: 'Failed to save order — try again', type: 'error' })
+        setTimeout(() => setOrderToast(null), 3000)
+      } else {
+        setHasCustomOrder(false)
+        setOrderToast({ message: 'Order saved', type: 'success' })
+        setTimeout(() => setOrderToast(null), 2000)
+      }
+    } catch {
+      setOrderToast({ message: 'Network error — check your connection', type: 'error' })
+      setTimeout(() => setOrderToast(null), 3000)
+    } finally {
+      setSavingOrder(false)
+    }
+  }
   const resetRowOrder = () => { setHasCustomOrder(false); setRowOrder(filteredRows.map(r => r.id)) }
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '32px', maxWidth: '1800px', margin: '0 auto' }}>
+      {orderToast && (
+        <div style={{ position: 'fixed', top: 20, right: 20, padding: '10px 18px', borderRadius: 8, background: orderToast.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(239,68,68,0.9)', color: '#fff', fontSize: 13, fontWeight: 500, zIndex: 9999 }}>{orderToast.message}</div>
+      )}
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
@@ -271,25 +320,50 @@ export default function ProductionList({ documents, pipelineConfigs, categoriesD
       <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', background: '#1a1a1a', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.key
+          const count = tabCounts[tab.key]
           return (
             <button key={tab.key} onClick={() => { setActiveTab(tab.key); setExpandedRow(null) }}
-              style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: isActive ? '#a855f7' : 'transparent', color: isActive ? '#fff' : '#94a3b8', fontSize: '14px', fontWeight: isActive ? 600 : 500, cursor: 'pointer', transition: 'all 0.15s ease' }}>
+              style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: isActive ? '#a855f7' : 'transparent', color: isActive ? '#fff' : '#94a3b8', fontSize: '14px', fontWeight: isActive ? 600 : 500, cursor: 'pointer', transition: 'all 0.15s ease', display: 'flex', alignItems: 'center', gap: 6 }}>
               {tab.label}
+              {count > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(148,163,184,0.15)', color: isActive ? '#fff' : '#64748b', minWidth: 18, textAlign: 'center' }}>{count}</span>
+              )}
             </button>
           )
         })}
       </div>
 
       {/* Search */}
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '20px', position: 'relative', maxWidth: '400px' }}>
         <input type="text" placeholder="Search by doc #, customer, or description..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ width: '100%', maxWidth: '400px', padding: '10px 16px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }} />
+          style={{ width: '100%', padding: '10px 16px', paddingRight: search ? '36px' : '16px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }} />
+        {search && (
+          <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(148,163,184,0.15)', border: 'none', color: '#94a3b8', width: 20, height: 20, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, lineHeight: 1 }}>×</button>
+        )}
       </div>
 
       {/* Content */}
       {displayRows.length === 0 ? (
         <div style={{ background: '#1d1d1d', borderRadius: '12px', padding: '60px 20px', textAlign: 'center' }}>
-          <p style={{ color: '#64748b', fontSize: '16px', margin: 0 }}>{search ? 'No documents match your search' : 'No production items'}</p>
+          {search ? (
+            <>
+              <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>🔍</div>
+              <p style={{ color: '#94a3b8', fontSize: 15, fontWeight: 500, margin: '0 0 6px' }}>No results for &ldquo;{search}&rdquo;</p>
+              <p style={{ color: '#475569', fontSize: 13, margin: '0 0 16px' }}>Try a different doc number, customer name, or description</p>
+              <button onClick={() => setSearch('')} style={{ padding: '8px 20px', borderRadius: 6, background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)', color: '#a855f7', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Clear search</button>
+            </>
+          ) : activeTab === 'completed' ? (
+            <>
+              <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>✓</div>
+              <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>No completed production items yet</p>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>📋</div>
+              <p style={{ color: '#94a3b8', fontSize: 15, fontWeight: 500, margin: '0 0 6px' }}>No active production items</p>
+              <p style={{ color: '#475569', fontSize: 13, margin: 0 }}>Documents move here when they&apos;re paid or marked for production</p>
+            </>
+          )}
         </div>
       ) : (
         <div style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden' }}>
@@ -297,8 +371,8 @@ export default function ProductionList({ documents, pipelineConfigs, categoriesD
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'rgba(168,85,247,0.06)', borderBottom: '1px solid rgba(168,85,247,0.15)' }}>
               <span style={{ fontSize: 12, color: '#a855f7', fontWeight: 600 }}>Custom order — drag rows to reorder</span>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={resetRowOrder} style={{ padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8' }}>Reset</button>
-                <button onClick={saveRowOrder} style={{ padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#a855f7', border: 'none', color: '#fff' }}>Save Order</button>
+                <button onClick={resetRowOrder} disabled={savingOrder} style={{ padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: savingOrder ? 'not-allowed' : 'pointer', background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', opacity: savingOrder ? 0.5 : 1 }}>Reset</button>
+                <button onClick={saveRowOrder} disabled={savingOrder} style={{ padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: savingOrder ? 'not-allowed' : 'pointer', background: '#a855f7', border: 'none', color: '#fff', opacity: savingOrder ? 0.7 : 1 }}>{savingOrder ? 'Saving...' : 'Save Order'}</button>
               </div>
             </div>
           )}
@@ -386,46 +460,46 @@ function PipeNode({ done, active, children, label, onClick }: {
   done: boolean; active: boolean; children: React.ReactNode; label: string; onClick?: () => void
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 56 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 90 }}>
       <div onClick={onClick} style={{
-        width: 32, height: 32, borderRadius: '50%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
+        width: 56, height: 56, borderRadius: '50%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
         background: done ? 'rgba(52,211,153,0.15)' : active ? 'rgba(168,85,247,0.12)' : 'rgba(255,255,255,0.04)',
-        border: `2px solid ${done ? '#22c55e' : active ? '#a855f7' : 'rgba(148,163,184,0.15)'}`,
+        border: `3px solid ${done ? '#22c55e' : active ? '#a855f7' : 'rgba(148,163,184,0.15)'}`,
         color: done ? '#22c55e' : active ? '#a855f7' : '#475569',
-        boxShadow: active ? '0 0 0 3px rgba(168,85,247,0.12)' : 'none',
+        boxShadow: active ? '0 0 0 5px rgba(168,85,247,0.12)' : done ? '0 0 0 4px rgba(34,197,94,0.08)' : 'none',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.15s ease',
       }}>{children}</div>
-      <div style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, marginTop: 4, color: done ? '#22c55e' : active ? '#a855f7' : '#475569', whiteSpace: 'pre-line' }}>{label}</div>
+      <div style={{ fontSize: 11, textAlign: 'center', lineHeight: 1.3, fontWeight: 600, marginTop: 8, color: done ? '#22c55e' : active ? '#a855f7' : '#94a3b8', whiteSpace: 'pre-line', maxWidth: 88 }}>{label}</div>
     </div>
   )
 }
 
 function TrackConnector({ done }: { done: boolean }) {
-  return <div style={{ flex: 1, minWidth: 16, height: 2, background: done ? '#22c55e' : 'rgba(148,163,184,0.1)', flexShrink: 0, marginBottom: 18 }} />
+  return <div style={{ flex: 1, minWidth: 24, height: 3, borderRadius: 2, background: done ? '#22c55e' : 'rgba(148,163,184,0.1)', flexShrink: 0, marginBottom: 28, transition: 'background 0.3s ease' }} />
 }
 
 function SharedConnector({ done }: { done: boolean }) {
-  return <div style={{ flex: 1, minWidth: 12, height: 2, background: done ? '#a855f7' : 'rgba(148,163,184,0.1)', flexShrink: 0 }} />
+  return <div style={{ flex: 1, minWidth: 20, height: 3, borderRadius: 2, background: done ? '#22c55e' : 'rgba(148,163,184,0.1)', flexShrink: 0, transition: 'background 0.3s ease' }} />
 }
 
 function SharedNode({ done, active, icon, label, onClick }: {
   done: boolean; active: boolean; icon: string; label: string; onClick?: () => void
 }) {
   return (
-    <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: 52 }}>
+    <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: 86 }}>
       <div onClick={onClick} style={{
-        width: 30, height: 30, borderRadius: '50%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0,
+        width: 52, height: 52, borderRadius: '50%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0,
         background: done ? 'rgba(52,211,153,0.15)' : active ? 'rgba(168,85,247,0.12)' : 'rgba(255,255,255,0.04)',
-        border: `2px solid ${done ? '#22c55e' : active ? '#a855f7' : 'rgba(148,163,184,0.15)'}`,
+        border: `3px solid ${done ? '#22c55e' : active ? '#a855f7' : 'rgba(148,163,184,0.15)'}`,
         color: done ? '#22c55e' : active ? '#a855f7' : '#475569',
-        boxShadow: active ? '0 0 0 3px rgba(168,85,247,0.12)' : 'none',
+        boxShadow: active ? '0 0 0 5px rgba(168,85,247,0.12)' : done ? '0 0 0 4px rgba(34,197,94,0.08)' : 'none',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.15s ease',
       }}>{done ? '✓' : icon}</div>
-      <div style={{ position: 'absolute', top: '100%', marginTop: 4, fontSize: 8, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, color: done ? '#22c55e' : active ? '#a855f7' : '#475569', whiteSpace: 'pre-line' }}>
+      <div style={{ position: 'absolute', top: '100%', marginTop: 8, fontSize: 11, textAlign: 'center', lineHeight: 1.3, fontWeight: 600, color: done ? '#22c55e' : active ? '#a855f7' : '#94a3b8', whiteSpace: 'pre-line', maxWidth: 84 }}>
         {label}
       </div>
     </div>
@@ -481,8 +555,8 @@ function LineItemPipeline({ pipeline, checklist, onToggle, onAddTrackTask }: {
   const prepDone = isTrackComplete(fullPrepTasks, checklist)
   const designDone = isTrackComplete(fullDesignTasks, checklist)
   const readyForProduction = prepDone && designDone
-  const GAP = 20
-  const DIAG_W = 48
+  const GAP = 24
+  const DIAG_W = 56
 
   const getNextKey = (tasks: ChecklistTask[]): string | null => {
     for (const t of tasks) { if (!checklist[t.key]?.done) return t.key }
@@ -503,18 +577,18 @@ function LineItemPipeline({ pipeline, checklist, onToggle, onAddTrackTask }: {
 
   // Inline add input that appears where you clicked "+"
   const InlineAddInput = ({ track, position }: { track: string; position: number }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 56, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 96, flexShrink: 0, padding: '0 4px' }}>
       <input
         value={trackTaskLabel}
         onChange={e => setTrackTaskLabel(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleAddToTrack(track, position); if (e.key === 'Escape') { setAddingToTrack(null); setTrackTaskLabel('') } }}
-        placeholder="Task..."
+        placeholder="Task name..."
         autoFocus
-        style={{ width: 52, padding: '4px 4px', background: '#111', border: '1px solid #a855f7', borderRadius: 4, color: '#f1f5f9', fontSize: 10, textAlign: 'center', outline: 'none' }}
+        style={{ width: '100%', padding: '8px 10px', background: '#111', border: '2px solid #a855f7', borderRadius: 8, color: '#f1f5f9', fontSize: 12, textAlign: 'center', outline: 'none', boxShadow: '0 0 0 4px rgba(168,85,247,0.12)' }}
       />
-      <div style={{ display: 'flex', gap: 2, marginTop: 4 }}>
-        <button onClick={() => handleAddToTrack(track, position)} style={{ padding: '2px 6px', borderRadius: 3, background: '#a855f7', border: 'none', color: '#fff', fontSize: 8, cursor: 'pointer' }}>Add</button>
-        <button onClick={() => { setAddingToTrack(null); setTrackTaskLabel('') }} style={{ padding: '2px 6px', borderRadius: 3, background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#64748b', fontSize: 8, cursor: 'pointer' }}>×</button>
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <button onClick={() => handleAddToTrack(track, position)} style={{ padding: '4px 14px', borderRadius: 5, background: '#a855f7', border: 'none', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+        <button onClick={() => { setAddingToTrack(null); setTrackTaskLabel('') }} style={{ padding: '4px 10px', borderRadius: 5, background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', fontSize: 11, cursor: 'pointer' }}>×</button>
       </div>
     </div>
   )
@@ -533,31 +607,31 @@ function LineItemPipeline({ pipeline, checklist, onToggle, onAddTrackTask }: {
   }
 
   // End-of-track add button
-  const EndAddButton = ({ track, position, isShared }: { track: string; position: number; isShared?: boolean }) => {
+  const EndAddButton = ({ track, position, isShared, lastTaskDone }: { track: string; position: number; isShared?: boolean; lastTaskDone?: boolean }) => {
     const trackPos = `${track}:end`
     if (addingToTrack === trackPos) {
       return (
         <>
-          {isShared ? <SharedConnector done={false} /> : <TrackConnector done={false} />}
+          {isShared ? <SharedConnector done={!!lastTaskDone} /> : <TrackConnector done={!!lastTaskDone} />}
           <InlineAddInput track={track} position={position} />
         </>
       )
     }
     return (
       <>
-        {isShared ? <SharedConnector done={false} /> : <TrackConnector done={false} />}
+        {isShared ? <SharedConnector done={!!lastTaskDone} /> : <TrackConnector done={!!lastTaskDone} />}
         <div
           onClick={() => { setAddingToTrack(trackPos); setTrackTaskLabel(''); setAddingAtPosition(position) }}
           style={{
-            width: isShared ? 24 : 26, height: isShared ? 24 : 26, borderRadius: '50%', flexShrink: 0,
+            width: isShared ? 40 : 42, height: isShared ? 40 : 42, borderRadius: '50%', flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '1px dashed rgba(148,163,184,0.2)', background: 'transparent',
-            color: '#475569', fontSize: isShared ? 12 : 14, cursor: 'pointer',
-            marginBottom: isShared ? 0 : 18,
+            border: '1.5px dashed rgba(148,163,184,0.2)', background: 'transparent',
+            color: '#475569', fontSize: isShared ? 16 : 18, cursor: 'pointer',
+            marginBottom: isShared ? 0 : 28,
             transition: 'all 0.15s',
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#a855f7'; e.currentTarget.style.color = '#a855f7' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(148,163,184,0.2)'; e.currentTarget.style.color = '#475569' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#a855f7'; e.currentTarget.style.color = '#a855f7'; e.currentTarget.style.background = 'rgba(168,85,247,0.06)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(148,163,184,0.2)'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}
           title="Add task"
         >+</div>
       </>
@@ -566,7 +640,7 @@ function LineItemPipeline({ pipeline, checklist, onToggle, onAddTrackTask }: {
 
   const renderTrackNodes = (tasks: ChecklistTask[], nextKey: string | null, trackName: string, presetTasks: ChecklistTask[], isShared?: boolean) => {
     return tasks.map((task, idx) => {
-      const isDone = !!checklist[task.key]?.done
+      const taskDone = !!checklist[task.key]?.done
       const isActive = task.key === nextKey
       const isAdHoc = task.key.startsWith('custom_')
       const presetIdx = presetTasks.findIndex(t => t.key === task.key)
@@ -574,39 +648,53 @@ function LineItemPipeline({ pipeline, checklist, onToggle, onAddTrackTask }: {
       const insertKey = `${trackName}:${insertPos}`
       const isInsertingHere = addingToTrack === insertKey
 
+      // A connector line is green if EITHER the task before it OR the task after it is done
+      const prevDone = idx > 0 ? !!checklist[tasks[idx - 1].key]?.done : false
+      const lineGreen = taskDone || prevDone
+      const lineColor = lineGreen ? '#22c55e' : 'rgba(148,163,184,0.1)'
+
       if (isShared) {
-        const prevDone = idx === 0 ? readyForProduction : !!checklist[tasks[idx - 1].key]?.done
+        // For the first shared node, also check if merge point has progress
+        const sharedLineGreen = idx === 0 ? (taskDone || prodDoneCount > 0) : lineGreen
+        const sharedLineColor = sharedLineGreen ? '#22c55e' : 'rgba(148,163,184,0.1)'
         return (
           <React.Fragment key={task.key}>
             {isInsertingHere ? (
-              <><SharedConnector done={false} /><InlineAddInput track={trackName} position={insertPos} /></>
+              <>
+                <SharedConnector done={sharedLineGreen} />
+                <InlineAddInput track={trackName} position={insertPos} />
+                <SharedConnector done={sharedLineGreen} />
+              </>
             ) : (
-              <div style={{ flex: 1, minWidth: 12, height: 16, display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}
+              <div style={{ flex: 1, minWidth: 20, height: 24, display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative' }}
                 onClick={() => { setAddingToTrack(insertKey); setTrackTaskLabel('') }}
                 title="Insert task here">
-                <div style={{ flex: 1, height: 2, background: prevDone && isDone ? '#a855f7' : 'rgba(148,163,184,0.1)' }} />
+                <div style={{ flex: 1, height: 3, borderRadius: 2, background: sharedLineColor, transition: 'background 0.3s ease' }} />
               </div>
             )}
-            <SharedNode done={isDone} active={isActive} icon={task.icon || '○'} label={task.label} onClick={() => onToggle(task.key, isDone)} />
+            <SharedNode done={taskDone} active={isActive} icon={task.icon || '○'} label={task.label} onClick={() => onToggle(task.key, taskDone)} />
           </React.Fragment>
         )
       }
-      const prevAllDone = tasks.slice(0, idx).every(t => !!checklist[t.key]?.done)
       return (
         <React.Fragment key={task.key}>
           {idx > 0 && (
             isInsertingHere ? (
-              <><TrackConnector done={false} /><InlineAddInput track={trackName} position={insertPos} /></>
+              <>
+                <TrackConnector done={lineGreen} />
+                <InlineAddInput track={trackName} position={insertPos} />
+                <TrackConnector done={lineGreen} />
+              </>
             ) : (
-              <div style={{ flex: 1, minWidth: 16, height: 16, display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative', marginBottom: 18 }}
+              <div style={{ flex: 1, minWidth: 24, height: 24, display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative', marginBottom: 28 }}
                 onClick={() => { setAddingToTrack(insertKey); setTrackTaskLabel('') }}
                 title="Insert task here">
-                <div style={{ flex: 1, height: 2, background: prevAllDone && isDone ? '#22c55e' : 'rgba(148,163,184,0.1)' }} />
+                <div style={{ flex: 1, height: 3, borderRadius: 2, background: lineColor, transition: 'background 0.3s ease' }} />
               </div>
             )
           )}
-          <PipeNode done={isDone} active={isActive} label={task.label} onClick={() => onToggle(task.key, isDone)}>
-            {isDone ? '✓' : (task.icon || (isAdHoc ? '＋' : '○'))}
+          <PipeNode done={taskDone} active={isActive} label={task.label} onClick={() => onToggle(task.key, taskDone)}>
+            {taskDone ? '✓' : (task.icon || (isAdHoc ? '＋' : '○'))}
           </PipeNode>
         </React.Fragment>
       )
@@ -618,50 +706,51 @@ function LineItemPipeline({ pipeline, checklist, onToggle, onAddTrackTask }: {
       <div style={{ display: 'flex', alignItems: 'stretch', width: '100%' }}>
 
         {/* LEFT: Two stacked tracks */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, flex: '0 0 42%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: GAP + 4, flex: '0 0 40%' }}>
 
           {/* PREP track (top) */}
           <div>
-            <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>{pipeline.prepLabel}</div>
+            <div style={{ fontSize: 11, color: 'rgba(148,163,184,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>{pipeline.prepLabel}</div>
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               {renderTrackNodes(fullPrepTasks, prepNext, 'prep', pipeline.prepTasks)}
-              <EndAddButton track="prep" position={pipeline.prepTasks.length + 0.5} />
+              <EndAddButton track="prep" position={pipeline.prepTasks.length + 0.5} lastTaskDone={fullPrepTasks.length > 0 && !!checklist[fullPrepTasks[fullPrepTasks.length - 1].key]?.done} />
             </div>
           </div>
 
           {/* DESIGN track (bottom) */}
           <div>
-            <div style={{ fontSize: 9, color: 'rgba(148,163,184,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>{pipeline.designLabel}</div>
+            <div style={{ fontSize: 11, color: 'rgba(148,163,184,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 700 }}>{pipeline.designLabel}</div>
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               {renderTrackNodes(fullDesignTasks, designNext, 'design', pipeline.designTasks)}
-              <EndAddButton track="design" position={pipeline.designTasks.length + 0.5} />
+              <EndAddButton track="design" position={pipeline.designTasks.length + 0.5} lastTaskDone={fullDesignTasks.length > 0 && !!checklist[fullDesignTasks[fullDesignTasks.length - 1].key]?.done} />
             </div>
           </div>
         </div>
 
         {/* DIAGONAL SVG connector */}
-        <div style={{ position: 'relative', width: DIAG_W, flexShrink: 0 }}>
-          <svg width={DIAG_W} height="100%" style={{ position: 'absolute', inset: 0 }} preserveAspectRatio="none">
-            <line x1="0" y1="52" x2={DIAG_W} y2="50%" stroke={prepDone ? '#22c55e' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
-            <line x1="0" y1="calc(100% - 52px)" x2={DIAG_W} y2="50%" stroke={designDone ? '#22c55e' : 'rgba(148,163,184,0.15)'} strokeWidth="2"/>
+        <div style={{ position: 'relative', width: DIAG_W + 8, flexShrink: 0 }}>
+          <svg width={DIAG_W + 8} height="100%" style={{ position: 'absolute', inset: 0 }} preserveAspectRatio="none">
+            <line x1="0" y1="68" x2={DIAG_W + 8} y2="50%" stroke={prepDone || (fullPrepTasks.length > 0 && !!checklist[fullPrepTasks[fullPrepTasks.length - 1].key]?.done) ? '#22c55e' : 'rgba(148,163,184,0.15)'} strokeWidth="3" strokeLinecap="round" style={{ transition: 'stroke 0.3s ease' }}/>
+            <line x1="0" y1="calc(100% - 68px)" x2={DIAG_W + 8} y2="50%" stroke={designDone || (fullDesignTasks.length > 0 && !!checklist[fullDesignTasks[fullDesignTasks.length - 1].key]?.done) ? '#22c55e' : 'rgba(148,163,184,0.15)'} strokeWidth="3" strokeLinecap="round" style={{ transition: 'stroke 0.3s ease' }}/>
           </svg>
         </div>
 
         {/* RIGHT: Shared production track */}
         <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', flex: 1 }}>
           {/* Merge point */}
-          <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: 52 }}>
+          <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: 86 }}>
             <div style={{
-              width: 34, height: 34, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0,
+              width: 56, height: 56, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21, flexShrink: 0,
               background: prodDoneCount > 0 ? 'rgba(52,211,153,0.15)' : readyForProduction ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
-              border: `2px solid ${prodDoneCount > 0 ? '#22c55e' : readyForProduction ? '#a855f7' : 'rgba(148,163,184,0.15)'}`,
+              border: `3px solid ${prodDoneCount > 0 ? '#22c55e' : readyForProduction ? '#a855f7' : 'rgba(148,163,184,0.15)'}`,
               color: prodDoneCount > 0 ? '#22c55e' : readyForProduction ? '#a855f7' : '#475569',
-              boxShadow: readyForProduction && prodDoneCount === 0 ? '0 0 0 4px rgba(168,85,247,0.12)' : 'none',
+              boxShadow: readyForProduction && prodDoneCount === 0 ? '0 0 0 6px rgba(168,85,247,0.12)' : prodDoneCount > 0 ? '0 0 0 5px rgba(34,197,94,0.08)' : 'none',
+              transition: 'all 0.3s ease',
             }}>
               {prodDoneCount > 0 ? '✓' : '⚡'}
             </div>
-            <div style={{ position: 'absolute', top: '100%', marginTop: 4, fontSize: 8, textAlign: 'center', lineHeight: 1.3, fontWeight: 500, color: prodDoneCount > 0 ? '#22c55e' : readyForProduction ? '#a855f7' : '#475569', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', top: '100%', marginTop: 8, fontSize: 11, textAlign: 'center', lineHeight: 1.3, fontWeight: 600, color: prodDoneCount > 0 ? '#22c55e' : readyForProduction ? '#a855f7' : '#94a3b8', whiteSpace: 'nowrap' }}>
               Ready for<br/>Production
             </div>
           </div>
@@ -669,7 +758,7 @@ function LineItemPipeline({ pipeline, checklist, onToggle, onAddTrackTask }: {
           {renderTrackNodes(fullProdTasks, prodNext, 'production', pipeline.productionTasks, true)}
 
           {/* Add to production track */}
-          <EndAddButton track="production" position={pipeline.productionTasks.length + 0.5} isShared />
+          <EndAddButton track="production" position={pipeline.productionTasks.length + 0.5} isShared lastTaskDone={fullProdTasks.length > 0 && !!checklist[fullProdTasks[fullProdTasks.length - 1].key]?.done} />
         </div>
       </div>
     </div>
@@ -964,7 +1053,7 @@ function DocumentDetail({ doc, tab, getChecklist, onChecklistUpdate, pipelineCon
                                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(148,163,184,0.1)' }}
                               >
                                 {img ? (
-                                  <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                                  <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; const fallback = el.parentElement; if (fallback) { const placeholder = document.createElement('div'); placeholder.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,0.06);color:#475569;font-size:9px;font-weight:600;'; placeholder.textContent = 'No preview'; fallback.appendChild(placeholder) } }} />
                                 ) : (
                                   <>
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -1018,7 +1107,7 @@ function DocumentDetail({ doc, tab, getChecklist, onChecklistUpdate, pipelineCon
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(148,163,184,0.1)' }}
                 >
                   {img ? (
-                    <img src={url} alt={name} style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                    <img src={url} alt={name} style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 4 }} onError={e => { const el = e.target as HTMLImageElement; el.style.display = 'none'; const fallback = el.parentElement; if (fallback) { const placeholder = document.createElement('div'); placeholder.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(148,163,184,0.06);color:#475569;font-size:9px;font-weight:600;'; placeholder.textContent = 'No preview'; fallback.appendChild(placeholder) } }} />
                   ) : (
                     <div style={{ width: 64, height: 64, borderRadius: 4, background: 'rgba(148,163,184,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4 }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -1317,7 +1406,8 @@ function LightboxOverlay({ lightbox, setLightbox }: { lightbox: { images: { url:
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightbox.index, lightbox.images.length, hasMultiple])
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!zoomed) return

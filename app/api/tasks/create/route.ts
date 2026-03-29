@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { title, description, priority, due_date, status, notes } = body
+    const { title, description, priority, due_date, status, notes, parent_task_id } = body
 
     const { data, error } = await supabase
       .from('tasks')
@@ -15,9 +15,10 @@ export async function POST(request: Request) {
         due_date: due_date || null,
         status: status || 'TO_DO',
         notes: notes || null,
+        parent_task_id: parent_task_id || null,
         created_at: new Date().toISOString()
       }])
-      .select('id, title, description, status, priority, due_date, created_at, invoice_id, submission_id, quote_id, notes, started_at, time_spent_minutes, line_item_id, document_id')
+      .select('*')
       .single()
 
     if (error) {
