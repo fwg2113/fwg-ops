@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import ModalBackdrop from '../../components/ModalBackdrop'
 
 interface Vendor {
   id: string
@@ -322,18 +323,7 @@ export default function InventoryPage({
 
       {/* Vendor Edit/Create Modal */}
       {editingVendor && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-          }}
-          onClick={() => { setEditingVendor(null); setIsCreating(false) }}
-        >
+        <ModalBackdrop onClose={() => { setEditingVendor(null); setIsCreating(false) }}>
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -514,7 +504,7 @@ export default function InventoryPage({
               </div>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   )

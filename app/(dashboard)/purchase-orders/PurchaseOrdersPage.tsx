@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import ModalBackdrop from '../../components/ModalBackdrop'
 
 // Types
 interface SizeData {
@@ -1631,11 +1632,7 @@ export default function PurchaseOrdersPage() {
 
       {/* Confirm Modal */}
       {showConfirmModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 10000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-        }} onClick={() => setShowConfirmModal(false)}>
+        <ModalBackdrop onClose={() => setShowConfirmModal(false)} zIndex={10000}>
           <div
             onClick={e => e.stopPropagation()}
             style={{
@@ -1700,7 +1697,7 @@ export default function PurchaseOrdersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       <style jsx global>{`

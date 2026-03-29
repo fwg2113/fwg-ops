@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import ModalBackdrop from '../../components/ModalBackdrop'
 
 type CalendarEvent = {
   id: string
@@ -711,7 +712,7 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
 
       {/* Schedule Job Modal */}
       {showScheduleModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowScheduleModal(false)}>
+        <ModalBackdrop onClose={() => setShowScheduleModal(false)} zIndex={1000}>
           <div style={{ background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Schedule Job</h2>
@@ -806,12 +807,12 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
               </button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
 
       {/* Edit Modal */}
       {editingEvent && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditingEvent(null)}>
+        <ModalBackdrop onClose={() => setEditingEvent(null)} zIndex={1000}>
           <div style={{ background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -941,7 +942,7 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
               </div>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   )

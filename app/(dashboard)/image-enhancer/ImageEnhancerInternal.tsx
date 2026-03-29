@@ -7,6 +7,7 @@ import { pdfToImage } from '@/app/lib/pdfToImage'
 import { ImagePrepModal } from '@/app/components/shared/image-tools/ImagePrepModal'
 import type { UploadedImage } from '@/app/components/shared/image-tools/types'
 import { GradeBadge } from '@/app/components/shared/image-tools/GradeBadge'
+import ModalBackdrop from '../../components/ModalBackdrop'
 
 const API_BASE = '/api/image-enhancer'
 const MAX_FILE_SIZE = 20 * 1024 * 1024
@@ -605,13 +606,7 @@ export default function ImageEnhancerInternal() {
 
       {/* Save to Document Modal */}
       {showSaveModal && (
-        <div
-          onClick={() => setShowSaveModal(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
-          }}
-        >
+        <ModalBackdrop onClose={() => setShowSaveModal(false)}>
           <div
             onClick={e => e.stopPropagation()}
             style={{
@@ -700,7 +695,7 @@ export default function ImageEnhancerInternal() {
               })}
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import ModalBackdrop from '../../components/ModalBackdrop'
 
 interface Material {
   id: string
@@ -25,6 +26,13 @@ interface Material {
   active: boolean
   created_at: string
   updated_at: string
+  adhesive_color: string | null
+  backing_type: string | null
+  backing_brand_text: string | null
+  finish_description: string | null
+  media_face_color: string | null
+  id_notes: string | null
+  is_colored_vinyl: boolean
 }
 
 interface Category {
@@ -684,10 +692,7 @@ export default function MaterialsList({
 
       {/* ==================== EDIT/CREATE MODAL ==================== */}
       {editingMaterial && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
-          onClick={() => { setEditingMaterial(null); setIsCreating(false) }}
-        >
+        <ModalBackdrop onClose={() => { setEditingMaterial(null); setIsCreating(false) }}>
           <div
             onClick={(e) => e.stopPropagation()}
             style={{ background: '#1a1a1a', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '700px', maxHeight: '85vh', overflow: 'auto', padding: '28px' }}
@@ -967,6 +972,62 @@ export default function MaterialsList({
                 </div>
               )}
 
+              {/* ---- IDENTIFICATION SECTION ---- */}
+              {editingMaterial.tab_category === 'media' && (
+                <>
+                  <div style={{ gridColumn: '1 / -1', borderTop: `1px solid ${borderColor}`, paddingTop: '14px', marginTop: '4px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: textPrimary, marginBottom: '12px' }}>Roll Identification</div>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={(editingMaterial as Record<string, unknown>).is_colored_vinyl as boolean || false} onChange={(e) => updateField('is_colored_vinyl', e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                    <label style={{ color: textSecondary, fontSize: '13px' }}>Colored Vinyl (roll comes in multiple colors, not white printable)</label>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Finish Description</label>
+                    <input style={inputStyle} value={editingMaterial.finish_description || ''} onChange={(e) => updateField('finish_description', e.target.value)} placeholder="warm gloss, cool satin, matte..." />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Media Face Color</label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input style={{ ...inputStyle, flex: 1 }} value={editingMaterial.media_face_color || ''} onChange={(e) => updateField('media_face_color', e.target.value)} placeholder="#ffffff or holographic" />
+                      <button onClick={() => updateField('media_face_color', 'holographic')} title="Holographic"
+                        style={{ width: '36px', height: '36px', borderRadius: '6px', border: editingMaterial.media_face_color === 'holographic' ? '2px solid #fff' : '2px solid transparent', background: 'linear-gradient(135deg, #22d3ee, #a855f7, #ec4899, #eab308)', cursor: 'pointer', flexShrink: 0 }} />
+                      <input type="color" value={editingMaterial.media_face_color === 'holographic' ? '#ffffff' : (editingMaterial.media_face_color || '#ffffff')} onChange={(e) => updateField('media_face_color', e.target.value)} style={{ width: '36px', height: '36px', border: 'none', borderRadius: '6px', cursor: 'pointer', background: 'transparent' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Adhesive Color</label>
+                    <select style={inputStyle} value={editingMaterial.adhesive_color || ''} onChange={(e) => updateField('adhesive_color', e.target.value)}>
+                      <option value="">Select...</option>
+                      <option value="white">White</option>
+                      <option value="clear">Clear</option>
+                      <option value="light_gray">Light Gray</option>
+                      <option value="medium_gray">Medium Gray</option>
+                      <option value="dark_gray">Dark Gray</option>
+                      <option value="holographic">Holographic</option>
+                      <option value="colored">Colored (matches media)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Backing Type</label>
+                    <select style={inputStyle} value={editingMaterial.backing_type || 'blank'} onChange={(e) => updateField('backing_type', e.target.value)}>
+                      <option value="blank">Blank (no branding)</option>
+                      <option value="branded">Branded (has logos)</option>
+                    </select>
+                  </div>
+                  {(editingMaterial as Record<string, unknown>).backing_type === 'branded' && (
+                    <div>
+                      <label style={labelStyle}>Backing Brand Text</label>
+                      <input style={inputStyle} value={editingMaterial.backing_brand_text || ''} onChange={(e) => updateField('backing_brand_text', e.target.value)} placeholder="Avery, ORACAL..." />
+                    </div>
+                  )}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={labelStyle}>ID Notes</label>
+                    <textarea style={{ ...inputStyle, minHeight: '50px', resize: 'vertical' }} value={editingMaterial.id_notes || ''} onChange={(e) => updateField('id_notes', e.target.value)} placeholder='e.g., "slightly glossier satin, lighter adhesive than 1105"' />
+                  </div>
+                </>
+              )}
+
               {/* Notes */}
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={labelStyle}>Notes</label>
@@ -991,7 +1052,7 @@ export default function MaterialsList({
               </button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   )
