@@ -53,9 +53,9 @@ const textMuted = '#64748b'
 const accentGradient = 'linear-gradient(90deg, #22d3ee, #a855f7, #ec4899)'
 
 const PAGE_TABS = [
+  { key: 'identify', label: 'Identify' },
   { key: 'guide', label: 'Guided Selector' },
   { key: 'common', label: 'Most Common' },
-  { key: 'identify', label: 'Identify' },
 ] as const
 
 type PageTabKey = typeof PAGE_TABS[number]['key']
@@ -106,7 +106,7 @@ export default function MediaGuide({
   printers: Printer[]
   blades: Blade[]
 }) {
-  const [pageTab, setPageTab] = useState<PageTabKey>('guide')
+  const [pageTab, setPageTab] = useState<PageTabKey>('identify')
 
   // Guided selector state
   const [guideStep, setGuideStep] = useState(1)

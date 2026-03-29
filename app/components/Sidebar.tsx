@@ -9,6 +9,7 @@ const navSections = [
     items: [
       { href: '/', label: 'Command', labelGradient: 'Center', icon: 'grid', badgeKey: 'actions' },
       { href: '/submissions', label: 'Lead', labelGradient: 'Pipeline', icon: 'activity' },
+      { href: '/tasks', label: 'Task', labelGradient: 'Board', icon: 'tasks' },
     ]
   },
   {
@@ -41,9 +42,7 @@ const navSections = [
     title: 'PRODUCTION',
     items: [
       { href: '/calendar', label: 'Job', labelGradient: 'Calendar', icon: 'calendar' },
-      { href: '/tasks', label: 'Task', labelGradient: 'Board', icon: 'tasks' },
-      { href: '/production', label: 'Production', labelGradient: '', icon: 'layers' },
-      { href: '/analytics', label: 'Production', labelGradient: 'Analytics', icon: 'chart' },
+      { href: '/production', label: 'Production', labelGradient: 'Tracker', icon: 'layers' },
       { href: '/waste-reporter', label: 'Waste', labelGradient: 'Reporter', icon: 'alert' },
     ]
   },
@@ -51,7 +50,7 @@ const navSections = [
     title: 'MATERIALS',
     items: [
       { href: '/materials', label: 'Materials', labelGradient: 'List', icon: 'rolls' },
-      { href: '/inventory', label: 'Inventory', labelGradient: '', icon: 'box' },
+      { href: '/inventory', label: 'Inventory', labelGradient: 'Management', icon: 'box' },
       { href: '/media-guide', label: 'Media', labelGradient: 'Guide', icon: 'compass' },
       { href: '/blade-guide', label: 'Blade', labelGradient: 'Guide', icon: 'blade' },
     ]
