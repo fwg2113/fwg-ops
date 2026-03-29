@@ -17,10 +17,15 @@ Business operations platform for Frederick Wraps & Graphics. Built and maintaine
 ## Project Structure
 
 - `app/(dashboard)/` — Main dashboard pages (Command Center, quotes, invoices, payments, etc.)
+- `app/(dashboard)/materials/` — Materials List with tabs (Media, Laminate, Transfer Tape, PPF), use case assignment, multi-vendor support
+- `app/(dashboard)/inventory/` — Vendor management (inventory tracking coming later)
+- `app/(dashboard)/media-guide/` — Job Setup Guide, Most Common setups, Roll Identifier with printable wall reference
+- `app/(dashboard)/blade-guide/` — Graphtec + UCJV blade reference with custom SVG blade holders, "Not sure?" helper
+- `app/(dashboard)/waste-reporter/` — Waste tracking with cost calculations, team attribution, lesson learned
 - `app/api/` — API routes (Stripe webhooks, CRUD endpoints, integrations)
 - `app/view/[id]/` — Customer-facing document view (quotes/invoices)
 - `app/lib/` — Shared utilities (supabase client, Google Sheets sync, production helpers)
-- `app/components/` — Shared components (sidebar, notifications, image tools)
+- `app/components/` — Shared components (sidebar, notifications, ModalBackdrop, image tools)
 
 ## Key Architecture Rules
 
@@ -64,6 +69,18 @@ export async function POST(request: Request) {
 - The Supabase MCP tool may or may not be available — if not, give Joey the SQL to run manually.
 - Keep responses direct and actionable. Don't over-explain code internals unless asked.
 - Joey deploys by pushing to `main` — Vercel handles the rest.
+
+### Materials System
+- **`materials_v2`** table is the source of truth for all materials (media, laminate, transfer tape, PPF, substrates). Separate from the old `materials` table used by the estimator.
+- **`vendors`** + **`material_vendors`** junction table for multi-vendor support per material.
+- **`blades`** table for Graphtec FC9000-160 and UCJV Print & Cut blade configurations with dual condition numbers (standard + on UV ink), primary material star system for thickness.
+- **`waste_reports`** table tracks material waste with cost calculations.
+- **`printers`** table (UCJV300-160 UV cure, JV330-160 eco-solvent) — printer choice affects blade condition numbers.
+- Pricing formula: cost_per_roll input → cost/sqft, cost/linear ft, sell price (5× cost/sqft) calculated in UI.
+- Roll identification fields (adhesive_color as named dropdown, backing_type, media_face_color, finish_description) power the visual roll identifier SVGs.
+
+### Shared Components
+- **`app/components/ModalBackdrop.tsx`** — Use this for ALL modal backdrops. Prevents accidental close when drag-selecting text inside modals. Never use raw `onClick` on backdrop divs.
 
 ## Active Branches
 
