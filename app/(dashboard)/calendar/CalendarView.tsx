@@ -24,6 +24,29 @@ type CalendarEvent = {
   category: string | null
 }
 
+type DocumentLineItem = {
+  id: string
+  description: string
+  quantity: number
+  category: string
+  line_type: string
+  package_key: string
+  attachments: any[]
+  custom_fields: Record<string, any>
+}
+
+type DocumentDetail = {
+  vehicle_description: string
+  customer_name: string
+  customer_email: string
+  customer_phone: string
+  company_name: string
+  category: string
+  has_balance: boolean
+  attachments: any[]
+  line_items: DocumentLineItem[]
+}
+
 // Category color map
 const CATEGORY_COLORS: Record<string, { color: string; label: string }> = {
   PPF: { color: '#ec4899', label: 'PPF' },
@@ -76,7 +99,7 @@ const getLegendItems = (events: CalendarEvent[]) => {
   return Array.from(seen.values())
 }
 
-export default function CalendarView({ initialEvents }: { initialEvents: CalendarEvent[] }) {
+export default function CalendarView({ initialEvents, documentMap = {} }: { initialEvents: CalendarEvent[]; documentMap?: Record<string, DocumentDetail> }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'week' | 'twoweek' | 'month'>('twoweek')
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents)
@@ -96,6 +119,7 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
   const [installEndTime, setInstallEndTime] = useState('17:00')
   const [scheduling, setScheduling] = useState(false)
   const [dragState, setDragState] = useState<{ eventId: string; type: 'vehicle' | 'install'; edge: 'start' | 'end' | 'move'; startX: number; originalStart: string; originalEnd: string; hasMoved: boolean } | null>(null)
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
   const calendarRef = useRef<HTMLDivElement>(null)
 
   const getWeekDays = (weeks: number = 1) => {
@@ -653,10 +677,11 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
               {weekDays.map((day, i) => {
                 const isToday = day.toDateString() === new Date().toDateString()
                 const isNewWeek = i > 0 && day.getDay() === 0
+                const isSunday = day.getDay() === 0
                 return (
-                  <div key={i} style={{ padding: '12px 8px', textAlign: 'center', borderLeft: i > 0 ? `1px solid rgba(148,163,184,${isNewWeek ? '0.2' : '0.1'})` : 'none' }}>
-                    <p style={{ color: '#64748b', fontSize: '11px', margin: '0 0 2px 0' }}>{day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}</p>
-                    <p style={{ color: isToday ? '#d71cd1' : '#f1f5f9', fontSize: '16px', fontWeight: isToday ? 700 : 500, margin: 0, width: '28px', height: '28px', lineHeight: '28px', borderRadius: '50%', background: isToday ? 'rgba(215,28,209,0.15)' : 'transparent', display: 'inline-block' }}>{day.getDate()}</p>
+                  <div key={i} style={{ padding: '12px 8px', textAlign: 'center', borderLeft: i > 0 ? `1px solid rgba(148,163,184,${isNewWeek ? '0.2' : '0.1'})` : 'none', background: isSunday ? 'rgba(100,116,139,0.08)' : 'transparent' }}>
+                    <p style={{ color: isSunday ? '#475569' : '#64748b', fontSize: '11px', margin: '0 0 2px 0' }}>{day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}</p>
+                    <p style={{ color: isToday ? '#d71cd1' : isSunday ? '#475569' : '#f1f5f9', fontSize: '16px', fontWeight: isToday ? 700 : 500, margin: 0, width: '28px', height: '28px', lineHeight: '28px', borderRadius: '50%', background: isToday ? 'rgba(215,28,209,0.15)' : 'transparent', display: 'inline-block' }}>{day.getDate()}</p>
                   </div>
                 )
               })}
@@ -665,7 +690,8 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${weekDays.length}, 1fr)`, position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
                 {weekDays.map((day, i) => {
                   const isNewWeek = i > 0 && day.getDay() === 0
-                  return <div key={i} style={{ borderLeft: i > 0 ? `1px solid rgba(148,163,184,${isNewWeek ? '0.15' : '0.05'})` : 'none' }} />
+                  const isSunday = day.getDay() === 0
+                  return <div key={i} style={{ borderLeft: i > 0 ? `1px solid rgba(148,163,184,${isNewWeek ? '0.15' : '0.05'})` : 'none', background: isSunday ? 'rgba(100,116,139,0.08)' : 'transparent' }} />
                 })}
               </div>
               {getEventsForRange(weekDays).map((event, idx) => renderWeekEvent(event, idx, weekDays))}
@@ -677,8 +703,8 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
         {view === 'month' && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid rgba(148,163,184,0.1)' }}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} style={{ padding: '12px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>{day.toUpperCase()}</div>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
+                <div key={day} style={{ padding: '12px', textAlign: 'center', color: i === 0 ? '#475569' : '#64748b', fontSize: '12px', fontWeight: 600, background: i === 0 ? 'rgba(100,116,139,0.08)' : 'transparent' }}>{day.toUpperCase()}</div>
               ))}
             </div>
             {getMonthWeeks().map((week, weekIdx) => {
@@ -696,9 +722,10 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
                   {week.map((day, dayIdx) => {
                     const isCurrentMonth = day.getMonth() === currentDate.getMonth()
                     const isToday = day.toDateString() === new Date().toDateString()
+                    const isSunday = day.getDay() === 0
                     return (
-                      <div key={dayIdx} style={{ padding: '6px', borderRight: '1px solid rgba(148,163,184,0.05)', opacity: isCurrentMonth ? 1 : 0.4 }}>
-                        <p style={{ color: isToday ? '#d71cd1' : '#f1f5f9', fontSize: '13px', fontWeight: isToday ? 700 : 400, margin: 0, width: '24px', height: '24px', lineHeight: '24px', textAlign: 'center', borderRadius: '50%', background: isToday ? 'rgba(215,28,209,0.2)' : 'transparent' }}>{day.getDate()}</p>
+                      <div key={dayIdx} style={{ padding: '6px', borderRight: '1px solid rgba(148,163,184,0.05)', opacity: isCurrentMonth ? 1 : 0.4, background: isSunday ? 'rgba(100,116,139,0.08)' : 'transparent' }}>
+                        <p style={{ color: isToday ? '#d71cd1' : isSunday ? '#475569' : '#f1f5f9', fontSize: '13px', fontWeight: isToday ? 700 : 400, margin: 0, width: '24px', height: '24px', lineHeight: '24px', textAlign: 'center', borderRadius: '50%', background: isToday ? 'rgba(215,28,209,0.2)' : 'transparent' }}>{day.getDate()}</p>
                       </div>
                     )
                   })}
@@ -811,15 +838,42 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
       )}
 
       {/* Edit Modal */}
-      {editingEvent && (
+      {editingEvent && (() => {
+        const doc = editingEvent.document_id ? documentMap[editingEvent.document_id] : null
+        const eColor = getEventColor(editingEvent)
+
+        // Collect all mockup/image attachments from line items and document
+        const allImages: { url: string; label: string }[] = []
+        if (doc) {
+          doc.line_items.forEach((li: DocumentLineItem) => {
+            if (li.attachments && Array.isArray(li.attachments)) {
+              li.attachments.forEach((att: any) => {
+                const url = att.url || att.file_url
+                if (url) allImages.push({ url, label: li.description || 'Mockup' })
+              })
+            }
+          })
+          if (doc.attachments && Array.isArray(doc.attachments)) {
+            doc.attachments.forEach((att: any) => {
+              const url = att.url || att.file_url
+              const name = att.filename || att.file_name || att.name || 'Project File'
+              const type = att.contentType || att.mime_type || att.type || ''
+              if (url && (type.startsWith('image/') || /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(name))) {
+                allImages.push({ url, label: name })
+              }
+            })
+          }
+        }
+
+        return (
         <ModalBackdrop onClose={() => setEditingEvent(null)} zIndex={1000}>
-          <div style={{ background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: doc ? '720px' : '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Edit Event</h2>
-                {/* Category color badge */}
                 {editingEvent.category && CATEGORY_COLORS[editingEvent.category] && (
-                  <span style={{ 
+                  <span style={{
                     fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
                     background: `${CATEGORY_COLORS[editingEvent.category].color}20`,
                     color: CATEGORY_COLORS[editingEvent.category].color,
@@ -829,26 +883,42 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
                   </span>
                 )}
                 {!editingEvent.document_id && !editingEvent.category && (
-                  <span style={{ 
+                  <span style={{
                     fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
                     background: 'rgba(107,114,128,0.2)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.4)'
                   }}>
                     Manual
                   </span>
                 )}
+                {doc?.has_balance && (
+                  <span style={{
+                    fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px',
+                    background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)'
+                  }}>
+                    Balance Due
+                  </span>
+                )}
               </div>
               <button onClick={() => setEditingEvent(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
             </div>
-            
+
             <div style={{ padding: '20px 24px' }}>
+              {/* Vehicle / Subject - prominent when linked to a doc */}
+              {doc?.vehicle_description && (
+                <div style={{ marginBottom: '20px', padding: '14px 16px', background: 'rgba(148,163,184,0.06)', border: '1px solid rgba(148,163,184,0.12)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={eColor} strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  <span style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 600 }}>{doc.vehicle_description}</span>
+                </div>
+              )}
+
               {/* Title */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Job Title</label>
                 <input type="text" value={editingEvent.title} onChange={(e) => setEditingEvent({...editingEvent, title: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
               </div>
-              
+
               {/* Customer Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: doc?.customer_email ? '1fr 1fr 1fr' : '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</label>
                   <input type="text" value={editingEvent.customer_name || ''} onChange={(e) => setEditingEvent({...editingEvent, customer_name: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
@@ -857,60 +927,121 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone</label>
                   <input type="tel" value={editingEvent.customer_phone || ''} onChange={(e) => setEditingEvent({...editingEvent, customer_phone: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
                 </div>
+                {doc?.customer_email && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</label>
+                    <div style={{ padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.customer_email}</div>
+                  </div>
+                )}
               </div>
-              
+
+              {/* Line Items from linked document */}
+              {doc && doc.line_items.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Scope of Work</label>
+                  <div style={{ background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
+                    {doc.line_items.map((li: DocumentLineItem, idx: number) => (
+                      <div key={li.id} style={{ padding: '10px 14px', borderBottom: idx < doc.line_items.length - 1 ? '1px solid rgba(148,163,184,0.08)' : 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: eColor, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 500 }}>{li.description}</span>
+                          {li.quantity > 1 && (
+                            <span style={{ color: '#64748b', fontSize: '12px', marginLeft: '8px' }}>x{li.quantity}</span>
+                          )}
+                        </div>
+                        {li.category && CATEGORY_COLORS[li.category] && (
+                          <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: `${CATEGORY_COLORS[li.category].color}15`, color: CATEGORY_COLORS[li.category].color, flexShrink: 0 }}>
+                            {CATEGORY_COLORS[li.category].label}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mockups & Project Files */}
+              {allImages.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mockups & Files</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: allImages.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                    {allImages.map((img, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setLightboxImage(img.url)}
+                        style={{
+                          position: 'relative',
+                          borderRadius: '10px',
+                          overflow: 'hidden',
+                          border: '1px solid rgba(148,163,184,0.12)',
+                          cursor: 'pointer',
+                          aspectRatio: allImages.length === 1 ? '16/9' : '4/3',
+                          background: '#1d1d1d'
+                        }}
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.label}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        />
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '6px 10px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', color: '#fff', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {img.label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Vehicle On Site Section */}
-              {(() => {
-                const eColor = getEventColor(editingEvent)
-                return (
-                  <>
-                    <div style={{ marginBottom: '20px', padding: '16px', background: `${eColor}08`, border: `2px dashed ${eColor}50`, borderRadius: '12px' }}>
-                      <h3 style={{ color: eColor, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                        Vehicle On Site
-                      </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Drop-off Date</label>
-                          <input type="date" value={editingEvent.vehicle_start || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pick-up Date</label>
-                          <input type="date" value={editingEvent.vehicle_end || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Install Period Section */}
-                    <div style={{ marginBottom: '20px', padding: '16px', background: `${eColor}15`, border: `2px solid ${eColor}60`, borderRadius: '12px' }}>
-                      <h3 style={{ color: eColor, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                        Install Period
-                      </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install Start</label>
-                          <input type="date" value={editingEvent.install_start || ''} onChange={(e) => setEditingEvent({...editingEvent, install_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install End</label>
-                          <input type="date" value={editingEvent.install_end || ''} onChange={(e) => setEditingEvent({...editingEvent, install_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )
-              })()}
-              
+              <div style={{ marginBottom: '20px', padding: '16px', background: `${eColor}08`, border: `2px dashed ${eColor}50`, borderRadius: '12px' }}>
+                <h3 style={{ color: eColor, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  Vehicle On Site
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Drop-off Date</label>
+                    <input type="date" value={editingEvent.vehicle_start || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pick-up Date</label>
+                    <input type="date" value={editingEvent.vehicle_end || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Install Period Section */}
+              <div style={{ marginBottom: '20px', padding: '16px', background: `${eColor}15`, border: `2px solid ${eColor}60`, borderRadius: '12px' }}>
+                <h3 style={{ color: eColor, fontSize: '14px', fontWeight: 600, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  Install Period
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install Start</label>
+                    <input type="date" value={editingEvent.install_start || ''} onChange={(e) => setEditingEvent({...editingEvent, install_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install End</label>
+                    <input type="date" value={editingEvent.install_end || ''} onChange={(e) => setEditingEvent({...editingEvent, install_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              </div>
+
               {/* Notes */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</label>
                 <textarea value={editingEvent.notes || ''} onChange={(e) => setEditingEvent({...editingEvent, notes: e.target.value})} placeholder="Additional notes..." rows={3} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
               </div>
             </div>
-            
+
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => window.open(`/api/production-card?eventId=${editingEvent.id}`, '_blank')} style={{ padding: '10px 16px', background: '#CE0000', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Print Production Card
+                </button>
                 {editingEvent.document_id && (
                   <a href={`/documents/${editingEvent.document_id}`} style={{ padding: '10px 16px', background: '#3b82f6', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -941,6 +1072,16 @@ export default function CalendarView({ initialEvents }: { initialEvents: Calenda
                 }} style={{ padding: '10px 20px', background: '#22c55e', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Save Changes</button>
               </div>
             </div>
+          </div>
+        </ModalBackdrop>
+        )
+      })()}
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <ModalBackdrop onClose={() => setLightboxImage(null)} zIndex={1100}>
+          <div onClick={() => setLightboxImage(null)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', padding: '40px', boxSizing: 'border-box' }}>
+            <img src={lightboxImage} alt="Preview" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()} />
           </div>
         </ModalBackdrop>
       )}
