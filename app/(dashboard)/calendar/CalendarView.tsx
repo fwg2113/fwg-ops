@@ -47,6 +47,19 @@ type DocumentDetail = {
   line_items: DocumentLineItem[]
 }
 
+type TeamMember = {
+  id: string
+  name: string
+  short_name: string
+  color: string
+  role: string | null
+}
+
+type EventAssignment = {
+  event_id: string
+  team_member_id: string
+}
+
 // Category color map
 const CATEGORY_COLORS: Record<string, { color: string; label: string }> = {
   PPF: { color: '#ec4899', label: 'PPF' },
@@ -68,6 +81,10 @@ CHROME_DELETE: { color: '#a855f7', label: 'Vinyl Wrap' },
   RESIDENTIAL_TINT: { color: '#f59e0b', label: 'Window Tint' },
   COMMERCIAL_TINT: { color: '#f59e0b', label: 'Window Tint' },
   APPAREL: { color: '#3b82f6', label: 'Apparel' },
+  BAY_STUDIO_FILMING: { color: '#f59e0b', label: 'Bay — Filming' },
+  BAY_GENERAL: { color: '#f59e0b', label: 'Bay — Blocked' },
+  BAY_OTHER: { color: '#f59e0b', label: 'Bay — Blocked' },
+  BAY_PREP: { color: '#fb923c', label: 'Bay Prep' },
 }
 
 const DEFAULT_COLOR = '#6b7280' // Gray for no linked doc / unknown
@@ -99,11 +116,37 @@ const getLegendItems = (events: CalendarEvent[]) => {
   return Array.from(seen.values())
 }
 
-export default function CalendarView({ initialEvents, documentMap = {}, readOnly = false }: { initialEvents: CalendarEvent[]; documentMap?: Record<string, DocumentDetail>; readOnly?: boolean }) {
+export default function CalendarView({ initialEvents, documentMap = {}, readOnly = false, initialTeamMembers = [], initialAssignments = [], showTeamFilter = false }: { initialEvents: CalendarEvent[]; documentMap?: Record<string, DocumentDetail>; readOnly?: boolean; initialTeamMembers?: TeamMember[]; initialAssignments?: EventAssignment[]; showTeamFilter?: boolean }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'week' | 'twoweek' | 'month'>('twoweek')
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const [teamMembers] = useState<TeamMember[]>(initialTeamMembers)
+  const [assignments, setAssignments] = useState<EventAssignment[]>(initialAssignments)
+  const [filterMemberId, setFilterMemberId] = useState<string | null>(null)
+
+  const getAssignmentsForEvent = (eventId: string) => {
+    return assignments
+      .filter(a => a.event_id === eventId)
+      .map(a => teamMembers.find(tm => tm.id === a.team_member_id))
+      .filter(Boolean) as TeamMember[]
+  }
+
+  const toggleAssignment = async (eventId: string, memberId: string) => {
+    const exists = assignments.find(a => a.event_id === eventId && a.team_member_id === memberId)
+    if (exists) {
+      await supabase.from('calendar_event_assignments').delete().eq('event_id', eventId).eq('team_member_id', memberId)
+      setAssignments(prev => prev.filter(a => !(a.event_id === eventId && a.team_member_id === memberId)))
+    } else {
+      await supabase.from('calendar_event_assignments').insert({ event_id: eventId, team_member_id: memberId })
+      setAssignments(prev => [...prev, { event_id: eventId, team_member_id: memberId }])
+    }
+  }
+
+  // Filter events by team member if filter is active
+  const filteredEvents = filterMemberId
+    ? events.filter(e => assignments.some(a => a.event_id === e.id && a.team_member_id === filterMemberId))
+    : events
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [scheduleTitle, setScheduleTitle] = useState('')
   const [scheduleCustomer, setScheduleCustomer] = useState('')
@@ -118,6 +161,14 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
   const [installEndDate, setInstallEndDate] = useState('')
   const [installEndTime, setInstallEndTime] = useState('17:00')
   const [scheduling, setScheduling] = useState(false)
+  // Bay Event state
+  const [showBayModal, setShowBayModal] = useState(false)
+  const [bayTitle, setBayTitle] = useState('')
+  const [bayType, setBayType] = useState<'studio_filming' | 'general' | 'other'>('studio_filming')
+  const [bayDate, setBayDate] = useState('')
+  const [bayEndDate, setBayEndDate] = useState('')
+  const [bayNotes, setBayNotes] = useState('')
+  const [baySubmitting, setBaySubmitting] = useState(false)
   const [dragState, setDragState] = useState<{ eventId: string; type: 'vehicle' | 'install'; edge: 'start' | 'end' | 'move'; startX: number; originalStart: string; originalEnd: string; hasMoved: boolean } | null>(null)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
   const calendarRef = useRef<HTMLDivElement>(null)
@@ -154,13 +205,16 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
 
   const formatDateStr = (date: Date | null | undefined) => {
     if (!date || isNaN(date.getTime())) return ''
-    return date.toISOString().split('T')[0]
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
   }
 
   const getEventsForRange = (days: Date[]) => {
     const rangeStart = formatDateStr(days[0])
     const rangeEnd = formatDateStr(days[days.length - 1])
-    return events.filter(event => {
+    return filteredEvents.filter(event => {
       const vStart = event.vehicle_start || formatDateStr(new Date(event.start_time))
       const vEnd = event.vehicle_end || formatDateStr(new Date(event.end_time))
       return vStart <= rangeEnd && vEnd >= rangeStart
@@ -212,6 +266,72 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
     setInstallEndDate(formatDateStr(installEnd))
     setInstallEndTime('17:00')
     setShowScheduleModal(true)
+  }
+
+  const openBayModal = () => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    setBayTitle('')
+    setBayType('studio_filming')
+    setBayDate(formatDateStr(tomorrow))
+    setBayEndDate(formatDateStr(tomorrow))
+    setBayNotes('')
+    setShowBayModal(true)
+  }
+
+  const handleAddBayEvent = async () => {
+    if (!bayDate) { alert('Please select a date'); return }
+    setBaySubmitting(true)
+    try {
+      const typeLabels: Record<string, string> = { studio_filming: 'Studio Filming', general: 'General', other: 'Other' }
+      const title = bayTitle || typeLabels[bayType]
+      const endDate = bayEndDate || bayDate
+
+      // Create the main bay event
+      const { data: mainEvent, error: mainError } = await supabase.from('calendar_events').insert({
+        event_type: 'bay_event',
+        title,
+        start_time: new Date(`${bayDate}T09:00`).toISOString(),
+        end_time: new Date(`${endDate}T17:00`).toISOString(),
+        vehicle_start: bayDate,
+        vehicle_end: endDate,
+        install_start: bayDate,
+        install_end: endDate,
+        status: 'Scheduled',
+        notes: bayNotes || null,
+        category: `BAY_${bayType.toUpperCase()}`
+      }).select().single()
+
+      if (mainError) { console.error(mainError); alert('Failed to create event'); setBaySubmitting(false); return }
+
+      // Auto-create prep day (day before start)
+      const prepDate = new Date(bayDate + 'T00:00:00')
+      prepDate.setDate(prepDate.getDate() - 1)
+      const prepDateStr = formatDateStr(prepDate)
+
+      const { data: prepEvent, error: prepError } = await supabase.from('calendar_events').insert({
+        event_type: 'bay_event',
+        title: `Bay Prep — ${title}`,
+        start_time: new Date(`${prepDateStr}T09:00`).toISOString(),
+        end_time: new Date(`${prepDateStr}T17:00`).toISOString(),
+        vehicle_start: prepDateStr,
+        vehicle_end: prepDateStr,
+        install_start: prepDateStr,
+        install_end: prepDateStr,
+        status: 'Scheduled',
+        notes: `Prep day: Make sure the bay is spotless for tomorrow.`,
+        category: 'BAY_PREP'
+      }).select().single()
+
+      const newEvents = [mainEvent]
+      if (prepEvent && !prepError) newEvents.push(prepEvent)
+      setEvents(prev => [...prev, ...newEvents])
+      setShowBayModal(false)
+    } catch (err) {
+      console.error(err)
+      alert('Failed to create bay event')
+    }
+    setBaySubmitting(false)
   }
 
   const handleScheduleJob = async () => {
@@ -511,7 +631,16 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
         >
           <div style={{ position: 'absolute', left: -4, top: 0, bottom: 0, width: 8, cursor: 'ew-resize' }} onMouseDown={(e) => handleMouseDown(e, event.id, 'install', 'start')} />
           <div style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 8, cursor: 'ew-resize' }} onMouseDown={(e) => handleMouseDown(e, event.id, 'install', 'end')} />
-          <p style={{ color: '#fff', fontSize: '13px', fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>{event.title}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <p style={{ color: '#fff', fontSize: '13px', fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: '0 1px 2px rgba(0,0,0,0.5)', flex: 1, minWidth: 0 }}>{event.title}</p>
+            {getAssignmentsForEvent(event.id).length > 0 && (
+              <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                {getAssignmentsForEvent(event.id).map(tm => (
+                  <span key={tm.id} style={{ fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '6px', background: 'rgba(0,0,0,0.4)', color: tm.color, letterSpacing: '0.02em' }}>{tm.short_name}</span>
+                ))}
+              </div>
+            )}
+          </div>
           <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '11px', margin: '2px 0 0 0', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
             Install: {new Date(iStart + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(iEnd + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </p>
@@ -524,7 +653,7 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
     const weekStart = formatDateStr(weekDays[0])
     const weekEnd = formatDateStr(weekDays[6])
     
-    const weekEvents = events.filter(event => {
+    const weekEvents = filteredEvents.filter(event => {
       const vStart = event.vehicle_start || formatDateStr(new Date(event.start_time))
       const vEnd = event.vehicle_end || formatDateStr(new Date(event.end_time))
       return vStart <= weekEnd && vEnd >= weekStart
@@ -614,7 +743,7 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
   }
 
   // Build dynamic legend from current events
-  const legendItems = getLegendItems(events)
+  const legendItems = getLegendItems(filteredEvents)
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
@@ -640,6 +769,12 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               Install View
             </a>
+          )}
+          {!readOnly && (
+            <button onClick={openBayModal} style={{ padding: '10px 16px', background: '#282a30', border: '1px solid #f59e0b50', borderRadius: '8px', color: '#f59e0b', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+              Block Bay
+            </button>
           )}
           {!readOnly && (
             <button onClick={openScheduleModal} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -675,6 +810,33 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
           </div>
         ))}
       </div>
+
+      {/* Team Filter */}
+      {showTeamFilter && teamMembers.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+          <button
+            onClick={() => setFilterMemberId(null)}
+            style={{
+              padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+              border: filterMemberId === null ? '2px solid #f1f5f9' : '1px solid rgba(148,163,184,0.2)',
+              background: filterMemberId === null ? 'rgba(241,245,249,0.1)' : 'transparent',
+              color: filterMemberId === null ? '#f1f5f9' : '#64748b',
+            }}
+          >All Jobs</button>
+          {teamMembers.map(tm => (
+            <button
+              key={tm.id}
+              onClick={() => setFilterMemberId(filterMemberId === tm.id ? null : tm.id)}
+              style={{
+                padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                border: filterMemberId === tm.id ? `2px solid ${tm.color}` : '1px solid rgba(148,163,184,0.2)',
+                background: filterMemberId === tm.id ? `${tm.color}18` : 'transparent',
+                color: filterMemberId === tm.id ? tm.color : '#64748b',
+              }}
+            >{tm.name}</button>
+          ))}
+        </div>
+      )}
 
       {/* Calendar Grid */}
       <div ref={calendarRef} style={{ background: '#1d1d1d', borderRadius: '12px', overflow: 'hidden', userSelect: 'none' }}>
@@ -717,7 +879,7 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
               ))}
             </div>
             {getMonthWeeks().map((week, weekIdx) => {
-              const weekEvents = events.filter(event => {
+              const weekEvents = filteredEvents.filter(event => {
                 const vStart = event.vehicle_start || formatDateStr(new Date(event.start_time))
                 const vEnd = event.vehicle_end || formatDateStr(new Date(event.end_time))
                 const weekStart = formatDateStr(week[0])
@@ -840,6 +1002,73 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
               <button onClick={handleScheduleJob} disabled={scheduling || !scheduleTitle || !vehicleStartDate || !vehicleEndDate || !installStartDate || !installEndDate} style={{ padding: '10px 20px', background: scheduling ? '#555' : '#22c55e', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: scheduling ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 {scheduling ? 'Scheduling...' : 'Schedule Job'}
+              </button>
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
+
+      {/* Bay Event Modal */}
+      {showBayModal && (
+        <ModalBackdrop onClose={() => setShowBayModal(false)} zIndex={1000}>
+          <div style={{ background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 600, margin: 0 }}>Block Bay</h2>
+                <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '12px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>Bay Event</span>
+              </div>
+              <button onClick={() => setShowBayModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '24px', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              {/* Event Type */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Event Type</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {([['studio_filming', 'Studio Filming'], ['general', 'General'], ['other', 'Other']] as const).map(([key, label]) => (
+                    <button key={key} onClick={() => setBayType(key)} style={{
+                      flex: 1, padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                      border: bayType === key ? '2px solid #f59e0b' : '1px solid rgba(148,163,184,0.2)',
+                      background: bayType === key ? 'rgba(245,158,11,0.1)' : '#1d1d1d',
+                      color: bayType === key ? '#f59e0b' : '#94a3b8',
+                    }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title (optional)</label>
+                <input type="text" value={bayTitle} onChange={e => setBayTitle(e.target.value)} placeholder={bayType === 'studio_filming' ? 'e.g. Company Name Filming' : 'Event name...'} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Dates */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Date *</label>
+                  <input type="date" value={bayDate} onChange={e => { setBayDate(e.target.value); if (!bayEndDate || e.target.value > bayEndDate) setBayEndDate(e.target.value) }} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>End Date</label>
+                  <input type="date" value={bayEndDate} onChange={e => setBayEndDate(e.target.value)} min={bayDate} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              {/* Prep day notice */}
+              <div style={{ marginBottom: '16px', padding: '10px 14px', background: 'rgba(245,158,11,0.06)', border: '1px dashed rgba(245,158,11,0.3)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{ color: '#f59e0b', fontSize: '12px' }}>A "Bay Prep" day will be auto-created for the day before</span>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</label>
+                <textarea value={bayNotes} onChange={e => setBayNotes(e.target.value)} placeholder="Additional details..." rows={3} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+            <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setShowBayModal(false)} style={{ padding: '10px 20px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleAddBayEvent} disabled={baySubmitting || !bayDate} style={{ padding: '10px 20px', background: '#f59e0b', border: 'none', borderRadius: '8px', color: '#111', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                {baySubmitting ? 'Creating...' : 'Block Bay'}
               </button>
             </div>
           </div>
@@ -998,6 +1227,40 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Team Assignment */}
+              {teamMembers.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assigned Team</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {teamMembers.map(tm => {
+                      const isAssigned = assignments.some(a => a.event_id === editingEvent.id && a.team_member_id === tm.id)
+                      return (
+                        <button
+                          key={tm.id}
+                          onClick={() => !readOnly && toggleAssignment(editingEvent.id, tm.id)}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: `2px solid ${isAssigned ? tm.color : 'rgba(148,163,184,0.15)'}`,
+                            background: isAssigned ? `${tm.color}18` : '#1d1d1d',
+                            color: isAssigned ? tm.color : '#64748b',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: readOnly ? 'default' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isAssigned ? tm.color : '#3f4451' }} />
+                          {tm.name}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )}

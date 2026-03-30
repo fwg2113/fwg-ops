@@ -56,6 +56,16 @@ export default async function InstallPage() {
     }
   }
 
+  const { data: teamMembers } = await supabase
+    .from('team_members')
+    .select('id, name, short_name, color, role')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+
+  const { data: assignments } = await supabase
+    .from('calendar_event_assignments')
+    .select('event_id, team_member_id')
+
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', padding: '16px', overflow: 'hidden' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
@@ -64,7 +74,7 @@ export default async function InstallPage() {
           <div style={{ width: '1px', height: '20px', background: 'rgba(148,163,184,0.2)' }} />
           <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 500 }}>Install Schedule</span>
         </div>
-        <CalendarView initialEvents={events || []} documentMap={documentMap} readOnly={true} />
+        <CalendarView initialEvents={events || []} documentMap={documentMap} readOnly={true} initialTeamMembers={teamMembers || []} initialAssignments={assignments || []} showTeamFilter={true} />
       </div>
     </div>
   )
