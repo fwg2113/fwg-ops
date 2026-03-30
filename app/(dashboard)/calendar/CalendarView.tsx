@@ -99,7 +99,7 @@ const getLegendItems = (events: CalendarEvent[]) => {
   return Array.from(seen.values())
 }
 
-export default function CalendarView({ initialEvents, documentMap = {} }: { initialEvents: CalendarEvent[]; documentMap?: Record<string, DocumentDetail> }) {
+export default function CalendarView({ initialEvents, documentMap = {}, readOnly = false }: { initialEvents: CalendarEvent[]; documentMap?: Record<string, DocumentDetail>; readOnly?: boolean }) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'week' | 'twoweek' | 'month'>('twoweek')
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents)
@@ -292,6 +292,7 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
   }
 
   const handleMouseDown = (e: React.MouseEvent, eventId: string, type: 'vehicle' | 'install', edge: 'start' | 'end' | 'move') => {
+    if (readOnly) return
     e.preventDefault()
     e.stopPropagation()
     const event = events.find(ev => ev.id === eventId)
@@ -616,28 +617,30 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
   const legendItems = getLegendItems(events)
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>Job Calendar</h1>
           <p style={{ color: '#94a3b8', margin: 0 }}>{getHeaderText()}</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '4px', background: '#1d1d1d', padding: '4px', borderRadius: '8px' }}>
             <button onClick={() => setView('week')} style={btnStyle(view === 'week')}>Week</button>
             <button onClick={() => setView('twoweek')} style={btnStyle(view === 'twoweek')}>2 Weeks</button>
             <button onClick={() => setView('month')} style={btnStyle(view === 'month')}>Month</button>
           </div>
-          <button onClick={goToToday} style={{ padding: '10px 16px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Today</button>
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <button onClick={goToToday} style={{ padding: '10px 16px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Today</button>
             <button onClick={() => navigate(-1)} style={{ padding: '10px 14px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px 0 0 8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>←</button>
             <button onClick={() => navigate(1)} style={{ padding: '10px 14px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '0 8px 8px 0', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>→</button>
           </div>
-          <button onClick={openScheduleModal} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Schedule Job
-          </button>
+          {!readOnly && (
+            <button onClick={openScheduleModal} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Schedule Job
+            </button>
+          )}
         </div>
       </div>
 
@@ -914,18 +917,18 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
               {/* Title */}
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Job Title</label>
-                <input type="text" value={editingEvent.title} onChange={(e) => setEditingEvent({...editingEvent, title: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                <input type="text" value={editingEvent.title} onChange={(e) => setEditingEvent({...editingEvent, title: e.target.value})} disabled={readOnly} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
               </div>
 
               {/* Customer Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: doc?.customer_email ? '1fr 1fr 1fr' : '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</label>
-                  <input type="text" value={editingEvent.customer_name || ''} onChange={(e) => setEditingEvent({...editingEvent, customer_name: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                  <input type="text" value={editingEvent.customer_name || ''} onChange={(e) => setEditingEvent({...editingEvent, customer_name: e.target.value})} disabled={readOnly} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone</label>
-                  <input type="tel" value={editingEvent.customer_phone || ''} onChange={(e) => setEditingEvent({...editingEvent, customer_phone: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                  <input type="tel" value={editingEvent.customer_phone || ''} onChange={(e) => setEditingEvent({...editingEvent, customer_phone: e.target.value})} disabled={readOnly} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
                 </div>
                 {doc?.customer_email && (
                   <div>
@@ -1002,11 +1005,11 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Drop-off Date</label>
-                    <input type="date" value={editingEvent.vehicle_start || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                    <input type="date" value={editingEvent.vehicle_start || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_start: e.target.value})} disabled={readOnly} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pick-up Date</label>
-                    <input type="date" value={editingEvent.vehicle_end || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                    <input type="date" value={editingEvent.vehicle_end || ''} onChange={(e) => setEditingEvent({...editingEvent, vehicle_end: e.target.value})} disabled={readOnly} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
                   </div>
                 </div>
               </div>
@@ -1020,11 +1023,11 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install Start</label>
-                    <input type="date" value={editingEvent.install_start || ''} onChange={(e) => setEditingEvent({...editingEvent, install_start: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                    <input type="date" value={editingEvent.install_start || ''} onChange={(e) => setEditingEvent({...editingEvent, install_start: e.target.value})} disabled={readOnly} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Install End</label>
-                    <input type="date" value={editingEvent.install_end || ''} onChange={(e) => setEditingEvent({...editingEvent, install_end: e.target.value})} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
+                    <input type="date" value={editingEvent.install_end || ''} onChange={(e) => setEditingEvent({...editingEvent, install_end: e.target.value})} disabled={readOnly} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', boxSizing: 'border-box' }} />
                   </div>
                 </div>
               </div>
@@ -1032,7 +1035,7 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
               {/* Notes */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes</label>
-                <textarea value={editingEvent.notes || ''} onChange={(e) => setEditingEvent({...editingEvent, notes: e.target.value})} placeholder="Additional notes..." rows={3} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
+                <textarea value={editingEvent.notes || ''} onChange={(e) => setEditingEvent({...editingEvent, notes: e.target.value})} disabled={readOnly} placeholder="Additional notes..." rows={3} style={{ width: '100%', padding: '10px 12px', background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '8px', color: readOnly ? '#94a3b8' : '#f1f5f9', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }} />
               </div>
             </div>
 
@@ -1042,7 +1045,7 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                   Print Production Card
                 </button>
-                {editingEvent.document_id && (
+                {!readOnly && editingEvent.document_id && (
                   <a href={`/documents/${editingEvent.document_id}`} style={{ padding: '10px 16px', background: '#3b82f6', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     View Document
@@ -1050,26 +1053,32 @@ export default function CalendarView({ initialEvents, documentMap = {} }: { init
                 )}
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => setEditingEvent(null)} style={{ padding: '10px 20px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
-                <button onClick={async () => {
-                  const { error } = await supabase.from('calendar_events').update({
-                    title: editingEvent.title,
-                    customer_name: editingEvent.customer_name,
-                    customer_phone: editingEvent.customer_phone,
-                    vehicle_start: editingEvent.vehicle_start,
-                    vehicle_end: editingEvent.vehicle_end,
-                    install_start: editingEvent.install_start,
-                    install_end: editingEvent.install_end,
-                    notes: editingEvent.notes
-                  }).eq('id', editingEvent.id)
-                  if (error) {
-                    console.error('Update error:', error)
-                    alert('Failed to save changes')
-                  } else {
-                    setEvents(prev => prev.map(e => e.id === editingEvent.id ? editingEvent : e))
-                    setEditingEvent(null)
-                  }
-                }} style={{ padding: '10px 20px', background: '#22c55e', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Save Changes</button>
+                {readOnly ? (
+                  <button onClick={() => setEditingEvent(null)} style={{ padding: '10px 20px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Close</button>
+                ) : (
+                  <>
+                    <button onClick={() => setEditingEvent(null)} style={{ padding: '10px 20px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={async () => {
+                      const { error } = await supabase.from('calendar_events').update({
+                        title: editingEvent.title,
+                        customer_name: editingEvent.customer_name,
+                        customer_phone: editingEvent.customer_phone,
+                        vehicle_start: editingEvent.vehicle_start,
+                        vehicle_end: editingEvent.vehicle_end,
+                        install_start: editingEvent.install_start,
+                        install_end: editingEvent.install_end,
+                        notes: editingEvent.notes
+                      }).eq('id', editingEvent.id)
+                      if (error) {
+                        console.error('Update error:', error)
+                        alert('Failed to save changes')
+                      } else {
+                        setEvents(prev => prev.map(e => e.id === editingEvent.id ? editingEvent : e))
+                        setEditingEvent(null)
+                      }
+                    }} style={{ padding: '10px 20px', background: '#22c55e', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Save Changes</button>
+                  </>
+                )}
               </div>
             </div>
           </div>
