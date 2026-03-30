@@ -636,6 +636,12 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
             <button onClick={() => navigate(1)} style={{ padding: '10px 14px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '0 8px 8px 0', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>→</button>
           </div>
           {!readOnly && (
+            <a href="/install" target="_blank" style={{ padding: '10px 16px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#94a3b8', fontSize: '13px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Install View
+            </a>
+          )}
+          {!readOnly && (
             <button onClick={openScheduleModal} style={{ padding: '10px 20px', background: '#d71cd1', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Schedule Job
