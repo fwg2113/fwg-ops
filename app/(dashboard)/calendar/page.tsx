@@ -56,5 +56,15 @@ export default async function CalendarPage() {
     }
   }
 
-  return <CalendarView initialEvents={events || []} documentMap={documentMap} />
+  const { data: teamMembers } = await supabase
+    .from('team_members')
+    .select('id, name, short_name, color, role')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+
+  const { data: assignments } = await supabase
+    .from('calendar_event_assignments')
+    .select('event_id, team_member_id')
+
+  return <CalendarView initialEvents={events || []} documentMap={documentMap} initialTeamMembers={teamMembers || []} initialAssignments={assignments || []} />
 }
