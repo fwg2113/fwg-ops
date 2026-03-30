@@ -328,29 +328,8 @@ export default function Sidebar() {
       {/* Logo Header */}
       <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '44px',
-            height: '44px',
-            background: 'linear-gradient(135deg, #06b6d4, #ec4899)',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 26, height: 26 }}>
-              <rect x="1" y="3" width="15" height="13" rx="2" ry="2"></rect>
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-              <circle cx="5.5" cy="18.5" r="2.5"></circle>
-              <circle cx="18.5" cy="18.5" r="2.5"></circle>
-            </svg>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>
-              Frederick <span style={gradientStyle}>Wraps</span>
-            </div>
-            <div style={{ fontSize: '11px', color: '#6b7280', letterSpacing: '0.5px' }}>
-              Operations Hub
-            </div>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <img src="/images/fwg-ops-icon.svg" alt="FWG OPS" style={{ height: '62px' }} />
           </div>
           <button
             onClick={() => {
