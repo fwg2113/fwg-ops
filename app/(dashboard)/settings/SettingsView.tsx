@@ -187,7 +187,7 @@ type NotificationSettings = {
   email_alert_address: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'pipelines' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers'
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'pipelines' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers' | 'protocols'
 
 type DtfPricingMatrix = {
   id: string
@@ -265,6 +265,25 @@ export default function SettingsView({
   const [copyFromTarget, setCopyFromTarget] = useState<string | null>(null)
   const [dragPipelineTaskId, setDragPipelineTaskId] = useState<string | null>(null)
   const [editPipelineValues, setEditPipelineValues] = useState({ task_label: '', task_icon: '' })
+  // Training Wheels Protocol
+  const [trainingWheelsEnabled, setTrainingWheelsEnabled] = useState(false)
+  const [trainingWheelsLoaded, setTrainingWheelsLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase.from('settings').select('value').eq('key', 'training_wheels_protocol').single().then(({ data }) => {
+      if (data?.value) {
+        const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
+        if (val?.enabled) setTrainingWheelsEnabled(true)
+      }
+      setTrainingWheelsLoaded(true)
+    })
+  }, [])
+
+  const toggleTrainingWheels = async (enabled: boolean) => {
+    setTrainingWheelsEnabled(enabled)
+    await supabase.from('settings').upsert({ key: 'training_wheels_protocol', value: JSON.stringify({ enabled }) })
+  }
+
   const [showAddPhone, setShowAddPhone] = useState(false)
   const [newPhone, setNewPhone] = useState({ name: '', phone: '', sip_uri: '' })
   const [editingSipId, setEditingSipId] = useState<string | null>(null)
@@ -614,6 +633,7 @@ export default function SettingsView({
     {
       group: 'System',
       tabs: [
+        { key: 'protocols', label: 'Protocols' },
         { key: 'automations', label: 'Automations' },
         { key: 'notifications', label: 'Notifications' },
         { key: 'calls', label: 'Call Forwarding' },
@@ -4647,6 +4667,53 @@ export default function SettingsView({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Protocols Tab */}
+      {activeTab === 'protocols' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{
+            background: 'rgba(206,0,0,0.05)',
+            border: '1px solid rgba(206,0,0,0.2)',
+            borderRadius: '12px',
+            padding: '20px 24px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '28px' }}>🕷️</span>
+                <div>
+                  <h3 style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: 700, margin: '0 0 4px 0' }}>Training Wheels Protocol</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
+                    Requires pricing approval from Joey or Sharyn before any quote can be sent to a customer or link copied.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => toggleTrainingWheels(!trainingWheelsEnabled)}
+                disabled={!trainingWheelsLoaded}
+                style={{
+                  width: '52px', height: '28px', borderRadius: '14px', border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0,
+                  background: trainingWheelsEnabled ? '#CE0000' : '#3f4451',
+                  transition: 'background 0.2s',
+                }}
+              >
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px',
+                  left: trainingWheelsEnabled ? '27px' : '3px',
+                  transition: 'left 0.2s',
+                }} />
+              </button>
+            </div>
+          </div>
+          <div style={{ background: '#1d1d1d', borderRadius: '10px', padding: '16px 20px', border: '1px solid rgba(148,163,184,0.08)' }}>
+            <h4 style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px 0' }}>What this blocks</h4>
+            <ul style={{ color: '#cbd5e1', fontSize: '13px', margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <li>Sending a quote via email or SMS</li>
+              <li>Copying the customer quote link</li>
+              <li>Sending follow-up messages on quotes</li>
+            </ul>
+          </div>
         </div>
       )}
 
