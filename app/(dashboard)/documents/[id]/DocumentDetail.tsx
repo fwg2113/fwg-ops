@@ -255,28 +255,6 @@ export default function DocumentDetail({
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [bgRemovalLineItemId, setBgRemovalLineItemId] = useState<string | null>(null)
 
-  // Training Wheels Protocol
-  const [trainingWheelsEnabled, setTrainingWheelsEnabled] = useState(false)
-  const [showTrainingWheelsModal, setShowTrainingWheelsModal] = useState(false)
-  const [trainingWheelsPendingAction, setTrainingWheelsPendingAction] = useState<(() => void) | null>(null)
-
-  useEffect(() => {
-    supabase.from('settings').select('value').eq('key', 'training_wheels_protocol').single().then(({ data }) => {
-      if (!data?.value) return
-      const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
-      if (val?.enabled) setTrainingWheelsEnabled(true)
-    })
-  }, [])
-
-  const gateWithTrainingWheels = (action: () => void) => {
-    if (trainingWheelsEnabled && doc.doc_type === 'quote') {
-      setTrainingWheelsPendingAction(() => action)
-      setShowTrainingWheelsModal(true)
-    } else {
-      action()
-    }
-  }
-
   const [doc, setDoc] = useState(initialDoc)
   const [attachments, setAttachments] = useState<Attachment[]>(initialDoc.attachments || [])
   const [isDraggingToProjectFiles, setIsDraggingToProjectFiles] = useState(false)
@@ -787,13 +765,10 @@ export default function DocumentDetail({
 
 
   const [linkCopied, setLinkCopied] = useState(false)
-  const handleCopyLinkDirect = () => {
+  const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.origin + '/view/' + doc.id)
     setLinkCopied(true)
     setTimeout(() => setLinkCopied(false), 2000)
-  }
-  const handleCopyLink = () => {
-    gateWithTrainingWheels(handleCopyLinkDirect)
   }
 
   // Navigate to Message Hub with customer phone pre-filled
@@ -3475,11 +3450,11 @@ export default function DocumentDetail({
               if (isQuote) {
                 // Send (unless declined/expired/archived)
                 if (doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
-                  buttons.push(<ActionButton key="send" onClick={() => gateWithTrainingWheels(handleOpenSendModal)} disabled={isSaving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
+                  buttons.push(<ActionButton key="send" onClick={handleOpenSendModal} disabled={isSaving || (!customerEmail && !customerPhone)} variant="secondary">Send</ActionButton>)
                 }
                 // Follow Up (if sent, not approved/declined/expired/archived)
                 if (hasBeenSent && !isArchived && doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired') {
-                  buttons.push(<ActionButton key="followup" onClick={() => gateWithTrainingWheels(handleOpenFollowUpModal)} variant="secondary">Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}</ActionButton>)
+                  buttons.push(<ActionButton key="followup" onClick={handleOpenFollowUpModal} variant="secondary">Follow Up{doc.followup_count ? ` (${doc.followup_count})` : ''}</ActionButton>)
                 }
                 // Mark Approved (unless already approved/declined/expired/archived)
                 if (doc.status !== 'approved' && doc.status !== 'declined' && doc.status !== 'expired' && !isArchived) {
@@ -7113,40 +7088,6 @@ export default function DocumentDetail({
         </div>
       )}
 
-      {/* Training Wheels Protocol Modal */}
-      {showTrainingWheelsModal && (
-        <ModalBackdrop onClose={() => { setShowTrainingWheelsModal(false); setTrainingWheelsPendingAction(null) }} zIndex={2000}>
-          <div style={{ background: '#111', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '16px', width: '100%', maxWidth: '440px', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '24px 24px 0 24px', textAlign: 'center' }}>
-              <h2 style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: 700, margin: '0 0 4px 0' }}>Pricing Approval Required</h2>
-              <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 20px 0' }}>Before sending this quote to the customer:</p>
-            </div>
-            <div style={{ padding: '0 24px 24px 24px' }}>
-              <div style={{ background: 'rgba(206,0,0,0.08)', border: '1px solid rgba(206,0,0,0.2)', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
-                <p style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 600, margin: '0 0 4px 0', textAlign: 'center' }}>Has pricing been approved by Joey or Sharyn?</p>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={() => { setShowTrainingWheelsModal(false); setTrainingWheelsPendingAction(null) }}
-                  style={{ flex: 1, padding: '12px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '10px', color: '#f1f5f9', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  No, Not Yet
-                </button>
-                <button
-                  onClick={() => {
-                    setShowTrainingWheelsModal(false)
-                    if (trainingWheelsPendingAction) trainingWheelsPendingAction()
-                    setTrainingWheelsPendingAction(null)
-                  }}
-                  style={{ flex: 1, padding: '12px', background: '#22c55e', border: 'none', borderRadius: '10px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Yes, Approved
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalBackdrop>
-      )}
     </div>
   )
 }

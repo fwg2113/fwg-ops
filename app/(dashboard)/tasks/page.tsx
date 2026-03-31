@@ -35,9 +35,19 @@ export default async function TasksPage() {
     `)
     .order('created_at', { ascending: false })
 
+  const { data: teamMembers } = await supabase
+    .from('team_members')
+    .select('id, name, short_name, color, role')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+
+  const { data: taskAssignments } = await supabase
+    .from('task_assignments')
+    .select('task_id, team_member_id')
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <TaskBoard initialTasks={tasks || []} documents={documents || []} />
+      <TaskBoard initialTasks={tasks || []} documents={documents || []} teamMembers={teamMembers || []} initialAssignments={taskAssignments || []} />
     </div>
   )
 }
