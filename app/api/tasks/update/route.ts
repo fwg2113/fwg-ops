@@ -5,9 +5,7 @@ import { isAutomationEnabled } from '../../../lib/automation-settings'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { taskId, status, title, description, priority, due_date, notes, parent_task_id } = body
-
-    console.log('[API /tasks/update] Received request:', { taskId, status, title, description, priority, due_date, notes, parent_task_id })
+    const { taskId, status, title, description, priority, due_date, notes, parent_task_id, task_leader_id, attachments } = body
 
     // Build update object with only provided fields
     const updateData: any = {}
@@ -18,8 +16,8 @@ export async function POST(request: Request) {
     if (due_date !== undefined) updateData.due_date = due_date || null
     if (notes !== undefined) updateData.notes = notes
     if (parent_task_id !== undefined) updateData.parent_task_id = parent_task_id
-
-    console.log('[API /tasks/update] Updating task with data:', updateData)
+    if (task_leader_id !== undefined) updateData.task_leader_id = task_leader_id || null
+    if (attachments !== undefined) updateData.attachments = attachments || []
 
     const { data, error } = await supabase
       .from('tasks')

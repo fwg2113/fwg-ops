@@ -257,8 +257,9 @@ export default function Sidebar() {
         fetch('/api/purchase-orders/active-count'),
         fetch('/api/fa-orders/active-count'),
       ])
+      const safeJson = async (res: Response) => res.ok ? res.json() : { count: 0 }
       const [msgData, emailData, payData, actionsData, poData, faData] = await Promise.all([
-        msgRes.json(), emailRes.json(), payRes.json(), actionsRes.json(), poRes.json(), faRes.json(),
+        safeJson(msgRes), safeJson(emailRes), safeJson(payRes), safeJson(actionsRes), safeJson(poRes), safeJson(faRes),
       ])
 
       setUnreadCounts({

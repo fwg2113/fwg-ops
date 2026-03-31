@@ -17,6 +17,8 @@ type Task = {
   notes?: string | null
   archived?: boolean | null
   parent_task_id?: string | null
+  task_leader_id?: string | null
+  attachments?: any[]
 }
 
 type Document = {
@@ -31,9 +33,24 @@ type Document = {
   }[] | null
 }
 
+type TeamMember = {
+  id: string
+  name: string
+  short_name: string
+  color: string
+  role: string | null
+}
+
+type TaskAssignment = {
+  task_id: string
+  team_member_id: string
+}
+
 type TaskBoardProps = {
   initialTasks: Task[]
   documents: Document[]
+  teamMembers?: TeamMember[]
+  initialAssignments?: TaskAssignment[]
 }
 
 const priorityColors = {
@@ -50,13 +67,45 @@ const statusColors = {
   COMPLETED: '#22c55e'
 }
 
-export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
+export default function TaskBoard({ initialTasks, documents, teamMembers = [], initialAssignments = [] }: TaskBoardProps) {
   const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [showModal, setShowModal] = useState(false)
   const [currentView, setCurrentView] = useState<'kanban' | 'list'>('kanban')
   const [filterPriority, setFilterPriority] = useState<string>('')
   const [filterInvoice, setFilterInvoice] = useState<string>('')
+  const [filterMember, setFilterMember] = useState<string>('')
+  const [assignments, setAssignments] = useState<TaskAssignment[]>(initialAssignments)
+  const [modalAssignments, setModalAssignments] = useState<string[]>([])
+
+  const getAssignmentsForTask = (taskId: string) => {
+    return assignments
+      .filter(a => a.task_id === taskId)
+      .map(a => teamMembers.find(tm => tm.id === a.team_member_id))
+      .filter(Boolean) as TeamMember[]
+  }
+
+  const toggleModalAssignment = (memberId: string) => {
+    setModalAssignments(prev => prev.includes(memberId) ? prev.filter(id => id !== memberId) : [...prev, memberId])
+  }
+
+  const saveAssignments = async (taskId: string, memberIds: string[]) => {
+    const current = assignments.filter(a => a.task_id === taskId).map(a => a.team_member_id)
+    const toAdd = memberIds.filter(id => !current.includes(id))
+    const toRemove = current.filter(id => !memberIds.includes(id))
+
+    for (const memberId of toAdd) {
+      await fetch('/api/tasks/assignments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: taskId, team_member_id: memberId }) })
+    }
+    for (const memberId of toRemove) {
+      await fetch('/api/tasks/assignments', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: taskId, team_member_id: memberId }) })
+    }
+
+    setAssignments(prev => {
+      const without = prev.filter(a => a.task_id !== taskId)
+      return [...without, ...memberIds.map(mid => ({ task_id: taskId, team_member_id: mid }))]
+    })
+  }
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null)
@@ -71,8 +120,12 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
     status: 'TO_DO',
     priority: 'MEDIUM',
     due_date: '',
-    notes: ''
+    notes: '',
+    task_leader_id: '' as string
   })
+  const [taskAttachments, setTaskAttachments] = useState<any[]>([])
+  const [uploadingTaskFile, setUploadingTaskFile] = useState(false)
+  const taskFileInputRef = useRef<HTMLInputElement>(null)
 
   const columns = [
     { key: 'TO_DO', label: 'To Do', color: statusColors.TO_DO },
@@ -86,13 +139,16 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
     .filter(doc => doc.type === 'invoice')
     .sort((a, b) => b.doc_number - a.doc_number)
 
-  // Filter tasks by priority and invoice
+  // Filter tasks by priority, invoice, and team member
   let filteredTasks = tasks
   if (filterPriority) {
     filteredTasks = filteredTasks.filter(task => task.priority === filterPriority)
   }
   if (filterInvoice) {
     filteredTasks = filteredTasks.filter(task => task.invoice_id === filterInvoice)
+  }
+  if (filterMember) {
+    filteredTasks = filteredTasks.filter(task => assignments.some(a => a.task_id === task.id && a.team_member_id === filterMember))
   }
 
   // Helper function to get customer name for an invoice
@@ -157,8 +213,11 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
       status: 'TO_DO',
       priority: 'MEDIUM',
       due_date: '',
-      notes: ''
+      notes: '',
+      task_leader_id: ''
     })
+    setModalAssignments([])
+    setTaskAttachments([])
     setShowModal(true)
   }
 
@@ -170,9 +229,34 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
       status: task.status,
       priority: task.priority,
       due_date: task.due_date || '',
-      notes: task.notes || ''
+      notes: task.notes || '',
+      task_leader_id: task.task_leader_id || ''
     })
+    setModalAssignments(assignments.filter(a => a.task_id === task.id).map(a => a.team_member_id))
+    setTaskAttachments(task.attachments || [])
     setShowModal(true)
+  }
+
+  const handleTaskFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, taskId?: string) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUploadingTaskFile(true)
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        if (res.ok) {
+          const data = await res.json()
+          const att = { url: data.url, filename: file.name, contentType: file.type, size: file.size, uploadedAt: new Date().toISOString() }
+          setTaskAttachments(prev => [...prev, att])
+        }
+      }
+    } catch (err) {
+      console.error('Upload error:', err)
+    }
+    setUploadingTaskFile(false)
+    if (taskFileInputRef.current) taskFileInputRef.current.value = ''
   }
 
   const handleSaveTask = async () => {
@@ -190,19 +274,17 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskId: editingTask.id,
-          ...modalData
+          ...modalData,
+          task_leader_id: modalData.task_leader_id || null,
+          attachments: taskAttachments
         })
       })
 
-      console.log('[TaskBoard] Update response status:', response.status, response.ok)
-
       if (response.ok) {
         const updatedTask = await response.json()
-        console.log('[TaskBoard] Task updated via modal:', updatedTask)
-        setTasks(tasks.map(t => t.id === editingTask.id ? { ...t, ...modalData } : t))
+        await saveAssignments(editingTask.id, modalAssignments)
+        setTasks(tasks.map(t => t.id === editingTask.id ? { ...t, ...modalData, task_leader_id: modalData.task_leader_id || null, attachments: taskAttachments } : t))
         setShowModal(false)
-        // Refresh server component data to ensure persistence
-        console.log('[TaskBoard] Calling router.refresh() after update')
         router.refresh()
       } else {
         const errorText = await response.text()
@@ -211,23 +293,21 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
       }
     } else {
       // Create new task
-      console.log('[TaskBoard] Creating new task:', modalData)
-
       const response = await fetch('/api/tasks/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(modalData)
+        body: JSON.stringify({
+          ...modalData,
+          task_leader_id: modalData.task_leader_id || null,
+          attachments: taskAttachments
+        })
       })
-
-      console.log('[TaskBoard] Create response status:', response.status, response.ok)
 
       if (response.ok) {
         const createdTask = await response.json()
-        console.log('[TaskBoard] Task created:', createdTask)
+        await saveAssignments(createdTask.id, modalAssignments)
         setTasks([createdTask, ...tasks])
         setShowModal(false)
-        // Refresh server component data to ensure persistence
-        console.log('[TaskBoard] Calling router.refresh() after create')
         router.refresh()
       } else {
         const errorText = await response.text()
@@ -493,6 +573,51 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
               )
             })}
           </div>
+
+          {/* Team Member Filter */}
+          {teamMembers.length > 0 && (
+            <div style={{ display: 'flex', gap: '4px', background: '#1a1a1a', borderRadius: '10px', padding: '4px' }}>
+              <button onClick={() => setFilterMember('')}
+                style={{
+                  padding: '7px 12px', borderRadius: '7px', fontSize: '12px', fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  background: filterMember === '' ? 'rgba(241,245,249,0.08)' : 'transparent',
+                  border: filterMember === '' ? '1.5px solid #f1f5f9' : '1.5px solid transparent',
+                  color: filterMember === '' ? '#f1f5f9' : '#64748b',
+                }}>All</button>
+              {teamMembers.filter(tm => ['Joey', 'Sharyn', 'Diogo', 'Mason', 'Jay', 'Sydney'].includes(tm.name)).map(tm => {
+                const isActive = filterMember === tm.id
+                const count = tasks.filter(t => assignments.some(a => a.task_id === t.id && a.team_member_id === tm.id)).length
+                return (
+                  <button key={tm.id} onClick={() => setFilterMember(isActive ? '' : tm.id)}
+                    style={{
+                      padding: '7px 12px', borderRadius: '7px', fontSize: '12px', fontWeight: 600,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+                      background: isActive ? `${tm.color}18` : 'transparent',
+                      border: isActive ? `1.5px solid ${tm.color}` : '1.5px solid transparent',
+                      color: isActive ? tm.color : '#64748b',
+                    }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: tm.color, flexShrink: 0 }} />
+                    {tm.name}
+                    {count > 0 && <span style={{ fontSize: 10, fontWeight: 700, opacity: isActive ? 1 : 0.5 }}>{count}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Print Button */}
+          <button
+            onClick={() => window.open('/api/tasks/print', '_blank')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 14px', background: '#282a30', border: '1px solid #3f4451',
+              borderRadius: '8px', color: '#94a3b8', fontSize: '13px', fontWeight: 500, cursor: 'pointer'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+          </button>
 
           {/* Add Task Button */}
           <button
@@ -778,13 +903,15 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
                         alignItems: 'flex-start',
                         justifyContent: 'space-between',
                         gap: '8px',
-                        marginBottom: '8px'
+                        marginBottom: getAssignmentsForTask(task.id).length > 0 ? '4px' : '8px'
                       }}>
                         <div style={{
                           fontWeight: '500',
                           fontSize: '14px',
                           color: '#f1f5f9',
-                          lineHeight: '1.3'
+                          lineHeight: '1.3',
+                          flex: 1,
+                          minWidth: 0
                         }}>
                           {task.title}
                         </div>
@@ -801,6 +928,27 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
                           letterSpacing: '0.03em',
                         }}>{task.priority}</span>
                       </div>
+
+                      {/* Assigned Team + Leader */}
+                      {(getAssignmentsForTask(task.id).length > 0 || task.task_leader_id) && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px', alignItems: 'center' }}>
+                          {task.task_leader_id && (() => {
+                            const detail = teamMembers.find(tm => tm.id === task.task_leader_id)
+                            return detail ? (
+                              <span style={{ fontSize: '10px', color: '#64748b' }}>Detail Holder: <span style={{ fontWeight: 600, color: detail.color }}>{detail.name}</span></span>
+                            ) : null
+                          })()}
+                          {task.task_leader_id && getAssignmentsForTask(task.id).length > 0 && (
+                            <span style={{ color: '#3f4451', fontSize: '10px' }}>·</span>
+                          )}
+                          {getAssignmentsForTask(task.id).map(tm => (
+                            <span key={tm.id} style={{
+                              fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px',
+                              background: `${tm.color}15`, color: tm.color, border: `1px solid ${tm.color}30`,
+                            }}>{tm.name}</span>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Task Meta */}
                       <div style={{
@@ -906,10 +1054,14 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
                                 <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" width="10" height="10"><polyline points="20 6 9 17 4 12"/></svg>
                               )}
                             </div>
-                            <span style={{
-                              fontSize: 12, color: sub.status === 'COMPLETED' ? '#64748b' : '#e2e8f0',
-                              textDecoration: sub.status === 'COMPLETED' ? 'line-through' : 'none', flex: 1,
-                            }}>{sub.title}</span>
+                            <span
+                              onClick={(e) => { e.stopPropagation(); openTaskDetail(sub) }}
+                              style={{
+                                fontSize: 12, color: sub.status === 'COMPLETED' ? '#64748b' : '#e2e8f0',
+                                textDecoration: sub.status === 'COMPLETED' ? 'line-through' : 'none', flex: 1,
+                                cursor: 'pointer',
+                              }}
+                            >{sub.title}</span>
                           </div>
                         ))}
                       </div>
@@ -951,113 +1103,93 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
       )}
 
       {/* List View */}
-      {currentView === 'list' && (
-        <div>
-          {filteredTasks.length > 0 ? (
-            <div style={{
-              background: '#1d1d1d',
-              border: '1px solid rgba(148, 163, 184, 0.1)',
-              borderRadius: '12px',
-              overflow: 'hidden'
-            }}>
-              {filteredTasks.map((task, index) => (
+      {currentView === 'list' && (() => {
+        const parentTasks = filteredTasks.filter(t => !t.parent_task_id)
+        const renderListRow = (task: Task, isSubtask: boolean = false) => {
+          const subtasks = getSubtasks(task.id)
+          return (
+            <div key={task.id}>
+              <div
+                onClick={() => openTaskDetail(task)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: isSubtask ? '8px 16px 8px 48px' : '12px 16px',
+                  borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
+                  gap: '12px',
+                  cursor: 'pointer',
+                  background: isSubtask ? 'rgba(148,163,184,0.02)' : 'transparent',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = isSubtask ? 'rgba(148,163,184,0.06)' : '#282a30' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = isSubtask ? 'rgba(148,163,184,0.02)' : 'transparent' }}
+              >
                 <div
-                  key={task.id}
-                  onClick={() => openTaskDetail(task)}
+                  onClick={(e) => { e.stopPropagation(); toggleSubtaskDone(task) }}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '12px 16px',
-                    borderBottom: index < filteredTasks.length - 1 ? '1px solid rgba(148, 163, 184, 0.1)' : 'none',
-                    gap: '12px',
-                    cursor: 'pointer'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#282a30'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent'
-                  }}
-                >
-                  {/* Checkbox */}
-                  <div style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
+                    width: isSubtask ? '16px' : '20px', height: isSubtask ? '16px' : '20px',
+                    borderRadius: isSubtask ? '4px' : '50%', flexShrink: 0, cursor: 'pointer',
                     border: `2px solid ${task.status === 'COMPLETED' ? '#22c55e' : 'rgba(148, 163, 184, 0.3)'}`,
                     background: task.status === 'COMPLETED' ? '#22c55e' : 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {task.status === 'COMPLETED' && (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" width="12" height="12">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                    )}
-                  </div>
-
-                  {/* Task Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#f1f5f9',
-                      textDecoration: task.status === 'COMPLETED' ? 'line-through' : 'none',
-                      opacity: task.status === 'COMPLETED' ? 0.6 : 1
-                    }}>
-                      {task.title}
+                  {task.status === 'COMPLETED' && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" width={isSubtask ? 10 : 12} height={isSubtask ? 10 : 12}><polyline points="20 6 9 17 4 12"/></svg>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: isSubtask ? '13px' : '14px', fontWeight: '500', color: '#f1f5f9',
+                    textDecoration: task.status === 'COMPLETED' ? 'line-through' : 'none',
+                    opacity: task.status === 'COMPLETED' ? 0.6 : 1
+                  }}>{task.title}</div>
+                  {!isSubtask && (getAssignmentsForTask(task.id).length > 0 || task.task_leader_id) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
+                      {task.task_leader_id && (() => {
+                        const detail = teamMembers.find(tm => tm.id === task.task_leader_id)
+                        return detail ? <span style={{ fontSize: '10px', color: '#64748b' }}>Detail Holder: <span style={{ fontWeight: 600, color: detail.color }}>{detail.name}</span></span> : null
+                      })()}
+                      {task.task_leader_id && getAssignmentsForTask(task.id).length > 0 && <span style={{ color: '#3f4451', fontSize: '10px' }}>·</span>}
+                      {getAssignmentsForTask(task.id).map(tm => (
+                        <span key={tm.id} style={{ fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '8px', background: `${tm.color}15`, color: tm.color, border: `1px solid ${tm.color}30` }}>{tm.name}</span>
+                      ))}
                     </div>
-                    {task.description && (
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#64748b',
-                        marginTop: '2px'
-                      }}>
-                        {task.description}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status Badge */}
+                  )}
+                </div>
+                {!isSubtask && (
                   <span style={{
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: '500',
+                    padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '500',
                     background: `${statusColors[task.status as keyof typeof statusColors]}20`,
                     color: statusColors[task.status as keyof typeof statusColors]
-                  }}>
-                    {columns.find(c => c.key === task.status)?.label || task.status}
-                  </span>
-
-                  {/* Priority Badge */}
-                  <span style={{
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: '500',
-                    background: `${priorityColors[task.priority as keyof typeof priorityColors]}20`,
-                    color: priorityColors[task.priority as keyof typeof priorityColors]
-                  }}>
-                    {task.priority}
-                  </span>
-                </div>
-              ))}
+                  }}>{columns.find(c => c.key === task.status)?.label || task.status}</span>
+                )}
+                <span style={{
+                  padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '500',
+                  background: `${priorityColors[task.priority as keyof typeof priorityColors]}20`,
+                  color: priorityColors[task.priority as keyof typeof priorityColors]
+                }}>{task.priority}</span>
+                {!isSubtask && task.due_date && (
+                  <span style={{ fontSize: '11px', color: isOverdue(task.due_date) && task.status !== 'COMPLETED' ? '#ef4444' : '#64748b', fontWeight: isOverdue(task.due_date) ? '500' : '400' }}>{formatDate(task.due_date)}</span>
+                )}
+              </div>
+              {!isSubtask && subtasks.length > 0 && subtasks.map(sub => renderListRow(sub, true))}
+            </div>
+          )
+        }
+        return (
+        <div>
+          {parentTasks.length > 0 ? (
+            <div style={{ background: '#1d1d1d', border: '1px solid rgba(148, 163, 184, 0.1)', borderRadius: '12px', overflow: 'hidden' }}>
+              {parentTasks.map(task => renderListRow(task))}
             </div>
           ) : (
-            <div style={{
-              textAlign: 'center',
-              padding: '60px 20px',
-              color: '#64748b'
-            }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
               <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.5 }}>📋</div>
               <div>No tasks found</div>
             </div>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {/* Task Modal */}
       {showModal && (
@@ -1313,6 +1445,105 @@ export default function TaskBoard({ initialTasks, documents }: TaskBoardProps) {
                   }}
                   placeholder="Additional notes..."
                 />
+              </div>
+
+              {/* Assign Team */}
+              {teamMembers.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#94a3b8', marginBottom: '8px' }}>Assign To</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {teamMembers.map(tm => {
+                      const isAssigned = modalAssignments.includes(tm.id)
+                      return (
+                        <button
+                          key={tm.id}
+                          type="button"
+                          onClick={() => toggleModalAssignment(tm.id)}
+                          style={{
+                            padding: '7px 14px',
+                            borderRadius: '8px',
+                            border: `2px solid ${isAssigned ? tm.color : 'rgba(148,163,184,0.15)'}`,
+                            background: isAssigned ? `${tm.color}18` : '#282a30',
+                            color: isAssigned ? tm.color : '#64748b',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isAssigned ? tm.color : '#3f4451' }} />
+                          {tm.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Task Leader */}
+              {teamMembers.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#94a3b8', marginBottom: '4px' }}>Detail Holder</label>
+                  <p style={{ fontSize: '11px', color: '#64748b', margin: '0 0 8px 0' }}>Who has the details on this task</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setModalData({ ...modalData, task_leader_id: '' })}
+                      style={{
+                        padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                        border: !modalData.task_leader_id ? '2px solid #f1f5f9' : '1px solid rgba(148,163,184,0.15)',
+                        background: !modalData.task_leader_id ? 'rgba(241,245,249,0.08)' : '#282a30',
+                        color: !modalData.task_leader_id ? '#f1f5f9' : '#64748b',
+                      }}
+                    >None</button>
+                    {teamMembers.map(tm => {
+                      const isLeader = modalData.task_leader_id === tm.id
+                      return (
+                        <button
+                          key={tm.id}
+                          type="button"
+                          onClick={() => setModalData({ ...modalData, task_leader_id: tm.id })}
+                          style={{
+                            padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                            border: isLeader ? `2px solid ${tm.color}` : '1px solid rgba(148,163,184,0.15)',
+                            background: isLeader ? `${tm.color}18` : '#282a30',
+                            color: isLeader ? tm.color : '#64748b',
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                          }}
+                        >
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isLeader ? tm.color : '#3f4451' }} />
+                          {tm.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* File Attachments */}
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#94a3b8', marginBottom: '8px' }}>Files</label>
+                {taskAttachments.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                    {taskAttachments.map((att, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#282a30', borderRadius: '6px', fontSize: '12px' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" style={{ color: '#94a3b8', textDecoration: 'none', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.filename}</a>
+                        <button onClick={() => setTaskAttachments(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px', padding: 0 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <input type="file" ref={taskFileInputRef} onChange={handleTaskFileUpload} multiple style={{ display: 'none' }} />
+                <button type="button" onClick={() => taskFileInputRef.current?.click()} disabled={uploadingTaskFile} style={{
+                  padding: '8px 14px', background: '#282a30', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '8px',
+                  color: '#94a3b8', fontSize: '12px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  {uploadingTaskFile ? 'Uploading...' : 'Attach File'}
+                </button>
               </div>
             </div>
 
