@@ -68,11 +68,19 @@ export async function POST(request: Request) {
 
   try {
     if (event.type === 'checkout.session.completed') {
-      await handleCheckoutCompleted(event.data.object)
+      const result = await handleCheckoutCompleted(event.data.object)
+      if (result === 'failed') {
+        console.error(`[stripe-webhook] checkout.session.completed processing failed — returning 500 so Stripe retries`)
+        return NextResponse.json({ error: 'Payment recording failed' }, { status: 500 })
+      }
     }
 
     if (event.type === 'payment_intent.succeeded') {
-      await handlePaymentIntentSucceeded(event.data.object)
+      const result = await handlePaymentIntentSucceeded(event.data.object)
+      if (result === 'failed') {
+        console.error(`[stripe-webhook] payment_intent.succeeded processing failed — returning 500 so Stripe retries`)
+        return NextResponse.json({ error: 'Payment recording failed' }, { status: 500 })
+      }
     }
   } catch (err) {
     console.error(`[stripe-webhook] Error handling ${event.type}:`, err)
@@ -87,19 +95,29 @@ export async function POST(request: Request) {
  *
  * Card payments arrive with payment_status "paid" — record payment + mark invoice paid.
  * ACH payments arrive with payment_status "unpaid" or "processing" — mark invoice as ach_pending.
+ *
+ * Returns 'ok', 'skipped', or 'failed'
  */
-async function handleCheckoutCompleted(session: any) {
-  const documentId = session.metadata?.document_id
+async function handleCheckoutCompleted(session: any): Promise<'ok' | 'skipped' | 'failed'> {
+  let documentId = session.metadata?.document_id
+
+  // Fallback: if no document_id in metadata, try to match by customer email
+  if (!documentId && session.customer_email) {
+    console.log(`[stripe-webhook] No document_id in metadata — attempting fallback match by email: ${session.customer_email}`)
+    documentId = await findDocumentByEmail(session.customer_email, session.amount_total)
+  }
+
   if (!documentId) {
-    console.log('[stripe-webhook] No document_id in session metadata — skipping')
-    return
+    console.log(`[stripe-webhook] No document_id found (metadata or fallback) — skipping. Session: ${session.id}, email: ${session.customer_email || 'none'}, amount: ${session.amount_total}`)
+    return 'skipped'
   }
 
   const paymentStatus = session.payment_status // "paid", "unpaid", or "no_payment_required"
 
   if (paymentStatus === 'paid') {
     // Card payment — record payment and mark invoice paid
-    await recordPayment(session, documentId)
+    const result = await recordPayment(session, documentId)
+    return result ? 'ok' : 'failed'
   } else {
     // ACH — mark invoice as pending
     console.log(`[stripe-webhook] ACH checkout completed (payment_status: ${paymentStatus}) — marking ach_pending`)
@@ -119,6 +137,7 @@ async function handleCheckoutCompleted(session: any) {
 
       console.log(`[stripe-webhook] Document ${documentId} marked as ach_pending`)
     }
+    return 'ok'
   }
 }
 
@@ -127,8 +146,10 @@ async function handleCheckoutCompleted(session: any) {
  *
  * Fires when payment actually clears (immediately for card, 3-5 days for ACH).
  * Look up the checkout session to find the document, then record payment.
+ *
+ * Returns 'ok', 'skipped', or 'failed'
  */
-async function handlePaymentIntentSucceeded(paymentIntent: any) {
+async function handlePaymentIntentSucceeded(paymentIntent: any): Promise<'ok' | 'skipped' | 'failed'> {
   const paymentIntentId = paymentIntent.id
 
   // Check if payment already recorded (success page may have handled it for card payments)
@@ -140,31 +161,94 @@ async function handlePaymentIntentSucceeded(paymentIntent: any) {
 
   if (existingPayment) {
     console.log(`[stripe-webhook] Payment already recorded for ${paymentIntentId} — skipping`)
-    return
+    return 'skipped'
   }
 
   // Find the checkout session that created this payment intent
   const session = await getSessionByPaymentIntent(paymentIntentId)
   if (!session) {
     console.log(`[stripe-webhook] No checkout session found for payment intent ${paymentIntentId}`)
-    return
+    return 'skipped'
   }
 
-  const documentId = session.metadata?.document_id
+  let documentId = session.metadata?.document_id
+
+  // Fallback: if no document_id in metadata, try to match by customer email
+  if (!documentId && session.customer_email) {
+    console.log(`[stripe-webhook] No document_id in metadata — attempting fallback match by email: ${session.customer_email}`)
+    documentId = await findDocumentByEmail(session.customer_email, session.amount_total)
+  }
+
   if (!documentId) {
-    console.log('[stripe-webhook] No document_id in session metadata — skipping')
-    return
+    console.log(`[stripe-webhook] No document_id found for payment intent ${paymentIntentId} — skipping. Email: ${session.customer_email || 'none'}, amount: ${session.amount_total}`)
+    return 'skipped'
   }
 
-  await recordPayment(session, documentId)
+  const result = await recordPayment(session, documentId)
+  return result ? 'ok' : 'failed'
+}
+
+/**
+ * Find a document by customer email when metadata is missing.
+ * Matches unpaid/partial documents where the email matches.
+ * If the Stripe amount matches a logical payment (full balance or ~50% deposit), use that document.
+ */
+async function findDocumentByEmail(email: string, stripeAmountCents: number): Promise<string | null> {
+  const stripeAmount = stripeAmountCents / 100
+
+  const { data: docs } = await supabase
+    .from('documents')
+    .select('id, doc_number, total, balance_due, status, customer_name, customer_email')
+    .eq('customer_email', email)
+    .in('status', ['sent', 'viewed', 'approved', 'partial', 'ach_pending'])
+    .gt('total', 0)
+    .order('created_at', { ascending: false })
+
+  if (!docs || docs.length === 0) {
+    console.log(`[stripe-webhook] Fallback: no unpaid documents found for ${email}`)
+    return null
+  }
+
+  // Try to match: reverse-calculate base amount from Stripe total (card: base * 1.029 + 0.30)
+  const baseFromCard = Math.round(((stripeAmount - 0.30) / 1.029) * 100) / 100
+
+  for (const doc of docs) {
+    const total = parseFloat(doc.total)
+    const balanceDue = parseFloat(doc.balance_due || doc.total)
+    const halfTotal = Math.round(total / 2 * 100) / 100
+
+    // Check if payment matches full balance, full total, or ~50% deposit
+    if (
+      Math.abs(baseFromCard - balanceDue) < 0.10 ||
+      Math.abs(baseFromCard - total) < 0.10 ||
+      Math.abs(baseFromCard - halfTotal) < 0.10 ||
+      Math.abs(stripeAmount - balanceDue) < 0.10 ||  // ACH (no fee)
+      Math.abs(stripeAmount - total) < 0.10 ||
+      Math.abs(stripeAmount - halfTotal) < 0.10
+    ) {
+      console.log(`[stripe-webhook] Fallback matched: ${email} → Doc #${doc.doc_number} (${doc.customer_name}), Stripe $${stripeAmount} ≈ base $${baseFromCard}`)
+      return doc.id
+    }
+  }
+
+  // If only one unpaid document for this email, use it regardless of amount
+  if (docs.length === 1) {
+    console.log(`[stripe-webhook] Fallback: single unpaid doc for ${email} → Doc #${docs[0].doc_number} (${docs[0].customer_name})`)
+    return docs[0].id
+  }
+
+  console.log(`[stripe-webhook] Fallback: ${docs.length} unpaid docs for ${email} but no amount match for $${stripeAmount}`)
+  return null
 }
 
 /**
  * Shared payment recording logic.
  * Creates a payment record — the DB trigger (sync_document_payment_status)
  * automatically updates the document's amount_paid, balance_due, and status.
+ *
+ * Returns true on success, false on failure.
  */
-async function recordPayment(session: any, documentId: string) {
+async function recordPayment(session: any, documentId: string): Promise<boolean> {
   const paymentIntentId = session.payment_intent
 
   // Idempotency: if payment already recorded (by another webhook event), skip
@@ -176,7 +260,7 @@ async function recordPayment(session: any, documentId: string) {
 
   if (existingPayment) {
     console.log(`[stripe-webhook] Payment already recorded for ${paymentIntentId} — skipping recordPayment`)
-    return
+    return true
   }
 
   const { data: doc } = await supabase
@@ -186,8 +270,8 @@ async function recordPayment(session: any, documentId: string) {
     .single()
 
   if (!doc) {
-    console.error(`[stripe-webhook] Document ${documentId} not found`)
-    return
+    console.error(`[stripe-webhook] Document ${documentId} not found — FAILING so Stripe retries`)
+    return false
   }
 
   // Determine payment type and calculate processing fee
@@ -252,8 +336,8 @@ async function recordPayment(session: any, documentId: string) {
     .single()
 
   if (paymentError) {
-    console.error('[stripe-webhook] Failed to upsert payment:', paymentError)
-    return
+    console.error('[stripe-webhook] Failed to upsert payment:', paymentError, '— FAILING so Stripe retries')
+    return false
   }
 
   console.log(`[stripe-webhook] Payment recorded: ${paymentRecord.id} ($${stripeAmount} total, $${baseAmount} base, $${processingFee} fee)`)
@@ -337,4 +421,6 @@ async function recordPayment(session: any, documentId: string) {
       }),
     }).catch(err => console.error('[stripe-webhook] Notification email failed:', err))
   }
+
+  return true
 }
