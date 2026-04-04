@@ -11,6 +11,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json()
   const allowed = [
     'in_production', 'design_approved', 'sent_to_zayn', 'digitized', 'production_sort_order',
+    // Kanban production stage + target date + stuck + leader + photos + notified
+    'production_stage', 'production_target_date', 'production_stuck', 'production_stuck_reason',
+    'production_leader_id', 'production_photos', 'production_notified_at',
+    'qc_signed_off_by', 'qc_signed_off_at',
     // New pipeline fields
     'ready_for_qc', 'qc_passed', 'packaged', 'shipped',
     'tracking_number', 'shipping_label_url', 'easypost_shipment_id',
