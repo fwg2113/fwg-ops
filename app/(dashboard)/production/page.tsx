@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 import { createClient } from '@supabase/supabase-js'
-import ProductionList from './ProductionList'
+import ProductionKanban from './ProductionKanban'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -66,14 +66,22 @@ export default async function ProductionPage() {
       calendarByDocId[ev.document_id].push(ev)
     }
 
-    // Fetch production pipeline configs from DB
-    const { data: pipelineConfigs, error: pipeError } = await supabase
-      .from('production_pipeline_configs')
-      .select('*')
-      .order('category_key')
-      .order('sort_order')
+    // Fetch team members
+    const { data: teamMembers } = await supabase
+      .from('team_members')
+      .select('id, name, short_name, color, role')
+      .eq('active', true)
+      .order('sort_order', { ascending: true })
 
-    if (pipeError) console.error('Failed to fetch pipeline configs:', pipeError)
+    // Fetch production assignments
+    let productionAssignments: any[] = []
+    if (docIds.length > 0) {
+      const { data } = await supabase
+        .from('production_assignments')
+        .select('document_id, team_member_id')
+        .in('document_id', docIds)
+      productionAssignments = data || []
+    }
 
     // Only include documents that have at least one non-apparel line item
     const documents = (docs || [])
@@ -89,10 +97,11 @@ export default async function ProductionPage() {
       )
 
     return (
-      <ProductionList
+      <ProductionKanban
         documents={documents}
-        pipelineConfigs={pipelineConfigs || []}
         categoriesData={categoriesData}
+        teamMembers={teamMembers || []}
+        initialAssignments={productionAssignments}
       />
     )
   } catch (error) {

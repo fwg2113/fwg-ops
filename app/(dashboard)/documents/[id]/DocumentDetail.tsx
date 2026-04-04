@@ -119,7 +119,7 @@ type Document = {
   vehicle_description: string; project_description: string; category: string
   subtotal: number; discount_amount: number; discount_percent: number; tax_amount: number; total: number
   deposit_required: number; deposit_paid: number; amount_paid: number; balance_due: number
-  notes: string; created_at: string; sent_at: string; viewed_at: string; approved_at: string; paid_at: string
+  notes: any; created_at: string; sent_at: string; viewed_at: string; approved_at: string; paid_at: string
   valid_until: string | null; attachments?: Attachment[]; in_production: boolean; fees?: Fee[] | string
   followup_count?: number; last_followup_at?: string; revision_history_json?: any; discount_note?: string
   options_mode?: boolean; options_json?: QuoteOption[]; history_log?: HistoryEntry[]
@@ -329,7 +329,16 @@ export default function DocumentDetail({
     return 'full'
   })
   const [validUntil, setValidUntil] = useState(initialDoc.valid_until ? initialDoc.valid_until.split('T')[0] : '')
-  const [notes, setNotes] = useState(initialDoc.notes || '')
+  const [notes, setNotes] = useState<any[]>(() => {
+    if (Array.isArray(initialDoc.notes)) return initialDoc.notes
+    if (typeof initialDoc.notes === 'string' && initialDoc.notes.startsWith('[')) {
+      try { return JSON.parse(initialDoc.notes) } catch { return [] }
+    }
+    return []
+  })
+  const [newNoteText, setNewNoteText] = useState('')
+  const [newNoteAuthor, setNewNoteAuthor] = useState('Joey')
+  const NOTE_AUTHORS = ['Joe', 'Joey', 'Sharyn', 'Diogo', 'Mason', 'Sydney', 'Jay']
   // Options mode state
   const [optionsMode, setOptionsMode] = useState(initialDoc.options_mode || false)
   const [options, setOptions] = useState<QuoteOption[]>(() => {
@@ -5060,13 +5069,89 @@ export default function DocumentDetail({
         </div>
       </div>
 
+      {/* QC Sign-off */}
+      {(doc as any).qc_signed_off_by && (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16 }}>✅</span>
+            <div>
+              <div style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600 }}>
+                QC Signed Off by {(doc as any).qc_signed_off_by}
+              </div>
+              {(doc as any).qc_signed_off_at && (
+                <div style={{ color: '#64748b', fontSize: '12px', marginTop: 2 }}>
+                  {new Date((doc as any).qc_signed_off_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date((doc as any).qc_signed_off_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Internal Notes */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h3 style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600, margin: 0 }}>Internal Notes</h3>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </div>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes (not shown to customer)..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+
+        {/* Add note */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+          <select
+            value={newNoteAuthor}
+            onChange={e => setNewNoteAuthor(e.target.value)}
+            style={{ ...inputStyle, width: 'auto', flexShrink: 0 }}
+          >
+            {NOTE_AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <input
+            value={newNoteText}
+            onChange={e => setNewNoteText(e.target.value)}
+            onKeyDown={async e => {
+              if (e.key === 'Enter' && newNoteText.trim()) {
+                const res = await fetch(`/api/documents/${doc.id}/notes`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ text: newNoteText.trim(), author: newNoteAuthor }),
+                })
+                if (res.ok) { const updated = await res.json(); setNotes(updated); setNewNoteText('') }
+              }
+            }}
+            placeholder="Add a note (not shown to customer)..."
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button
+            onClick={async () => {
+              if (!newNoteText.trim()) return
+              const res = await fetch(`/api/documents/${doc.id}/notes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: newNoteText.trim(), author: newNoteAuthor }),
+              })
+              if (res.ok) { const updated = await res.json(); setNotes(updated); setNewNoteText('') }
+            }}
+            style={{ padding: '8px 16px', borderRadius: '8px', background: newNoteText.trim() ? '#a855f7' : '#333', border: 'none', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: newNoteText.trim() ? 'pointer' : 'default', flexShrink: 0 }}
+          >Add</button>
+        </div>
+
+        {/* Notes list */}
+        {Array.isArray(notes) && notes.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+            {notes.map((note: any, i: number) => (
+              <div key={i} style={{ padding: '10px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(148,163,184,0.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#a855f7' }}>{note.author || 'Unknown'}</span>
+                  <span style={{ fontSize: '10px', color: '#475569' }}>
+                    {note.at ? new Date(note.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + new Date(note.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}
+                  </span>
+                </div>
+                <div style={{ fontSize: '13px', color: '#c8cdd8', lineHeight: 1.5 }}>{note.text}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: '#475569', fontSize: '13px', fontStyle: 'italic' }}>No notes yet</div>
+        )}
       </div>
 
       {/* Revision History */}
