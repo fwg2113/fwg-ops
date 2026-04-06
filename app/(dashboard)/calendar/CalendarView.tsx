@@ -124,6 +124,7 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
   const [teamMembers] = useState<TeamMember[]>(initialTeamMembers)
   const [assignments, setAssignments] = useState<EventAssignment[]>(initialAssignments)
   const [filterMemberId, setFilterMemberId] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const getAssignmentsForEvent = (eventId: string) => {
     return assignments
@@ -140,6 +141,21 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
     } else {
       await supabase.from('calendar_event_assignments').insert({ event_id: eventId, team_member_id: memberId })
       setAssignments(prev => [...prev, { event_id: eventId, team_member_id: memberId }])
+    }
+  }
+
+  const deleteEvent = async (eventId: string) => {
+    // Remove assignments first, then the event
+    await supabase.from('calendar_event_assignments').delete().eq('event_id', eventId)
+    const { error } = await supabase.from('calendar_events').delete().eq('id', eventId)
+    if (error) {
+      console.error('Delete error:', error)
+      alert('Failed to delete event')
+    } else {
+      setEvents(prev => prev.filter(e => e.id !== eventId))
+      setAssignments(prev => prev.filter(a => a.event_id !== eventId))
+      setEditingEvent(null)
+      setConfirmingDelete(false)
     }
   }
 
@@ -528,6 +544,7 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
   const handleEventClick = (event: CalendarEvent) => {
     if (!dragState || !dragState.hasMoved) {
       setEditingEvent(event)
+      setConfirmingDelete(false)
     }
   }
 
@@ -1309,7 +1326,21 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
             </div>
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(148,163,184,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {!readOnly && (
+                  confirmingDelete ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: 500 }}>Delete this event?</span>
+                      <button onClick={() => deleteEvent(editingEvent.id)} style={{ padding: '8px 14px', background: '#ef4444', border: 'none', borderRadius: '8px', color: 'white', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Yes, Delete</button>
+                      <button onClick={() => setConfirmingDelete(false)} style={{ padding: '8px 14px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}>No</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmingDelete(true)} style={{ padding: '10px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#ef4444', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      Delete
+                    </button>
+                  )
+                )}
                 <button onClick={() => window.open(`/api/production-card?eventId=${editingEvent.id}`, '_blank')} style={{ padding: '10px 16px', background: '#CE0000', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                   Print Production Card
@@ -1326,7 +1357,7 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
                   <button onClick={() => setEditingEvent(null)} style={{ padding: '10px 20px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Close</button>
                 ) : (
                   <>
-                    <button onClick={() => setEditingEvent(null)} style={{ padding: '10px 20px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={() => { setEditingEvent(null); setConfirmingDelete(false) }} style={{ padding: '10px 20px', background: '#282a30', border: '1px solid #3f4451', borderRadius: '8px', color: '#f1f5f9', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
                     <button onClick={async () => {
                       const { error } = await supabase.from('calendar_events').update({
                         title: editingEvent.title,
@@ -1344,6 +1375,7 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
                       } else {
                         setEvents(prev => prev.map(e => e.id === editingEvent.id ? editingEvent : e))
                         setEditingEvent(null)
+                        setConfirmingDelete(false)
                       }
                     }} style={{ padding: '10px 20px', background: '#22c55e', border: 'none', borderRadius: '8px', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Save Changes</button>
                   </>
