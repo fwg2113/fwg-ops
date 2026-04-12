@@ -35,11 +35,20 @@ function verifyStripeSignature(body: string, signature: string, secret: string):
   }
 }
 
-// Diagnostic endpoint
+// Diagnostic endpoint — also tests Supabase write
 export async function GET() {
+  // Test if supabase client can actually read
+  const { data, error } = await supabase
+    .from('documents')
+    .select('id')
+    .limit(1)
+
   return NextResponse.json({
     status: 'alive',
     webhook_secret: STRIPE_WEBHOOK_SECRET ? STRIPE_WEBHOOK_SECRET.substring(0, 8) + '...' : 'MISSING',
+    supabase_read: error ? `FAILED: ${error.message}` : `OK (${data?.length} rows)`,
+    supabase_url: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING',
+    service_role_prefix: process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 10) || 'MISSING',
     timestamp: new Date().toISOString(),
   })
 }
@@ -173,28 +182,33 @@ export async function POST(request: Request) {
 }
 
 async function recordPaymentSimple(session: any, documentId: string) {
+  console.log(`[stripe-webhook] recordPaymentSimple called — doc: ${documentId}, pi: ${session.payment_intent}`)
   const paymentIntentId = session.payment_intent
 
   // Idempotency check
-  const { data: existing } = await supabase
+  const { data: existing, error: idempError } = await supabase
     .from('payments')
     .select('id')
     .eq('processor_txn_id', paymentIntentId)
     .maybeSingle()
+
+  console.log(`[stripe-webhook] Idempotency check — existing: ${existing?.id || 'none'}, error: ${idempError?.message || 'none'}`)
 
   if (existing) {
     console.log(`[stripe-webhook] Already recorded ${paymentIntentId}`)
     return
   }
 
-  const { data: doc } = await supabase
+  const { data: doc, error: docError } = await supabase
     .from('documents')
     .select('*')
     .eq('id', documentId)
     .single()
 
+  console.log(`[stripe-webhook] Doc fetch — found: ${!!doc}, error: ${docError?.message || 'none'}, doc_number: ${doc?.doc_number || 'N/A'}`)
+
   if (!doc) {
-    console.error(`[stripe-webhook] Doc ${documentId} not found`)
+    console.error(`[stripe-webhook] Doc ${documentId} not found — error: ${docError?.message}`)
     return
   }
 
