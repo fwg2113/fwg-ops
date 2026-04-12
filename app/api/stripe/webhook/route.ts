@@ -81,7 +81,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
     }
 
-    const body = await request.text()
+    console.log('[stripe-webhook] About to read request body...')
+    let body: string
+    try {
+      body = await request.text()
+      console.log(`[stripe-webhook] Body read OK, length: ${body.length}`)
+    } catch (bodyError) {
+      console.error('[stripe-webhook] FAILED to read request body:', bodyError)
+      return NextResponse.json({ error: 'Failed to read body' }, { status: 500 })
+    }
+
     const signature = request.headers.get('stripe-signature')
 
     console.log(`[stripe-webhook] Signature present: ${!!signature}, Body length: ${body.length}, Secret prefix: ${STRIPE_WEBHOOK_SECRET.substring(0, 8)}...`)

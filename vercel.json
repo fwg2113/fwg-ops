@@ -20,6 +20,9 @@
     "app/api/image-enhancer/[action]/route.ts": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "app/api/stripe/webhook/route.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
