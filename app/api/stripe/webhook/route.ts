@@ -72,31 +72,32 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  // First log BEFORE anything else — if we see this, the route is being hit
-  console.log('[stripe-webhook] === POST HIT === ')
+  try {
+    // First log BEFORE anything else — if we see this, the route is being hit
+    console.log('[stripe-webhook] === POST HIT === ')
 
-  if (!STRIPE_WEBHOOK_SECRET) {
-    console.error('[stripe-webhook] STRIPE_WEBHOOK_SECRET is empty/missing!')
-    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
-  }
+    if (!STRIPE_WEBHOOK_SECRET) {
+      console.error('[stripe-webhook] STRIPE_WEBHOOK_SECRET is empty/missing!')
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
+    }
 
-  const body = await request.text()
-  const signature = request.headers.get('stripe-signature')
+    const body = await request.text()
+    const signature = request.headers.get('stripe-signature')
 
-  console.log(`[stripe-webhook] Signature present: ${!!signature}, Body length: ${body.length}, Secret prefix: ${STRIPE_WEBHOOK_SECRET.substring(0, 8)}...`)
+    console.log(`[stripe-webhook] Signature present: ${!!signature}, Body length: ${body.length}, Secret prefix: ${STRIPE_WEBHOOK_SECRET.substring(0, 8)}...`)
 
-  if (!signature) {
-    console.error('[stripe-webhook] No stripe-signature header')
-    return NextResponse.json({ error: 'Missing signature' }, { status: 400 })
-  }
+    if (!signature) {
+      console.error('[stripe-webhook] No stripe-signature header')
+      return NextResponse.json({ error: 'Missing signature' }, { status: 400 })
+    }
 
-  if (!verifyStripeSignature(body, signature, STRIPE_WEBHOOK_SECRET)) {
-    console.error(`[stripe-webhook] Signature verification FAILED — secret prefix: ${STRIPE_WEBHOOK_SECRET.substring(0, 8)}...`)
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
-  }
+    if (!verifyStripeSignature(body, signature, STRIPE_WEBHOOK_SECRET)) {
+      console.error(`[stripe-webhook] Signature verification FAILED — secret prefix: ${STRIPE_WEBHOOK_SECRET.substring(0, 8)}...`)
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+    }
 
-  const event = JSON.parse(body)
-  console.log(`[stripe-webhook] Event: ${event.type} (${event.id})`)
+    const event = JSON.parse(body)
+    console.log(`[stripe-webhook] Event: ${event.type} (${event.id})`)
 
   try {
     if (event.type === 'checkout.session.completed') {
@@ -120,6 +121,10 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true })
+  } catch (outerError) {
+    console.error('[stripe-webhook] UNCAUGHT ERROR in POST handler:', outerError)
+    return NextResponse.json({ error: 'Unexpected webhook error' }, { status: 500 })
+  }
 }
 
 /**
