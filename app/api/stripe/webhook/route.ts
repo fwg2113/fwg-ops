@@ -9,8 +9,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 )
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY!
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || ''
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || ''
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 
 // Stripe signature verification without SDK
@@ -50,16 +50,48 @@ async function getSessionByPaymentIntent(paymentIntentId: string) {
   return data.data?.[0] || null
 }
 
+// Diagnostic endpoint — hit /api/stripe/webhook in browser to check if route is alive
+export async function GET() {
+  const hasStripeKey = !!STRIPE_SECRET_KEY
+  const webhookSecretPrefix = STRIPE_WEBHOOK_SECRET ? STRIPE_WEBHOOK_SECRET.substring(0, 8) + '...' : 'MISSING'
+  const hasSupabaseUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL
+  const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  console.log(`[stripe-webhook] GET diagnostic hit — STRIPE_SECRET_KEY: ${hasStripeKey}, WEBHOOK_SECRET: ${webhookSecretPrefix}, SUPABASE: ${hasSupabaseUrl}, SERVICE_ROLE: ${hasServiceRole}`)
+
+  return NextResponse.json({
+    status: 'Webhook route is alive',
+    env: {
+      STRIPE_SECRET_KEY: hasStripeKey ? 'SET' : 'MISSING',
+      STRIPE_WEBHOOK_SECRET: webhookSecretPrefix,
+      SUPABASE_URL: hasSupabaseUrl ? 'SET' : 'MISSING',
+      SERVICE_ROLE_KEY: hasServiceRole ? 'SET' : 'MISSING',
+    },
+    timestamp: new Date().toISOString(),
+  })
+}
+
 export async function POST(request: Request) {
+  // First log BEFORE anything else — if we see this, the route is being hit
+  console.log('[stripe-webhook] === POST HIT === ')
+
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error('[stripe-webhook] STRIPE_WEBHOOK_SECRET is empty/missing!')
+    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
+  }
+
   const body = await request.text()
   const signature = request.headers.get('stripe-signature')
 
+  console.log(`[stripe-webhook] Signature present: ${!!signature}, Body length: ${body.length}, Secret prefix: ${STRIPE_WEBHOOK_SECRET.substring(0, 8)}...`)
+
   if (!signature) {
+    console.error('[stripe-webhook] No stripe-signature header')
     return NextResponse.json({ error: 'Missing signature' }, { status: 400 })
   }
 
   if (!verifyStripeSignature(body, signature, STRIPE_WEBHOOK_SECRET)) {
-    console.error('[stripe-webhook] Signature verification failed')
+    console.error(`[stripe-webhook] Signature verification FAILED — secret prefix: ${STRIPE_WEBHOOK_SECRET.substring(0, 8)}...`)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
