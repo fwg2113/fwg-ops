@@ -243,6 +243,8 @@ export default function DocumentDetail({
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [draggedGroupIdx, setDraggedGroupIdx] = useState<number | null>(null)
+  const [dragOverGroupIdx, setDragOverGroupIdx] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -2433,6 +2435,49 @@ export default function DocumentDetail({
     updateDocumentTotals(newItems)
   }
 
+  // Reorder option groups (works in options mode and regular mode)
+  const reorderGroups = async (newGroupOrder: { group_id: string; category_key: string }[]) => {
+    setLineItemGroups(newGroupOrder)
+
+    // Recompute sort_order for ALL line items based on new group order
+    // Items within a group keep their relative order; groups dictate the outer ordering
+    const updatedItems: LineItem[] = []
+    let counter = 0
+    newGroupOrder.forEach(group => {
+      const groupItems = lineItems
+        .filter(i => i.group_id === group.group_id)
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      groupItems.forEach(item => {
+        updatedItems.push({ ...item, sort_order: counter++ })
+      })
+    })
+
+    setLineItems(updatedItems)
+
+    // Persist new sort_orders to database (parallel updates)
+    await Promise.all(
+      updatedItems.map(item =>
+        supabase.from('line_items').update({ sort_order: item.sort_order }).eq('id', item.id)
+      )
+    )
+  }
+
+  const moveGroup = (groupIdx: number, direction: 'up' | 'down') => {
+    const newOrder = [...lineItemGroups]
+    const targetIdx = direction === 'up' ? groupIdx - 1 : groupIdx + 1
+    if (targetIdx < 0 || targetIdx >= newOrder.length) return
+    ;[newOrder[groupIdx], newOrder[targetIdx]] = [newOrder[targetIdx], newOrder[groupIdx]]
+    reorderGroups(newOrder)
+  }
+
+  const handleGroupDrop = (sourceIdx: number, destIdx: number) => {
+    if (sourceIdx === destIdx) return
+    const newOrder = [...lineItemGroups]
+    const [moved] = newOrder.splice(sourceIdx, 1)
+    newOrder.splice(destIdx, 0, moved)
+    reorderGroups(newOrder)
+  }
+
   const addLineItemToGroup = async (groupId: string, categoryKey: string) => {
     console.log('➕ addLineItemToGroup called:', { groupId, categoryKey })
     const category = getCategoryByKey(categoryKey)
@@ -3828,14 +3873,57 @@ export default function DocumentDetail({
             const showTypes = category && hasTypes(category) && types.length > 0
             const isApparel = isApparelCategory(group.category_key)
 
+            const isDraggedOver = optionsMode && dragOverGroupIdx === groupIdx && draggedGroupIdx !== null && draggedGroupIdx !== groupIdx
+            const canMoveUp = optionsMode && groupIdx > 0
+            const canMoveDown = optionsMode && groupIdx < lineItemGroups.length - 1
             return (
-              <div key={group.group_id} style={{ border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', overflow: 'visible' }}>
+              <div key={group.group_id}
+                onDragOver={optionsMode ? (e) => { e.preventDefault(); if (draggedGroupIdx !== null && draggedGroupIdx !== groupIdx) setDragOverGroupIdx(groupIdx) } : undefined}
+                onDragLeave={optionsMode ? () => { if (dragOverGroupIdx === groupIdx) setDragOverGroupIdx(null) } : undefined}
+                onDrop={optionsMode ? (e) => {
+                  e.preventDefault()
+                  if (draggedGroupIdx !== null && draggedGroupIdx !== groupIdx) {
+                    handleGroupDrop(draggedGroupIdx, groupIdx)
+                  }
+                  setDraggedGroupIdx(null)
+                  setDragOverGroupIdx(null)
+                } : undefined}
+                style={{
+                  border: isDraggedOver ? '2px dashed #d71cd1' : '1px solid rgba(148,163,184,0.2)',
+                  borderRadius: '10px',
+                  overflow: 'visible',
+                  opacity: optionsMode && draggedGroupIdx === groupIdx ? 0.4 : 1,
+                  transition: 'opacity 0.15s, border-color 0.15s',
+                }}>
                 {/* Group Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#1d1d1d', borderBottom: '1px solid rgba(148,163,184,0.2)' }}>
                   {optionsMode && (
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>
-                      {groupIdx + 1}
-                    </div>
+                    <>
+                      {/* Drag handle */}
+                      <div
+                        draggable
+                        onDragStart={(e) => { setDraggedGroupIdx(groupIdx); e.dataTransfer.effectAllowed = 'move' }}
+                        onDragEnd={() => { setDraggedGroupIdx(null); setDragOverGroupIdx(null) }}
+                        title="Drag to reorder"
+                        style={{ cursor: 'grab', color: '#64748b', display: 'flex', alignItems: 'center', padding: '2px', flexShrink: 0 }}
+                      >
+                        <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/><circle cx="3" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="3" cy="17" r="1.5"/><circle cx="10" cy="17" r="1.5"/></svg>
+                      </div>
+                      {/* Up/Down arrows */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
+                        <button onClick={() => moveGroup(groupIdx, 'up')} disabled={!canMoveUp} title="Move up"
+                          style={{ background: 'none', border: 'none', color: canMoveUp ? '#94a3b8' : '#475569', cursor: canMoveUp ? 'pointer' : 'not-allowed', padding: 0, lineHeight: 0 }}>
+                          <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><path d="M7 2L2 7h10z"/></svg>
+                        </button>
+                        <button onClick={() => moveGroup(groupIdx, 'down')} disabled={!canMoveDown} title="Move down"
+                          style={{ background: 'none', border: 'none', color: canMoveDown ? '#94a3b8' : '#475569', cursor: canMoveDown ? 'pointer' : 'not-allowed', padding: 0, lineHeight: 0 }}>
+                          <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><path d="M7 8L12 3H2z"/></svg>
+                        </button>
+                      </div>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #d71cd1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>
+                        {groupIdx + 1}
+                      </div>
+                    </>
                   )}
                   <div style={{ width: '4px', height: '24px', borderRadius: '2px', background: category?.calendar_color || '#94a3b8' }} />
                   <div style={{ flex: 1, fontWeight: 600, fontSize: '14px', color: '#f1f5f9' }}>{optionsMode ? `Option ${groupIdx + 1} — ` : ''}{category?.label || group.category_key}</div>
