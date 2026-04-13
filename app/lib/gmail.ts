@@ -218,6 +218,39 @@ export async function sendEmail(
   return data
 }
 
+// List history changes since a given historyId (for incremental sync)
+export async function listHistory(
+  accessToken: string,
+  startHistoryId: string,
+  options: { labelId?: string; maxResults?: number } = {}
+) {
+  const params = new URLSearchParams()
+  params.set('startHistoryId', startHistoryId)
+  if (options.labelId) params.set('labelId', options.labelId)
+  if (options.maxResults) params.set('maxResults', String(options.maxResults))
+  params.set('historyTypes', 'messageAdded')
+  params.append('historyTypes', 'messageDeleted')
+  params.append('historyTypes', 'labelAdded')
+  params.append('historyTypes', 'labelRemoved')
+
+  const res = await gmailFetch(`/history?${params.toString()}`, accessToken)
+  const data = await res.json()
+
+  // 404 means historyId expired — caller should fall back to full sync
+  if (res.status === 404) {
+    return { expired: true, history: [], historyId: null }
+  }
+
+  if (!res.ok) throw new Error(data.error?.message || 'Failed to list history')
+
+  return {
+    expired: false,
+    history: data.history || [],
+    historyId: data.historyId || null,
+    nextPageToken: data.nextPageToken,
+  }
+}
+
 // Parse email headers from a Gmail message
 export function parseHeaders(headers: Array<{ name: string; value: string }>) {
   const result: Record<string, string> = {}

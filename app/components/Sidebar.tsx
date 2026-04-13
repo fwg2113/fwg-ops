@@ -244,14 +244,14 @@ export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; payments: number; actions: number; 'purchase-orders': number; 'fa-orders': number }>({ messages: 0, email: 0, payments: 0, actions: 0, 'purchase-orders': 0, 'fa-orders': 0 })
+  const [unreadCounts, setUnreadCounts] = useState<{ messages: number; email: number; emailFollowUp: number; payments: number; actions: number; 'purchase-orders': number; 'fa-orders': number }>({ messages: 0, email: 0, emailFollowUp: 0, payments: 0, actions: 0, 'purchase-orders': 0, 'fa-orders': 0 })
   const [handsStats, setHandsStats] = useState<{ availablePoints: number; leaders: { id: string; name: string; avatar_color: string; total_points: number }[] }>({ availablePoints: 0, leaders: [] })
 
   const fetchUnreadCounts = useCallback(async () => {
     try {
       const [msgRes, emailRes, payRes, actionsRes, poRes, faRes] = await Promise.all([
         fetch('/api/messages/unread-count'),
-        fetch('/api/gmail/unread-count'),
+        fetch('/api/gmail/buckets/counts'),
         fetch('/api/payments/unread-count'),
         fetch('/api/customer-actions/count'),
         fetch('/api/purchase-orders/active-count'),
@@ -264,7 +264,8 @@ export default function Sidebar() {
 
       setUnreadCounts({
         messages: msgData.count || 0,
-        email: emailData.count || 0,
+        email: emailData.counts?.need_to_respond || 0,
+        emailFollowUp: emailData.counts?.follow_up || 0,
         payments: payData.count || 0,
         actions: actionsData.count || 0,
         'purchase-orders': poData.count || 0,
@@ -530,6 +531,25 @@ export default function Sidebar() {
                   <span style={{ fontSize: '14px', fontWeight: 500, color: '#e5e7eb', flex: 1 }}>
                     {item.label}{item.labelGradient && <span style={gradientStyle}> {item.labelGradient}</span>}
                   </span>
+                  {/* Follow-up urgency badge for email */}
+                  {'badgeKey' in item && item.badgeKey === 'email' && unreadCounts.emailFollowUp > 0 && (
+                    <span title={`${unreadCounts.emailFollowUp} follow-ups needed`} style={{
+                      minWidth: '20px',
+                      height: '20px',
+                      padding: '0 6px',
+                      borderRadius: '999px',
+                      background: '#9334e6',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      lineHeight: 1,
+                    }}>
+                      {unreadCounts.emailFollowUp > 99 ? '99+' : unreadCounts.emailFollowUp}
+                    </span>
+                  )}
                   {badgeCount > 0 && (
                     <span style={{
                       minWidth: '20px',
