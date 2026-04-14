@@ -118,12 +118,17 @@ export default function EmailInbox() {
   const [customerContextLoading, setCustomerContextLoading] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [polishing, setPolishing] = useState(false)
+  const [signatures, setSignatures] = useState<Array<{id:string;name:string;title:string;email:string;phone:string;closing:string;include_email_in_sig:boolean;include_address:boolean}>>([])
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
-  // Load aliases on mount
+  // Load aliases + signatures on mount
   useEffect(() => {
     (async () => {
       try { const r = await fetch('/api/gmail/aliases'); const d = await r.json(); if(d.aliases){setAliases(d.aliases); const p=d.aliases.find((a:Alias)=>a.isPrimary); if(p)setCFrom(p.email)} } catch(e){}
+    })()
+    ;(async () => {
+      try { const r = await fetch('/api/signatures'); const d = await r.json(); if(d.signatures) setSignatures(d.signatures) } catch(e){}
     })()
   }, [])
 
@@ -228,17 +233,45 @@ export default function EmailInbox() {
     // For search, fall back to the Gmail threads API
   }
 
-  const openCompose = () => { setCTo('');setCCc('');setCSubj('');setCBody('');setCThreadId(undefined);setCReplyTo(undefined);setCRefs(undefined); setShowCompose(true);setShowReply(false);setSelThread(null);setDetail(null) }
+  const openCompose = () => { setCTo('');setCCc('');setCSubj('');setCBody('');setCThreadId(undefined);setCReplyTo(undefined);setCRefs(undefined);setSelectedSignatureId(null); setShowCompose(true);setShowReply(false);setSelThread(null);setDetail(null) }
   const openReply = () => {
     if(!detail) return; const m=detail.messages[detail.messages.length-1]; const s=parseAddr(m.from)
     setCTo(s.e);setCCc('');setCSubj(m.subject.startsWith('Re:')?m.subject:`Re: ${m.subject}`)
-    setCBody('');setCThreadId(detail.id);setCReplyTo(m.messageId);setCRefs(m.references?`${m.references} ${m.messageId}`:m.messageId)
+    setCBody('');setCThreadId(detail.id);setCReplyTo(m.messageId);setCRefs(m.references?`${m.references} ${m.messageId}`:m.messageId);setSelectedSignatureId(null)
     setShowReply(true);setShowCompose(false)
   }
+  const buildSignatureHtml = (sig: typeof signatures[0]): string => {
+    const RED = '#CE0000', DARK = '#1a1a1a', GRAY = '#666666'
+    const LOGO = 'https://fwg-ops.vercel.app/images/email-signature-badge.svg'
+    const ADDRESS = '4509 Metropolitan Ct Suite A, Frederick, MD 21704'
+    const PHONE = '240.693.3715'
+    const phonePart = `<a href="tel:2406933715" style="color:${DARK};text-decoration:none;">${PHONE}</a>`
+    const siteLink = `<a href="https://frederickwraps.com" style="color:${DARK};text-decoration:none;">frederickwraps.com</a>`
+    const meta = `${phonePart} &nbsp;|&nbsp; ${siteLink}`
+    return `<div style="font-family:Arial,Helvetica,sans-serif;color:${DARK};font-size:13px;line-height:1.5;">
+<div style="margin-bottom:14px;">${sig.closing||'Best,'}</div>
+<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr>
+<td style="padding:0 20px 0 0;vertical-align:middle;"><img src="${LOGO}" width="85" alt="Frederick Wraps" style="display:block;border:0;width:85px;height:auto;" /></td>
+<td style="vertical-align:middle;">
+<div style="font-size:22px;font-weight:700;color:${DARK};letter-spacing:-0.3px;line-height:1.2;">${sig.name}</div>
+<div style="height:2px;background:${RED};width:220px;margin:8px 0;"></div>
+<div style="font-size:14px;font-weight:400;color:${DARK};margin-bottom:8px;">${sig.title}</div>
+<div style="font-size:13px;font-weight:600;color:${DARK};margin-bottom:4px;">${meta}</div>
+<div style="font-size:12px;color:${GRAY};">${ADDRESS}</div>
+</td></tr></table></div>`
+  }
+
   const doSend = async () => {
     if(!cTo.trim()||!cSubj.trim()||!cBody.trim()) return; setSending(true)
     try {
-      const r = await fetch('/api/gmail/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:cTo,from:cFrom||undefined,subject:cSubj,body:cBody.replace(/\n/g,'<br>'),cc:cCc||undefined,threadId:cThreadId,inReplyTo:cReplyTo,references:cRefs})})
+      // Append selected signature if user picked one
+      let signatureHtml = ''
+      if (selectedSignatureId) {
+        const sig = signatures.find(s => s.id === selectedSignatureId)
+        if (sig) signatureHtml = `<br><br>${buildSignatureHtml(sig)}`
+      }
+      const body = cBody.replace(/\n/g, '<br>') + signatureHtml
+      const r = await fetch('/api/gmail/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:cTo,from:cFrom||undefined,subject:cSubj,body,cc:cCc||undefined,threadId:cThreadId,inReplyTo:cReplyTo,references:cRefs})})
       const d = await r.json()
       if(d.error) alert('Failed: '+d.error); else {
         setShowCompose(false);setShowReply(false)
@@ -587,13 +620,35 @@ export default function EmailInbox() {
                   </div>
                   <textarea value={cBody} onChange={e=>setCBody(e.target.value)} placeholder="Write your reply..." autoFocus
                     style={{width:'100%',minHeight:'100px',padding:'8px',border:'1px solid #dadce0',borderRadius:'4px',color:'#202124',fontSize:'13px',lineHeight:'1.5',resize:'vertical',background:'#fff',boxSizing:'border-box'}}/>
-                  <div style={{display:'flex',justifyContent:'flex-end',marginTop:'10px',gap:'8px'}}>
-                    <button onClick={doPolish} disabled={polishing||!cBody.trim()} style={{padding:'8px 16px',background:polishing?'#e8d5f5':'#f3e8ff',border:'1px solid #d4b8e8',borderRadius:'18px',color:'#7c3aed',fontSize:'13px',fontWeight:600,cursor:polishing||!cBody.trim()?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px',opacity:!cBody.trim()?0.5:1}}>
-                      {polishing ? 'Polishing...' : 'Polish'}
-                    </button>
-                    <button onClick={doSend} disabled={sending||!cBody.trim()} style={{padding:'8px 20px',background:sending||!cBody.trim()?'#ccc':'#0b57d0',border:'none',borderRadius:'18px',color:'#fff',fontSize:'13px',fontWeight:600,cursor:sending?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px'}}>
-                      <I d={P.send} sz={14}/> {sending?'Sending...':'Send'}
-                    </button>
+                  {/* Signature preview if selected */}
+                  {selectedSignatureId && (() => {
+                    const sig = signatures.find(s => s.id === selectedSignatureId)
+                    if (!sig) return null
+                    return (
+                      <div style={{marginTop:'10px',padding:'10px 12px',background:'#fafafa',border:'1px solid #e0e0e0',borderRadius:'8px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'10px'}}>
+                        <div style={{fontSize:'11px',color:'#5f6368',lineHeight:1.5}}>
+                          <span style={{fontWeight:600,color:'#d71cd1'}}>Signature will be added:</span>
+                          <div style={{marginTop:'2px',color:'#202124'}}>{sig.name} — {sig.title}</div>
+                        </div>
+                        <button onClick={()=>setSelectedSignatureId(null)} style={{background:'none',border:'none',color:'#5f6368',cursor:'pointer',fontSize:'14px',padding:'0 4px',flexShrink:0}} title="Remove signature">×</button>
+                      </div>
+                    )
+                  })()}
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'10px',gap:'8px'}}>
+                    {/* Signature picker */}
+                    <select value={selectedSignatureId||''} onChange={e=>setSelectedSignatureId(e.target.value||null)}
+                      style={{padding:'6px 10px',border:'1px solid #dadce0',borderRadius:'16px',background:'#fff',color:selectedSignatureId?'#d71cd1':'#5f6368',fontSize:'12px',cursor:'pointer',fontWeight:selectedSignatureId?600:400,maxWidth:'180px'}}>
+                      <option value="">+ Add Signature</option>
+                      {signatures.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <div style={{display:'flex',gap:'8px'}}>
+                      <button onClick={doPolish} disabled={polishing||!cBody.trim()} style={{padding:'8px 16px',background:polishing?'#e8d5f5':'#f3e8ff',border:'1px solid #d4b8e8',borderRadius:'18px',color:'#7c3aed',fontSize:'13px',fontWeight:600,cursor:polishing||!cBody.trim()?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px',opacity:!cBody.trim()?0.5:1}}>
+                        {polishing ? 'Polishing...' : 'Polish'}
+                      </button>
+                      <button onClick={doSend} disabled={sending||!cBody.trim()} style={{padding:'8px 20px',background:sending||!cBody.trim()?'#ccc':'#0b57d0',border:'none',borderRadius:'18px',color:'#fff',fontSize:'13px',fontWeight:600,cursor:sending?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px'}}>
+                        <I d={P.send} sz={14}/> {sending?'Sending...':'Send'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -716,13 +771,33 @@ export default function EmailInbox() {
         </div>
       ))}
       <textarea value={cBody} onChange={e=>setCBody(e.target.value)} style={{flex:1,padding:'14px 16px',color:'#202124',fontSize:'13px',lineHeight:'1.5',border:'none',outline:'none',resize:'none',background:'transparent'}}/>
-      <div style={{padding:'10px 16px',borderTop:'1px solid #e0e0e0',display:'flex',justifyContent:'flex-end',gap:'8px'}}>
-        <button onClick={doPolish} disabled={polishing||!cBody.trim()} style={{padding:'8px 16px',background:polishing?'#e8d5f5':'#f3e8ff',border:'1px solid #d4b8e8',borderRadius:'18px',color:'#7c3aed',fontSize:'13px',fontWeight:600,cursor:polishing||!cBody.trim()?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px',opacity:!cBody.trim()?0.5:1}}>
-          {polishing ? 'Polishing...' : 'Polish'}
-        </button>
-        <button onClick={doSend} disabled={sending||!cTo.trim()||!cSubj.trim()||!cBody.trim()} style={{padding:'8px 20px',background:sending||!cTo.trim()||!cSubj.trim()||!cBody.trim()?'#ccc':'#0b57d0',border:'none',borderRadius:'18px',color:'#fff',fontSize:'13px',fontWeight:600,cursor:sending?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px'}}>
-          <I d={P.send} sz={14}/> {sending?'Sending...':'Send'}
-        </button>
+      {selectedSignatureId && (() => {
+        const sig = signatures.find(s => s.id === selectedSignatureId)
+        if (!sig) return null
+        return (
+          <div style={{margin:'0 16px 10px',padding:'10px 12px',background:'#fafafa',border:'1px solid #e0e0e0',borderRadius:'8px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'10px'}}>
+            <div style={{fontSize:'11px',color:'#5f6368',lineHeight:1.5}}>
+              <span style={{fontWeight:600,color:'#d71cd1'}}>Signature will be added:</span>
+              <div style={{marginTop:'2px',color:'#202124'}}>{sig.name} — {sig.title}</div>
+            </div>
+            <button onClick={()=>setSelectedSignatureId(null)} style={{background:'none',border:'none',color:'#5f6368',cursor:'pointer',fontSize:'14px',padding:'0 4px',flexShrink:0}} title="Remove signature">×</button>
+          </div>
+        )
+      })()}
+      <div style={{padding:'10px 16px',borderTop:'1px solid #e0e0e0',display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px'}}>
+        <select value={selectedSignatureId||''} onChange={e=>setSelectedSignatureId(e.target.value||null)}
+          style={{padding:'6px 10px',border:'1px solid #dadce0',borderRadius:'16px',background:'#fff',color:selectedSignatureId?'#d71cd1':'#5f6368',fontSize:'12px',cursor:'pointer',fontWeight:selectedSignatureId?600:400,maxWidth:'180px'}}>
+          <option value="">+ Add Signature</option>
+          {signatures.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <div style={{display:'flex',gap:'8px'}}>
+          <button onClick={doPolish} disabled={polishing||!cBody.trim()} style={{padding:'8px 16px',background:polishing?'#e8d5f5':'#f3e8ff',border:'1px solid #d4b8e8',borderRadius:'18px',color:'#7c3aed',fontSize:'13px',fontWeight:600,cursor:polishing||!cBody.trim()?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px',opacity:!cBody.trim()?0.5:1}}>
+            {polishing ? 'Polishing...' : 'Polish'}
+          </button>
+          <button onClick={doSend} disabled={sending||!cTo.trim()||!cSubj.trim()||!cBody.trim()} style={{padding:'8px 20px',background:sending||!cTo.trim()||!cSubj.trim()||!cBody.trim()?'#ccc':'#0b57d0',border:'none',borderRadius:'18px',color:'#fff',fontSize:'13px',fontWeight:600,cursor:sending?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'6px'}}>
+            <I d={P.send} sz={14}/> {sending?'Sending...':'Send'}
+          </button>
+        </div>
       </div>
     </div>
   )
