@@ -30,7 +30,7 @@ const emptySig: Omit<Signature, 'id'> = {
 }
 
 // Client-side signature HTML renderer (mirrors lib/signature-template.ts)
-const LOGO_URL = 'https://fwg-ops.vercel.app/images/email-signature-badge.svg'
+const LOGO_URL = 'https://fwg-ops.vercel.app/images/email-signature-badge.png'
 const RED = '#CE0000'
 const DARK = '#1a1a1a'
 const GRAY = '#666666'
@@ -48,7 +48,7 @@ function renderSignatureHTML(s: Omit<Signature, 'id'>): string {
 <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
   <tr>
     <td style="padding:0 20px 0 0;vertical-align:middle;">
-      <img src="${LOGO_URL}" width="85" alt="Frederick Wraps &amp; Graphics" style="display:block;border:0;width:85px;height:auto;" />
+      <img src="${LOGO_URL}" width="85" height="90" alt="Frederick Wraps &amp; Graphics" style="display:block;border:0;width:85px;height:90px;" />
     </td>
     <td style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;">
       <div style="font-size:22px;font-weight:700;color:${DARK};letter-spacing:-0.3px;line-height:1.2;">${s.name || 'Full Name'}</div>
