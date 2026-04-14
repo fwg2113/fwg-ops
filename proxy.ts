@@ -45,7 +45,8 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/get-quote') ||
     pathname.startsWith('/thank-you') ||
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon')
+    pathname.startsWith('/favicon') ||
+    pathname.startsWith('/images')
   ) {
     return NextResponse.next()
   }

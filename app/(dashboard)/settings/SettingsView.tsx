@@ -187,7 +187,7 @@ type NotificationSettings = {
   email_alert_address: string
 }
 
-type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'pipelines' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers'
+type Tab = 'categories' | 'materials' | 'buckets' | 'integrations' | 'calls' | 'production' | 'pipelines' | 'workflows' | 'statuses' | 'priorities' | 'automations' | 'estimator' | 'notifications' | 'dtf-pricing' | 'embroidery-markup' | 'embroidery-fee' | 'qty-tiers' | 'signatures'
 
 type DtfPricingMatrix = {
   id: string
@@ -582,7 +582,7 @@ export default function SettingsView({
     pricing: {} as Record<string, { price_min: number; price_max: number; typical_price: number }>
   })
 
-  const tabGroups: { group: string; tabs: { key: Tab; label: string }[] }[] = [
+  const tabGroups: { group: string; tabs: { key: Tab; label: string; href?: string }[] }[] = [
     {
       group: 'Services',
       tabs: [
@@ -618,6 +618,7 @@ export default function SettingsView({
         { key: 'notifications', label: 'Notifications' },
         { key: 'calls', label: 'Call Forwarding' },
         { key: 'integrations', label: 'Integrations' },
+        { key: 'signatures', label: 'Email Signatures', href: '/settings/signatures' },
       ]
     },
   ]
@@ -1716,7 +1717,13 @@ export default function SettingsView({
           {tabGroups.find(g => g.group === activeGroup)?.tabs.map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => {
+                if ('href' in tab && tab.href) {
+                  window.location.href = tab.href
+                } else {
+                  setActiveTab(tab.key as Tab)
+                }
+              }}
               style={{
                 padding: '10px 20px',
                 background: activeTab === tab.key ? '#d71cd1' : '#1d1d1d',
