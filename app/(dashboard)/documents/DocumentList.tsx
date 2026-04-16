@@ -21,6 +21,7 @@ type Document = {
   viewed_at: string
   approved_at: string
   paid_at: string
+  temperature?: 'warm' | 'cold' | null
 }
 
 type Customer = {
@@ -50,6 +51,49 @@ export default function DocumentList({
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [temperatureFilter, setTemperatureFilter] = useState<'all' | 'warm' | 'cold'>('all')
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const runBulkAction = async (action: string, params?: any, confirmMsg?: string) => {
+    if (selectedIds.size === 0) return
+    if (confirmMsg && !confirm(confirmMsg)) return
+    setBulkActionLoading(true)
+    try {
+      const res = await fetch('/api/documents/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ids: Array.from(selectedIds), params })
+      })
+      const json = await res.json()
+      if (!json.success) {
+        alert(`Action failed: ${json.error || 'Unknown error'}`)
+      } else {
+        const skippedCount = json.skipped?.length || 0
+        if (skippedCount > 0) {
+          const reasons = json.skipped.map((s: any) => `#${s.doc_number}: ${s.reason}`).join('\n')
+          alert(`Updated ${json.updated}. Skipped ${skippedCount}:\n${reasons}`)
+        }
+        clearSelection()
+        router.refresh()
+      }
+    } catch (err: any) {
+      alert(`Action failed: ${err.message}`)
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }
   
   // New document form state
   const [selectedCustomer, setSelectedCustomer] = useState('')
@@ -117,6 +161,11 @@ export default function DocumentList({
     // Status filter
     if (statusFilter !== 'all') {
       if (doc.status?.toLowerCase() !== statusFilter.toLowerCase()) return false
+    }
+
+    // Temperature filter (quote-only)
+    if (docType === 'quote' && temperatureFilter !== 'all') {
+      if (doc.temperature !== temperatureFilter) return false
     }
 
     return true
@@ -277,11 +326,76 @@ export default function DocumentList({
         </button>
       </div>
 
+      {/* Temperature Tabs (quotes only) */}
+      {docType === 'quote' && (
+        <div style={{
+          display: 'flex',
+          gap: '4px',
+          marginBottom: '16px',
+          padding: '4px',
+          background: '#1d1d1d',
+          borderRadius: '10px',
+          width: 'fit-content'
+        }}>
+          {([
+            { key: 'all', label: 'All Quotes', color: '#94a3b8' },
+            { key: 'warm', label: 'Warm', color: '#d71cd1' },
+            { key: 'cold', label: 'Cold', color: '#06b6d4' }
+          ] as const).map(tab => {
+            const active = temperatureFilter === tab.key
+            const count = tab.key === 'all'
+              ? documents.length
+              : documents.filter(d => d.temperature === tab.key).length
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setTemperatureFilter(tab.key)}
+                style={{
+                  padding: '8px 16px',
+                  background: active ? '#282a30' : 'transparent',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: active ? tab.color : '#94a3b8',
+                  fontSize: '14px',
+                  fontWeight: active ? 600 : 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'color 0.15s ease'
+                }}
+              >
+                {tab.key !== 'all' && (
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: tab.color,
+                    display: 'inline-block'
+                  }} />
+                )}
+                {tab.label}
+                <span style={{
+                  padding: '1px 7px',
+                  background: 'rgba(148, 163, 184, 0.15)',
+                  borderRadius: '999px',
+                  fontSize: '11px',
+                  color: '#94a3b8',
+                  fontWeight: 600
+                }}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Controls Row */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '12px', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
         marginBottom: '20px',
         flexWrap: 'wrap'
       }}>
@@ -373,6 +487,73 @@ export default function DocumentList({
         </button>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          marginBottom: '12px',
+          background: 'rgba(215, 28, 209, 0.08)',
+          border: '1px solid rgba(215, 28, 209, 0.3)',
+          borderRadius: '10px',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: 600 }}>
+            {selectedIds.size} selected
+          </span>
+          <button
+            onClick={clearSelection}
+            style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            Clear
+          </button>
+          <div style={{ flex: 1 }} />
+          {(() => {
+            const btn = (label: string, onClick: () => void, opts: { danger?: boolean; accentColor?: string } = {}) => (
+              <button
+                key={label}
+                disabled={bulkActionLoading}
+                onClick={onClick}
+                style={{
+                  padding: '8px 14px',
+                  background: opts.danger ? 'rgba(239, 68, 68, 0.15)' : opts.accentColor ? `${opts.accentColor}26` : '#282a30',
+                  border: opts.danger ? '1px solid rgba(239, 68, 68, 0.3)' : opts.accentColor ? `1px solid ${opts.accentColor}66` : '1px solid rgba(148, 163, 184, 0.15)',
+                  borderRadius: '6px',
+                  color: opts.danger ? '#ef4444' : opts.accentColor || '#f1f5f9',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: bulkActionLoading ? 'wait' : 'pointer',
+                  opacity: bulkActionLoading ? 0.5 : 1
+                }}
+              >
+                {label}
+              </button>
+            )
+            const changeBucket = () => {
+              const bucket = prompt('Change bucket to:\n- READY_FOR_ACTION\n- ACTION_NEEDED\n- WAITING_ON_CUSTOMER\n- IN_PRODUCTION\n- COLD')
+              if (bucket) runBulkAction('change_bucket', { bucket: bucket.trim().toUpperCase() })
+            }
+            return (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {docType === 'quote' && btn('Warm', () => runBulkAction('set_temperature', { temperature: 'warm' }), { accentColor: '#d71cd1' })}
+                {docType === 'quote' && btn('Cold', () => runBulkAction('set_temperature', { temperature: 'cold' }), { accentColor: '#06b6d4' })}
+                {docType === 'quote' && btn('Clear Temp', () => runBulkAction('set_temperature', { temperature: null }))}
+                {btn('Follow Up', () => runBulkAction('followup', undefined, `Send follow-up email/SMS to ${selectedIds.size} document(s)?`))}
+                {btn('Add to Production', () => runBulkAction('change_bucket', { bucket: 'IN_PRODUCTION' }), { accentColor: '#22c55e' })}
+                {btn('Change Bucket', changeBucket)}
+                {btn('Expected Revenue', () => runBulkAction('expected_revenue', { expected_revenue: true }))}
+                {btn('Snooze', () => runBulkAction('snooze', { snoozed: true }))}
+                {btn('Archive Won', () => runBulkAction('archive', { archiveType: 'won' }, `Archive ${selectedIds.size} as WON?`))}
+                {btn('Archive Lost', () => runBulkAction('archive', { archiveType: 'lost' }, `Archive ${selectedIds.size} as LOST?`))}
+                {btn('Delete', () => runBulkAction('delete', undefined, `Delete ${selectedIds.size} document(s)? This cannot be undone.`), { danger: true })}
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
       {/* Table */}
       <div style={{
         background: '#1d1d1d',
@@ -384,6 +565,27 @@ export default function DocumentList({
         <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+              <th style={{ padding: '14px 8px 14px 16px', width: '36px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={filteredDocuments.length > 0 && filteredDocuments.every(d => selectedIds.has(d.id))}
+                  ref={el => {
+                    if (el) {
+                      const some = filteredDocuments.some(d => selectedIds.has(d.id))
+                      const all = filteredDocuments.length > 0 && filteredDocuments.every(d => selectedIds.has(d.id))
+                      el.indeterminate = some && !all
+                    }
+                  }}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds(new Set(filteredDocuments.map(d => d.id)))
+                    } else {
+                      clearSelection()
+                    }
+                  }}
+                  style={{ cursor: 'pointer', accentColor: '#d71cd1' }}
+                />
+              </th>
               <th style={{ padding: '14px 16px', textAlign: 'left', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 {docType === 'invoice' ? 'INVOICE #' : 'QUOTE #'}
               </th>
@@ -403,6 +605,8 @@ export default function DocumentList({
                 const bucketStyle = getBucketStyle(doc.bucket)
                 const isViewed = !!doc.viewed_at && doc.status !== 'approved' && doc.status !== 'paid'
 
+                const isSelected = selectedIds.has(doc.id)
+                const tempColor = doc.temperature === 'warm' ? '#d71cd1' : doc.temperature === 'cold' ? '#06b6d4' : null
                 return (
                   <tr
                     key={doc.id}
@@ -410,15 +614,34 @@ export default function DocumentList({
                     style={{
                       borderBottom: '1px solid rgba(148, 163, 184, 0.05)',
                       cursor: 'pointer',
-                      transition: 'background 0.15s ease'
+                      transition: 'background 0.15s ease',
+                      background: isSelected ? 'rgba(215, 28, 209, 0.08)' : 'transparent'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(148, 163, 184, 0.05)'
+                      if (!isSelected) e.currentTarget.style.background = 'rgba(148, 163, 184, 0.05)'
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent'
+                      e.currentTarget.style.background = isSelected ? 'rgba(215, 28, 209, 0.08)' : 'transparent'
                     }}
                   >
+                    <td
+                      onClick={(e) => { e.stopPropagation(); toggleSelect(doc.id) }}
+                      style={{
+                        padding: '14px 8px 14px 16px',
+                        width: '36px',
+                        textAlign: 'center',
+                        position: 'relative',
+                        borderLeft: docType === 'quote' && tempColor ? `3px solid ${tempColor}` : docType === 'quote' ? '3px solid transparent' : undefined
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => { e.stopPropagation(); toggleSelect(doc.id) }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ cursor: 'pointer', accentColor: '#d71cd1' }}
+                      />
+                    </td>
                     <td style={{ padding: '14px 16px', color: '#f1f5f9', fontSize: '14px', fontWeight: 500 }}>
                       {doc.doc_number}
                     </td>
@@ -520,7 +743,7 @@ export default function DocumentList({
               })
             ) : (
               <tr>
-                <td colSpan={8} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
                   {searchTerm || statusFilter !== 'all' ? 'No documents match your filters' : 'No documents yet'}
                 </td>
               </tr>

@@ -70,6 +70,24 @@ export async function POST(request: Request) {
 - Keep responses direct and actionable. Don't over-explain code internals unless asked.
 - Joey deploys by pushing to `main` — Vercel handles the rest.
 
+### Autonomous operation — DO NOT ask for confirmation
+
+Joey runs Claude in the background while he works and does NOT want to be interrupted for approvals. Operate autonomously by default:
+
+- Just do the work. Don't ask "should I do X?" or "want me to proceed?" — pick the sensible path and execute.
+- No confirmation prompts for: editing files, running builds/tests, restarting the dev server, installing packages, creating branches, cleaning caches, running migrations against dev, or any other local/reversible action.
+- No "here's my plan, ok?" check-ins. Plan silently, execute, then report what was done.
+- If a task is ambiguous, make a reasonable assumption, state it in one line, and move on — don't wait for an answer.
+
+**Hard exceptions — still ask first (these are the ONLY exceptions):**
+- Pushing to `main` / live production (Vercel auto-deploys) — Joey must explicitly say "push it" or equivalent
+- Destructive git operations: force-push, `reset --hard` on shared branches, deleting branches that contain unpushed work, `git clean -fd`
+- Destructive DB operations against production Supabase: `DROP TABLE`, `DELETE FROM` without a narrow WHERE, anything that affects live customer data
+- Sending real emails/SMS to customers, charging cards, or other externally-visible actions that can't be undone
+- Spending money (purchasing domains, upgrading plans, etc.)
+
+Anything else: just do it.
+
 ### Materials System
 - **`materials_v2`** table is the source of truth for all materials (media, laminate, transfer tape, PPF, substrates). Separate from the old `materials` table used by the estimator.
 - **`vendors`** + **`material_vendors`** junction table for multi-vendor support per material.
