@@ -84,11 +84,20 @@ export async function POST(request: Request) {
       const piId = session.id
       const { data: existing } = await supabase
         .from('payments')
-        .select('id')
+        .select('id, notes')
         .eq('processor_txn_id', piId)
         .maybeSingle()
       if (existing) {
-        console.log(`[webhook] Already recorded ${piId}`)
+        // If existing record is a PENDING ACH, clear the pending note (ACH has now cleared)
+        if (existing.notes && existing.notes.includes('PENDING ACH')) {
+          await supabase
+            .from('payments')
+            .update({ notes: 'ACH cleared ' + new Date().toISOString().split('T')[0] })
+            .eq('id', existing.id)
+          console.log(`[webhook] ACH cleared for ${piId} — updated note`)
+        } else {
+          console.log(`[webhook] Already recorded ${piId}`)
+        }
         return NextResponse.json({ received: true })
       }
       const res = await fetch(
@@ -104,14 +113,8 @@ export async function POST(request: Request) {
       documentId = session.metadata?.document_id
     }
 
-    // ACH pending (not yet paid)
-    if (event.type === 'checkout.session.completed' && session.payment_status !== 'paid') {
-      if (documentId) {
-        await supabase.from('documents').update({ status: 'ach_pending' }).eq('id', documentId)
-        console.log(`[webhook] ACH pending for ${documentId}`)
-      }
-      return NextResponse.json({ received: true })
-    }
+    // Track whether this is a pending ACH (not yet cleared) — will be recorded with note
+    const isPendingACH = event.type === 'checkout.session.completed' && session.payment_status !== 'paid'
 
     // Fallback: match by email if no document_id
     if (!documentId) {
@@ -213,17 +216,20 @@ export async function POST(request: Request) {
     // ========================
     // CORE: Insert payment record
     // DB trigger handles document status (amount_paid, balance_due, status, paid_at)
+    // For pending ACH, we still record the payment with a note — it will be cleared when payment_intent.succeeded fires
     // ========================
+    const effectivePaymentType = isPendingACH ? 'bank_transfer' : paymentType
     const { error: insertError } = await supabase
       .from('payments')
       .insert({
         document_id: documentId,
         amount: stripeAmount,
         processing_fee: processingFee > 0 ? processingFee : 0,
-        payment_method: paymentType,
+        payment_method: effectivePaymentType,
         processor: 'stripe',
         processor_txn_id: paymentIntentId,
         status: 'completed',
+        notes: isPendingACH ? 'PENDING ACH - not yet cleared' : null,
         read: false,
         created_at: new Date().toISOString(),
       })
@@ -233,7 +239,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
-    console.log(`[webhook] PAYMENT RECORDED — $${stripeAmount} for doc #${doc.doc_number} (${doc.customer_name})`)
+    console.log(`[webhook] PAYMENT RECORDED${isPendingACH ? ' (PENDING ACH)' : ''} — $${stripeAmount} for doc #${doc.doc_number} (${doc.customer_name})`)
 
     // ========================
     // POST-PAYMENT EXTRAS (all non-blocking — failures here won't affect the payment)
@@ -297,6 +303,7 @@ export async function POST(request: Request) {
     // 3. Notification email (fire and forget)
     const RESEND_API_KEY = process.env.RESEND_API_KEY
     if (RESEND_API_KEY) {
+      const pendingPrefix = isPendingACH ? '[PENDING ACH] ' : ''
       fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -304,11 +311,12 @@ export async function POST(request: Request) {
           from: 'FWG Ops <quotes@frederickwraps.com>',
           to: ['info@frederickwraps.com'],
           subject: isPaidInFull
-            ? `Invoice #${doc.doc_number} PAID IN FULL - $${stripeAmount.toFixed(2)}`
-            : `Payment Received - #${doc.doc_number} - $${stripeAmount.toFixed(2)}`,
+            ? `${pendingPrefix}Invoice #${doc.doc_number} PAID IN FULL - $${stripeAmount.toFixed(2)}`
+            : `${pendingPrefix}Payment Received - #${doc.doc_number} - $${stripeAmount.toFixed(2)}`,
           html: `<div style="font-family:system-ui;max-width:600px;margin:0 auto">
             <h1 style="color:#22c55e">Payment Received!</h1>
-            <p><strong>${doc.customer_name}</strong> — $${stripeAmount.toFixed(2)} via ${paymentType === 'bank_transfer' ? 'ACH' : 'Card'}</p>
+            ${isPendingACH ? '<p style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:6px;font-weight:600">⏳ PENDING ACH — Bank transfer initiated, not yet cleared (typically 3-5 business days)</p>' : ''}
+            <p><strong>${doc.customer_name}</strong> — $${stripeAmount.toFixed(2)} via ${effectivePaymentType === 'bank_transfer' ? 'ACH' : 'Card'}</p>
             <p>${isPaidInFull ? 'Paid in full' : `Balance: $${Math.max(0, newBalanceDue).toFixed(2)}`}</p>
             <p><a href="https://fwg-ops.vercel.app/documents/${documentId}" style="background:linear-gradient(135deg,#d71cd1,#8b5cf6);color:white;padding:12px 24px;text-decoration:none;border-radius:8px">View Invoice</a></p>
           </div>`,
