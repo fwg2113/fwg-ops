@@ -14,6 +14,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Kanban production stage + target date + stuck + leader + photos + notified
     'production_stage', 'production_target_date', 'production_stuck', 'production_stuck_reason',
     'production_leader_id', 'production_photos', 'production_notified_at',
+    // New: per-card status pill + note (replaces stuck flag)
+    'production_status_id', 'production_status_note',
     'qc_signed_off_by', 'qc_signed_off_at',
     // New pipeline fields
     'ready_for_qc', 'qc_passed', 'packaged', 'shipped',

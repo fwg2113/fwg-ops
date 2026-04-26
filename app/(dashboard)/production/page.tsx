@@ -25,11 +25,12 @@ export default async function ProductionPage() {
     const categoriesData = dbCategories || []
     const nonApparelCatKeys = categoriesData.filter(c => c.parent_category !== 'APPAREL').map(c => c.category_key)
 
-    // Fetch documents that are paid or in production
+    // Fetch documents that are paid or in production (exclude production-archived)
     const { data: docs, error: docsError } = await supabase
       .from('documents')
       .select('*')
       .or('status.eq.paid,in_production.eq.true')
+      .eq('production_archived', false)
       .order('created_at', { ascending: false })
 
     if (docsError) {
@@ -83,6 +84,32 @@ export default async function ProductionPage() {
       productionAssignments = data || []
     }
 
+    // Fetch production statuses (configurable per-column status pills)
+    const { data: productionStatuses } = await supabase
+      .from('production_statuses')
+      .select('*')
+      .eq('active', true)
+      .order('stage_key', { ascending: true })
+      .order('sort_order', { ascending: true })
+
+    // Fetch manual board tasks (not tied to invoices) — exclude archived
+    const { data: boardTasks } = await supabase
+      .from('production_tasks')
+      .select('*')
+      .not('title', 'is', null)
+      .eq('archived', false)
+      .order('production_sort_order', { ascending: true })
+
+    const taskIds = (boardTasks || []).map(t => t.id)
+    let taskAssignments: any[] = []
+    if (taskIds.length > 0) {
+      const { data } = await supabase
+        .from('production_task_assignments')
+        .select('task_id, team_member_id')
+        .in('task_id', taskIds)
+      taskAssignments = data || []
+    }
+
     // Only include documents that have at least one non-apparel line item
     const documents = (docs || [])
       .map(d => ({
@@ -96,12 +123,24 @@ export default async function ProductionPage() {
         )
       )
 
+    // Fetch all calendar events (for task scheduling — past 7 days through future)
+    const oneWeekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+    const { data: allCalendarEvents } = await supabase
+      .from('calendar_events')
+      .select('id, title, start_time, end_time, vehicle_start, install_start, customer_name, document_id, task_id')
+      .gte('start_time', oneWeekAgo)
+      .order('start_time', { ascending: true })
+
     return (
       <ProductionKanban
         documents={documents}
         categoriesData={categoriesData}
         teamMembers={teamMembers || []}
         initialAssignments={productionAssignments}
+        initialStatuses={productionStatuses || []}
+        initialTasks={boardTasks || []}
+        initialTaskAssignments={taskAssignments}
+        allCalendarEvents={allCalendarEvents || []}
       />
     )
   } catch (error) {
