@@ -1,6 +1,17 @@
 'use client'
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import {
+  DndContext, DragEndEvent, DragOverEvent, DragStartEvent, DragOverlay,
+  PointerSensor, KeyboardSensor, useSensor, useSensors, closestCorners,
+  rectIntersection, useDroppable,
+} from '@dnd-kit/core'
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import StatusManager, { ProductionStatus } from './StatusManager'
+import TaskQuickAdd from './TaskQuickAdd'
+import ArchivedDocsModal from './ArchivedDocsModal'
+import SortableBoardCard from './SortableBoardCard'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +97,8 @@ type ProductionDocument = {
   production_leader_id?: string
   production_photos?: { url: string; filename: string; uploadedAt: string }[]
   production_notified_at?: string
+  production_status_id?: string | null
+  production_status_note?: string | null
   qc_signed_off_by?: string
   qc_signed_off_at?: string
   vehicle_description?: string
@@ -104,6 +117,35 @@ type CategoryData = {
   calendar_color?: string
 }
 
+type BoardTask = {
+  id: string
+  title: string
+  description?: string | null
+  production_stage?: string
+  production_sort_order?: number
+  production_status_id?: string | null
+  production_status_note?: string | null
+  due_date?: string | null
+  leader_id?: string | null
+  archived: boolean
+  archived_at?: string | null
+  task_completed_at?: string | null
+  mockups?: { url: string; filename: string; uploadedAt: string }[]
+  notes_log?: { text: string; author: string; at: string }[]
+  calendar_event_id?: string | null
+  created_at?: string
+}
+
+type TaskAssignment = { task_id: string; team_member_id: string }
+type CalendarEventLite = { id: string; title: string; start_time: string; customer_name?: string | null; document_id?: string | null; task_id?: string | null }
+
+// Unified board item — either a document or a manual task
+type BoardItem =
+  | { kind: 'doc'; id: string; sort: number; doc: ProductionDocument }
+  | { kind: 'task'; id: string; sort: number; task: BoardTask }
+
+const itemKey = (item: BoardItem) => `${item.kind}:${item.id}`
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -113,9 +155,10 @@ const STAGES = [
   { key: 'DESIGN', label: 'Design', color: '#a855f7', dotColor: '#a855f7' },
   { key: 'PRINT', label: 'Print', color: '#3b82f6', dotColor: '#3b82f6' },
   { key: 'PRODUCTION', label: 'Production', color: '#14b8a6', dotColor: '#14b8a6' },
-  { key: 'QC', label: 'QC', color: '#f59e0b', dotColor: '#f59e0b' },
   { key: 'COMPLETE', label: 'Complete', color: '#22c55e', dotColor: '#22c55e' },
 ] as const
+
+const CONFIGURABLE_STAGES = ['QUEUE', 'DESIGN', 'PRINT', 'PRODUCTION'] as const
 
 type StageKey = typeof STAGES[number]['key']
 
@@ -189,18 +232,40 @@ export default function ProductionKanban({
   categoriesData,
   teamMembers,
   initialAssignments,
+  initialStatuses,
+  initialTasks,
+  initialTaskAssignments,
+  allCalendarEvents,
 }: {
   documents: ProductionDocument[]
   categoriesData: CategoryData[]
   teamMembers: TeamMember[]
   initialAssignments: ProductionAssignment[]
+  initialStatuses: ProductionStatus[]
+  initialTasks: BoardTask[]
+  initialTaskAssignments: TaskAssignment[]
+  allCalendarEvents: CalendarEventLite[]
 }) {
   const [docs, setDocs] = useState(documents)
+  const [tasks, setTasks] = useState<BoardTask[]>(initialTasks)
+  const [taskAssignments, setTaskAssignments] = useState<TaskAssignment[]>(initialTaskAssignments)
   const [assignments, setAssignments] = useState<ProductionAssignment[]>(initialAssignments)
+  const [statuses, setStatuses] = useState<ProductionStatus[]>(initialStatuses)
+  const [statusManagerOpen, setStatusManagerOpen] = useState(false)
+  const [statusNoteModal, setStatusNoteModal] = useState<{ docId?: string; taskId?: string; status: ProductionStatus; note: string } | null>(null)
+  const [statusDropdownDocId, setStatusDropdownDocId] = useState<string | null>(null)
+  const [statusDropdownTaskId, setStatusDropdownTaskId] = useState<string | null>(null)
+  const [statusDropdownRect, setStatusDropdownRect] = useState<{ top: number; left: number; width: number; flipUp: boolean } | null>(null)
+  const [installCollapsed, setInstallCollapsed] = useState(true)
+  const [wasteReportFor, setWasteReportFor] = useState<{ docId: string } | null>(null)
+  const [taskQuickAddOpen, setTaskQuickAddOpen] = useState<{ open: boolean; defaultStage?: string }>({ open: false })
+  const [archivedModalOpen, setArchivedModalOpen] = useState(false)
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ overId: string; position: 'above' | 'below' } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [assignModalOpen, setAssignModalOpen] = useState(false)
-  const [stuckModalOpen, setStuckModalOpen] = useState(false)
-  const [stuckReason, setStuckReason] = useState('')
+  // Note: stuckModalOpen/stuckReason removed in favor of statusNoteModal (new status system)
   const [completeModalDocId, setCompleteModalDocId] = useState<string | null>(null)
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({})
   const [popoverVisible, setPopoverVisible] = useState(false)
@@ -218,40 +283,36 @@ export default function ProductionKanban({
     return m
   }, [categoriesData])
 
-  // Group docs by stage
+  // Group docs + tasks into unified board items per stage
   const columns = useMemo(() => {
-    const map: Record<string, ProductionDocument[]> = {}
+    const map: Record<string, BoardItem[]> = {}
     for (const s of STAGES) map[s.key] = []
 
-    const filtered = search
-      ? docs.filter(d => {
-          const q = search.toLowerCase()
-          return (d.doc_number || '').toLowerCase().includes(q) ||
-                 (d.customer_name || '').toLowerCase().includes(q) ||
-                 (d.vehicle_description || '').toLowerCase().includes(q) ||
-                 (d.project_description || '').toLowerCase().includes(q)
-        })
-      : docs
+    const q = search.toLowerCase()
+    const matchDoc = (d: ProductionDocument) => !search ||
+      (d.doc_number || '').toLowerCase().includes(q) ||
+      (d.customer_name || '').toLowerCase().includes(q) ||
+      (d.vehicle_description || '').toLowerCase().includes(q) ||
+      (d.project_description || '').toLowerCase().includes(q)
+    const matchTask = (t: BoardTask) => !search ||
+      (t.title || '').toLowerCase().includes(q) ||
+      (t.description || '').toLowerCase().includes(q)
 
-    for (const d of filtered) {
+    for (const d of docs.filter(matchDoc)) {
       const stage = d.production_stage || 'QUEUE'
-      if (map[stage]) map[stage].push(d)
-      else map['QUEUE'].push(d)
+      ;(map[stage] || map['QUEUE']).push({ kind: 'doc', id: d.id, sort: d.production_sort_order || 0, doc: d })
+    }
+    for (const t of tasks.filter(matchTask)) {
+      const stage = t.production_stage || 'QUEUE'
+      ;(map[stage] || map['QUEUE']).push({ kind: 'task', id: t.id, sort: t.production_sort_order || 0, task: t })
     }
 
-    // Sort each column by production_sort_order, then due_date
+    // Sort each column by sort_order
     for (const key of Object.keys(map)) {
-      map[key].sort((a, b) => {
-        if ((a.production_sort_order || 0) !== (b.production_sort_order || 0))
-          return (a.production_sort_order || 0) - (b.production_sort_order || 0)
-        if (a.due_date && b.due_date) return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
-        if (a.due_date) return -1
-        if (b.due_date) return 1
-        return 0
-      })
+      map[key].sort((a, b) => a.sort - b.sort)
     }
     return map
-  }, [docs, search])
+  }, [docs, tasks, search])
 
   const getAssignmentsForDoc = (docId: string) => {
     return assignments
@@ -290,6 +351,57 @@ export default function ProductionKanban({
     setTimeout(() => setToast(null), 3000)
   }
 
+  // ----- Status helpers -----
+  const statusesByStage = useMemo(() => {
+    const m: Record<string, ProductionStatus[]> = {}
+    for (const s of statuses) {
+      if (!s.active) continue
+      if (!m[s.stage_key]) m[s.stage_key] = []
+      m[s.stage_key].push(s)
+    }
+    for (const k of Object.keys(m)) m[k].sort((a, b) => a.sort_order - b.sort_order)
+    return m
+  }, [statuses])
+
+  const getStatusById = (id?: string | null) => id ? statuses.find(s => s.id === id) : undefined
+  const getDefaultStatusForStage = (stage: string) => {
+    return (statusesByStage[stage] || []).find(s => s.is_default_on_entry) || null
+  }
+
+  // Apply a new status to a doc, with note + special action handling.
+  // If the status requires a note and no note is supplied, opens the note modal.
+  const applyStatusToDoc = async (docId: string, status: ProductionStatus, note?: string, opts?: { skipSpecial?: boolean }) => {
+    if (status.requires_note && !note) {
+      // Open note modal — note will come back via separate flow
+      setStatusNoteModal({ docId, status, note: '' })
+      setStatusDropdownDocId(null)
+      return
+    }
+
+    setDocs(ds => ds.map(d => d.id === docId ? {
+      ...d,
+      production_status_id: status.id,
+      production_status_note: note ?? null,
+    } : d))
+    setStatusDropdownDocId(null)
+
+    fetch(`/api/documents/${docId}/production-status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        production_status_id: status.id,
+        production_status_note: note ?? null,
+      }),
+    }).catch(() => {})
+
+    // Special actions
+    if (!opts?.skipSpecial) {
+      if (status.special_action === 'WASTE_REPORT') {
+        setWasteReportFor({ docId })
+      }
+      // COLLAPSE_INSTALL just changes how the column renders — no extra action
+    }
+  }
+
   // Move document to next stage
   const moveToStage = async (docId: string, newStage: StageKey) => {
     // If moving to COMPLETE, show the notification prompt
@@ -304,9 +416,25 @@ export default function ProductionKanban({
     const prev = docs.find(d => d.id === docId)
     if (!prev) return
 
-    setDocs(ds => ds.map(d => d.id === docId ? { ...d, production_stage: newStage } : d))
+    // If entering a configurable stage, apply the column's default-on-entry status
+    let defaultStatusId: string | null = null
+    if (CONFIGURABLE_STAGES.includes(newStage as any)) {
+      const def = getDefaultStatusForStage(newStage)
+      if (def) defaultStatusId = def.id
+    }
 
-    const updates: Record<string, any> = { production_stage: newStage }
+    setDocs(ds => ds.map(d => d.id === docId ? {
+      ...d,
+      production_stage: newStage,
+      production_status_id: defaultStatusId,
+      production_status_note: null,
+    } : d))
+
+    const updates: Record<string, any> = {
+      production_stage: newStage,
+      production_status_id: defaultStatusId,
+      production_status_note: null,
+    }
     if (newStage === 'COMPLETE') updates.in_production = false
 
     try {
@@ -325,120 +453,245 @@ export default function ProductionKanban({
     }
   }
 
-  // Drag-and-drop: reorder within columns AND move between columns
-  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
+  // ---------- dnd-kit drag/drop ----------
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
 
-  const handleDragStart = (e: React.DragEvent, docId: string) => {
-    e.dataTransfer.effectAllowed = 'move'
-    setDragState({ dragId: docId, overId: null, position: null })
+  // Find which item is being dragged
+  const findItem = (id: string): BoardItem | null => {
+    if (id.startsWith('doc:')) {
+      const docId = id.slice(4)
+      const doc = docs.find(d => d.id === docId)
+      return doc ? { kind: 'doc', id: docId, sort: doc.production_sort_order || 0, doc } : null
+    }
+    if (id.startsWith('task:')) {
+      const taskId = id.slice(5)
+      const t = tasks.find(x => x.id === taskId)
+      return t ? { kind: 'task', id: taskId, sort: t.production_sort_order || 0, task: t } : null
+    }
+    return null
   }
 
-  const handleDragOver = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault()
-    if (!dragState.dragId || dragState.dragId === targetId) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const midY = rect.top + rect.height / 2
-    const pos = e.clientY < midY ? 'above' : 'below'
-    setDragState(prev => ({ ...prev, overId: targetId, position: pos }))
+  // Resolve a droppable id to a stage key. Droppable can be 'col:STAGE' or an item id (means same stage as item).
+  const resolveStage = (overId: string): string | null => {
+    if (overId.startsWith('col:')) return overId.slice(4)
+    const item = findItem(overId)
+    if (item?.kind === 'doc') return item.doc.production_stage || 'QUEUE'
+    if (item?.kind === 'task') return item.task.production_stage || 'QUEUE'
+    return null
   }
 
-  const handleColumnDragOver = (e: React.DragEvent, stageKey: string) => {
-    e.preventDefault()
-    if (!dragState.dragId) return
-    setDragOverColumn(stageKey)
+  const onDndStart = (e: DragStartEvent) => {
+    setActiveDragId(String(e.active.id))
+    setStatusDropdownDocId(null)
+    setStatusDropdownTaskId(null)
+    setDropTarget(null)
   }
 
-  const handleColumnDragLeave = () => {
-    setDragOverColumn(null)
+  const onDndOver = (e: DragOverEvent) => {
+    if (!e.over) { setDropTarget(null); return }
+    const overId = String(e.over.id)
+    if (overId.startsWith('col:')) { setDropTarget(null); return }
+    const activeRect = e.active.rect.current.translated
+    const overRect = e.over.rect
+    if (!activeRect || !overRect) { setDropTarget(null); return }
+    const activeMid = activeRect.top + activeRect.height / 2
+    const overMid = overRect.top + overRect.height / 2
+    setDropTarget({ overId, position: activeMid < overMid ? 'above' : 'below' })
   }
 
-  const handleDrop = async (e: React.DragEvent, targetId: string | null, stageKey: string) => {
-    e.preventDefault()
-    setDragOverColumn(null)
-    const { dragId, position } = dragState
-    if (!dragId) { setDragState({ dragId: null, overId: null, position: null }); return }
+  const onDndEnd = async (e: DragEndEvent) => {
+    const activeId = String(e.active.id)
+    setActiveDragId(null)
+    setDropTarget(null)
 
-    const dragDoc = docs.find(d => d.id === dragId)
-    if (!dragDoc) { setDragState({ dragId: null, overId: null, position: null }); return }
+    if (!e.over) return
+    const overId = String(e.over.id)
+    if (activeId === overId) return
 
-    const fromStage = dragDoc.production_stage || 'QUEUE'
-    const toStage = stageKey
+    const item = findItem(activeId)
+    if (!item) return
+
+    const fromStage = item.kind === 'doc' ? (item.doc.production_stage || 'QUEUE') : (item.task.production_stage || 'QUEUE')
+    const toStage = resolveStage(overId)
+    if (!toStage) return
+
     const isCrossColumn = fromStage !== toStage
 
-    if (isCrossColumn) {
-      setDragState({ dragId: null, overId: null, position: null })
+    // Special: dragging a DOC into COMPLETE — open notify modal instead of immediate move
+    if (isCrossColumn && toStage === 'COMPLETE' && item.kind === 'doc') {
+      setCompleteModalDocId(item.id)
+      return
+    }
 
-      // If dragging to COMPLETE, show the notification prompt
-      if (toStage === 'COMPLETE') {
-        setCompleteModalDocId(dragId)
-        return
+    // Build the new ordered list of items in the destination column
+    const destItems = (columns[toStage] || []).filter(it => itemKey(it) !== activeId)
+    let insertIdx = destItems.length // default: append to end
+    if (!overId.startsWith('col:')) {
+      const overIdx = destItems.findIndex(it => itemKey(it) === overId)
+      if (overIdx !== -1) insertIdx = overIdx
+    }
+
+    // Insert the active item at the new index
+    const movedItem: BoardItem = item
+    destItems.splice(insertIdx, 0, movedItem)
+
+    // Recompute sort_order = (i + 1)
+    const sortMap: Record<string, number> = {}
+    destItems.forEach((it, i) => { sortMap[itemKey(it)] = i + 1 })
+
+    // Optimistic state update
+    if (item.kind === 'doc') {
+      // Apply default-on-entry status when moving to a configurable stage
+      let defaultStatusId: string | null = null
+      if (isCrossColumn && CONFIGURABLE_STAGES.includes(toStage as any)) {
+        const def = getDefaultStatusForStage(toStage)
+        if (def) defaultStatusId = def.id
       }
-
-      // Move to different column
-      setDocs(ds => ds.map(d => d.id === dragId ? { ...d, production_stage: toStage, production_sort_order: 0 } : d))
-
-      const updates: Record<string, any> = { production_stage: toStage, production_sort_order: 0 }
-      if (fromStage === 'COMPLETE' && toStage !== 'COMPLETE') updates.in_production = true
-
-      try {
-        const res = await fetch(`/api/documents/${dragId}/production-status`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        })
-        if (!res.ok) {
-          setDocs(ds => ds.map(d => d.id === dragId ? dragDoc : d))
-          showToast('Failed to move job', 'error')
+      setDocs(ds => ds.map(d => {
+        if (d.id === item.id) {
+          return {
+            ...d,
+            production_stage: toStage,
+            production_sort_order: sortMap[`doc:${d.id}`] ?? d.production_sort_order,
+            ...(isCrossColumn ? {
+              production_status_id: defaultStatusId,
+              production_status_note: null,
+            } : {}),
+          }
         }
-      } catch {
-        setDocs(ds => ds.map(d => d.id === dragId ? dragDoc : d))
-        showToast('Network error', 'error')
+        const k = `doc:${d.id}`
+        if (sortMap[k] != null) return { ...d, production_sort_order: sortMap[k] }
+        return d
+      }))
+      // Persist moved doc
+      const updates: Record<string, any> = {
+        production_stage: toStage,
+        production_sort_order: sortMap[activeId],
       }
-      return
-    }
-
-    // Same column reorder
-    if (!targetId || dragId === targetId || !position) {
-      setDragState({ dragId: null, overId: null, position: null })
-      return
-    }
-
-    const col = [...(columns[stageKey] || [])]
-    const fromIdx = col.findIndex(d => d.id === dragId)
-    const toIdx = col.findIndex(d => d.id === targetId)
-    if (fromIdx === -1 || toIdx === -1) {
-      setDragState({ dragId: null, overId: null, position: null })
-      return
-    }
-
-    col.splice(fromIdx, 1)
-    const insertIdx = position === 'above' ? col.findIndex(d => d.id === targetId) : col.findIndex(d => d.id === targetId) + 1
-    col.splice(insertIdx, 0, dragDoc)
-
-    const sortUpdates = col.map((d, i) => ({ id: d.id, sort: i + 1 }))
-    setDocs(ds => ds.map(d => {
-      const u = sortUpdates.find(u => u.id === d.id)
-      return u ? { ...d, production_sort_order: u.sort } : d
-    }))
-
-    setDragState({ dragId: null, overId: null, position: null })
-
-    for (const u of sortUpdates) {
-      fetch(`/api/documents/${u.id}/production-status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ production_sort_order: u.sort }),
+      if (isCrossColumn) {
+        updates.production_status_id = defaultStatusId
+        updates.production_status_note = null
+        if (fromStage === 'COMPLETE' && toStage !== 'COMPLETE') updates.in_production = true
+        if (toStage === 'COMPLETE') updates.in_production = false
+      }
+      fetch(`/api/documents/${item.id}/production-status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      }).catch(() => {})
+    } else {
+      // Task move
+      let defaultStatusId: string | null = null
+      if (isCrossColumn && CONFIGURABLE_STAGES.includes(toStage as any)) {
+        const def = getDefaultStatusForStage(toStage)
+        if (def) defaultStatusId = def.id
+      }
+      setTasks(ts => ts.map(t => {
+        if (t.id === item.id) {
+          return {
+            ...t,
+            production_stage: toStage,
+            production_sort_order: sortMap[`task:${t.id}`] ?? t.production_sort_order,
+            ...(isCrossColumn ? {
+              production_status_id: defaultStatusId,
+              production_status_note: null,
+              ...(toStage === 'COMPLETE' && !t.task_completed_at ? { task_completed_at: new Date().toISOString() } : {}),
+            } : {}),
+          }
+        }
+        const k = `task:${t.id}`
+        if (sortMap[k] != null) return { ...t, production_sort_order: sortMap[k] }
+        return t
+      }))
+      const updates: Record<string, any> = {
+        production_stage: toStage,
+        production_sort_order: sortMap[activeId],
+      }
+      if (isCrossColumn) {
+        updates.production_status_id = defaultStatusId
+        updates.production_status_note = null
+      }
+      fetch(`/api/production-tasks/${item.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
       }).catch(() => {})
     }
+
+    // Persist sort_order for the OTHER items in the destination column (besides the moved one)
+    for (const it of destItems) {
+      if (itemKey(it) === activeId) continue
+      const newSort = sortMap[itemKey(it)]
+      if (it.kind === 'doc') {
+        if ((it.doc.production_sort_order || 0) === newSort) continue
+        fetch(`/api/documents/${it.id}/production-status`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ production_sort_order: newSort }),
+        }).catch(() => {})
+      } else {
+        if ((it.task.production_sort_order || 0) === newSort) continue
+        fetch(`/api/production-tasks/${it.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ production_sort_order: newSort }),
+        }).catch(() => {})
+      }
+    }
   }
 
-  const handleDragEnd = () => {
-    setDragState({ dragId: null, overId: null, position: null })
-    setDragOverColumn(null)
+  // ---------- Document archive (production board only) ----------
+  const archiveDocCard = async (docId: string) => {
+    setDocs(ds => ds.filter(d => d.id !== docId))
+    fetch(`/api/documents/${docId}/archive-production`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived: true }),
+    }).catch(() => {})
+    closePopover()
+    showToast('Card archived', 'success')
   }
 
-  // Popover positioning
-  const openPopover = useCallback((docId: string, cardEl: HTMLElement) => {
+  const restoreDocCard = (docId: string) => {
+    // Refresh — easiest is reload, but we can also re-fetch the doc
+    fetch(`/api/documents/${docId}`).then(r => r.json()).then(d => {
+      if (d?.id) setDocs(ds => [d, ...ds.filter(x => x.id !== d.id)])
+    }).catch(() => {})
+  }
+
+  // ---------- Manual task helpers ----------
+  const handleTaskCreated = (newTask: BoardTask) => {
+    setTasks(ts => [...ts, newTask])
+  }
+
+  const archiveTaskCard = async (taskId: string) => {
+    setTasks(ts => ts.filter(t => t.id !== taskId))
+    fetch(`/api/production-tasks/${taskId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived: true }),
+    }).catch(() => {})
+    if (openTaskId === taskId) setOpenTaskId(null)
+    showToast('Task archived', 'success')
+  }
+
+  const applyStatusToTask = async (taskId: string, status: ProductionStatus, note?: string) => {
+    if (status.requires_note && !note) {
+      setStatusNoteModal({ taskId, status, note: '' })
+      setStatusDropdownTaskId(null)
+      return
+    }
+    setTasks(ts => ts.map(t => t.id === taskId ? { ...t, production_status_id: status.id, production_status_note: note ?? null } : t))
+    setStatusDropdownTaskId(null)
+    fetch(`/api/production-tasks/${taskId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ production_status_id: status.id, production_status_note: note ?? null }),
+    }).catch(() => {})
+    if (status.special_action === 'WASTE_REPORT') {
+      // Tasks aren't tied to docs but we still want to surface the waste reporter
+      window.open('/waste-reporter', '_blank')
+    }
+  }
+
+  // Popover positioning — handles both doc and task cards
+  const openPopover = useCallback((id: string, cardEl: HTMLElement, kind: 'doc' | 'task' = 'doc') => {
     const rect = cardEl.getBoundingClientRect()
     const popW = 400
     const popMaxH = 520
@@ -468,43 +721,65 @@ export default function ProductionKanban({
       width: popW,
       maxHeight: popMaxH,
     })
-    setSelectedId(docId)
+    if (kind === 'doc') {
+      setSelectedId(id)
+      setOpenTaskId(null)
+    } else {
+      setOpenTaskId(id)
+      setSelectedId(null)
+    }
     setPopoverVisible(true)
     setAssignModalOpen(false)
-    setStuckModalOpen(false)
   }, [])
 
   const closePopover = () => {
     setPopoverVisible(false)
     setSelectedId(null)
+    setOpenTaskId(null)
     setAssignModalOpen(false)
-    setStuckModalOpen(false)
   }
 
   // Close on click outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (!popoverVisible) return
       const target = e.target as HTMLElement
+
+      // Close status dropdown when clicking outside it
+      if ((statusDropdownDocId || statusDropdownTaskId) && !target.closest('.status-dropdown') && !target.closest('.status-pill')) {
+        setStatusDropdownDocId(null)
+        setStatusDropdownTaskId(null)
+        setStatusDropdownRect(null)
+      }
+
+      if (!popoverVisible) return
       if (popoverRef.current?.contains(target)) return
       if (target.closest('[data-card-id]')) return
-      // Don't close popover if clicking inside a modal overlay
+      // Don't close popover if clicking inside a modal overlay or the lightbox
       if (target.closest('[data-modal]')) return
+      if (target.closest('[data-lightbox]')) return
+      if (target.closest('.status-dropdown')) return
       closePopover()
     }
     const keyHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (lightbox) setLightbox(null)
+        else if (statusDropdownDocId || statusDropdownTaskId) { setStatusDropdownDocId(null); setStatusDropdownTaskId(null); setStatusDropdownRect(null) }
         else closePopover()
       }
     }
+    const scrollHandler = () => {
+      // Close dropdown on any scroll — the absolute coords go stale
+      if (statusDropdownDocId || statusDropdownTaskId) { setStatusDropdownDocId(null); setStatusDropdownTaskId(null); setStatusDropdownRect(null) }
+    }
     document.addEventListener('mousedown', handler)
     document.addEventListener('keydown', keyHandler)
+    document.addEventListener('scroll', scrollHandler, true)
     return () => {
       document.removeEventListener('mousedown', handler)
       document.removeEventListener('keydown', keyHandler)
+      document.removeEventListener('scroll', scrollHandler, true)
     }
-  }, [popoverVisible, lightbox])
+  }, [popoverVisible, lightbox, statusDropdownDocId, statusDropdownTaskId])
 
   const selectedDoc = docs.find(d => d.id === selectedId)
 
@@ -549,9 +824,9 @@ export default function ProductionKanban({
       )}
 
       {/* Header */}
-      <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(148,163,184,0.1)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#fff', margin: 0 }}>
+      <div style={{ padding: '20px 30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(148,163,184,0.1)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <h1 style={{ fontSize: 25, fontWeight: 700, color: '#fff', margin: 0 }}>
             FWG <span style={{ backgroundImage: 'linear-gradient(90deg, #22d3ee, #a855f7, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Production</span>
           </h1>
           {/* Search */}
@@ -561,12 +836,26 @@ export default function ProductionKanban({
               placeholder="Search jobs..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ padding: '7px 14px', paddingRight: search ? 30 : 14, background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', width: 220 }}
+              style={{ padding: '9px 17px', paddingRight: search ? 34 : 17, background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 9, color: '#f1f5f9', fontSize: 15, outline: 'none', width: 270 }}
             />
             {search && (
               <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(148,163,184,0.15)', border: 'none', color: '#94a3b8', width: 18, height: 18, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1 }}>×</button>
             )}
           </div>
+          {/* + Task */}
+          <button
+            onClick={() => setTaskQuickAddOpen({ open: true })}
+            title="Add task"
+            style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.2)', color: '#22d3ee', height: 40, padding: '0 15px', borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600 }}
+          >+ Task</button>
+          {/* Manage statuses gear */}
+          <button
+            onClick={() => setStatusManagerOpen(true)}
+            title="Manage statuses"
+            style={{ background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.15)', color: '#94a3b8', width: 40, height: 40, borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
         </div>
 
         {/* Stats + Metrics */}
@@ -574,7 +863,7 @@ export default function ProductionKanban({
           {/* Overview metrics */}
           {(() => {
             const totalActive = docs.filter(d => d.production_stage !== 'COMPLETE').length
-            const stuckCount = docs.filter(d => d.production_stuck).length
+            const stuckCount = docs.filter(d => !!d.production_status_note && d.production_stage !== 'COMPLETE').length
             const overdueCount = docs.filter(d => {
               if (!d.due_date || d.production_stage === 'COMPLETE') return false
               const due = new Date(d.due_date + 'T00:00:00'); const now = new Date(); now.setHours(0, 0, 0, 0)
@@ -588,28 +877,28 @@ export default function ProductionKanban({
 
             return (
               <>
-                <div style={{ fontSize: 12, padding: '4px 12px', borderRadius: 8, background: 'rgba(148,163,184,0.1)', color: '#94a3b8', fontWeight: 700 }}>
+                <div style={{ fontSize: 14, padding: '5px 14px', borderRadius: 9, background: 'rgba(148,163,184,0.1)', color: '#94a3b8', fontWeight: 700 }}>
                   {totalActive} Active
                 </div>
                 {stuckCount > 0 && (
-                  <div style={{ fontSize: 12, padding: '4px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 700 }}>
-                    {stuckCount} Stuck
+                  <div style={{ fontSize: 14, padding: '5px 14px', borderRadius: 9, background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 700 }}>
+                    {stuckCount} Flagged
                   </div>
                 )}
                 {overdueCount > 0 && (
-                  <div style={{ fontSize: 12, padding: '4px 12px', borderRadius: 8, background: 'rgba(245,158,11,0.1)', color: '#fbbf24', fontWeight: 700 }}>
+                  <div style={{ fontSize: 14, padding: '5px 14px', borderRadius: 9, background: 'rgba(245,158,11,0.1)', color: '#fbbf24', fontWeight: 700 }}>
                     {overdueCount} Overdue
                   </div>
                 )}
-                <div style={{ width: 1, height: 20, background: 'rgba(148,163,184,0.15)' }} />
+                <div style={{ width: 1, height: 25, background: 'rgba(148,163,184,0.15)' }} />
               </>
             )
           })()}
           {STAGES.filter(s => s.key !== 'COMPLETE').map(s => {
             const count = columns[s.key]?.length || 0
             return (
-              <div key={s.key} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dotColor, display: 'inline-block' }} />
+              <div key={s.key} style={{ fontSize: 14, padding: '4px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', color: '#64748b', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.dotColor, display: 'inline-block' }} />
                 <span style={{ fontWeight: 700, color: '#94a3b8' }}>{count}</span>
               </div>
             )
@@ -618,182 +907,200 @@ export default function ProductionKanban({
       </div>
 
       {/* Board */}
-      <div ref={boardRef} style={{ display: 'flex', gap: 10, padding: '12px 16px', flex: 1, overflow: 'auto' }}>
-        {STAGES.map(stage => (
-          <div key={stage.key} style={{
-            flex: stage.key === 'COMPLETE' ? '0 0 220px' : 1,
-            minWidth: 210,
-            display: 'flex', flexDirection: 'column',
-            borderRadius: 10,
-            background: '#111111',
-            opacity: stage.key === 'COMPLETE' ? 0.7 : 1,
-            overflow: 'hidden',
-          }}>
-            {/* Column header */}
-            <div style={{
-              padding: '12px 14px', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
-              display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(148,163,184,0.1)', color: '#94a3b8',
-            }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: stage.dotColor, display: 'inline-block' }} />
-              {stage.label}
-              <span style={{ marginLeft: 'auto', background: '#1a1a1a', padding: '2px 8px', borderRadius: 6, fontSize: 11, color: '#94a3b8' }}>
-                {columns[stage.key]?.length || 0}
-              </span>
-            </div>
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDndStart} onDragOver={onDndOver} onDragEnd={onDndEnd}>
+        <div ref={boardRef} style={{ display: 'flex', gap: 10, padding: '12px 16px', flex: 1, overflow: 'auto' }}>
+          {STAGES.map(stage => {
+            const items = columns[stage.key] || []
+            const visibleItems = items.filter(it => {
+              if (it.kind !== 'doc') return true
+              const cur = getStatusById(it.doc.production_status_id)
+              return !(cur?.special_action === 'COLLAPSE_INSTALL' && installCollapsed)
+            })
+            const installDocs = stage.key === 'PRODUCTION'
+              ? items.filter(it => it.kind === 'doc' && getStatusById(it.doc.production_status_id)?.special_action === 'COLLAPSE_INSTALL')
+              : []
 
-            {/* Cards */}
-            <div style={{
-              flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8,
-              border: dragOverColumn === stage.key && dragState.dragId && !(columns[stage.key] || []).find(d => d.id === dragState.dragId)
-                ? '2px dashed rgba(34,211,238,0.5)' : '2px dashed transparent',
-              borderRadius: 6,
-              transition: 'border-color 0.15s',
-              minHeight: 60,
-            }}
-              onDragOver={e => { handleColumnDragOver(e, stage.key) }}
-              onDragLeave={handleColumnDragLeave}
-              onDrop={e => { if (!dragState.overId || !columns[stage.key]?.find(d => d.id === dragState.overId)) handleDrop(e, null, stage.key) }}
-            >
-              {(columns[stage.key] || []).map(doc => {
-                const catColor = getDocCategoryColor(doc, catMap)
-                const duePill = getDuePill(doc.due_date)
-                const nextStage = getNextStage(stage.key)
-                const isSelected = selectedId === doc.id
-                const isDragging = dragState.dragId === doc.id
-                const isOver = dragState.overId === doc.id
-                const docAssignees = getAssignmentsForDoc(doc.id)
-                const docLeader = teamMembers.find(tm => tm.id === doc.production_leader_id)
+            return (
+              <DroppableColumn key={stage.key} stageKey={stage.key} isComplete={stage.key === 'COMPLETE'}>
+                {/* Column header */}
+                <div style={{
+                  padding: '15px 18px', fontSize: 14, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
+                  display: 'flex', alignItems: 'center', gap: 9, borderBottom: '1px solid rgba(148,163,184,0.1)', color: '#94a3b8',
+                }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: stage.dotColor, display: 'inline-block' }} />
+                  {stage.label}
+                  <span style={{ marginLeft: 'auto', background: '#1a1a1a', padding: '3px 10px', borderRadius: 7, fontSize: 13, color: '#94a3b8' }}>
+                    {items.length}
+                  </span>
+                  {stage.key !== 'COMPLETE' && (
+                    <button
+                      onClick={() => setTaskQuickAddOpen({ open: true, defaultStage: stage.key })}
+                      title="Add task to this column"
+                      style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.2)', color: '#22d3ee', width: 26, height: 26, borderRadius: 6, cursor: 'pointer', fontSize: 17, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                    >+</button>
+                  )}
+                  {stage.key === 'COMPLETE' && (
+                    <button
+                      onClick={() => setArchivedModalOpen(true)}
+                      title="View archived"
+                      style={{ background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', padding: '3px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                    >Archived</button>
+                  )}
+                </div>
 
-                return (
-                  <div key={doc.id}>
-                    {/* Insertion line above */}
-                    {isOver && dragState.position === 'above' && (
-                      <div style={{ height: 3, background: '#22d3ee', borderRadius: 2, marginBottom: 4 }} />
-                    )}
-                    <div
-                      data-card-id={doc.id}
-                      draggable
-                      onDragStart={e => handleDragStart(e, doc.id)}
-                      onDragOver={e => handleDragOver(e, doc.id)}
-                      onDrop={e => handleDrop(e, doc.id, stage.key)}
-                      onDragEnd={handleDragEnd}
-                      onClick={e => {
-                        if ((e.target as HTMLElement).closest('.move-btn')) return
-                        const card = e.currentTarget
-                        if (isSelected) { closePopover(); return }
-                        openPopover(doc.id, card)
-                      }}
-                      style={{
-                        background: '#1a1a1a',
-                        borderRadius: 10,
-                        padding: 12,
-                        cursor: 'pointer',
-                        borderTop: doc.production_stuck ? '2px solid #ef4444' : isSelected ? '2px solid #22d3ee' : '2px solid transparent',
-                        borderRight: doc.production_stuck ? '2px solid #ef4444' : isSelected ? '2px solid #22d3ee' : '2px solid transparent',
-                        borderBottom: doc.production_stuck ? '2px solid #ef4444' : isSelected ? '2px solid #22d3ee' : '2px solid transparent',
-                        borderLeft: `4px solid ${doc.production_stuck ? '#ef4444' : catColor}`,
-                        boxShadow: doc.production_stuck
-                          ? '0 0 12px rgba(239,68,68,0.3)'
-                          : isSelected ? '0 0 12px rgba(34,211,238,0.3)' : 'none',
-                        opacity: isDragging ? 0.4 : 1,
-                        transition: 'box-shadow 0.15s, opacity 0.15s',
-                        userSelect: 'none',
-                      }}
-                    >
-                      {/* Top row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <span style={{ fontSize: 11, color: '#64748b' }}>{doc.doc_number}</span>
-                          {doc.production_stuck && (
-                            <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, fontWeight: 700, background: 'rgba(239,68,68,0.15)', color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Stuck</span>
-                          )}
-                        </div>
-                        {duePill && (
-                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, fontWeight: 600, background: duePill.bg, color: duePill.color }}>
-                            {duePill.text}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Customer name */}
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {doc.customer_name}
-                      </div>
-
-                      {/* Description */}
-                      <div style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 4 }}>
-                        {doc.vehicle_description || doc.project_description || '—'}
-                      </div>
-
-                      {/* Stuck reason on card */}
-                      {doc.production_stuck && doc.production_stuck_reason && (
-                        <div style={{ fontSize: 10, color: '#f87171', marginBottom: 4, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          ⚠ {doc.production_stuck_reason}
-                        </div>
-                      )}
-
-                      {/* Target date */}
-                      {doc.production_target_date && (
-                        <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: 11 }}>🎯</span>
-                          Finish by {formatDate(doc.production_target_date)}
-                        </div>
-                      )}
-
-                      {/* Team assignments */}
-                      {(docAssignees.length > 0 || docLeader) && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 6 }}>
-                          {docLeader && (
-                            <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: `${docLeader.color}20`, color: docLeader.color, fontWeight: 700, border: `1px solid ${docLeader.color}40` }}>
-                              ★ {docLeader.short_name || docLeader.name}
-                            </span>
-                          )}
-                          {docAssignees.filter(a => a.id !== doc.production_leader_id).map(member => (
-                            <span key={member.id} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: `${member.color}15`, color: member.color, fontWeight: 600 }}>
-                              {member.short_name || member.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Move button */}
-                      {nextStage && (
-                        <button
-                          className="move-btn"
-                          onClick={e => {
-                            e.stopPropagation()
-                            moveToStage(doc.id, nextStage)
+                {/* Cards droppable */}
+                <ColumnDroppableArea stageKey={stage.key} hasItems={visibleItems.length > 0}>
+                  <SortableContext items={visibleItems.map(itemKey)} strategy={verticalListSortingStrategy}>
+                    {visibleItems.map(item => {
+                      const sortableId = itemKey(item)
+                      const showAbove = dropTarget?.overId === sortableId && dropTarget.position === 'above' && activeDragId !== sortableId
+                      const showBelow = dropTarget?.overId === sortableId && dropTarget.position === 'below' && activeDragId !== sortableId
+                      const dropLine = <div style={{ height: 0, borderTop: '1px dashed rgba(148,163,184,0.4)', margin: '2px 0' }} />
+                      const wrap = (cardEl: React.ReactNode) => (
+                        <React.Fragment key={sortableId}>
+                          {showAbove && dropLine}
+                          {cardEl}
+                          {showBelow && dropLine}
+                        </React.Fragment>
+                      )
+                      if (item.kind === 'doc') {
+                        const doc = item.doc
+                        const stageStatuses = statusesByStage[stage.key] || []
+                        const status = getStatusById(doc.production_status_id) || null
+                        const docAssignees = getAssignmentsForDoc(doc.id)
+                        const docLeader = teamMembers.find(tm => tm.id === doc.production_leader_id) || null
+                        return wrap(
+                          <SortableBoardCard
+                            key={sortableId}
+                            sortableId={sortableId}
+                            itemKind="doc"
+                            itemId={doc.id}
+                            doc={doc as any}
+                            isSelected={selectedId === doc.id}
+                            onClickCard={(card) => { if (selectedId === doc.id) { closePopover(); return } openPopover(doc.id, card) }}
+                            status={status}
+                            stageStatuses={stageStatuses}
+                            showStatusPill={CONFIGURABLE_STAGES.includes(stage.key as any)}
+                            onOpenStatusDropdown={(rect) => {
+                              const dropdownH = Math.min((stageStatuses.length + 1) * 36 + 16, 360)
+                              const flipUp = rect.bottom + dropdownH > window.innerHeight - 20
+                              setStatusDropdownTaskId(null)
+                              setStatusDropdownDocId(doc.id)
+                              setStatusDropdownRect({ top: rect.top, left: rect.left, width: rect.width, flipUp })
+                            }}
+                            isComplete={stage.key === 'COMPLETE'}
+                            onArchive={() => archiveDocCard(doc.id)}
+                            catMap={catMap}
+                            teamMembers={teamMembers}
+                            docAssignees={docAssignees}
+                            docLeader={docLeader}
+                          />
+                        )
+                      }
+                      // Task card
+                      const task = item.task
+                      const stageStatuses = statusesByStage[stage.key] || []
+                      const status = getStatusById(task.production_status_id) || null
+                      const taskAssigneeIds = taskAssignments.filter(a => a.task_id === task.id).map(a => a.team_member_id)
+                      const taskAssignees = taskAssigneeIds.map(id => teamMembers.find(tm => tm.id === id)).filter(Boolean) as TeamMember[]
+                      const taskLeader = task.leader_id ? teamMembers.find(tm => tm.id === task.leader_id) || null : null
+                      return wrap(
+                        <SortableBoardCard
+                          key={sortableId}
+                          sortableId={sortableId}
+                          itemKind="task"
+                          itemId={task.id}
+                          task={task as any}
+                          isSelected={openTaskId === task.id}
+                          onClickCard={(card) => { if (openTaskId === task.id) { closePopover(); return } openPopover(task.id, card, 'task') }}
+                          status={status}
+                          stageStatuses={stageStatuses}
+                          showStatusPill={CONFIGURABLE_STAGES.includes(stage.key as any)}
+                          onOpenStatusDropdown={(rect) => {
+                            const dropdownH = Math.min((stageStatuses.length + 1) * 36 + 16, 360)
+                            const flipUp = rect.bottom + dropdownH > window.innerHeight - 20
+                            setStatusDropdownDocId(null)
+                            setStatusDropdownTaskId(task.id)
+                            setStatusDropdownRect({ top: rect.top, left: rect.left, width: rect.width, flipUp })
                           }}
-                          style={{
-                            width: '100%', padding: 6, border: 'none', borderRadius: 6,
-                            background: '#22d3ee', color: '#000', fontSize: 11, fontWeight: 600,
-                            cursor: 'pointer', transition: 'background 0.15s',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#0ea5e9' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = '#22d3ee' }}
-                        >
-                          Move to {getStageLabel(nextStage)} →
-                        </button>
+                          isComplete={stage.key === 'COMPLETE'}
+                          onArchive={() => archiveTaskCard(task.id)}
+                          taskAssignees={taskAssignees}
+                          taskLeader={taskLeader}
+                        />
+                      )
+                    })}
+                  </SortableContext>
+
+                  {/* Install strip */}
+                  {stage.key === 'PRODUCTION' && installDocs.length > 0 && (
+                    <div style={{ marginTop: 8, borderTop: '1px solid rgba(148,163,184,0.1)', paddingTop: 8 }}>
+                      <button
+                        onClick={() => setInstallCollapsed(c => !c)}
+                        style={{
+                          width: '100%', padding: '8px 10px', borderRadius: 6,
+                          background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)',
+                          color: '#c4b5fd', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#a855f7' }} />
+                          In Installation ({installDocs.length})
+                        </span>
+                        <span style={{ fontSize: 10 }}>{installCollapsed ? '▾' : '▴'}</span>
+                      </button>
+                      {!installCollapsed && (
+                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {installDocs.map(it => {
+                            const d = (it as any).doc
+                            return (
+                              <div
+                                key={d.id}
+                                data-card-id={d.id}
+                                onClick={e => { const card = e.currentTarget; if (selectedId === d.id) { closePopover(); return } openPopover(d.id, card) }}
+                                style={{ padding: '6px 10px', borderRadius: 6, background: '#1a1a1a', cursor: 'pointer', fontSize: 12, color: '#e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.customer_name}</span>
+                                <span style={{ fontSize: 10, color: '#64748b' }}>{d.doc_number}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
                       )}
                     </div>
-                    {/* Insertion line below */}
-                    {isOver && dragState.position === 'below' && (
-                      <div style={{ height: 3, background: '#22d3ee', borderRadius: 2, marginTop: 4 }} />
-                    )}
-                  </div>
-                )
-              })}
+                  )}
 
-              {/* Empty state */}
-              {(columns[stage.key] || []).length === 0 && (
-                <div style={{ padding: '24px 12px', textAlign: 'center', color: '#475569', fontSize: 12 }}>
-                  No jobs
+                  {/* Empty state */}
+                  {visibleItems.length === 0 && (
+                    <div style={{ padding: '24px 12px', textAlign: 'center', color: '#475569', fontSize: 12 }}>
+                      {items.length === 0 ? 'Drop here' : 'All in installation'}
+                    </div>
+                  )}
+                </ColumnDroppableArea>
+              </DroppableColumn>
+            )
+          })}
+        </div>
+
+        {/* Drag overlay */}
+        <DragOverlay>
+          {activeDragId ? (() => {
+            const it = findItem(activeDragId)
+            if (!it) return null
+            return (
+              <div style={{ background: '#1a1a1a', borderRadius: 10, padding: 12, boxShadow: '0 12px 32px rgba(0,0,0,0.6)', borderLeft: `4px solid ${it.kind === 'doc' ? '#22d3ee' : '#94a3b8'}`, opacity: 0.95, cursor: 'grabbing' }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+                  {it.kind === 'doc' ? it.doc.doc_number : 'TASK'}
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+                  {it.kind === 'doc' ? it.doc.customer_name : it.task.title}
+                </div>
+              </div>
+            )
+          })() : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* ============================================================= */}
       {/* POPOVER — Apple Reminders style, anchored to clicked card      */}
@@ -836,7 +1143,17 @@ export default function ProductionKanban({
                   </span>
                 </div>
               </div>
-              <button onClick={closePopover} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: 16, width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {selectedDoc.production_stage === 'COMPLETE' && (
+                  <button
+                    onClick={() => archiveDocCard(selectedDoc.id)}
+                    title="Archive this card (invoice stays untouched)"
+                    className="archive-btn"
+                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', height: 28, padding: '0 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                  >Archive</button>
+                )}
+                <button onClick={closePopover} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: 16, width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              </div>
             </div>
 
             {/* Invoice due date */}
@@ -869,30 +1186,48 @@ export default function ProductionKanban({
                   style={{ padding: '4px 8px', background: '#111', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 6, color: '#f1f5f9', fontSize: 12, outline: 'none' }}
                 />
               </div>
-              <button
-                onClick={() => {
-                  if (selectedDoc.production_stuck) {
-                    // Unstick
-                    setDocs(ds => ds.map(d => d.id === selectedDoc.id ? { ...d, production_stuck: false, production_stuck_reason: undefined } : d))
-                    fetch(`/api/documents/${selectedDoc.id}/production-status`, {
-                      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ production_stuck: false, production_stuck_reason: null }),
-                    })
-                  } else {
-                    setStuckReason('')
-                    setStuckModalOpen(true)
-                  }
-                }}
-                style={{
-                  padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
-                  background: selectedDoc.production_stuck ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)',
-                  border: selectedDoc.production_stuck ? '2px solid #ef4444' : '1px solid rgba(239,68,68,0.2)',
-                  color: selectedDoc.production_stuck ? '#f87171' : '#ef4444',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {selectedDoc.production_stuck ? '✓ Unstick' : '⚠ Mark Stuck'}
-              </button>
+              {(() => {
+                const stage = selectedDoc.production_stage || 'QUEUE'
+                if (!CONFIGURABLE_STAGES.includes(stage as any)) return null
+                const stageStatuses = statusesByStage[stage] || []
+                if (stageStatuses.length === 0) return null
+                const cur = getStatusById(selectedDoc.production_status_id)
+                return (
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <button
+                      onClick={() => setStatusDropdownDocId(prev => prev === selectedDoc.id ? null : selectedDoc.id)}
+                      style={{
+                        padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                        background: cur ? `${cur.color}22` : 'rgba(148,163,184,0.1)',
+                        border: `1px solid ${cur ? `${cur.color}55` : 'rgba(148,163,184,0.2)'}`,
+                        color: cur ? cur.color : '#94a3b8',
+                        display: 'flex', alignItems: 'center', gap: 5,
+                      }}
+                    >
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: cur?.color || '#94a3b8' }} />
+                      {cur?.label || 'Set status'}
+                      <span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
+                    </button>
+                    {statusDropdownDocId === selectedDoc.id && (
+                      <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 950, minWidth: 200, overflow: 'hidden' }}>
+                        {stageStatuses.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => applyStatusToDoc(selectedDoc.id, s)}
+                            style={{ width: '100%', padding: '8px 10px', textAlign: 'left', background: cur?.id === s.id ? `${s.color}18` : 'transparent', border: 'none', cursor: 'pointer', color: '#e2e8f0', fontSize: 12, display: 'flex', alignItems: 'center', gap: 7 }}
+                            onMouseEnter={e => { e.currentTarget.style.background = `${s.color}28` }}
+                            onMouseLeave={e => { e.currentTarget.style.background = cur?.id === s.id ? `${s.color}18` : 'transparent' }}
+                          >
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                            <span style={{ flex: 1 }}>{s.label}</span>
+                            {s.requires_note && <span style={{ fontSize: 9, color: '#64748b' }}>note</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Quick info */}
@@ -1032,13 +1367,16 @@ export default function ProductionKanban({
               )
             })()}
 
-            {/* Stuck reason display */}
-            {selectedDoc.production_stuck && selectedDoc.production_stuck_reason && (
-              <div style={{ marginBottom: 14, padding: '8px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                <div style={{ fontSize: 10, color: '#f87171', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>⚠ Stuck Reason</div>
-                <div style={{ fontSize: 12, color: '#fca5a5', lineHeight: 1.4 }}>{selectedDoc.production_stuck_reason}</div>
-              </div>
-            )}
+            {/* Status note display */}
+            {selectedDoc.production_status_note && (() => {
+              const cur = getStatusById(selectedDoc.production_status_id)
+              return (
+                <div style={{ marginBottom: 14, padding: '8px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  <div style={{ fontSize: 10, color: '#f87171', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>⚑ {cur?.label || 'Status note'}</div>
+                  <div style={{ fontSize: 12, color: '#fca5a5', lineHeight: 1.4 }}>{selectedDoc.production_status_note}</div>
+                </div>
+              )
+            })()}
 
             {/* Team assignments display + assign button */}
             <div style={{ marginBottom: 14 }}>
@@ -1206,50 +1544,83 @@ export default function ProductionKanban({
       )}
 
       {/* ============================================================= */}
-      {/* STUCK REASON MODAL                                             */}
+      {/* STATUS NOTE MODAL — appears when picking a status that requires a note */}
       {/* ============================================================= */}
-      {stuckModalOpen && selectedDoc && (
-        <div data-modal style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) setStuckModalOpen(false) }}>
-          <div style={{ background: '#111111', borderRadius: 16, padding: '24px', width: 400, boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ color: '#f1f5f9', fontSize: 16, fontWeight: 700, margin: '0 0 8px' }}>⚠ Mark as Stuck</h3>
-            <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 16px' }}>What&apos;s holding up this job?</p>
-            <input
-              value={stuckReason}
-              onChange={e => setStuckReason(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && stuckReason.trim()) {
-                  setDocs(ds => ds.map(d => d.id === selectedDoc.id ? { ...d, production_stuck: true, production_stuck_reason: stuckReason.trim() } : d))
-                  fetch(`/api/documents/${selectedDoc.id}/production-status`, {
-                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ production_stuck: true, production_stuck_reason: stuckReason.trim() }),
-                  })
-                  setStuckModalOpen(false)
-                }
-              }}
-              placeholder="e.g., Waiting on customer approval, material backordered..."
-              autoFocus
-              style={{ width: '100%', padding: '10px 14px', background: '#111', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setStuckModalOpen(false)} style={{ padding: '8px 18px', borderRadius: 8, background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button
-                onClick={() => {
-                  if (!stuckReason.trim()) return
-                  setDocs(ds => ds.map(d => d.id === selectedDoc.id ? { ...d, production_stuck: true, production_stuck_reason: stuckReason.trim() } : d))
-                  fetch(`/api/documents/${selectedDoc.id}/production-status`, {
-                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ production_stuck: true, production_stuck_reason: stuckReason.trim() }),
-                  })
-                  setStuckModalOpen(false)
-                }}
-                disabled={!stuckReason.trim()}
-                style={{ padding: '8px 18px', borderRadius: 8, background: stuckReason.trim() ? '#ef4444' : '#333', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: stuckReason.trim() ? 'pointer' : 'default' }}
-              >Mark Stuck</button>
+      {statusNoteModal && (() => {
+        const submit = () => {
+          if (!statusNoteModal.note.trim()) return
+          if (statusNoteModal.docId) applyStatusToDoc(statusNoteModal.docId, statusNoteModal.status, statusNoteModal.note.trim())
+          else if (statusNoteModal.taskId) applyStatusToTask(statusNoteModal.taskId, statusNoteModal.status, statusNoteModal.note.trim())
+          setStatusNoteModal(null)
+        }
+        return (
+          <div data-modal style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={e => { if (e.target === e.currentTarget) setStatusNoteModal(null) }}>
+            <div style={{ background: '#111111', borderRadius: 16, padding: '24px', width: 420, boxShadow: '0 16px 48px rgba(0,0,0,0.5)', border: `1px solid ${statusNoteModal.status.color}55` }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: 16, fontWeight: 700, margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: statusNoteModal.status.color }} />
+                {statusNoteModal.status.label}
+              </h3>
+              <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 16px' }}>Add a quick note explaining the situation.</p>
+              <input
+                value={statusNoteModal.note}
+                onChange={e => setStatusNoteModal(m => m ? { ...m, note: e.target.value } : m)}
+                onKeyDown={e => { if (e.key === 'Enter') submit() }}
+                placeholder="e.g., Waiting on customer approval, material backordered..."
+                autoFocus
+                style={{ width: '100%', padding: '10px 14px', background: '#0d0d0d', border: `1px solid ${statusNoteModal.status.color}55`, borderRadius: 8, color: '#f1f5f9', fontSize: 13, outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={() => setStatusNoteModal(null)} style={{ padding: '8px 18px', borderRadius: 8, background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                <button
+                  onClick={submit}
+                  disabled={!statusNoteModal.note.trim()}
+                  style={{ padding: '8px 18px', borderRadius: 8, background: statusNoteModal.note.trim() ? statusNoteModal.status.color : '#333', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: statusNoteModal.note.trim() ? 'pointer' : 'default' }}
+                >Save</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
+
+      {/* ============================================================= */}
+      {/* STATUS MANAGER MODAL                                           */}
+      {/* ============================================================= */}
+      <StatusManager
+        open={statusManagerOpen}
+        onClose={() => setStatusManagerOpen(false)}
+        statuses={statuses}
+        onChange={setStatuses}
+      />
+
+      {/* ============================================================= */}
+      {/* WASTE REPORT MODAL — triggered by 'Needs reprint' status      */}
+      {/* ============================================================= */}
+      {wasteReportFor && (() => {
+        const wDoc = docs.find(d => d.id === wasteReportFor.docId)
+        return (
+          <div data-modal style={{ position: 'fixed', inset: 0, zIndex: 2100, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            onClick={e => { if (e.target === e.currentTarget) setWasteReportFor(null) }}>
+            <div style={{ background: '#111', borderRadius: 14, padding: '24px', width: 500, maxWidth: '100%', border: '1px solid rgba(239,68,68,0.3)', boxShadow: '0 16px 48px rgba(0,0,0,0.6)' }}>
+              <h3 style={{ color: '#f1f5f9', fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>⚠ Log waste for reprint</h3>
+              <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 16px' }}>
+                {wDoc ? `${wDoc.customer_name} — ${wDoc.doc_number}` : ''}<br />
+                Tracking the wasted material helps us spot recurring issues. Open the full waste reporter or skip for now.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button onClick={() => setWasteReportFor(null)} style={{ padding: '8px 16px', borderRadius: 8, background: 'transparent', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>Skip for now</button>
+                <a
+                  href="/waste-reporter"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setWasteReportFor(null)}
+                  style={{ padding: '8px 16px', borderRadius: 8, background: '#ef4444', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}
+                >Open waste reporter →</a>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ============================================================= */}
       {/* COMPLETE + NOTIFY MODAL                                        */}
@@ -1306,12 +1677,438 @@ export default function ProductionKanban({
       })()}
 
       {/* ============================================================= */}
+      {/* STATUS DROPDOWN — fixed-position floating panel for cards     */}
+      {/* ============================================================= */}
+      {(statusDropdownDocId || statusDropdownTaskId) && statusDropdownRect && (() => {
+        let stage: string | undefined
+        let curStatusId: string | null = null
+        let onPick: (s: ProductionStatus) => void = () => {}
+
+        if (statusDropdownDocId) {
+          const doc = docs.find(d => d.id === statusDropdownDocId)
+          if (!doc) return null
+          stage = doc.production_stage || 'QUEUE'
+          curStatusId = doc.production_status_id || null
+          onPick = (s) => applyStatusToDoc(statusDropdownDocId!, s)
+        } else if (statusDropdownTaskId) {
+          const task = tasks.find(t => t.id === statusDropdownTaskId)
+          if (!task) return null
+          stage = task.production_stage || 'QUEUE'
+          curStatusId = task.production_status_id || null
+          onPick = (s) => applyStatusToTask(statusDropdownTaskId!, s)
+        }
+        if (!stage || !CONFIGURABLE_STAGES.includes(stage as any)) return null
+        const stageStatuses = statusesByStage[stage] || []
+        if (stageStatuses.length === 0) return null
+        const cur = curStatusId ? statuses.find(s => s.id === curStatusId) : null
+        const dropdownH = Math.min((stageStatuses.length + 1) * 36 + 16, 360)
+        const top = statusDropdownRect.flipUp
+          ? statusDropdownRect.top - dropdownH - 4
+          : statusDropdownRect.top + 32 // pill height ~32
+        return (
+          <div
+            className="status-dropdown"
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top, left: statusDropdownRect.left, width: statusDropdownRect.width,
+              maxHeight: dropdownH, overflowY: 'auto',
+              background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.25)', borderRadius: 8,
+              boxShadow: '0 12px 32px rgba(0,0,0,0.6)', zIndex: 1500,
+            }}
+          >
+            {stageStatuses.map(s => (
+              <button
+                key={s.id}
+                onClick={() => onPick(s)}
+                style={{
+                  width: '100%', padding: '8px 10px', textAlign: 'left',
+                  background: cur?.id === s.id ? `${s.color}18` : 'transparent',
+                  border: 'none', cursor: 'pointer', color: '#e2e8f0', fontSize: 12,
+                  display: 'flex', alignItems: 'center', gap: 7,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = `${s.color}28` }}
+                onMouseLeave={e => { e.currentTarget.style.background = cur?.id === s.id ? `${s.color}18` : 'transparent' }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{s.label}</span>
+                {s.requires_note && <span style={{ fontSize: 9, color: '#64748b' }}>note</span>}
+              </button>
+            ))}
+            <div style={{ borderTop: '1px solid rgba(148,163,184,0.1)' }}>
+              <button
+                onClick={() => { setStatusDropdownDocId(null); setStatusDropdownTaskId(null); setStatusDropdownRect(null); setStatusManagerOpen(true) }}
+                style={{ width: '100%', padding: '8px 10px', background: 'transparent', border: 'none', color: '#64748b', fontSize: 11, textAlign: 'left', cursor: 'pointer' }}
+              >Manage statuses…</button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Task quick-add */}
+      <TaskQuickAdd
+        open={taskQuickAddOpen.open}
+        onClose={() => setTaskQuickAddOpen({ open: false })}
+        onCreate={handleTaskCreated}
+        defaultStage={taskQuickAddOpen.defaultStage}
+        teamMembers={teamMembers}
+      />
+
+      {/* Task popover (anchored to clicked task card, same style as doc popover) */}
+      {popoverVisible && openTaskId && (() => {
+        const task = tasks.find(t => t.id === openTaskId)
+        if (!task) return null
+        const stage = task.production_stage || 'QUEUE'
+        const stageStatuses = statusesByStage[stage] || []
+        const cur = task.production_status_id ? statuses.find(s => s.id === task.production_status_id) : null
+        const taskAssigneeIds = taskAssignments.filter(a => a.task_id === task.id).map(a => a.team_member_id)
+        const linkedEvent = task.calendar_event_id ? allCalendarEvents.find(e => e.id === task.calendar_event_id) : null
+
+        const persistTask = (patch: Partial<BoardTask>) => {
+          setTasks(ts => ts.map(t => t.id === task.id ? { ...t, ...patch } : t))
+          fetch(`/api/production-tasks/${task.id}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+          }).catch(() => {})
+        }
+
+        const toggleTaskAssignment = (memberId: string) => {
+          if (taskAssigneeIds.includes(memberId)) {
+            setTaskAssignments(prev => prev.filter(a => !(a.task_id === task.id && a.team_member_id === memberId)))
+            fetch(`/api/production-tasks/${task.id}/assignments`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_member_id: memberId }) }).catch(() => {})
+          } else {
+            setTaskAssignments(prev => [...prev, { task_id: task.id, team_member_id: memberId }])
+            fetch(`/api/production-tasks/${task.id}/assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_member_id: memberId }) }).catch(() => {})
+          }
+        }
+
+        return (
+          <div
+            ref={popoverRef}
+            style={{
+              ...popoverStyle,
+              background: '#111111',
+              border: '1px solid rgba(148,163,184,0.2)',
+              borderRadius: 12,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              zIndex: 900,
+              overflowY: 'auto',
+              transformOrigin: flipped ? 'right top' : 'left top',
+              animation: 'popIn 0.18s ease-out',
+            }}
+          >
+            <style>{`@keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`}</style>
+
+            {/* Color bar */}
+            <div style={{ height: 3, borderRadius: '12px 12px 0 0', background: cur?.color || '#94a3b8' }} />
+
+            <div style={{ padding: '14px 16px' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 3, background: 'rgba(148,163,184,0.15)', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.5px' }}>TASK</span>
+                    {task.archived && <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 3, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700 }}>ARCHIVED</span>}
+                  </div>
+                  <input
+                    type="text"
+                    value={task.title}
+                    onChange={e => setTasks(ts => ts.map(t => t.id === task.id ? { ...t, title: e.target.value } : t))}
+                    onBlur={e => persistTask({ title: e.target.value })}
+                    style={{ fontSize: 17, fontWeight: 700, color: '#fff', background: 'transparent', border: 'none', outline: 'none', width: '100%', padding: 0 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {stage === 'COMPLETE' && (
+                    <button
+                      onClick={() => archiveTaskCard(task.id)}
+                      title="Archive this task"
+                      className="archive-btn"
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', height: 28, padding: '0 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                    >Archive</button>
+                  )}
+                  <button onClick={closePopover} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: 16, width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                </div>
+              </div>
+
+              {/* Status pill */}
+              {CONFIGURABLE_STAGES.includes(stage as any) && stageStatuses.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <button
+                    onClick={e => {
+                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      const dropdownH = Math.min((stageStatuses.length + 1) * 36 + 16, 360)
+                      const flipUp = r.bottom + dropdownH > window.innerHeight - 20
+                      setStatusDropdownDocId(null)
+                      setStatusDropdownTaskId(task.id)
+                      setStatusDropdownRect({ top: r.top, left: r.left, width: Math.max(r.width, 220), flipUp })
+                    }}
+                    style={{
+                      padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      background: cur ? `${cur.color}22` : 'rgba(148,163,184,0.1)',
+                      border: `1px solid ${cur ? `${cur.color}55` : 'rgba(148,163,184,0.2)'}`,
+                      color: cur ? cur.color : '#94a3b8',
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: cur?.color || '#94a3b8' }} />
+                    {cur?.label || 'Set status'}
+                    <span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
+                  </button>
+                  {task.production_status_note && (
+                    <div style={{ marginTop: 6, padding: '6px 10px', borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', fontSize: 11, color: '#fca5a5' }}>
+                      ⚑ {task.production_status_note}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Description */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 5 }}>Description</div>
+                <textarea
+                  value={task.description || ''}
+                  onChange={e => setTasks(ts => ts.map(t => t.id === task.id ? { ...t, description: e.target.value } : t))}
+                  onBlur={e => persistTask({ description: e.target.value || null } as any)}
+                  placeholder="Add a description…"
+                  rows={2}
+                  style={{ width: '100%', padding: '8px 10px', background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 6, color: '#e2e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4 }}
+                />
+              </div>
+
+              {/* Due date + Calendar */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 8, marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 5 }}>Due date</div>
+                  <input
+                    type="date"
+                    value={task.due_date || ''}
+                    onChange={e => persistTask({ due_date: e.target.value || null } as any)}
+                    style={{ width: '100%', padding: '6px 10px', background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 6, color: '#f1f5f9', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 5 }}>Linked job</div>
+                  <select
+                    value={task.calendar_event_id || ''}
+                    onChange={e => persistTask({ calendar_event_id: e.target.value || null } as any)}
+                    style={{ width: '100%', padding: '6px 10px', background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 6, color: '#e2e8f0', fontSize: 12, outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="">— Not linked —</option>
+                    {allCalendarEvents.map(ev => {
+                      const dt = new Date(ev.start_time)
+                      const label = `${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${ev.title}${ev.customer_name ? ` (${ev.customer_name})` : ''}`
+                      return <option key={ev.id} value={ev.id}>{label}</option>
+                    })}
+                  </select>
+                </div>
+              </div>
+              {!linkedEvent && (
+                <a href="/calendar" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#22d3ee', textDecoration: 'none', display: 'inline-block', marginBottom: 10 }}>+ Schedule new job in Job Calendar</a>
+              )}
+
+              {/* Team */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6 }}>Team</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {teamMembers.map(m => {
+                    const isLeader = task.leader_id === m.id
+                    const isAssigned = taskAssigneeIds.includes(m.id)
+                    return (
+                      <div key={m.id} style={{ display: 'inline-flex' }}>
+                        <button
+                          onClick={() => toggleTaskAssignment(m.id)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: isLeader || isAssigned ? '6px 0 0 6px' : 6,
+                            fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                            background: isAssigned || isLeader ? `${m.color}25` : 'rgba(148,163,184,0.06)',
+                            border: isAssigned || isLeader ? `1px solid ${m.color}` : '1px solid rgba(148,163,184,0.15)',
+                            color: isAssigned || isLeader ? m.color : '#94a3b8',
+                            display: 'flex', alignItems: 'center', gap: 5,
+                          }}
+                        >
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.color }} />
+                          {m.short_name || m.name}
+                        </button>
+                        {(isAssigned || isLeader) && (
+                          <button
+                            onClick={() => persistTask({ leader_id: isLeader ? null : m.id } as any)}
+                            title={isLeader ? 'Remove as leader' : 'Make leader'}
+                            style={{ padding: '0 8px', borderRadius: '0 6px 6px 0', background: isLeader ? `${m.color}40` : 'rgba(148,163,184,0.06)', border: `1px solid ${m.color}`, borderLeft: 'none', color: isLeader ? m.color : '#94a3b8', cursor: 'pointer', fontSize: 11 }}
+                          >★</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Mockups */}
+              <TaskMockupsBlock task={task} onChange={persistTask} />
+
+              {/* Notes */}
+              <TaskNotesBlock task={task} onChange={persistTask} />
+
+              {/* Actions */}
+              {stage !== 'COMPLETE' && (
+                <button
+                  onClick={() => { persistTask({ production_stage: 'COMPLETE', task_completed_at: new Date().toISOString() } as any); closePopover() }}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 8, background: '#22c55e', border: 'none', color: '#0d2317', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >✓ Mark Complete</button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Archived production cards modal */}
+      <ArchivedDocsModal
+        open={archivedModalOpen}
+        onClose={() => setArchivedModalOpen(false)}
+        onRestored={restoreDocCard}
+      />
+
+      {/* ============================================================= */}
       {/* LIGHTBOX                                                       */}
       {/* ============================================================= */}
       {lightbox && (
         <LightboxOverlay lightbox={lightbox} setLightbox={setLightbox} />
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Droppable column wrappers
+// ---------------------------------------------------------------------------
+
+function DroppableColumn({ stageKey, isComplete, children }: { stageKey: string; isComplete: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{
+      flex: isComplete ? '0 0 270px' : 1,
+      minWidth: 260,
+      display: 'flex', flexDirection: 'column',
+      borderRadius: 12,
+      background: '#111111',
+      opacity: isComplete ? 0.85 : 1,
+      overflow: 'hidden',
+    }}>{children}</div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Task popover — mockups block (separate so file input ref is local)
+// ---------------------------------------------------------------------------
+function TaskMockupsBlock({ task, onChange }: { task: BoardTask; onChange: (patch: Partial<BoardTask>) => void }) {
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploading(true)
+    try {
+      const newOnes: { url: string; filename: string; uploadedAt: string }[] = []
+      for (const file of Array.from(files)) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', body: fd })
+        if (res.ok) {
+          const d = await res.json()
+          newOnes.push({ url: d.url, filename: file.name, uploadedAt: new Date().toISOString() })
+        }
+      }
+      onChange({ mockups: [...(task.mockups || []), ...newOnes] } as any)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const removeMockup = (idx: number) => {
+    onChange({ mockups: (task.mockups || []).filter((_, i) => i !== idx) } as any)
+  }
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Mockups</div>
+        <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ padding: '4px 10px', borderRadius: 5, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.25)', color: '#22d3ee', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+          {uploading ? 'Uploading…' : '+ Upload'}
+        </button>
+        <input ref={fileInputRef} type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
+      </div>
+      {(task.mockups || []).length === 0 && <div style={{ color: '#475569', fontSize: 11, fontStyle: 'italic' }}>No mockups uploaded</div>}
+      {(task.mockups || []).length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {(task.mockups || []).map((m, idx) => (
+            <div key={idx} style={{ position: 'relative', aspectRatio: '1', borderRadius: 6, overflow: 'hidden', background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.1)' }}>
+              <img src={m.url} alt={m.filename} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <button
+                onClick={() => removeMockup(idx)}
+                style={{ position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const TASK_NOTE_AUTHORS = ['Joe', 'Joey', 'Sharyn', 'Diogo', 'Mason', 'Sydney', 'Jay']
+
+function TaskNotesBlock({ task, onChange }: { task: BoardTask; onChange: (patch: Partial<BoardTask>) => void }) {
+  const [newNote, setNewNote] = useState('')
+  const [author, setAuthor] = useState(TASK_NOTE_AUTHORS[1])
+
+  const addNote = () => {
+    if (!newNote.trim()) return
+    const entry = { text: newNote.trim(), author, at: new Date().toISOString() }
+    onChange({ notes_log: [...(task.notes_log || []), entry] } as any)
+    setNewNote('')
+  }
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6 }}>Notes</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <select value={author} onChange={e => setAuthor(e.target.value)} style={{ padding: '6px 8px', background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 6, color: '#e2e8f0', fontSize: 11, outline: 'none', cursor: 'pointer' }}>
+          {TASK_NOTE_AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <input
+          type="text"
+          placeholder="Add a note…"
+          value={newNote}
+          onChange={e => setNewNote(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') addNote() }}
+          style={{ flex: 1, padding: '6px 10px', background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 6, color: '#e2e8f0', fontSize: 12, outline: 'none' }}
+        />
+        <button onClick={addNote} disabled={!newNote.trim()} style={{ padding: '6px 12px', borderRadius: 6, background: newNote.trim() ? '#22d3ee' : '#333', border: 'none', color: newNote.trim() ? '#000' : '#666', fontSize: 11, fontWeight: 600, cursor: newNote.trim() ? 'pointer' : 'default' }}>Add</button>
+      </div>
+      {(task.notes_log || []).slice().reverse().map((n, i) => (
+        <div key={i} style={{ padding: '6px 8px', background: '#0d0d0d', borderRadius: 5, marginBottom: 4, borderLeft: '2px solid rgba(148,163,184,0.3)' }}>
+          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>
+            <strong style={{ color: '#94a3b8' }}>{n.author}</strong> · {new Date(n.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          </div>
+          <div style={{ fontSize: 12, color: '#e2e8f0' }}>{n.text}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ColumnDroppableArea({ stageKey, hasItems, children }: { stageKey: string; hasItems: boolean; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `col:${stageKey}` })
+  return (
+    <div ref={setNodeRef} style={{
+      flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8,
+      border: isOver ? '1px dashed rgba(148,163,184,0.35)' : '1px dashed transparent',
+      borderRadius: 8,
+      transition: 'border-color 0.15s, background 0.15s',
+      minHeight: 80,
+      background: isOver && !hasItems ? 'rgba(148,163,184,0.04)' : 'transparent',
+    }}>{children}</div>
   )
 }
 
@@ -1808,6 +2605,7 @@ function LightboxOverlay({ lightbox, setLightbox }: { lightbox: { images: { url:
 
   return (
     <div
+      data-lightbox
       style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       onClick={e => { if (e.target === e.currentTarget) setLightbox(null) }}
     >
