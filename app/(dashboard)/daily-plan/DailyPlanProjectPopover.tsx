@@ -2,6 +2,7 @@
 
 import React, { forwardRef, useState } from 'react'
 import DailyPlanLightbox from './DailyPlanLightbox'
+import DailyPlanColorPicker from './DailyPlanColorPicker'
 import type { DailyTask, DocSummary, LineItemFull, CategoryLite, ProductionStatusLite } from './types'
 
 // Mirrors the production tracker popover layout (popover-element reference)
@@ -18,6 +19,7 @@ type Props = {
   onClose: () => void
   onToggleDone: () => void
   onOpenProjectSidebar: () => void
+  onChangeProjectColor: (color: string | null) => void
 }
 
 function isImage(att: any) {
@@ -39,10 +41,12 @@ const STAGE_COLORS: Record<string, string> = {
 }
 
 const DailyPlanProjectPopover = forwardRef<HTMLDivElement, Props>(function DailyPlanProjectPopover(props, ref) {
-  const { task, doc, lineItems, categories, productionStatuses, style, flipped, onClose, onToggleDone, onOpenProjectSidebar } = props
+  const { task, doc, lineItems, categories, productionStatuses, style, flipped, onClose, onToggleDone, onOpenProjectSidebar, onChangeProjectColor } = props
   const stage = doc.production_stage || 'QUEUE'
   const stageColor = STAGE_COLORS[stage] || '#94a3b8'
   const cur = doc.production_status_id ? productionStatuses.find(s => s.id === doc.production_status_id) : null
+  // Top color bar prefers the user-assigned project color over the stage color
+  const topBarColor = doc.project_color || stageColor
 
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
 
@@ -74,8 +78,8 @@ const DailyPlanProjectPopover = forwardRef<HTMLDivElement, Props>(function Daily
     >
       <style>{`@keyframes popIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }`}</style>
 
-      {/* Color bar — stage color */}
-      <div style={{ height: 3, borderRadius: '12px 12px 0 0', background: stageColor }} />
+      {/* Color bar — user-assigned project color falls back to stage color */}
+      <div style={{ height: 3, borderRadius: '12px 12px 0 0', background: topBarColor }} />
 
       <div style={{ padding: '14px 16px' }}>
 
@@ -98,7 +102,14 @@ const DailyPlanProjectPopover = forwardRef<HTMLDivElement, Props>(function Daily
               <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${stageColor}20`, color: stageColor, fontWeight: 600 }}>{stage}</span>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: 16, width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#94a3b8', fontSize: 16, width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            <DailyPlanColorPicker
+              documentId={doc.id}
+              value={doc.project_color}
+              onChange={onChangeProjectColor}
+            />
+          </div>
         </div>
 
         {/* THE TASK row — small banner so user knows which task they clicked */}

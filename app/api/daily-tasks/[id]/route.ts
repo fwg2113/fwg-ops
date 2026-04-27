@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       'title', 'description',
       'scheduled_date', 'is_priority',
       'parent_document_id', 'status',
-      'sort_order',
+      'sort_order', 'kanban_column',
     ]
     for (const k of allowed) if (k in body) updates[k] = body[k]
     if (Object.keys(updates).length === 0) {

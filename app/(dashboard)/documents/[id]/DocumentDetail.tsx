@@ -9,6 +9,7 @@ import { SupplierKey, DEFAULT_SUPPLIER } from '@/app/lib/suppliers/types'
 import GarmentMockupBuilder from '@/app/components/operations/GarmentMockupBuilder'
 import { pdfToImage } from '@/app/lib/pdfToImage'
 import ModalBackdrop from '@/app/components/ModalBackdrop'
+import DailyPlanColorPicker from '@/app/(dashboard)/daily-plan/DailyPlanColorPicker'
 
 const buttonStyles = `
   .action-btn {
@@ -128,6 +129,7 @@ type Document = {
   snoozed?: boolean; snoozed_at?: string
   due_date?: string | null
   expected_revenue?: boolean
+  project_color?: string | null
 }
 
 type HistoryEntry = {
@@ -3434,10 +3436,23 @@ export default function DocumentDetail({
       </div>
 
       {/* Document Header */}
-      <div style={cardStyle}>
+      <div style={{ ...cardStyle, position: 'relative', overflow: 'hidden' }}>
+        {/* Project color stripe — only when assigned */}
+        {doc.project_color && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0,
+            height: 4,
+            background: doc.project_color,
+          }} />
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+              <DailyPlanColorPicker
+                documentId={doc.id}
+                value={doc.project_color}
+                onChange={(color) => setDoc({ ...doc, project_color: color })}
+              />
               <h2 style={{ color: '#f1f5f9', fontSize: '22px', fontWeight: 700, margin: 0 }}>{isQuote ? 'Quote' : 'Invoice'} # {doc.doc_number}</h2>
               <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', background: isQuote ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.2)', color: isQuote ? '#3b82f6' : '#22c55e' }}>{doc.doc_type}</span>
               {/* Payment status badge */}

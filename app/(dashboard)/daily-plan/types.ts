@@ -39,6 +39,42 @@ export type TeamMember = {
   role?: string
 }
 
+// ----------------------------------------------------------------------------
+// Display + ordering helpers for team members
+// ----------------------------------------------------------------------------
+
+// Preferred ordering for the daily-plan member filter row. Members not listed
+// here fall through to the end (preserving DB sort_order among themselves).
+export const MEMBER_FILTER_ORDER = [
+  'Joey', 'Diogo', 'Mason', 'Sydney', 'Sharyn',
+  'Trinity', 'Joe', 'Mikey', 'Bronson', 'Danny',
+]
+
+function memberFirstName(m: TeamMember): string {
+  return (m.short_name || m.name || '').trim().split(/\s+/)[0]
+}
+
+// Compact chip label used in member filters and task-line assignee chips.
+// Default is the first 3 letters uppercase. "Joey" gets spelled out in full
+// (his preference — distinguishes him from "Joe" who else is on the team).
+export function memberChipLabel(m: TeamMember): string {
+  const fn = memberFirstName(m)
+  if (fn.toLowerCase() === 'joey') return 'JOEY'
+  return fn.slice(0, 3).toUpperCase()
+}
+
+// Comparator that orders by MEMBER_FILTER_ORDER first; unknown members tie at end.
+export function sortMembersForFilter(a: TeamMember, b: TeamMember): number {
+  const fa = memberFirstName(a).toLowerCase()
+  const fb = memberFirstName(b).toLowerCase()
+  const ia = MEMBER_FILTER_ORDER.findIndex(n => n.toLowerCase() === fa)
+  const ib = MEMBER_FILTER_ORDER.findIndex(n => n.toLowerCase() === fb)
+  if (ia === -1 && ib === -1) return 0
+  if (ia === -1) return 1
+  if (ib === -1) return -1
+  return ia - ib
+}
+
 export type DocSummary = {
   id: string
   doc_number: string
@@ -65,7 +101,22 @@ export type DocSummary = {
   attachments?: any[]
   notes?: any
   bucket?: string | null
+  project_color?: string | null
 }
+
+// Standard project color palette — keep this short so the picker is fast to scan.
+export const PROJECT_COLORS: { name: string; hex: string }[] = [
+  { name: 'Cyan',   hex: '#22d3ee' },
+  { name: 'Purple', hex: '#a855f7' },
+  { name: 'Pink',   hex: '#ec4899' },
+  { name: 'Orange', hex: '#fb923c' },
+  { name: 'Amber',  hex: '#f59e0b' },
+  { name: 'Lime',   hex: '#84cc16' },
+  { name: 'Green',  hex: '#22c55e' },
+  { name: 'Teal',   hex: '#14b8a6' },
+  { name: 'Blue',   hex: '#3b82f6' },
+  { name: 'Red',    hex: '#ef4444' },
+]
 
 export type LineItemFull = {
   id: string

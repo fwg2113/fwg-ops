@@ -5,10 +5,9 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { DailyTask, DocSummary, ProductionStatusLite, TeamMember } from './types'
 
-type FilterKey = 'all' | 'stuck' | 'overdue'
-
 export default function DailyPlanProjectsRail({
   docs, tasks, nextUpByDoc, productionStatuses, teamMembers, onProjectClick,
+  collapsed, onToggleCollapsed,
 }: {
   docs: DocSummary[]
   tasks: DailyTask[]
@@ -16,11 +15,12 @@ export default function DailyPlanProjectsRail({
   productionStatuses: ProductionStatusLite[]
   teamMembers?: TeamMember[]
   onProjectClick: (id: string) => void
+  collapsed: boolean
+  onToggleCollapsed: () => void
 }) {
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<FilterKey>('all')
 
-  // Open task counts per doc (used on cards + for "Most tasks" sort/filter)
+  // Open task counts per doc (used on cards)
   const openTaskCountByDoc = useMemo(() => {
     const m: Record<string, number> = {}
     for (const t of tasks) {
@@ -31,7 +31,7 @@ export default function DailyPlanProjectsRail({
     return m
   }, [tasks])
 
-  // Today's date for overdue check
+  // Today's date (NY) for the due-date pill on each card
   const todayStr = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/New_York',
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -39,30 +39,15 @@ export default function DailyPlanProjectsRail({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
+    if (!q) return docs
     return docs.filter(d => {
-      if (q) {
-        const haystack = [
-          d.doc_number, d.customer_name, d.company_name,
-          d.vehicle_description, d.project_description,
-        ].filter(Boolean).join(' ').toLowerCase()
-        if (!haystack.includes(q)) return false
-      }
-      if (filter === 'stuck') {
-        if (!d.production_status_note) return false
-      }
-      if (filter === 'overdue') {
-        if (!d.due_date) return false
-        if (d.due_date >= todayStr) return false
-      }
-      return true
+      const haystack = [
+        d.doc_number, d.customer_name, d.company_name,
+        d.vehicle_description, d.project_description,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(q)
     })
-  }, [docs, search, filter, todayStr])
-
-  const counts = useMemo(() => {
-    const stuck = docs.filter(d => !!d.production_status_note).length
-    const overdue = docs.filter(d => d.due_date && d.due_date < todayStr).length
-    return { all: docs.length, stuck, overdue }
-  }, [docs, todayStr])
+  }, [docs, search])
 
   return (
     <div style={{
@@ -74,98 +59,81 @@ export default function DailyPlanProjectsRail({
       flexDirection: 'column',
       boxShadow: '0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)',
     }}>
-      {/* Header */}
-      <div style={{ padding: '18px 22px 12px', borderBottom: '1px solid rgba(148,163,184,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+      {/* Header — clickable to collapse/expand */}
+      <div style={{ padding: collapsed ? '14px 22px' : '18px 22px 12px', borderBottom: collapsed ? 'none' : '1px solid rgba(148,163,184,0.08)' }}>
+        <button
+          onClick={onToggleCollapsed}
+          title={collapsed ? 'Expand' : 'Collapse'}
+          style={{
+            background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            width: '100%', marginBottom: collapsed ? 0 : 12, fontFamily: 'inherit',
+          }}
+        >
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: -0.2 }}>Active Projects</h2>
-          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, padding: '3px 10px', background: 'rgba(148,163,184,0.08)', borderRadius: 10 }}>
-            {filtered.length}{filtered.length !== docs.length ? ` / ${docs.length}` : ''}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600, padding: '3px 10px', background: 'rgba(148,163,184,0.08)', borderRadius: 10 }}>
+              {filtered.length}{filtered.length !== docs.length ? ` / ${docs.length}` : ''}
+            </span>
+            <span style={{ fontSize: 13, color: '#64748b', width: 14, textAlign: 'center' }}>{collapsed ? '▾' : '▴'}</span>
           </span>
-        </div>
+        </button>
 
-        {/* Search */}
-        <div style={{ position: 'relative', marginBottom: 10 }}>
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search customer, company, vehicle, doc#…"
-            style={{
-              width: '100%',
-              padding: '9px 36px 9px 36px',
-              background: '#0d0d0d',
-              border: '1px solid rgba(148,163,184,0.18)',
-              borderRadius: 9,
-              color: '#f1f5f9',
-              fontSize: 13,
-              outline: 'none',
-              fontFamily: 'inherit',
-              boxSizing: 'border-box',
-            }}
-          />
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#475569', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(148,163,184,0.15)', border: 'none', color: '#94a3b8', width: 22, height: 22, borderRadius: '50%', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >×</button>
-          )}
-        </div>
-
-        {/* Filter chips */}
-        <div style={{ display: 'flex', gap: 5 }}>
-          <FilterChip label="All" count={counts.all} active={filter === 'all'} onClick={() => setFilter('all')} accent="#22d3ee" />
-          <FilterChip label="🚩 Stuck" count={counts.stuck} active={filter === 'stuck'} onClick={() => setFilter('stuck')} accent="#ef4444" />
-          <FilterChip label="⏰ Overdue" count={counts.overdue} active={filter === 'overdue'} onClick={() => setFilter('overdue')} accent="#fb923c" />
-        </div>
-      </div>
-
-      {/* Cards */}
-      <div style={{ padding: 14, overflowY: 'auto', maxHeight: 'calc(100vh - 460px)' }}>
-        {filtered.length === 0 && (
-          <div style={{ padding: 24, textAlign: 'center', color: '#475569', fontSize: 12, fontStyle: 'italic' }}>
-            {docs.length === 0 ? 'No active projects.' : 'No projects match.'}
+        {/* Search — hidden when collapsed */}
+        {!collapsed && (
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search customer, company, vehicle, doc#…"
+              style={{
+                width: '100%',
+                padding: '9px 36px 9px 36px',
+                background: '#0d0d0d',
+                border: '1px solid rgba(148,163,184,0.18)',
+                borderRadius: 9,
+                color: '#f1f5f9',
+                fontSize: 13,
+                outline: 'none',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#475569', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(148,163,184,0.15)', border: 'none', color: '#94a3b8', width: 22, height: 22, borderRadius: '50%', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >×</button>
+            )}
           </div>
         )}
-        {filtered.map(doc => (
-          <ProjectCard
-            key={doc.id}
-            doc={doc}
-            nextUp={nextUpByDoc[doc.id]}
-            productionStatuses={productionStatuses}
-            teamMembers={teamMembers}
-            openTaskCount={openTaskCountByDoc[doc.id] || 0}
-            todayStr={todayStr}
-            onClick={() => onProjectClick(doc.id)}
-          />
-        ))}
       </div>
-    </div>
-  )
-}
 
-function FilterChip({ label, count, active, onClick, accent }: { label: string; count: number; active: boolean; onClick: () => void; accent: string }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '6px 11px',
-        borderRadius: 7,
-        border: active ? `1px solid ${accent}` : '1px solid rgba(148,163,184,0.15)',
-        background: active ? `${accent}1a` : 'rgba(148,163,184,0.06)',
-        color: active ? accent : '#94a3b8',
-        fontSize: 11,
-        fontWeight: 600,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-      }}
-    >
-      {label}
-      {count > 0 && <span style={{ fontSize: 10, opacity: 0.75 }}>{count}</span>}
-    </button>
+      {/* Cards — hidden when collapsed */}
+      {!collapsed && (
+        <div style={{ padding: 14, overflowY: 'auto', maxHeight: 'calc(100vh - 460px)' }}>
+          {filtered.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: '#475569', fontSize: 12, fontStyle: 'italic' }}>
+              {docs.length === 0 ? 'No active projects.' : 'No projects match.'}
+            </div>
+          )}
+          {filtered.map(doc => (
+            <ProjectCard
+              key={doc.id}
+              doc={doc}
+              nextUp={nextUpByDoc[doc.id]}
+              productionStatuses={productionStatuses}
+              teamMembers={teamMembers}
+              openTaskCount={openTaskCountByDoc[doc.id] || 0}
+              todayStr={todayStr}
+              onClick={() => onProjectClick(doc.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

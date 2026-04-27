@@ -66,7 +66,7 @@ export function formatDateHeader(iso: string): string {
 // ============================================================================
 
 export default function DailyPlan({
-  initialTasks, initialAssignments, docs, lineItems, teamMembers,
+  initialTasks, initialAssignments, docs: initialDocs, lineItems, teamMembers,
   productionStatuses, categories, pipelineConfigs, initialRecurringTasks, calendarEvents, payments,
 }: {
   initialTasks: DailyTask[]
@@ -84,11 +84,36 @@ export default function DailyPlan({
   const [tasks, setTasks] = useState<DailyTask[]>(initialTasks)
   const [assignments, setAssignments] = useState<DailyTaskAssignment[]>(initialAssignments)
   const [recurringTasks, setRecurringTasks] = useState<RecurringTask[]>(initialRecurringTasks)
+  // Docs in state so per-doc UI edits (e.g. project_color) persist locally without a page refresh.
+  const [docs, setDocs] = useState<DocSummary[]>(initialDocs)
+  const updateDocLocal = useCallback((id: string, patch: Partial<DocSummary>) => {
+    setDocs(ds => ds.map(d => d.id === id ? { ...d, ...patch } : d))
+  }, [])
 
   // The date the Today block is currently showing (defaults to live today)
   const [viewDate, setViewDate] = useState<string>(todayLocalISO())
   // Anchor date for the top 7-day bucket row (default = today, week derived from this)
   const [weekAnchor, setWeekAnchor] = useState<string>(todayLocalISO())
+
+  // Member filter: 'all' | 'unassigned' | team_member_id. Filters the Today block
+  // by assigned team member.
+  const [memberFilter, setMemberFilter] = useState<string>('all')
+
+  // Active Projects rail collapsed? Lifted here so the parent grid can
+  // give the rail's column back to the Today block when collapsed.
+  const [projectsRailCollapsed, setProjectsRailCollapsed] = useState<boolean>(false)
+  useEffect(() => {
+    try {
+      setProjectsRailCollapsed(window.localStorage.getItem('dailyPlan.projectsRailCollapsed') === '1')
+    } catch {}
+  }, [])
+  const toggleProjectsRail = useCallback(() => {
+    setProjectsRailCollapsed(c => {
+      const next = !c
+      try { window.localStorage.setItem('dailyPlan.projectsRailCollapsed', next ? '1' : '0') } catch {}
+      return next
+    })
+  }, [])
 
   // Popover (anchored task detail)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -137,24 +162,29 @@ export default function DailyPlan({
     return m
   }, [docs])
 
+  // Member-filter predicate. Applies to the Today block tasks list.
+  const passesMemberFilter = useCallback((taskId: string) => {
+    if (memberFilter === 'all') return true
+    const taskAssignees = assignments.filter(a => a.task_id === taskId)
+    if (memberFilter === 'unassigned') return taskAssignees.length === 0
+    return taskAssignees.some(a => a.team_member_id === memberFilter)
+  }, [memberFilter, assignments])
+
   // Tasks for viewDate split into priority / recurring / regular sections
   const tasksForViewDate = useMemo(() => {
-    const open = tasks.filter(t => t.status === 'TODO' && t.scheduled_date === viewDate)
+    const open = tasks.filter(t =>
+      t.status === 'TODO'
+      && t.scheduled_date === viewDate
+      && passesMemberFilter(t.id)
+    )
     const sortByOrder = (a: DailyTask, b: DailyTask) => a.sort_order - b.sort_order
     return {
       priority:  open.filter(t => t.is_priority).sort(sortByOrder),
       regular:   open.filter(t => !t.is_priority && t.source !== 'recurring').sort(sortByOrder),
       recurring: open.filter(t => !t.is_priority && t.source === 'recurring').sort(sortByOrder),
     }
-  }, [tasks, viewDate])
+  }, [tasks, viewDate, passesMemberFilter])
 
-  // Done today (always for live today, regardless of viewDate)
-  const doneToday = useMemo(() => {
-    const today = todayLocalISO()
-    const start = today + 'T00:00:00'
-    const end = addDaysISO(today, 1) + 'T00:00:00'
-    return tasks.filter(t => t.status === 'DONE' && t.completed_at && t.completed_at >= start && t.completed_at < end)
-  }, [tasks])
 
   // Total open task count per scheduled date across ALL tasks. Used by both
   // the top buckets (whatever week is displayed) and any future date-aware UI.
@@ -340,6 +370,8 @@ export default function DailyPlan({
     const t = taskById[activeId]
     if (!t) return
 
+
+    // -------- List view drop targets --------
     // Resolve destination fields. overId is either a droppable container
     // (bucket:YYYY-MM-DD / today-priority / today-regular) or another task ID.
     let destFields: { scheduled_date: string | null; is_priority: boolean } | null = null
@@ -353,11 +385,11 @@ export default function DailyPlan({
     }
     if (!destFields) return
 
-    // Section key — uniquely identifies which sub-list a task belongs to
-    const sectionOf = (x: DailyTask): 'priority' | 'recurring' | 'regular' => {
-      if (x.is_priority) return 'priority'
-      if (x.source === 'recurring') return 'recurring'
-      return 'regular'
+    // Section key — uniquely identifies which sub-list a task belongs to.
+    // Recurring tasks live in the same list as regular tasks now; the only
+    // discriminator left is is_priority (priority section vs everything else).
+    const sectionOf = (x: DailyTask): 'priority' | 'regular' => {
+      return x.is_priority ? 'priority' : 'regular'
     }
     const overTask = taskById[overId]
     const activeSection = sectionOf(t)
@@ -369,9 +401,11 @@ export default function DailyPlan({
     // -------- Same-section reorder --------
     if (sameSectionReorder) {
       const sectionList: DailyTask[] = (
-        activeSection === 'priority' ? tasksForViewDate.priority :
-        activeSection === 'recurring' ? tasksForViewDate.recurring :
-        tasksForViewDate.regular
+        activeSection === 'priority'
+          ? tasksForViewDate.priority
+          // regular + recurring are merged on screen; reorder uses both
+          : [...tasksForViewDate.regular, ...tasksForViewDate.recurring]
+              .sort((a, b) => a.sort_order - b.sort_order)
       ).slice()
       const oldIdx = sectionList.findIndex(x => x.id === activeId)
       const newIdx = sectionList.findIndex(x => x.id === overId)
@@ -400,7 +434,11 @@ export default function DailyPlan({
 
   // ---------- Render ----------
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    // CSS `zoom: 0.8` scales the whole page ~20% down (works on Chrome/Safari/
+    // Edge + Firefox 126+). Click positions and getBoundingClientRect math
+    // remain accurate, unlike `transform: scale()`. Logical height 125vh =
+    // visual 100vh after the 0.8 zoom factor. Tweak to taste.
+    <div style={{ zoom: 0.8, height: '125vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Toast */}
       {toast && (
         <div style={{ position: 'fixed', top: 20, right: 20, padding: '10px 18px', borderRadius: 8, background: toast.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(239,68,68,0.9)', color: '#fff', fontSize: 13, fontWeight: 500, zIndex: 9999 }}>
@@ -437,6 +475,7 @@ export default function DailyPlan({
           {/* Top: 7-day bucket row, navigable by week */}
           <DailyPlanTopBuckets
             weekAnchor={weekAnchor}
+            viewDate={viewDate}
             taskCountsByDate={taskCountsByDate}
             onShiftWeek={(days) => setWeekAnchor(prev => addDaysISO(prev, days))}
             onResetWeek={() => setWeekAnchor(todayLocalISO())}
@@ -444,14 +483,20 @@ export default function DailyPlan({
           />
 
           {/* Middle: Today block (left) + Active projects (right) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(320px, 1fr)', gap: 22, marginTop: 22 }}>
+          <div style={{
+            display: 'grid',
+            // Collapsed rail = give its column back to the Today block.
+            gridTemplateColumns: projectsRailCollapsed ? 'minmax(0, 1fr) auto' : 'minmax(0, 1.8fr) minmax(320px, 1fr)',
+            gap: 22, marginTop: 22, alignItems: 'start',
+          }}>
             <DailyPlanTodayBlock
               viewDate={viewDate}
               setViewDate={setViewDate}
+              memberFilter={memberFilter}
+              setMemberFilter={setMemberFilter}
               priorityTasks={tasksForViewDate.priority}
               regularTasks={tasksForViewDate.regular}
               recurringTasks={tasksForViewDate.recurring}
-              doneToday={viewDate === todayLocalISO() ? doneToday : []}
               assigneesByTask={assigneesByTask}
               docById={docById}
               teamMembers={teamMembers}
@@ -470,6 +515,8 @@ export default function DailyPlan({
               productionStatuses={productionStatuses}
               teamMembers={teamMembers}
               onProjectClick={(id) => setOpenProjectId(id)}
+              collapsed={projectsRailCollapsed}
+              onToggleCollapsed={toggleProjectsRail}
             />
           </div>
 
@@ -488,14 +535,17 @@ export default function DailyPlan({
             const t = taskById[activeDragId]
             if (!t) return null
             const linkedDoc = t.parent_document_id ? docById[t.parent_document_id] : null
-            const accent = t.is_priority ? '#fb923c' : '#22d3ee'
+            // Drag overlay accent: priority > project_color > cyan default
+            const accent = t.is_priority
+              ? '#fb923c'
+              : (linkedDoc?.project_color || '#22d3ee')
             return (
               <div style={{
                 background: 'linear-gradient(180deg, #1f1f1f 0%, #181818 100%)',
                 border: `1px solid ${accent}55`,
                 borderLeft: `4px solid ${accent}`,
-                borderRadius: 12,
-                padding: '13px 16px',
+                borderRadius: 10,
+                padding: '10px 13px',
                 boxShadow: `
                   0 1px 0 rgba(255,255,255,0.06) inset,
                   0 4px 12px rgba(0,0,0,0.4),
@@ -516,8 +566,8 @@ export default function DailyPlan({
                     to { transform: scale(1.025); }
                   }
                 `}</style>
-                {t.is_priority && <span style={{ fontSize: 14 }}>🔥</span>}
-                <span style={{ fontSize: 15, color: '#f1f5f9', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, letterSpacing: -0.1 }}>
+                {t.is_priority && <span style={{ fontSize: 12 }}>🔥</span>}
+                <span style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, letterSpacing: -0.1 }}>
                   {t.title}
                 </span>
                 {linkedDoc && (
@@ -551,6 +601,7 @@ export default function DailyPlan({
               onClose={closePopover}
               onToggleDone={() => toggleDone(selectedTaskId)}
               onOpenProjectSidebar={() => { closePopover(); setOpenProjectId(linkedDoc.id) }}
+              onChangeProjectColor={(color) => updateDocLocal(linkedDoc.id, { project_color: color })}
             />
           )
         }
@@ -596,6 +647,7 @@ export default function DailyPlan({
           onDeleteTask={deleteTask}
           onToggleAssignee={toggleAssignment}
           onToggleDone={toggleDone}
+          onChangeProjectColor={(color) => updateDocLocal(openProjectId, { project_color: color })}
           showToast={showToast}
         />
       )}

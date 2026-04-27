@@ -1,12 +1,25 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 
-// Embeds the real /calendar page via iframe so the visual + behavior is
-// always 100% in sync with the Job Calendar (no parallel rendering logic).
-// Tasks live in the Today block above, so this section is calendar-only.
-
+// Slim job-calendar viewer for the daily plan page. Embeds /calendar?embed=1
+// which strips its own chrome and forces week view. The embedded calendar
+// posts its content height back up via postMessage so we can grow the iframe
+// to fit (no internal scrolling, no clipped events).
 export default function DailyPlanBottomCalendar() {
+  const [iframeHeight, setIframeHeight] = useState(420)
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (!e.data || e.data.type !== 'fwg-calendar-height') return
+      const h = Number(e.data.height)
+      // Floor + ceiling to avoid runaway shrink/grow from layout flicker.
+      if (Number.isFinite(h)) setIframeHeight(Math.max(320, Math.min(h + 12, 1400)))
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
   return (
     <div style={{
       marginTop: 22,
@@ -15,7 +28,6 @@ export default function DailyPlanBottomCalendar() {
       borderRadius: 16,
       overflow: 'hidden',
       boxShadow: '0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)',
-      height: 720,
       display: 'flex',
       flexDirection: 'column',
     }}>
@@ -39,7 +51,15 @@ export default function DailyPlanBottomCalendar() {
       <iframe
         src="/calendar?embed=1"
         title="Job Calendar"
-        style={{ flex: 1, width: '100%', border: 'none', background: '#0a0a0a' }}
+        scrolling="no"
+        style={{
+          width: '100%',
+          height: iframeHeight,
+          border: 'none',
+          background: '#0a0a0a',
+          overflow: 'hidden',
+          transition: 'height 0.2s ease',
+        }}
       />
     </div>
   )
