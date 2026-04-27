@@ -25,18 +25,19 @@ export function shouldSpawnToday(pattern: string, dayOfWeek: number): boolean {
   return false
 }
 
-// Format helpers — all in local time (assumes server runs America/New_York)
+// Format helpers — explicitly America/New_York (Frederick MD shop time) so
+// server (UTC on Vercel) and client (EST/EDT) agree on "today".
 export function todayLocalISO(): string {
-  const d = new Date()
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
 }
 
 export function addDaysISO(base: string, days: number): string {
-  const d = new Date(base + 'T00:00:00')
-  d.setDate(d.getDate() + days)
+  // Parse as UTC midnight, do UTC date math — independent of local timezone
+  const d = new Date(base + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
 
@@ -69,7 +70,9 @@ type SupabaseClient = any // avoid importing types at this layer
 
 export async function spawnRecurringForToday(supabase: SupabaseClient): Promise<void> {
   const today = todayLocalISO()
-  const dow = new Date(today + 'T00:00:00').getDay()
+  // Compute day-of-week from the date string interpreted as UTC midnight.
+  // (Both server-side and client-side, this gives the same DOW for the NY date.)
+  const dow = new Date(today + 'T00:00:00Z').getUTCDay()
 
   const { data: recurring, error } = await supabase
     .from('recurring_tasks')

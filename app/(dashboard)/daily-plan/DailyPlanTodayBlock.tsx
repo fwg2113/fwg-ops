@@ -8,7 +8,7 @@ import { todayLocalISO, addDaysISO, formatDateHeader } from './DailyPlan'
 import type { DailyTask, TeamMember, DocSummary } from './types'
 
 export default function DailyPlanTodayBlock({
-  viewDate, setViewDate, priorityTasks, regularTasks, doneToday,
+  viewDate, setViewDate, priorityTasks, regularTasks, recurringTasks, doneToday,
   assigneesByTask, docById, teamMembers, selectedTaskId,
   onTaskClick, onToggleDone, onTogglePriority, onToggleAssignee, onOpenAddTask,
 }: {
@@ -16,6 +16,7 @@ export default function DailyPlanTodayBlock({
   setViewDate: (date: string) => void
   priorityTasks: DailyTask[]
   regularTasks: DailyTask[]
+  recurringTasks: DailyTask[]
   doneToday: DailyTask[]
   assigneesByTask: Record<string, TeamMember[]>
   docById: Record<string, DocSummary>
@@ -34,6 +35,7 @@ export default function DailyPlanTodayBlock({
   const dropRegular = useDroppable({ id: 'today-regular' })
 
   const [doneCollapsed, setDoneCollapsed] = useState(false)
+  const [recurringCollapsed, setRecurringCollapsed] = useState(false)
 
   return (
     <div style={{
@@ -87,9 +89,16 @@ export default function DailyPlanTodayBlock({
 
       {/* Body */}
       <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto', minHeight: 360 }}>
-        {/* Priority section — always shown if any priority tasks OR while dragging */}
+        {/* Priority section — orange-tinted card */}
         {(priorityTasks.length > 0 || dropPriority.isOver) && (
-          <div ref={dropPriority.setNodeRef} style={{ marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid rgba(251,146,60,0.2)' }}>
+          <div ref={dropPriority.setNodeRef} style={{
+            marginBottom: 16,
+            padding: '12px 14px 14px',
+            background: 'linear-gradient(180deg, rgba(251,146,60,0.06) 0%, rgba(251,146,60,0.02) 100%)',
+            border: '1px solid rgba(251,146,60,0.22)',
+            borderRadius: 12,
+            boxShadow: '0 0 24px rgba(251,146,60,0.04), inset 0 1px 0 rgba(251,146,60,0.06)',
+          }}>
             <div style={{ fontSize: 13, color: '#fb923c', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7 }}>
               🔥 Priority
               <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, letterSpacing: 0 }}>· must happen today</span>
@@ -117,8 +126,19 @@ export default function DailyPlanTodayBlock({
           </div>
         )}
 
-        {/* Regular tasks */}
-        <div ref={dropRegular.setNodeRef} style={{ minHeight: 60 }}>
+        {/* Regular tasks — neutral-tinted card */}
+        <div ref={dropRegular.setNodeRef} style={{
+          padding: '12px 14px 14px',
+          background: 'linear-gradient(180deg, #1a1a1a 0%, #161616 100%)',
+          border: '1px solid rgba(148,163,184,0.1)',
+          borderRadius: 12,
+          minHeight: 80,
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
+        }}>
+          <div style={{ fontSize: 13, color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7 }}>
+            ☰ Tasks
+            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, letterSpacing: 0 }}>· {regularTasks.length} {regularTasks.length === 1 ? 'item' : 'items'}</span>
+          </div>
           <SortableContext items={regularTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
             {regularTasks.map(t => (
               <DailyPlanTask
@@ -146,28 +166,82 @@ export default function DailyPlanTodayBlock({
           )}
         </div>
 
-        {/* Done today (only when viewing live today) */}
-        {isLiveToday && doneToday.length > 0 && (
-          <div style={{ marginTop: 18, padding: '10px 12px', background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.1)', borderRadius: 9 }}>
-            <button onClick={() => setDoneCollapsed(c => !c)} style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-              <span style={{ fontSize: 11, color: '#4ade80', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1.5 }}>
-                ✓ Done today ({doneToday.length})
+        {/* Recurring section — cyan-tinted card, collapsible */}
+        {recurringTasks.length > 0 && (
+          <div style={{
+            marginTop: 16,
+            padding: '12px 14px 14px',
+            background: 'linear-gradient(180deg, rgba(34,211,238,0.05) 0%, rgba(34,211,238,0.02) 100%)',
+            border: '1px solid rgba(34,211,238,0.2)',
+            borderRadius: 12,
+            boxShadow: '0 0 24px rgba(34,211,238,0.04), inset 0 1px 0 rgba(34,211,238,0.06)',
+          }}>
+            <button
+              onClick={() => setRecurringCollapsed(c => !c)}
+              style={{
+                background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', marginBottom: recurringCollapsed ? 0 : 10, fontFamily: 'inherit',
+              }}
+            >
+              <span style={{ fontSize: 13, color: '#22d3ee', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1.5, display: 'flex', alignItems: 'center', gap: 7 }}>
+                ↻ Recurring
+                <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, letterSpacing: 0 }}>· {recurringTasks.length} task{recurringTasks.length === 1 ? '' : 's'}</span>
               </span>
-              <span style={{ fontSize: 11, color: '#64748b' }}>{doneCollapsed ? '▾' : '▴'}</span>
+              <span style={{ fontSize: 13, color: '#64748b' }}>{recurringCollapsed ? '▾' : '▴'}</span>
             </button>
-            {!doneCollapsed && (
-              <div style={{ marginTop: 8 }}>
-                {doneToday.map(t => (
-                  <div key={t.id} style={{ padding: '6px 10px', borderRadius: 6, marginBottom: 3, background: '#0d0d0d', fontSize: 12, color: '#64748b', textDecoration: 'line-through', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: '#22c55e', fontWeight: 700 }}>✓</span>
-                    <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
-                  </div>
+            {!recurringCollapsed && (
+              <SortableContext items={recurringTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                {recurringTasks.map(t => (
+                  <DailyPlanTask
+                    key={t.id}
+                    task={t}
+                    assignees={assigneesByTask[t.id] || []}
+                    doc={t.parent_document_id ? docById[t.parent_document_id] : undefined}
+                    isOverdue={false}
+                    isSelected={selectedTaskId === t.id}
+                    allTeamMembers={teamMembers}
+                    onClick={(el) => onTaskClick(t.id, el)}
+                    onToggleDone={() => onToggleDone(t.id)}
+                    onTogglePriority={() => onTogglePriority(t.id)}
+                    onToggleAssignee={(memberId) => onToggleAssignee(t.id, memberId)}
+                  />
                 ))}
-              </div>
+              </SortableContext>
             )}
           </div>
         )}
       </div>
+
+      {/* Done today — pinned to the bottom of the Today block, outside the
+          scrollable body so it's always visible. */}
+      {isLiveToday && doneToday.length > 0 && (
+        <div style={{
+          margin: '0 18px 16px',
+          padding: '10px 14px',
+          background: 'rgba(34,197,94,0.05)',
+          border: '1px solid rgba(34,197,94,0.18)',
+          borderRadius: 10,
+          flexShrink: 0,
+        }}>
+          <button onClick={() => setDoneCollapsed(c => !c)} style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <span style={{ fontSize: 11, color: '#4ade80', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1.5 }}>
+              ✓ Done today ({doneToday.length})
+            </span>
+            <span style={{ fontSize: 11, color: '#64748b' }}>{doneCollapsed ? '▾' : '▴'}</span>
+          </button>
+          {!doneCollapsed && (
+            <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto' }}>
+              {doneToday.map(t => (
+                <div key={t.id} style={{ padding: '6px 10px', borderRadius: 6, marginBottom: 3, background: '#0d0d0d', fontSize: 12, color: '#64748b', textDecoration: 'line-through', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#22c55e', fontWeight: 700 }}>✓</span>
+                  <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

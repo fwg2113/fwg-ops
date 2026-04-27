@@ -49,28 +49,43 @@ export default async function DailyPlanPage() {
     assignments = data || []
   }
 
-  // 4. Active invoices — match the invoice manager filter exactly
-  //    (doc_type=invoice, status != archived, bucket not in archive/cold)
-  const { data: docs } = await supabase
+  // 4. Active quotes & invoices — match the production tracker filter exactly:
+  //    (paid OR in_production) AND not production-archived. Apparel-only docs
+  //    are filtered out below once we know each doc's line item categories.
+  const { data: rawDocs } = await supabase
     .from('documents')
     .select('id, doc_number, doc_type, customer_name, customer_email, customer_phone, company_name, vehicle_description, project_description, total, amount_paid, balance_due, due_date, fulfillment_type, production_stage, production_target_date, production_status_id, production_status_note, production_leader_id, status, in_production, attachments, notes, customer_id, bucket')
-    .eq('doc_type', 'invoice')
-    .neq('status', 'archived')
+    .or('status.eq.paid,in_production.eq.true')
     .eq('production_archived', false)
-    .not('bucket', 'in', '("ARCHIVE_WON","ARCHIVE_LOST","COLD")')
     .order('created_at', { ascending: false })
 
   // 5. Line items per project (qty, unit_price, line_total, attachments)
-  const docIds = (docs || []).map(d => d.id)
+  const rawDocIds = (rawDocs || []).map(d => d.id)
   let lineItems: any[] = []
-  if (docIds.length > 0) {
+  if (rawDocIds.length > 0) {
     const { data } = await supabase
       .from('line_items')
       .select('id, document_id, category, line_type, description, quantity, unit_price, line_total, attachments, sort_order')
-      .in('document_id', docIds)
+      .in('document_id', rawDocIds)
       .order('sort_order', { ascending: true })
     lineItems = data || []
   }
+
+  // Drop apparel-only docs: keep any doc that has at least one non-apparel line item.
+  // (Apparel orders are tracked separately on /fa-orders for now.)
+  const { data: dbCategoriesEarly } = await supabase
+    .from('categories')
+    .select('category_key, parent_category')
+    .eq('active', true)
+  const nonApparelKeys = new Set((dbCategoriesEarly || []).filter(c => c.parent_category !== 'APPAREL').map(c => c.category_key))
+  const docsHavingNonApparel = new Set<string>()
+  for (const li of lineItems) {
+    if (li.category && nonApparelKeys.has(li.category)) docsHavingNonApparel.add(li.document_id)
+  }
+  const docs = (rawDocs || []).filter(d => docsHavingNonApparel.has(d.id))
+  const docIds = docs.map(d => d.id)
+  // Drop line items whose docs got filtered out
+  lineItems = lineItems.filter(li => docsHavingNonApparel.has(li.document_id))
 
   // 5b. Payments per project (for sidebar)
   let payments: any[] = []
