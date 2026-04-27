@@ -25,20 +25,22 @@ import type {
 // Date helpers
 // ============================================================================
 
+// All "today" computations use America/New_York time (Frederick MD shop)
 export function todayLocalISO(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
 }
 export function addDaysISO(base: string, days: number): string {
-  const d = new Date(base + 'T00:00:00')
-  d.setDate(d.getDate() + days)
+  const d = new Date(base + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
-// Return Mon-Sat of the week that contains `iso` (legacy 6-day, used by some helpers)
+// Return Mon-Sat of the week that contains `iso` (legacy 6-day)
 export function monToSatOfWeek(iso?: string): string[] {
   const base = iso || todayLocalISO()
-  const d = new Date(base + 'T00:00:00')
-  const dow = d.getDay()
+  const dow = new Date(base + 'T00:00:00Z').getUTCDay()
   const daysSinceMon = (dow + 6) % 7
   const monday = addDaysISO(base, -daysSinceMon)
   return Array.from({ length: 6 }, (_, i) => addDaysISO(monday, i))
@@ -46,8 +48,7 @@ export function monToSatOfWeek(iso?: string): string[] {
 // Return Mon-Sun of the week that contains `iso` (full 7-day week)
 export function monToSunOfWeek(iso?: string): string[] {
   const base = iso || todayLocalISO()
-  const d = new Date(base + 'T00:00:00')
-  const dow = d.getDay()
+  const dow = new Date(base + 'T00:00:00Z').getUTCDay()
   const daysSinceMon = (dow + 6) % 7
   const monday = addDaysISO(base, -daysSinceMon)
   return Array.from({ length: 7 }, (_, i) => addDaysISO(monday, i))
@@ -136,12 +137,14 @@ export default function DailyPlan({
     return m
   }, [docs])
 
-  // Tasks for viewDate split into priority vs regular
+  // Tasks for viewDate split into priority / recurring / regular sections
   const tasksForViewDate = useMemo(() => {
     const open = tasks.filter(t => t.status === 'TODO' && t.scheduled_date === viewDate)
+    const sortByOrder = (a: DailyTask, b: DailyTask) => a.sort_order - b.sort_order
     return {
-      priority: open.filter(t => t.is_priority).sort((a, b) => a.sort_order - b.sort_order),
-      regular:  open.filter(t => !t.is_priority).sort((a, b) => a.sort_order - b.sort_order),
+      priority:  open.filter(t => t.is_priority).sort(sortByOrder),
+      regular:   open.filter(t => !t.is_priority && t.source !== 'recurring').sort(sortByOrder),
+      recurring: open.filter(t => !t.is_priority && t.source === 'recurring').sort(sortByOrder),
     }
   }, [tasks, viewDate])
 
@@ -350,12 +353,26 @@ export default function DailyPlan({
     }
     if (!destFields) return
 
-    const fieldsChanged = t.scheduled_date !== destFields.scheduled_date || t.is_priority !== destFields.is_priority
+    // Section key — uniquely identifies which sub-list a task belongs to
+    const sectionOf = (x: DailyTask): 'priority' | 'recurring' | 'regular' => {
+      if (x.is_priority) return 'priority'
+      if (x.source === 'recurring') return 'recurring'
+      return 'regular'
+    }
+    const overTask = taskById[overId]
+    const activeSection = sectionOf(t)
+    const overSection = overTask ? sectionOf(overTask) : null
+    const sameSectionReorder = overTask
+      && overTask.scheduled_date === t.scheduled_date
+      && activeSection === overSection
 
     // -------- Same-section reorder --------
-    // Active and over are both tasks in the same section (same date + same priority).
-    if (!fieldsChanged && taskById[overId]) {
-      const sectionList = (t.is_priority ? tasksForViewDate.priority : tasksForViewDate.regular).slice()
+    if (sameSectionReorder) {
+      const sectionList: DailyTask[] = (
+        activeSection === 'priority' ? tasksForViewDate.priority :
+        activeSection === 'recurring' ? tasksForViewDate.recurring :
+        tasksForViewDate.regular
+      ).slice()
       const oldIdx = sectionList.findIndex(x => x.id === activeId)
       const newIdx = sectionList.findIndex(x => x.id === overId)
       if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return
@@ -373,8 +390,7 @@ export default function DailyPlan({
     }
 
     // -------- Cross-section / cross-day move --------
-    // Update fields and put at top of the destination section (sort_order = 0
-    // means it'll appear above existing items; user can drag-reorder after).
+    // Update fields and put at top of the destination section.
     updateAndPersist(activeId, {
       scheduled_date: destFields.scheduled_date,
       is_priority: destFields.is_priority,
@@ -434,6 +450,7 @@ export default function DailyPlan({
               setViewDate={setViewDate}
               priorityTasks={tasksForViewDate.priority}
               regularTasks={tasksForViewDate.regular}
+              recurringTasks={tasksForViewDate.recurring}
               doneToday={viewDate === todayLocalISO() ? doneToday : []}
               assigneesByTask={assigneesByTask}
               docById={docById}
@@ -451,17 +468,13 @@ export default function DailyPlan({
               tasks={tasks}
               nextUpByDoc={nextUpByDoc}
               productionStatuses={productionStatuses}
+              teamMembers={teamMembers}
               onProjectClick={(id) => setOpenProjectId(id)}
             />
           </div>
 
-          {/* Bottom: calendar + task overlay */}
-          <DailyPlanBottomCalendar
-            tasks={tasks}
-            calendarEvents={calendarEvents}
-            docById={docById}
-            initialDate={viewDate}
-          />
+          {/* Bottom: embedded Job Calendar (always in sync with /calendar) */}
+          <DailyPlanBottomCalendar />
         </div>
 
         <DragOverlay

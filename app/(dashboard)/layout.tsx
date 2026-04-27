@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Sidebar from '../components/Sidebar'
 import NotificationManager from '../components/NotificationManager'
@@ -9,7 +9,15 @@ import NotificationManager from '../components/NotificationManager'
 const PhoneWidget = dynamic(() => import('./components/PhoneWidget'), { ssr: false })
 const IncomingCallToast = dynamic(() => import('../components/IncomingCallToast'), { ssr: false })
 
-export default function DashboardLayout({
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </Suspense>
+  )
+}
+
+function DashboardLayoutInner({
   children,
 }: {
   children: React.ReactNode
@@ -18,6 +26,20 @@ export default function DashboardLayout({
   const [isRefreshing, setIsRefreshing] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Embed mode (used when this layout is rendered inside an iframe — e.g. the
+  // Job Calendar embedded on the Daily Plan). Strips chrome: no sidebar, no
+  // mobile header, no margins, no notification widgets.
+  const embedMode = searchParams?.get('embed') === '1'
+
+  if (embedMode) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', padding: '14px 18px' }}>
+        {children}
+      </div>
+    )
+  }
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
