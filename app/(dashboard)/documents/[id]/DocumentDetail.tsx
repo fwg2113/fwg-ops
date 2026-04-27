@@ -518,6 +518,7 @@ export default function DocumentDetail({
   const [customApprovalText, setCustomApprovalText] = useState('')
   const [includeLineAttachments, setIncludeLineAttachments] = useState(true)
   const [includeProjectAttachments, setIncludeProjectAttachments] = useState(false)
+  const [showRateToCustomer, setShowRateToCustomer] = useState(false)
   const [paymentTerms, setPaymentTerms] = useState('deposit_50')
   const [customPaymentAmount, setCustomPaymentAmount] = useState<number | string>('')
   const [notificationPref, setNotificationPref] = useState('sms')
@@ -990,6 +991,7 @@ export default function DocumentDetail({
       setCustomApprovalText(prev.customApprovalText || '')
       setIncludeLineAttachments(prev.includeLineAttachments !== undefined ? prev.includeLineAttachments : lineItemAttachmentCount > 0)
       setIncludeProjectAttachments(prev.includeProjectAttachments || false)
+      setShowRateToCustomer(prev.showRateToCustomer === true)
       setPaymentTerms(prev.paymentTerms || 'deposit_50')
       setCustomPaymentAmount(prev.paymentTerms === 'custom' ? (prev.depositAmount || 0) : 0)
       setNotificationPref(prev.customerNotificationPref || 'sms')
@@ -1000,6 +1002,7 @@ export default function DocumentDetail({
       setCustomApprovalText('')
       setIncludeLineAttachments(lineItemAttachmentCount > 0)
       setIncludeProjectAttachments(false)
+      setShowRateToCustomer(false)
       setPaymentTerms('deposit_50')
       setCustomPaymentAmount(0)
       setNotificationPref('sms')
@@ -1093,6 +1096,7 @@ export default function DocumentDetail({
         customApprovalText: approvalType === 'custom' ? customApprovalText : null,
         includeLineAttachments,
         includeProjectAttachments,
+        showRateToCustomer,
         paymentTerms,
         depositAmount,
         customerNotificationPref: notificationPref
@@ -5968,6 +5972,16 @@ export default function DocumentDetail({
                 </label>
               </div>
 
+              {/* Pricing Display */}
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '10px' }}>Pricing Display</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#1d1d1d', borderRadius: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={showRateToCustomer} onChange={(e) => setShowRateToCustomer(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d71cd1' }} />
+                  <span style={{ flex: 1, color: '#f1f5f9', fontSize: '14px' }}>Show per-unit rate to customer</span>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>e.g. "500 × $4.03"</span>
+                </label>
+              </div>
+
               {/* Payment Terms */}
               <div style={{ marginBottom: '20px' }}>
                 <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '10px' }}>Payment Terms</div>
@@ -6025,6 +6039,7 @@ export default function DocumentDetail({
                     customApprovalText: approvalType === 'custom' ? customApprovalText : null,
                     includeLineAttachments,
                     includeProjectAttachments,
+                    showRateToCustomer,
                     paymentTerms,
                     depositAmount,
                     customerNotificationPref: notificationPref

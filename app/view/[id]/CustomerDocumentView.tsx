@@ -21,7 +21,7 @@ type Document = {
   valid_until: string | null; attachments?: Attachment[]; in_production: boolean; fees?: Fee[] | string
   followup_count?: number; last_followup_at?: string; revision_history_json?: any; discount_note?: string
   options_mode?: boolean; options_json?: QuoteOption[]
-  send_options_json?: { includeLineAttachments?: boolean; includeProjectAttachments?: boolean; [key: string]: any }
+  send_options_json?: { includeLineAttachments?: boolean; includeProjectAttachments?: boolean; showRateToCustomer?: boolean; [key: string]: any }
 }
 
 type QuoteOption = {
@@ -906,6 +906,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   })()
   const showLineAttachments = sendOptions.includeLineAttachments !== false // default true
   const showProjectAttachments = sendOptions.includeProjectAttachments === true // default false
+  const showRateToCustomer = sendOptions.showRateToCustomer === true // default false
 
   // Get all line item images for gallery (non-options mode)
   const lineItemImages = showLineAttachments ? lineItems.flatMap(item => 
@@ -1849,12 +1850,16 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                       const unitLabel = isApparelOrEmbroidery
                                         ? 'pcs'
                                         : (cf.unit_mode === 'qty' ? 'qty' : 'sq ft')
+                                      const rateValue = item.rate || item.unit_price
                                       return (
                                         <>
                                           {!hasPriceRange && (
                                             <div style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{formatCurrency(dynamicTotal)}</div>
                                           )}
                                           {unitCount > 0 && <div style={{ fontSize: '12px', color: '#6b7280' }}>{unitCount} {unitLabel}</div>}
+                                          {showRateToCustomer && !hasPriceRange && unitCount > 0 && rateValue > 0 && !isApparelOrEmbroidery && (
+                                            <div style={{ fontSize: '12px', color: '#6b7280' }}>{unitCount} × {formatCurrency(rateValue)}</div>
+                                          )}
                                         </>
                                       )
                                     })()}
@@ -3235,6 +3240,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                     </div>
                                     {item.quantity > 1 && !hasPriceRange && isApparelOrEmbroidery && (
                                       <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.quantity} x {formatCurrency(item.rate || item.unit_price)}</div>
+                                    )}
+                                    {showRateToCustomer && !hasPriceRange && !isApparelOrEmbroidery && unitCount > 0 && (item.rate || item.unit_price) > 0 && (
+                                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{unitCount} × {formatCurrency(item.rate || item.unit_price)}</div>
                                     )}
                                   </div>
                                 </div>
