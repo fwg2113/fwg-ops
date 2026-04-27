@@ -12,6 +12,7 @@ import StatusManager, { ProductionStatus } from './StatusManager'
 import TaskQuickAdd from './TaskQuickAdd'
 import ArchivedDocsModal from './ArchivedDocsModal'
 import SortableBoardCard from './SortableBoardCard'
+import DocumentSidebar from './DocumentSidebar'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -151,11 +152,11 @@ const itemKey = (item: BoardItem) => `${item.kind}:${item.id}`
 // ---------------------------------------------------------------------------
 
 const STAGES = [
-  { key: 'QUEUE', label: 'Queue', color: '#64748b', dotColor: '#94a3b8' },
-  { key: 'DESIGN', label: 'Design', color: '#a855f7', dotColor: '#a855f7' },
-  { key: 'PRINT', label: 'Print', color: '#3b82f6', dotColor: '#3b82f6' },
-  { key: 'PRODUCTION', label: 'Production', color: '#14b8a6', dotColor: '#14b8a6' },
-  { key: 'COMPLETE', label: 'Complete', color: '#22c55e', dotColor: '#22c55e' },
+  { key: 'QUEUE', label: 'Queue', color: '#64748b', dotColor: '#94a3b8', subtitle: 'Awaiting payment, approval, or kickoff' },
+  { key: 'DESIGN', label: 'Design', color: '#a855f7', dotColor: '#a855f7', subtitle: 'Designing & building print files' },
+  { key: 'PRINT', label: 'Print', color: '#3b82f6', dotColor: '#3b82f6', subtitle: 'Printing & reprinting' },
+  { key: 'PRODUCTION', label: 'Production', color: '#14b8a6', dotColor: '#14b8a6', subtitle: 'Laminating, cutting, weeding, masking' },
+  { key: 'COMPLETE', label: 'Complete', color: '#22c55e', dotColor: '#22c55e', subtitle: 'Finished & ready to archive' },
 ] as const
 
 const CONFIGURABLE_STAGES = ['QUEUE', 'DESIGN', 'PRINT', 'PRODUCTION'] as const
@@ -262,7 +263,7 @@ export default function ProductionKanban({
   const [archivedModalOpen, setArchivedModalOpen] = useState(false)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
-  const [dropTarget, setDropTarget] = useState<{ overId: string; position: 'above' | 'below' } | null>(null)
+  const [sidebarDocId, setSidebarDocId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [assignModalOpen, setAssignModalOpen] = useState(false)
   // Note: stuckModalOpen/stuckReason removed in favor of statusNoteModal (new status system)
@@ -273,7 +274,6 @@ export default function ProductionKanban({
   const [lightbox, setLightbox] = useState<{ images: { url: string; label: string }[]; index: number } | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [dragState, setDragState] = useState<{ dragId: string | null; overId: string | null; position: 'above' | 'below' | null }>({ dragId: null, overId: null, position: null })
-  const [search, setSearch] = useState('')
   const popoverRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
@@ -288,21 +288,11 @@ export default function ProductionKanban({
     const map: Record<string, BoardItem[]> = {}
     for (const s of STAGES) map[s.key] = []
 
-    const q = search.toLowerCase()
-    const matchDoc = (d: ProductionDocument) => !search ||
-      (d.doc_number || '').toLowerCase().includes(q) ||
-      (d.customer_name || '').toLowerCase().includes(q) ||
-      (d.vehicle_description || '').toLowerCase().includes(q) ||
-      (d.project_description || '').toLowerCase().includes(q)
-    const matchTask = (t: BoardTask) => !search ||
-      (t.title || '').toLowerCase().includes(q) ||
-      (t.description || '').toLowerCase().includes(q)
-
-    for (const d of docs.filter(matchDoc)) {
+    for (const d of docs) {
       const stage = d.production_stage || 'QUEUE'
       ;(map[stage] || map['QUEUE']).push({ kind: 'doc', id: d.id, sort: d.production_sort_order || 0, doc: d })
     }
-    for (const t of tasks.filter(matchTask)) {
+    for (const t of tasks) {
       const stage = t.production_stage || 'QUEUE'
       ;(map[stage] || map['QUEUE']).push({ kind: 'task', id: t.id, sort: t.production_sort_order || 0, task: t })
     }
@@ -312,7 +302,7 @@ export default function ProductionKanban({
       map[key].sort((a, b) => a.sort - b.sort)
     }
     return map
-  }, [docs, tasks, search])
+  }, [docs, tasks])
 
   const getAssignmentsForDoc = (docId: string) => {
     return assignments
@@ -483,31 +473,27 @@ export default function ProductionKanban({
     return null
   }
 
+  // Track the original column when drag starts so we can revert on cancel
+  const dragOriginRef = useRef<{ fromStage: string; activeId: string } | null>(null)
+
   const onDndStart = (e: DragStartEvent) => {
-    setActiveDragId(String(e.active.id))
+    const activeId = String(e.active.id)
+    setActiveDragId(activeId)
     setStatusDropdownDocId(null)
     setStatusDropdownTaskId(null)
-    setDropTarget(null)
+    const item = findItem(activeId)
+    if (item) {
+      const fromStage = item.kind === 'doc' ? (item.doc.production_stage || 'QUEUE') : (item.task.production_stage || 'QUEUE')
+      dragOriginRef.current = { fromStage, activeId }
+    }
   }
 
+  // While dragging across columns, immediately move the item to the new column
+  // in local state — this gives dnd-kit's SortableContext the visual feedback to
+  // shift items and the dashed-gap indicator to land where the drop will commit.
   const onDndOver = (e: DragOverEvent) => {
-    if (!e.over) { setDropTarget(null); return }
-    const overId = String(e.over.id)
-    if (overId.startsWith('col:')) { setDropTarget(null); return }
-    const activeRect = e.active.rect.current.translated
-    const overRect = e.over.rect
-    if (!activeRect || !overRect) { setDropTarget(null); return }
-    const activeMid = activeRect.top + activeRect.height / 2
-    const overMid = overRect.top + overRect.height / 2
-    setDropTarget({ overId, position: activeMid < overMid ? 'above' : 'below' })
-  }
-
-  const onDndEnd = async (e: DragEndEvent) => {
-    const activeId = String(e.active.id)
-    setActiveDragId(null)
-    setDropTarget(null)
-
     if (!e.over) return
+    const activeId = String(e.active.id)
     const overId = String(e.over.id)
     if (activeId === overId) return
 
@@ -516,97 +502,118 @@ export default function ProductionKanban({
 
     const fromStage = item.kind === 'doc' ? (item.doc.production_stage || 'QUEUE') : (item.task.production_stage || 'QUEUE')
     const toStage = resolveStage(overId)
-    if (!toStage) return
+    if (!toStage || toStage === fromStage) return
+    if (!STAGES.find(s => s.key === toStage)) return
 
-    const isCrossColumn = fromStage !== toStage
+    // Move active item into the destination column locally (no DB write yet)
+    if (item.kind === 'doc') {
+      setDocs(ds => ds.map(d => d.id === item.id ? { ...d, production_stage: toStage } : d))
+    } else {
+      setTasks(ts => ts.map(t => t.id === item.id ? { ...t, production_stage: toStage } : t))
+    }
+  }
 
-    // Special: dragging a DOC into COMPLETE — open notify modal instead of immediate move
-    if (isCrossColumn && toStage === 'COMPLETE' && item.kind === 'doc') {
+  const onDndEnd = async (e: DragEndEvent) => {
+    const activeId = String(e.active.id)
+    setActiveDragId(null)
+
+    const origin = dragOriginRef.current
+    dragOriginRef.current = null
+
+    if (!e.over) return
+    const overId = String(e.over.id)
+
+    const item = findItem(activeId)
+    if (!item) return
+
+    const finalStage = item.kind === 'doc' ? (item.doc.production_stage || 'QUEUE') : (item.task.production_stage || 'QUEUE')
+    const fromStage = origin?.fromStage || finalStage
+    const isCrossColumn = fromStage !== finalStage
+
+    // If a doc was dragged into COMPLETE — show the notify modal AND defer commit.
+    // Roll back the optimistic stage change that onDndOver applied.
+    if (isCrossColumn && finalStage === 'COMPLETE' && item.kind === 'doc') {
+      setDocs(ds => ds.map(d => d.id === item.id ? { ...d, production_stage: fromStage } : d))
       setCompleteModalDocId(item.id)
       return
     }
 
-    // Build the new ordered list of items in the destination column
-    const destItems = (columns[toStage] || []).filter(it => itemKey(it) !== activeId)
-    let insertIdx = destItems.length // default: append to end
+    // Compute final ordering: where in finalStage the active item should land
+    const colItems = (columns[finalStage] || [])
+    const oldIdx = colItems.findIndex(it => itemKey(it) === activeId)
+    let newIdx = colItems.length - 1
     if (!overId.startsWith('col:')) {
-      const overIdx = destItems.findIndex(it => itemKey(it) === overId)
-      if (overIdx !== -1) insertIdx = overIdx
+      const idx = colItems.findIndex(it => itemKey(it) === overId)
+      if (idx !== -1) newIdx = idx
     }
 
-    // Insert the active item at the new index
-    const movedItem: BoardItem = item
-    destItems.splice(insertIdx, 0, movedItem)
+    let reordered = colItems
+    if (oldIdx !== -1 && oldIdx !== newIdx) {
+      reordered = arrayMove(colItems, oldIdx, newIdx)
+    }
 
-    // Recompute sort_order = (i + 1)
+    // Recompute sort_order for the destination column
     const sortMap: Record<string, number> = {}
-    destItems.forEach((it, i) => { sortMap[itemKey(it)] = i + 1 })
+    reordered.forEach((it, i) => { sortMap[itemKey(it)] = i + 1 })
 
-    // Optimistic state update
+    // Apply default-on-entry status when crossing into a configurable stage
+    let defaultStatusId: string | null = null
+    if (isCrossColumn && CONFIGURABLE_STAGES.includes(finalStage as any)) {
+      const def = getDefaultStatusForStage(finalStage)
+      if (def) defaultStatusId = def.id
+    }
+
+    // Commit optimistic state — update sort orders + status (if cross-column)
     if (item.kind === 'doc') {
-      // Apply default-on-entry status when moving to a configurable stage
-      let defaultStatusId: string | null = null
-      if (isCrossColumn && CONFIGURABLE_STAGES.includes(toStage as any)) {
-        const def = getDefaultStatusForStage(toStage)
-        if (def) defaultStatusId = def.id
-      }
       setDocs(ds => ds.map(d => {
-        if (d.id === item.id) {
-          return {
-            ...d,
-            production_stage: toStage,
-            production_sort_order: sortMap[`doc:${d.id}`] ?? d.production_sort_order,
-            ...(isCrossColumn ? {
-              production_status_id: defaultStatusId,
-              production_status_note: null,
-            } : {}),
-          }
-        }
         const k = `doc:${d.id}`
-        if (sortMap[k] != null) return { ...d, production_sort_order: sortMap[k] }
+        if (sortMap[k] != null) {
+          if (d.id === item.id) {
+            return {
+              ...d,
+              production_sort_order: sortMap[k],
+              ...(isCrossColumn ? { production_status_id: defaultStatusId, production_status_note: null } : {}),
+            }
+          }
+          return { ...d, production_sort_order: sortMap[k] }
+        }
         return d
       }))
-      // Persist moved doc
       const updates: Record<string, any> = {
-        production_stage: toStage,
+        production_stage: finalStage,
         production_sort_order: sortMap[activeId],
       }
       if (isCrossColumn) {
         updates.production_status_id = defaultStatusId
         updates.production_status_note = null
-        if (fromStage === 'COMPLETE' && toStage !== 'COMPLETE') updates.in_production = true
-        if (toStage === 'COMPLETE') updates.in_production = false
+        if (fromStage === 'COMPLETE' && finalStage !== 'COMPLETE') updates.in_production = true
+        if (finalStage === 'COMPLETE') updates.in_production = false
       }
       fetch(`/api/documents/${item.id}/production-status`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       }).catch(() => {})
     } else {
-      // Task move
-      let defaultStatusId: string | null = null
-      if (isCrossColumn && CONFIGURABLE_STAGES.includes(toStage as any)) {
-        const def = getDefaultStatusForStage(toStage)
-        if (def) defaultStatusId = def.id
-      }
       setTasks(ts => ts.map(t => {
-        if (t.id === item.id) {
-          return {
-            ...t,
-            production_stage: toStage,
-            production_sort_order: sortMap[`task:${t.id}`] ?? t.production_sort_order,
-            ...(isCrossColumn ? {
-              production_status_id: defaultStatusId,
-              production_status_note: null,
-              ...(toStage === 'COMPLETE' && !t.task_completed_at ? { task_completed_at: new Date().toISOString() } : {}),
-            } : {}),
-          }
-        }
         const k = `task:${t.id}`
-        if (sortMap[k] != null) return { ...t, production_sort_order: sortMap[k] }
+        if (sortMap[k] != null) {
+          if (t.id === item.id) {
+            return {
+              ...t,
+              production_sort_order: sortMap[k],
+              ...(isCrossColumn ? {
+                production_status_id: defaultStatusId,
+                production_status_note: null,
+                ...(finalStage === 'COMPLETE' && !t.task_completed_at ? { task_completed_at: new Date().toISOString() } : {}),
+              } : {}),
+            }
+          }
+          return { ...t, production_sort_order: sortMap[k] }
+        }
         return t
       }))
       const updates: Record<string, any> = {
-        production_stage: toStage,
+        production_stage: finalStage,
         production_sort_order: sortMap[activeId],
       }
       if (isCrossColumn) {
@@ -619,8 +626,8 @@ export default function ProductionKanban({
       }).catch(() => {})
     }
 
-    // Persist sort_order for the OTHER items in the destination column (besides the moved one)
-    for (const it of destItems) {
+    // Persist sort_order for the OTHER items in the destination column
+    for (const it of reordered) {
       if (itemKey(it) === activeId) continue
       const newSort = sortMap[itemKey(it)]
       if (it.kind === 'doc') {
@@ -829,19 +836,6 @@ export default function ProductionKanban({
           <h1 style={{ fontSize: 25, fontWeight: 700, color: '#fff', margin: 0 }}>
             FWG <span style={{ backgroundImage: 'linear-gradient(90deg, #22d3ee, #a855f7, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Production</span>
           </h1>
-          {/* Search */}
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              placeholder="Search jobs..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ padding: '9px 17px', paddingRight: search ? 34 : 17, background: '#1d1d1d', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 9, color: '#f1f5f9', fontSize: 15, outline: 'none', width: 270 }}
-            />
-            {search && (
-              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(148,163,184,0.15)', border: 'none', color: '#94a3b8', width: 18, height: 18, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, lineHeight: 1 }}>×</button>
-            )}
-          </div>
           {/* + Task */}
           <button
             onClick={() => setTaskQuickAddOpen({ open: true })}
@@ -858,57 +852,11 @@ export default function ProductionKanban({
           </button>
         </div>
 
-        {/* Stats + Metrics */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Overview metrics */}
-          {(() => {
-            const totalActive = docs.filter(d => d.production_stage !== 'COMPLETE').length
-            const stuckCount = docs.filter(d => !!d.production_status_note && d.production_stage !== 'COMPLETE').length
-            const overdueCount = docs.filter(d => {
-              if (!d.due_date || d.production_stage === 'COMPLETE') return false
-              const due = new Date(d.due_date + 'T00:00:00'); const now = new Date(); now.setHours(0, 0, 0, 0)
-              return due < now
-            }).length
-            const completedThisWeek = docs.filter(d => {
-              if (d.production_stage !== 'COMPLETE') return false
-              const now = new Date(); const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7)
-              return true // All complete jobs count for now
-            }).length
-
-            return (
-              <>
-                <div style={{ fontSize: 14, padding: '5px 14px', borderRadius: 9, background: 'rgba(148,163,184,0.1)', color: '#94a3b8', fontWeight: 700 }}>
-                  {totalActive} Active
-                </div>
-                {stuckCount > 0 && (
-                  <div style={{ fontSize: 14, padding: '5px 14px', borderRadius: 9, background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 700 }}>
-                    {stuckCount} Flagged
-                  </div>
-                )}
-                {overdueCount > 0 && (
-                  <div style={{ fontSize: 14, padding: '5px 14px', borderRadius: 9, background: 'rgba(245,158,11,0.1)', color: '#fbbf24', fontWeight: 700 }}>
-                    {overdueCount} Overdue
-                  </div>
-                )}
-                <div style={{ width: 1, height: 25, background: 'rgba(148,163,184,0.15)' }} />
-              </>
-            )
-          })()}
-          {STAGES.filter(s => s.key !== 'COMPLETE').map(s => {
-            const count = columns[s.key]?.length || 0
-            return (
-              <div key={s.key} style={{ fontSize: 14, padding: '4px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', color: '#64748b', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.dotColor, display: 'inline-block' }} />
-                <span style={{ fontWeight: 700, color: '#94a3b8' }}>{count}</span>
-              </div>
-            )
-          })}
-        </div>
       </div>
 
       {/* Board */}
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDndStart} onDragOver={onDndOver} onDragEnd={onDndEnd}>
-        <div ref={boardRef} style={{ display: 'flex', gap: 10, padding: '12px 16px', flex: 1, overflow: 'auto' }}>
+        <div ref={boardRef} style={{ display: 'flex', gap: 18, padding: '20px 24px', flex: 1, overflow: 'auto' }}>
           {STAGES.map(stage => {
             const items = columns[stage.key] || []
             const visibleItems = items.filter(it => {
@@ -922,28 +870,24 @@ export default function ProductionKanban({
 
             return (
               <DroppableColumn key={stage.key} stageKey={stage.key} isComplete={stage.key === 'COMPLETE'}>
-                {/* Column header */}
+                {/* Column header — centered, with subtitle */}
                 <div style={{
-                  padding: '15px 18px', fontSize: 14, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
-                  display: 'flex', alignItems: 'center', gap: 9, borderBottom: '1px solid rgba(148,163,184,0.1)', color: '#94a3b8',
+                  padding: '18px 16px 14px', borderBottom: '1px solid rgba(148,163,184,0.08)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  position: 'relative',
                 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: stage.dotColor, display: 'inline-block' }} />
-                  {stage.label}
-                  <span style={{ marginLeft: 'auto', background: '#1a1a1a', padding: '3px 10px', borderRadius: 7, fontSize: 13, color: '#94a3b8' }}>
-                    {items.length}
-                  </span>
-                  {stage.key !== 'COMPLETE' && (
-                    <button
-                      onClick={() => setTaskQuickAddOpen({ open: true, defaultStage: stage.key })}
-                      title="Add task to this column"
-                      style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.2)', color: '#22d3ee', width: 26, height: 26, borderRadius: 6, cursor: 'pointer', fontSize: 17, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                    >+</button>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: stage.dotColor, display: 'inline-block' }} />
+                    <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#cbd5e1' }}>{stage.label}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', lineHeight: 1.35, fontWeight: 500 }}>
+                    {stage.subtitle}
+                  </div>
                   {stage.key === 'COMPLETE' && (
                     <button
                       onClick={() => setArchivedModalOpen(true)}
                       title="View archived"
-                      style={{ background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', padding: '3px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                      style={{ position: 'absolute', top: 14, right: 12, background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.18)', color: '#94a3b8', padding: '3px 9px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
                     >Archived</button>
                   )}
                 </div>
@@ -953,23 +897,13 @@ export default function ProductionKanban({
                   <SortableContext items={visibleItems.map(itemKey)} strategy={verticalListSortingStrategy}>
                     {visibleItems.map(item => {
                       const sortableId = itemKey(item)
-                      const showAbove = dropTarget?.overId === sortableId && dropTarget.position === 'above' && activeDragId !== sortableId
-                      const showBelow = dropTarget?.overId === sortableId && dropTarget.position === 'below' && activeDragId !== sortableId
-                      const dropLine = <div style={{ height: 0, borderTop: '1px dashed rgba(148,163,184,0.4)', margin: '2px 0' }} />
-                      const wrap = (cardEl: React.ReactNode) => (
-                        <React.Fragment key={sortableId}>
-                          {showAbove && dropLine}
-                          {cardEl}
-                          {showBelow && dropLine}
-                        </React.Fragment>
-                      )
                       if (item.kind === 'doc') {
                         const doc = item.doc
                         const stageStatuses = statusesByStage[stage.key] || []
                         const status = getStatusById(doc.production_status_id) || null
                         const docAssignees = getAssignmentsForDoc(doc.id)
                         const docLeader = teamMembers.find(tm => tm.id === doc.production_leader_id) || null
-                        return wrap(
+                        return (
                           <SortableBoardCard
                             key={sortableId}
                             sortableId={sortableId}
@@ -1004,7 +938,7 @@ export default function ProductionKanban({
                       const taskAssigneeIds = taskAssignments.filter(a => a.task_id === task.id).map(a => a.team_member_id)
                       const taskAssignees = taskAssigneeIds.map(id => teamMembers.find(tm => tm.id === id)).filter(Boolean) as TeamMember[]
                       const taskLeader = task.leader_id ? teamMembers.find(tm => tm.id === task.leader_id) || null : null
-                      return wrap(
+                      return (
                         <SortableBoardCard
                           key={sortableId}
                           sortableId={sortableId}
@@ -1126,24 +1060,33 @@ export default function ProductionKanban({
           <div style={{ height: 3, borderRadius: '12px 12px 0 0', background: getDocCategoryColor(selectedDoc, catMap) }} />
 
           <div style={{ padding: '14px 16px' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            {/* Header — vehicle/subject foreground, company mid, customer back */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{selectedDoc.customer_name}</div>
-                {selectedDoc.company_name && (
-                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{selectedDoc.company_name}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 2, lineHeight: 1.25 }}>
+                  {selectedDoc.vehicle_description || selectedDoc.project_description || '—'}
+                </div>
+                {selectedDoc.company_name ? (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 1 }}>{selectedDoc.company_name}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{selectedDoc.customer_name}</div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>{selectedDoc.customer_name}</div>
                 )}
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(148,163,184,0.1)', color: '#94a3b8', fontWeight: 600 }}>{selectedDoc.doc_number}</span>
                   <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: selectedDoc.balance_due && selectedDoc.balance_due > 0 ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', color: selectedDoc.balance_due && selectedDoc.balance_due > 0 ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
                     {selectedDoc.balance_due && selectedDoc.balance_due > 0 ? `$${Number(selectedDoc.balance_due).toFixed(0)} due` : 'PAID'}
                   </span>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${STAGES.find(s => s.key === (selectedDoc.production_stage || 'QUEUE'))?.color || '#64748b'}20`, color: STAGES.find(s => s.key === (selectedDoc.production_stage || 'QUEUE'))?.color || '#64748b', fontWeight: 600 }}>
-                    {getStageLabel(selectedDoc.production_stage || 'QUEUE')}
-                  </span>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button
+                  onClick={() => setSidebarDocId(selectedDoc.id)}
+                  title="Open quote/invoice editor"
+                  style={{ background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.25)', color: '#22d3ee', height: 28, padding: '0 10px', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                >Open editor →</button>
                 {selectedDoc.production_stage === 'COMPLETE' && (
                   <button
                     onClick={() => archiveDocCard(selectedDoc.id)}
@@ -1246,16 +1189,9 @@ export default function ProductionKanban({
               )}
             </div>
 
-            {/* Vehicle / project */}
-            {(selectedDoc.vehicle_description || selectedDoc.project_description) && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', marginBottom: 2 }}>
-                  {selectedDoc.vehicle_description || selectedDoc.project_description}
-                </div>
-                {selectedDoc.vehicle_description && selectedDoc.project_description && (
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{selectedDoc.project_description}</div>
-                )}
-              </div>
+            {/* Show secondary description only if vehicle AND project both set (vehicle is in header) */}
+            {selectedDoc.vehicle_description && selectedDoc.project_description && (
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>{selectedDoc.project_description}</div>
             )}
 
             {/* Divider */}
@@ -1970,6 +1906,15 @@ export default function ProductionKanban({
       />
 
       {/* ============================================================= */}
+      {/* DOCUMENT EDITOR SIDEBAR (Hybrid C — full quote/invoice view)   */}
+      {/* ============================================================= */}
+      <DocumentSidebar
+        open={!!sidebarDocId}
+        docId={sidebarDocId}
+        onClose={() => setSidebarDocId(null)}
+      />
+
+      {/* ============================================================= */}
       {/* LIGHTBOX                                                       */}
       {/* ============================================================= */}
       {lightbox && (
@@ -1986,11 +1931,12 @@ export default function ProductionKanban({
 function DroppableColumn({ stageKey, isComplete, children }: { stageKey: string; isComplete: boolean; children: React.ReactNode }) {
   return (
     <div style={{
-      flex: isComplete ? '0 0 270px' : 1,
-      minWidth: 260,
+      flex: isComplete ? '0 0 280px' : 1,
+      minWidth: 270,
       display: 'flex', flexDirection: 'column',
-      borderRadius: 12,
-      background: '#111111',
+      borderRadius: 14,
+      background: '#131313',
+      border: '1px solid rgba(148,163,184,0.07)',
       opacity: isComplete ? 0.85 : 1,
       overflow: 'hidden',
     }}>{children}</div>
