@@ -54,7 +54,7 @@ export default async function DailyPlanPage() {
   //    are filtered out below once we know each doc's line item categories.
   const { data: rawDocs } = await supabase
     .from('documents')
-    .select('id, doc_number, doc_type, customer_name, customer_email, customer_phone, company_name, vehicle_description, project_description, total, amount_paid, balance_due, due_date, fulfillment_type, production_stage, production_target_date, production_status_id, production_status_note, production_leader_id, status, in_production, attachments, notes, customer_id, bucket')
+    .select('id, doc_number, doc_type, customer_name, customer_email, customer_phone, company_name, vehicle_description, project_description, total, amount_paid, balance_due, due_date, fulfillment_type, production_stage, production_target_date, production_status_id, production_status_note, production_leader_id, status, in_production, attachments, notes, customer_id, bucket, project_color')
     .or('status.eq.paid,in_production.eq.true')
     .eq('production_archived', false)
     .order('created_at', { ascending: false })

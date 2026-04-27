@@ -117,8 +117,35 @@ const getLegendItems = (events: CalendarEvent[]) => {
 }
 
 export default function CalendarView({ initialEvents, documentMap = {}, readOnly = false, initialTeamMembers = [], initialAssignments = [], showTeamFilter = false }: { initialEvents: CalendarEvent[]; documentMap?: Record<string, DocumentDetail>; readOnly?: boolean; initialTeamMembers?: TeamMember[]; initialAssignments?: EventAssignment[]; showTeamFilter?: boolean }) {
+  // ?embed=1 = render as a slim viewer (used inside the daily plan iframe):
+  // hide chrome, force week view, read-only. Detected after mount to avoid
+  // SSR/CSR mismatch (and to dodge useSearchParams' CSR-bail behavior).
+  const [embedded, setEmbedded] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('embed=1')) {
+      setEmbedded(true)
+    }
+  }, [])
+
+  // When embedded, post our content height up to the parent so the iframe can
+  // resize to fit the full week without scrollbars. ResizeObserver retries
+  // when events render / the layout settles.
+  useEffect(() => {
+    if (!embedded || typeof window === 'undefined') return
+    const send = () => {
+      const h = document.documentElement.scrollHeight
+      window.parent?.postMessage({ type: 'fwg-calendar-height', height: h }, '*')
+    }
+    send()
+    const ro = new ResizeObserver(send)
+    ro.observe(document.documentElement)
+    return () => ro.disconnect()
+  }, [embedded])
+
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'week' | 'twoweek' | 'month'>('twoweek')
+  useEffect(() => { if (embedded) setView('week') }, [embedded])
+  const isReadOnly = readOnly || embedded
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [teamMembers] = useState<TeamMember[]>(initialTeamMembers)
@@ -764,7 +791,8 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
-      {/* Header */}
+      {/* Header — hidden in embed mode (Daily Plan supplies its own header) */}
+      {!embedded && (
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <div style={{ minWidth: 0 }}>
           <h1 style={{ color: '#f1f5f9', fontSize: '28px', marginBottom: '4px' }}>Job Calendar</h1>
@@ -802,7 +830,10 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
         </div>
       </div>
 
-      {/* Legend */}
+      )}
+
+      {/* Legend — hidden in embed mode */}
+      {!embedded && (
       <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
         {/* Always show Vehicle / Install legend */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -827,9 +858,10 @@ export default function CalendarView({ initialEvents, documentMap = {}, readOnly
           </div>
         ))}
       </div>
+      )}
 
       {/* Team Filter */}
-      {showTeamFilter && teamMembers.length > 0 && (
+      {!embedded && showTeamFilter && teamMembers.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
           <button
             onClick={() => setFilterMemberId(null)}

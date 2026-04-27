@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       sort_order,
       source: body.source || 'manual',
       recurring_task_id: body.recurring_task_id || null,
+      kanban_column: body.kanban_column || 'QUEUE',
     }
 
     const { data, error } = await supabase

@@ -1,23 +1,27 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import DailyPlanTask from './DailyPlanTask'
 import { todayLocalISO, addDaysISO, formatDateHeader } from './DailyPlan'
+import { memberChipLabel, sortMembersForFilter } from './types'
 import type { DailyTask, TeamMember, DocSummary } from './types'
 
 export default function DailyPlanTodayBlock({
-  viewDate, setViewDate, priorityTasks, regularTasks, recurringTasks, doneToday,
+  viewDate, setViewDate,
+  memberFilter, setMemberFilter,
+  priorityTasks, regularTasks, recurringTasks,
   assigneesByTask, docById, teamMembers, selectedTaskId,
   onTaskClick, onToggleDone, onTogglePriority, onToggleAssignee, onOpenAddTask,
 }: {
   viewDate: string
   setViewDate: (date: string) => void
+  memberFilter: string
+  setMemberFilter: (id: string) => void
   priorityTasks: DailyTask[]
   regularTasks: DailyTask[]
   recurringTasks: DailyTask[]
-  doneToday: DailyTask[]
   assigneesByTask: Record<string, TeamMember[]>
   docById: Record<string, DocSummary>
   teamMembers: TeamMember[]
@@ -34,8 +38,12 @@ export default function DailyPlanTodayBlock({
   const dropPriority = useDroppable({ id: 'today-priority' })
   const dropRegular = useDroppable({ id: 'today-regular' })
 
-  const [doneCollapsed, setDoneCollapsed] = useState(false)
-  const [recurringCollapsed, setRecurringCollapsed] = useState(false)
+  // Recurring tasks are merged into the regular task list (the recurring badge
+  // on the task line itself communicates the source). They keep sort_order so
+  // they slot in alongside other tasks rather than living in their own section.
+  const mergedRegularTasks = useMemo<DailyTask[]>(() => {
+    return [...regularTasks, ...recurringTasks].sort((a, b) => a.sort_order - b.sort_order)
+  }, [regularTasks, recurringTasks])
 
   return (
     <div style={{
@@ -47,7 +55,7 @@ export default function DailyPlanTodayBlock({
       flexDirection: 'column',
       boxShadow: '0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04)',
     }}>
-      {/* Header with date navigation + Add Task button */}
+      {/* Header — date navigation + Add Task */}
       <div style={{
         padding: '18px 22px',
         borderBottom: '1px solid rgba(148,163,184,0.08)',
@@ -65,12 +73,6 @@ export default function DailyPlanTodayBlock({
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <button onClick={() => setViewDate(addDaysISO(viewDate, -1))} title="Previous day" style={navBtnStyle}>‹</button>
-          <input
-            type="date"
-            value={viewDate}
-            onChange={e => e.target.value && setViewDate(e.target.value)}
-            style={{ padding: '8px 12px', background: '#0d0d0d', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 8, color: '#cbd5e1', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
-          />
           <button onClick={() => setViewDate(addDaysISO(viewDate, 1))} title="Next day" style={navBtnStyle}>›</button>
           {!isLiveToday && (
             <button onClick={() => setViewDate(today)} title="Jump to today" style={{ ...navBtnStyle, width: 'auto', padding: '0 14px', fontSize: 12, fontWeight: 600 }}>Today</button>
@@ -85,6 +87,41 @@ export default function DailyPlanTodayBlock({
             boxShadow: '0 4px 14px rgba(34,211,238,0.25)',
           }}>+ Add Task</button>
         </div>
+      </div>
+
+      {/* Member filter row — All / each team member / Unassigned */}
+      <div style={{
+        padding: '10px 18px',
+        borderBottom: '1px solid rgba(148,163,184,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        flexWrap: 'wrap',
+        background: 'rgba(13,13,13,0.5)',
+      }}>
+        <span style={{ fontSize: 9, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginRight: 4 }}>Filter</span>
+        <FilterChip
+          active={memberFilter === 'all'}
+          onClick={() => setMemberFilter('all')}
+          color="#94a3b8"
+          label="All"
+        />
+        {[...teamMembers].sort(sortMembersForFilter).map(m => (
+          <FilterChip
+            key={m.id}
+            active={memberFilter === m.id}
+            onClick={() => setMemberFilter(m.id)}
+            color={m.color}
+            label={memberChipLabel(m)}
+            title={m.name}
+          />
+        ))}
+        <FilterChip
+          active={memberFilter === 'unassigned'}
+          onClick={() => setMemberFilter('unassigned')}
+          color="#475569"
+          label="Unassigned"
+        />
       </div>
 
       {/* Body */}
@@ -126,7 +163,8 @@ export default function DailyPlanTodayBlock({
           </div>
         )}
 
-        {/* Regular tasks — neutral-tinted card */}
+        {/* Regular tasks (recurring tasks are merged in here — they keep
+            their ↻ recurring badge on the task line itself) */}
         <div ref={dropRegular.setNodeRef} style={{
           padding: '12px 14px 14px',
           background: 'linear-gradient(180deg, #1a1a1a 0%, #161616 100%)',
@@ -137,10 +175,10 @@ export default function DailyPlanTodayBlock({
         }}>
           <div style={{ fontSize: 13, color: '#cbd5e1', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7 }}>
             ☰ Tasks
-            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, letterSpacing: 0 }}>· {regularTasks.length} {regularTasks.length === 1 ? 'item' : 'items'}</span>
+            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, letterSpacing: 0 }}>· {mergedRegularTasks.length} {mergedRegularTasks.length === 1 ? 'item' : 'items'}</span>
           </div>
-          <SortableContext items={regularTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-            {regularTasks.map(t => (
+          <SortableContext items={mergedRegularTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+            {mergedRegularTasks.map(t => (
               <DailyPlanTask
                 key={t.id}
                 task={t}
@@ -156,7 +194,7 @@ export default function DailyPlanTodayBlock({
               />
             ))}
           </SortableContext>
-          {regularTasks.length === 0 && !dropRegular.isOver && (
+          {mergedRegularTasks.length === 0 && !dropRegular.isOver && (
             <div style={{ padding: '14px 0', textAlign: 'center', color: '#475569', fontSize: 12, fontStyle: 'italic' }}>
               No tasks for {isLiveToday ? 'today' : 'this date'} — click + Add Task above or drag from a project.
             </div>
@@ -165,84 +203,33 @@ export default function DailyPlanTodayBlock({
             <div style={{ padding: '12px 0', textAlign: 'center', color: '#22d3ee', fontSize: 12, fontStyle: 'italic', border: '1px dashed rgba(34,211,238,0.3)', borderRadius: 8, marginTop: 6 }}>Drop here</div>
           )}
         </div>
-
-        {/* Recurring section — cyan-tinted card, collapsible */}
-        {recurringTasks.length > 0 && (
-          <div style={{
-            marginTop: 16,
-            padding: '12px 14px 14px',
-            background: 'linear-gradient(180deg, rgba(34,211,238,0.05) 0%, rgba(34,211,238,0.02) 100%)',
-            border: '1px solid rgba(34,211,238,0.2)',
-            borderRadius: 12,
-            boxShadow: '0 0 24px rgba(34,211,238,0.04), inset 0 1px 0 rgba(34,211,238,0.06)',
-          }}>
-            <button
-              onClick={() => setRecurringCollapsed(c => !c)}
-              style={{
-                background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                width: '100%', marginBottom: recurringCollapsed ? 0 : 10, fontFamily: 'inherit',
-              }}
-            >
-              <span style={{ fontSize: 13, color: '#22d3ee', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1.5, display: 'flex', alignItems: 'center', gap: 7 }}>
-                ↻ Recurring
-                <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, letterSpacing: 0 }}>· {recurringTasks.length} task{recurringTasks.length === 1 ? '' : 's'}</span>
-              </span>
-              <span style={{ fontSize: 13, color: '#64748b' }}>{recurringCollapsed ? '▾' : '▴'}</span>
-            </button>
-            {!recurringCollapsed && (
-              <SortableContext items={recurringTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                {recurringTasks.map(t => (
-                  <DailyPlanTask
-                    key={t.id}
-                    task={t}
-                    assignees={assigneesByTask[t.id] || []}
-                    doc={t.parent_document_id ? docById[t.parent_document_id] : undefined}
-                    isOverdue={false}
-                    isSelected={selectedTaskId === t.id}
-                    allTeamMembers={teamMembers}
-                    onClick={(el) => onTaskClick(t.id, el)}
-                    onToggleDone={() => onToggleDone(t.id)}
-                    onTogglePriority={() => onTogglePriority(t.id)}
-                    onToggleAssignee={(memberId) => onToggleAssignee(t.id, memberId)}
-                  />
-                ))}
-              </SortableContext>
-            )}
-          </div>
-        )}
       </div>
-
-      {/* Done today — pinned to the bottom of the Today block, outside the
-          scrollable body so it's always visible. */}
-      {isLiveToday && doneToday.length > 0 && (
-        <div style={{
-          margin: '0 18px 16px',
-          padding: '10px 14px',
-          background: 'rgba(34,197,94,0.05)',
-          border: '1px solid rgba(34,197,94,0.18)',
-          borderRadius: 10,
-          flexShrink: 0,
-        }}>
-          <button onClick={() => setDoneCollapsed(c => !c)} style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <span style={{ fontSize: 11, color: '#4ade80', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 1.5 }}>
-              ✓ Done today ({doneToday.length})
-            </span>
-            <span style={{ fontSize: 11, color: '#64748b' }}>{doneCollapsed ? '▾' : '▴'}</span>
-          </button>
-          {!doneCollapsed && (
-            <div style={{ marginTop: 8, maxHeight: 180, overflowY: 'auto' }}>
-              {doneToday.map(t => (
-                <div key={t.id} style={{ padding: '6px 10px', borderRadius: 6, marginBottom: 3, background: '#0d0d0d', fontSize: 12, color: '#64748b', textDecoration: 'line-through', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: '#22c55e', fontWeight: 700 }}>✓</span>
-                  <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
+  )
+}
+
+function FilterChip({ active, onClick, color, label, title }: { active: boolean; onClick: () => void; color: string; label: string; title?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        height: 24, padding: '0 10px',
+        borderRadius: 12,
+        background: active ? `${color}22` : 'rgba(148,163,184,0.05)',
+        border: active ? `1px solid ${color}66` : '1px solid rgba(148,163,184,0.12)',
+        color: active ? color : '#94a3b8',
+        fontSize: 10, fontWeight: 800,
+        letterSpacing: 0.4,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        transition: 'all 0.15s ease',
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, opacity: active ? 1 : 0.5 }} />
+      {label}
+    </button>
   )
 }
 
@@ -258,4 +245,3 @@ const navBtnStyle: React.CSSProperties = {
   fontFamily: 'inherit',
   fontWeight: 600,
 }
-

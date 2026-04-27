@@ -7,6 +7,7 @@ import {
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import DailyPlanLightbox from './DailyPlanLightbox'
+import DailyPlanColorPicker from './DailyPlanColorPicker'
 import type { DailyTask, TeamMember, DocSummary, LineItemFull, PaymentLite, CategoryLite, PipelineConfig, ProductionStatusLite } from './types'
 
 // ============================================================================
@@ -48,7 +49,7 @@ function formatDateChip(iso: string): string {
 
 export default function DailyPlanProjectSidebar({
   doc, allTasks, assigneesByTask, teamMembers, lineItems, payments, categories, pipelineConfigs, productionStatuses,
-  onClose, onCreateTask, onUpdateTask, onDeleteTask, onToggleAssignee, onToggleDone, showToast,
+  onClose, onCreateTask, onUpdateTask, onDeleteTask, onToggleAssignee, onToggleDone, onChangeProjectColor, showToast,
 }: {
   doc: DocSummary
   allTasks: DailyTask[]
@@ -65,6 +66,7 @@ export default function DailyPlanProjectSidebar({
   onDeleteTask: (id: string) => void
   onToggleAssignee: (taskId: string, memberId: string) => void
   onToggleDone: (taskId: string) => void
+  onChangeProjectColor: (color: string | null) => void
   showToast: (msg: string, type?: 'success' | 'error') => void
 }) {
   const [showTemplates, setShowTemplates] = useState(false)
@@ -166,8 +168,17 @@ export default function DailyPlanProjectSidebar({
       }}>
         <style>{`@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
 
+        {/* Project color stripe — only visible when a color is assigned */}
+        {doc.project_color && (
+          <div style={{
+            height: 4,
+            background: doc.project_color,
+            position: 'sticky', top: 0, zIndex: 6,
+          }} />
+        )}
+
         {/* Header — sticky */}
-        <div style={{ padding: '16px 22px', borderBottom: '1px solid rgba(148,163,184,0.08)', position: 'sticky', top: 0, background: '#0d0d0d', zIndex: 5 }}>
+        <div style={{ padding: '16px 22px', borderBottom: '1px solid rgba(148,163,184,0.08)', position: 'sticky', top: doc.project_color ? 4 : 0, background: '#0d0d0d', zIndex: 5 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', lineHeight: 1.25, marginBottom: 2 }}>
@@ -195,8 +206,13 @@ export default function DailyPlanProjectSidebar({
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0 }}>
               <button onClick={onClose} style={{ background: 'rgba(148,163,184,0.1)', border: 'none', color: '#94a3b8', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16 }}>×</button>
+              <DailyPlanColorPicker
+                documentId={doc.id}
+                value={doc.project_color}
+                onChange={onChangeProjectColor}
+              />
               <a href={`/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', borderRadius: 7, background: '#22d3ee', color: '#000', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                Open editor ↗
+                Open invoice ↗
               </a>
             </div>
           </div>

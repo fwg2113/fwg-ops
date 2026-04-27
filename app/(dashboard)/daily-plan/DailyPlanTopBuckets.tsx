@@ -7,9 +7,10 @@ import { monToSunOfWeek, todayLocalISO } from './DailyPlan'
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 export default function DailyPlanTopBuckets({
-  weekAnchor, taskCountsByDate, onShiftWeek, onResetWeek, onBucketClick,
+  weekAnchor, viewDate, taskCountsByDate, onShiftWeek, onResetWeek, onBucketClick,
 }: {
   weekAnchor: string
+  viewDate: string
   taskCountsByDate: Record<string, number>
   onShiftWeek: (days: number) => void
   onResetWeek: () => void
@@ -92,6 +93,7 @@ export default function DailyPlanTopBuckets({
               label={DAY_LABELS[i]}
               count={taskCountsByDate[iso] || 0}
               isToday={iso === today}
+              isSelected={iso === viewDate}
               onClick={onBucketClick ? () => onBucketClick(iso) : undefined}
             />
           ))}
@@ -123,8 +125,8 @@ function daysLabel(firstDayIso: string): string {
   return `${Math.abs(diffWeeks)} weeks back`
 }
 
-function BucketCell({ iso, label, count, isToday, onClick }: {
-  iso: string; label: string; count: number; isToday: boolean
+function BucketCell({ iso, label, count, isToday, isSelected, onClick }: {
+  iso: string; label: string; count: number; isToday: boolean; isSelected: boolean
   onClick?: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `bucket:${iso}` })
@@ -132,17 +134,32 @@ function BucketCell({ iso, label, count, isToday, onClick }: {
   const dayNum = new Date(iso + 'T00:00:00').getDate()
   const monthShort = new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })
 
-  const todayBg = 'linear-gradient(160deg, rgba(34,211,238,0.10) 0%, rgba(34,211,238,0.02) 100%)'
-  const baseBg = 'linear-gradient(180deg, #161616 0%, #121212 100%)'
-  const overBg = 'linear-gradient(160deg, rgba(34,211,238,0.18) 0%, rgba(34,211,238,0.04) 100%)'
+  // Highlights:
+  //   - SELECTED day: solid pink/purple gradient (the day the Today block is showing)
+  //   - TODAY: cyan tinted background + cyan ring (the live current date)
+  //   - SELECTED + TODAY: keep selected styling but add a small "Today" badge
+  const baseBg     = 'linear-gradient(180deg, #161616 0%, #121212 100%)'
+  const todayBg    = 'linear-gradient(160deg, rgba(34,211,238,0.10) 0%, rgba(34,211,238,0.02) 100%)'
+  const selectedBg = 'linear-gradient(160deg, rgba(168,85,247,0.22) 0%, rgba(236,72,153,0.10) 100%)'
+  const overBg     = 'linear-gradient(160deg, rgba(34,211,238,0.18) 0%, rgba(34,211,238,0.04) 100%)'
+
+  const bg = isOver ? overBg : isSelected ? selectedBg : isToday ? todayBg : baseBg
+  const borderColor = isOver
+    ? 'rgba(34,211,238,0.55)'
+    : isSelected
+      ? 'rgba(168,85,247,0.65)'
+      : isToday
+        ? 'rgba(34,211,238,0.4)'
+        : 'rgba(148,163,184,0.08)'
+  const borderStyle = isOver ? '2px dashed' : isSelected ? '2px solid' : '1px solid'
 
   return (
     <div
       ref={setNodeRef}
       onClick={onClick}
       style={{
-        background: isOver ? overBg : (isToday ? todayBg : baseBg),
-        border: isOver ? '2px dashed rgba(34,211,238,0.55)' : isToday ? '1px solid rgba(34,211,238,0.4)' : '1px solid rgba(148,163,184,0.08)',
+        background: bg,
+        border: `${borderStyle} ${borderColor}`,
         borderRadius: 14,
         padding: '22px 14px',
         textAlign: 'center',
@@ -154,27 +171,62 @@ function BucketCell({ iso, label, count, isToday, onClick }: {
         gap: 4,
         transition: 'all 0.18s',
         position: 'relative',
-        boxShadow: isToday ? '0 0 24px rgba(34,211,238,0.08), inset 0 1px 0 rgba(255,255,255,0.04)' : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+        boxShadow: isSelected
+          ? '0 0 28px rgba(168,85,247,0.18), inset 0 1px 0 rgba(255,255,255,0.06)'
+          : isToday
+            ? '0 0 24px rgba(34,211,238,0.08), inset 0 1px 0 rgba(255,255,255,0.04)'
+            : 'inset 0 1px 0 rgba(255,255,255,0.03)',
         cursor: onClick ? 'pointer' : 'default',
       }}
-      onMouseEnter={e => { if (onClick && !isOver) e.currentTarget.style.borderColor = isToday ? 'rgba(34,211,238,0.6)' : 'rgba(148,163,184,0.2)' }}
-      onMouseLeave={e => { if (onClick && !isOver) e.currentTarget.style.borderColor = isToday ? 'rgba(34,211,238,0.4)' : 'rgba(148,163,184,0.08)' }}
+      onMouseEnter={e => { if (onClick && !isOver && !isSelected) e.currentTarget.style.borderColor = isToday ? 'rgba(34,211,238,0.6)' : 'rgba(148,163,184,0.2)' }}
+      onMouseLeave={e => { if (onClick && !isOver && !isSelected) e.currentTarget.style.borderColor = isToday ? 'rgba(34,211,238,0.4)' : 'rgba(148,163,184,0.08)' }}
     >
-      <div style={{ fontSize: 18, fontWeight: 700, color: isToday ? '#22d3ee' : '#e2e8f0', letterSpacing: 0.2 }}>
+      {/* "Today" pill — only when today is NOT also the currently-selected day,
+          otherwise the selected styling already conveys it. */}
+      {isToday && !isSelected && (
+        <span style={{
+          position: 'absolute', top: 8, left: 10,
+          fontSize: 8, padding: '1px 6px', borderRadius: 9,
+          background: 'rgba(34,211,238,0.2)',
+          color: '#22d3ee',
+          fontWeight: 800, letterSpacing: 0.6,
+          border: '1px solid rgba(34,211,238,0.35)',
+        }}>TODAY</span>
+      )}
+      {isToday && isSelected && (
+        <span style={{
+          position: 'absolute', top: 8, left: 10,
+          fontSize: 8, padding: '1px 6px', borderRadius: 9,
+          background: 'rgba(34,211,238,0.25)',
+          color: '#67e8f9',
+          fontWeight: 800, letterSpacing: 0.6,
+          border: '1px solid rgba(34,211,238,0.45)',
+        }}>TODAY</span>
+      )}
+      <div style={{
+        fontSize: 18, fontWeight: 700,
+        color: isSelected ? '#fff' : isToday ? '#22d3ee' : '#e2e8f0',
+        letterSpacing: 0.2,
+      }}>
         {label}
       </div>
-      <div style={{ fontSize: 13, color: isToday ? '#67e8f9' : '#64748b', fontWeight: 500 }}>
+      <div style={{
+        fontSize: 13, fontWeight: 500,
+        color: isSelected ? '#e9d5ff' : isToday ? '#67e8f9' : '#64748b',
+      }}>
         {monthShort} {dayNum}
       </div>
       {count > 0 && (
         <div style={{
           position: 'absolute', top: 10, right: 12,
-          background: isToday ? 'rgba(34,211,238,0.25)' : 'rgba(34,211,238,0.15)',
-          color: '#22d3ee',
+          background: isSelected
+            ? 'rgba(168,85,247,0.3)'
+            : isToday ? 'rgba(34,211,238,0.25)' : 'rgba(34,211,238,0.15)',
+          color: isSelected ? '#e9d5ff' : '#22d3ee',
           fontSize: 12, fontWeight: 700,
           padding: '3px 9px', borderRadius: 11,
           minWidth: 26, textAlign: 'center',
-          border: '1px solid rgba(34,211,238,0.3)',
+          border: isSelected ? '1px solid rgba(168,85,247,0.5)' : '1px solid rgba(34,211,238,0.3)',
         }}>
           {count}
         </div>

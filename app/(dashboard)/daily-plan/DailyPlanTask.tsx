@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { memberChipLabel } from './types'
 import type { DailyTask, TeamMember, DocSummary } from './types'
 
 export default function DailyPlanTask({
@@ -40,27 +41,40 @@ export default function DailyPlanTask({
 
   const assignedIds = new Set(assignees.map(a => a.id))
 
+  // Border-left priority: priority (orange) > project_color > overdue > selected > none
+  const projectColor = doc?.project_color || null
+  const leftBorderColor = task.is_priority
+    ? '#fb923c'
+    : projectColor
+      ? projectColor
+      : isOverdue
+        ? '#ef4444'
+        : isSelected
+          ? '#22d3ee'
+          : null
+
+  // Subject + customer line — only when linked to a doc
+  const subject = doc?.vehicle_description || doc?.project_description || null
+  const partyName = doc?.company_name || doc?.customer_name || null
+
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
-    // While the active item is being dragged, hide its in-place row entirely
-    // (the DragOverlay shows its visual replica). Without this it leaves a
-    // ghost gap that feels stuttery.
     opacity: isDragging ? 0 : 1,
     visibility: isDragging ? 'hidden' : 'visible',
     background: 'linear-gradient(180deg, #181818 0%, #131313 100%)',
     border: isOverdue ? '1px solid rgba(239,68,68,0.4)' : isSelected ? '1px solid rgba(34,211,238,0.6)' : '1px solid rgba(148,163,184,0.08)',
-    borderLeft: task.is_priority ? '4px solid #fb923c' : (isOverdue ? '4px solid #ef4444' : isSelected ? '4px solid #22d3ee' : '1px solid rgba(148,163,184,0.08)'),
-    borderRadius: 10,
-    padding: '13px 16px',
-    marginBottom: 7,
+    borderLeft: leftBorderColor ? `4px solid ${leftBorderColor}` : '1px solid rgba(148,163,184,0.08)',
+    borderRadius: 9,
+    padding: '8px 11px',
+    marginBottom: 5,
     cursor: 'grab',
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     userSelect: 'none',
     position: 'relative',
-    boxShadow: isSelected ? '0 0 16px rgba(34,211,238,0.18)' : '0 1px 0 rgba(255,255,255,0.02), 0 2px 8px rgba(0,0,0,0.2)',
+    boxShadow: isSelected ? '0 0 12px rgba(34,211,238,0.18)' : '0 1px 0 rgba(255,255,255,0.02), 0 1px 4px rgba(0,0,0,0.18)',
   }
 
   const stopAll = (e: React.SyntheticEvent) => {
@@ -87,53 +101,59 @@ export default function DailyPlanTask({
         onClick={e => { stopAll(e); onToggleDone() }}
         onPointerDown={e => e.stopPropagation()}
         style={{
-          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+          width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
           border: '2px solid ' + (isDone ? '#22c55e' : 'rgba(148,163,184,0.45)'),
           background: isDone ? '#22c55e' : 'transparent',
           color: '#0d2317',
           cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, fontWeight: 700,
+          fontSize: 11, fontWeight: 700,
         }}
       >{isDone ? '✓' : ''}</span>
-
-      {/* Invoice / project chip — between checkbox and title */}
-      {doc && (
-        <span
-          style={{
-            fontSize: 11, padding: '3px 9px', borderRadius: 5,
-            background: 'rgba(168,85,247,0.15)', color: '#c4b5fd', fontWeight: 600,
-            maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            border: '1px solid rgba(168,85,247,0.25)',
-            flexShrink: 0,
-          }}
-          title={`${doc.vehicle_description || doc.project_description || ''} · ${doc.company_name || doc.customer_name}`}
-        >
-          {doc.vehicle_description || doc.company_name || doc.customer_name}
-        </span>
-      )}
 
       {/* Title block */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontSize: 15,
+          fontSize: 13,
           color: isDone ? '#64748b' : '#f1f5f9',
           textDecoration: isDone ? 'line-through' : 'none',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           fontWeight: 600,
           letterSpacing: -0.1,
+          lineHeight: 1.25,
         }}>
           {task.title}
         </div>
+
+        {/* Sub-line: customer/company · subject — only when linked to a doc */}
+        {(partyName || subject) && (
+          <div
+            title={[partyName, subject].filter(Boolean).join(' · ')}
+            style={{
+              fontSize: 10, color: '#64748b',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              marginTop: 1, fontWeight: 500,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+            {partyName && (
+              <span style={{ color: '#94a3b8' }}>{partyName}</span>
+            )}
+            {partyName && subject && <span style={{ color: '#475569' }}>·</span>}
+            {subject && (
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{subject}</span>
+            )}
+          </div>
+        )}
+
         {(isOverdue || task.source === 'recurring') && !isDone && (
-          <div style={{ display: 'flex', gap: 5, marginTop: 3 }}>
+          <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
             {isOverdue && task.scheduled_date && (
-              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'rgba(239,68,68,0.12)', color: '#f87171', fontWeight: 600 }}>
+              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'rgba(239,68,68,0.12)', color: '#f87171', fontWeight: 600 }}>
                 Overdue · was {formatShortDate(task.scheduled_date)}
               </span>
             )}
             {task.source === 'recurring' && (
-              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: 'rgba(34,211,238,0.1)', color: '#22d3ee', fontWeight: 600 }}>
+              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'rgba(34,211,238,0.1)', color: '#22d3ee', fontWeight: 600 }}>
                 ↻ recurring
               </span>
             )}
@@ -142,19 +162,21 @@ export default function DailyPlanTask({
       </div>
 
       {/* Right meta — assignees + priority */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        {/* Assignee chips */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        {/* Assignee initials (3-letter) — show up to 2 */}
         {assignees.slice(0, 2).map(a => (
           <span key={a.id} title={a.name} style={{
-            fontSize: 11, padding: '3px 8px', borderRadius: 5,
-            background: `${a.color}25`, color: a.color, fontWeight: 700,
+            fontSize: 9, padding: '2px 5px', borderRadius: 4,
+            background: `${a.color}25`, color: a.color, fontWeight: 800,
             border: `1px solid ${a.color}30`,
+            letterSpacing: 0.4,
+            fontFamily: 'inherit',
           }}>
-            {a.short_name || a.name.split(' ')[0]}
+            {memberChipLabel(a)}
           </span>
         ))}
         {assignees.length > 2 && (
-          <span style={{ fontSize: 10, color: '#64748b', fontWeight: 700 }}>+{assignees.length - 2}</span>
+          <span style={{ fontSize: 9, color: '#64748b', fontWeight: 700 }}>+{assignees.length - 2}</span>
         )}
 
         {/* Assign person button */}
@@ -164,11 +186,11 @@ export default function DailyPlanTask({
             onPointerDown={e => e.stopPropagation()}
             title="Assign people"
             style={{
-              width: 26, height: 26, borderRadius: 6,
+              width: 22, height: 22, borderRadius: 5,
               background: assignees.length > 0 ? 'rgba(148,163,184,0.06)' : 'rgba(34,211,238,0.08)',
               border: assignees.length > 0 ? '1px solid rgba(148,163,184,0.15)' : '1px dashed rgba(34,211,238,0.3)',
               color: assignees.length > 0 ? '#94a3b8' : '#22d3ee',
-              cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0,
+              cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontFamily: 'inherit',
             }}
@@ -218,11 +240,11 @@ export default function DailyPlanTask({
           onPointerDown={e => e.stopPropagation()}
           title={task.is_priority ? 'Remove priority' : 'Make priority'}
           style={{
-            width: 22, height: 22, borderRadius: 4,
+            width: 18, height: 18, borderRadius: 4,
             background: task.is_priority ? 'rgba(251,146,60,0.18)' : 'rgba(148,163,184,0.06)',
             border: task.is_priority ? '1px solid rgba(251,146,60,0.4)' : '1px solid rgba(148,163,184,0.12)',
             color: task.is_priority ? '#fb923c' : '#475569',
-            cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0,
+            cursor: 'pointer', fontSize: 9, lineHeight: 1, padding: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >🔥</button>
