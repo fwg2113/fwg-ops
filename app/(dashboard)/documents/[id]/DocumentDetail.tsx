@@ -4813,7 +4813,40 @@ export default function DocumentDetail({
                       {showPackages && <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', width: '150px' }}>Package</th>}
                       {showTypes && <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', width: '150px' }}>Type</th>}
                       <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>Description</th>
-                      <th style={{ textAlign: 'right', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', width: '80px' }}>{category?.unit_label || 'Qty'}</th>
+                      <th style={{ textAlign: 'right', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', width: '80px' }}>
+                        {(() => {
+                          const groupMode: 'qty' | 'sqft' = groupItems.some(gi => gi.custom_fields?.unit_mode === 'qty') ? 'qty' : 'sqft'
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = groupMode === 'qty' ? 'sqft' : 'qty'
+                                const groupItemIds = new Set(groupItems.map(gi => gi.id))
+                                setLineItems(prev => prev.map(li => {
+                                  if (!groupItemIds.has(li.id)) return li
+                                  return { ...li, custom_fields: { ...(li.custom_fields || {}), unit_mode: next } }
+                                }))
+                                setIsDirty(true)
+                              }}
+                              title="Click to toggle unit shown to customer (Sq Ft / Qty)"
+                              style={{
+                                background: 'transparent',
+                                border: '1px dashed rgba(148,163,184,0.35)',
+                                color: groupMode === 'qty' ? '#be1e2d' : '#64748b',
+                                padding: '3px 8px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                cursor: 'pointer',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {groupMode === 'qty' ? 'Qty' : (category?.unit_label || 'Sq Ft')}
+                            </button>
+                          )
+                        })()}
+                      </th>
                       <th style={{ textAlign: 'right', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', width: '90px' }}>Rate</th>
                       <th style={{ textAlign: 'right', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', width: '100px' }}>Total</th>
                       <th style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', width: '50px' }}>Tax</th>

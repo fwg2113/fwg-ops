@@ -1846,7 +1846,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                                       const unitCount = isApparelItem && enabledSizes.length > 0
                                         ? enabledSizes.reduce((sum, s) => sum + (custQtys[s] ?? (sizes[s]?.qty ?? 0)), 0)
                                         : (isApparelOrEmbroidery ? item.quantity : (item.sqft || item.quantity))
-                                      const unitLabel = isApparelOrEmbroidery ? 'pcs' : 'sq ft'
+                                      const unitLabel = isApparelOrEmbroidery
+                                        ? 'pcs'
+                                        : (cf.unit_mode === 'qty' ? 'qty' : 'sq ft')
                                       return (
                                         <>
                                           {!hasPriceRange && (
@@ -3206,7 +3208,9 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
                               const isApparelOrEmbroidery = isApparelItem || isEmbroidery
                               const hasPriceRange = !!cf.price_max
                               const unitCount = isApparelOrEmbroidery ? item.quantity : (item.sqft || item.quantity)
-                              const unitLabel = isApparelOrEmbroidery ? 'pcs' : 'sq ft'
+                              const unitLabel = isApparelOrEmbroidery
+                                ? 'pcs'
+                                : (cf.unit_mode === 'qty' ? 'qty' : 'sq ft')
                               return (
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                                   <div style={{
