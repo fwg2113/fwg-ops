@@ -7,7 +7,8 @@ const navSections = [
   {
     title: 'CORE',
     items: [
-      { href: '/', label: 'Command', labelGradient: 'Center', icon: 'grid', badgeKey: 'actions' },
+      { href: '/', label: 'Daily', labelGradient: 'Plan', icon: 'list-check' },
+      { href: '/command-center', label: 'Command', labelGradient: 'Center', icon: 'grid', badgeKey: 'actions' },
       { href: '/submissions', label: 'Lead', labelGradient: 'Pipeline', icon: 'activity' },
       { href: '/tasks', label: 'Task', labelGradient: 'Board', icon: 'tasks' },
     ]
@@ -126,6 +127,16 @@ const icons: Record<string, React.ReactElement> = {
       <rect x="3" y="5" width="18" height="4" rx="1"></rect>
       <rect x="3" y="11" width="18" height="4" rx="1"></rect>
       <rect x="3" y="17" width="18" height="4" rx="1"></rect>
+    </svg>
+  ),
+  'list-check': (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M3 6l2 2 3-3"/>
+      <path d="M3 13l2 2 3-3"/>
+      <path d="M3 20l2 2 3-3"/>
+      <line x1="13" y1="6" x2="21" y2="6"/>
+      <line x1="13" y1="13" x2="21" y2="13"/>
+      <line x1="13" y1="20" x2="21" y2="20"/>
     </svg>
   ),
   cog: (

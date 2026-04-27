@@ -8,7 +8,8 @@ import { ProductionStatus } from './StatusManager'
 type Attachment = { url?: string; file_url?: string; filename?: string; name?: string; label?: string; contentType?: string; type?: string }
 type LineItem = { id: string; document_id: string; category: string; line_type?: string; attachments?: Attachment[] }
 type ProductionDocument = {
-  id: string; doc_number: string; customer_name: string; vehicle_description?: string; project_description?: string
+  id: string; doc_number: string; customer_name: string; company_name?: string
+  vehicle_description?: string; project_description?: string
   due_date?: string; production_sort_order?: number; production_stage?: string;
   production_status_id?: string | null; production_status_note?: string | null
   production_leader_id?: string; line_items: LineItem[]
@@ -158,12 +159,26 @@ export default function SortableBoardCard(props: SortableBoardCardProps) {
           </div>
         </div>
 
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {doc.customer_name}
-        </div>
-        <div style={{ fontSize: 14, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 5 }}>
+        {/* FOREGROUND: Vehicle / project */}
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25 }}>
           {doc.vehicle_description || doc.project_description || '—'}
         </div>
+        {/* MIDGROUND: Company (if exists) — else customer name */}
+        {doc.company_name ? (
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#cbd5e1', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {doc.company_name}
+          </div>
+        ) : (
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#cbd5e1', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {doc.customer_name}
+          </div>
+        )}
+        {/* BACKGROUND: Customer name (only when company is also shown) */}
+        {doc.company_name && (
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {doc.customer_name}
+          </div>
+        )}
 
         {hasAttention && doc.production_status_note && (
           <div style={{ fontSize: 12, color: '#f87171', marginBottom: 5, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
