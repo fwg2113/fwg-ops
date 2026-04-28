@@ -434,11 +434,11 @@ export default function DailyPlan({
 
   // ---------- Render ----------
   return (
-    // CSS `zoom: 0.8` scales the whole page ~20% down (works on Chrome/Safari/
+    // CSS `zoom: 0.7` scales the whole page ~30% down (works on Chrome/Safari/
     // Edge + Firefox 126+). Click positions and getBoundingClientRect math
-    // remain accurate, unlike `transform: scale()`. Logical height 125vh =
-    // visual 100vh after the 0.8 zoom factor. Tweak to taste.
-    <div style={{ zoom: 0.8, height: '125vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    // remain accurate, unlike `transform: scale()`. Logical height ~143vh =
+    // visual 100vh after the 0.7 zoom factor. Tweak to taste.
+    <div style={{ zoom: 0.7, height: '143vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Toast */}
       {toast && (
         <div style={{ position: 'fixed', top: 20, right: 20, padding: '10px 18px', borderRadius: 8, background: toast.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(239,68,68,0.9)', color: '#fff', fontSize: 13, fontWeight: 500, zIndex: 9999 }}>
