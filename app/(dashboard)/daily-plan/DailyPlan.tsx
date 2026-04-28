@@ -115,6 +115,17 @@ export default function DailyPlan({
     })
   }, [])
 
+  // Narrow viewport detection — for half-screen / split-view on the team's
+  // 42" 4K TVs (LG C5). Below ~1500px we stack the Today block above the
+  // Active Projects rail instead of putting them side-by-side.
+  const [isNarrow, setIsNarrow] = useState(false)
+  useEffect(() => {
+    const update = () => setIsNarrow(window.innerWidth < 1500)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
   // Popover (anchored task detail)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({})
@@ -434,11 +445,11 @@ export default function DailyPlan({
 
   // ---------- Render ----------
   return (
-    // CSS `zoom: 0.75` scales the whole page ~25% down (works on Chrome/Safari/
+    // CSS `zoom: 1.10` scales the whole page up 10% (works on Chrome/Safari/
     // Edge + Firefox 126+). Click positions and getBoundingClientRect math
-    // remain accurate, unlike `transform: scale()`. Logical height ~134vh =
-    // visual 100vh after the 0.75 zoom factor. Tweak to taste.
-    <div style={{ zoom: 0.75, height: '134vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    // remain accurate, unlike `transform: scale()`. Logical height ~91vh =
+    // visual 100vh after the 1.10 zoom factor. Tweak to taste.
+    <div style={{ zoom: 1.10, height: '91vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Toast */}
       {toast && (
         <div style={{ position: 'fixed', top: 20, right: 20, padding: '10px 18px', borderRadius: 8, background: toast.type === 'success' ? 'rgba(34,197,94,0.9)' : 'rgba(239,68,68,0.9)', color: '#fff', fontSize: 13, fontWeight: 500, zIndex: 9999 }}>
@@ -485,9 +496,15 @@ export default function DailyPlan({
           {/* Middle: Today block (left) + Active projects (right) */}
           <div style={{
             display: 'grid',
+            // Narrow viewport (split-screen on the LG C5s) = stack vertically.
             // Collapsed rail = give its column back to the Today block.
-            gridTemplateColumns: projectsRailCollapsed ? 'minmax(0, 1fr) auto' : 'minmax(0, 1.8fr) minmax(320px, 1fr)',
-            gap: 22, marginTop: 22, alignItems: 'start',
+            gridTemplateColumns: isNarrow
+              ? 'minmax(0, 1fr)'
+              : projectsRailCollapsed
+                ? 'minmax(0, 1fr) auto'
+                : 'minmax(0, 1.8fr) minmax(320px, 1fr)',
+            gap: isNarrow ? 16 : 22,
+            marginTop: 22, alignItems: 'start',
           }}>
             <DailyPlanTodayBlock
               viewDate={viewDate}
