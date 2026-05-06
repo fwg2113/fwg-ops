@@ -42,6 +42,7 @@ export function proxy(request: NextRequest) {
     pathname.startsWith('/commercial-vehicle-wraps') ||
     pathname.startsWith('/vehicle-lettering-graphics') ||
     pathname.startsWith('/fleet-wraps') ||
+    pathname.startsWith('/ppf') ||
     pathname.startsWith('/get-quote') ||
     pathname.startsWith('/thank-you') ||
     pathname.startsWith('/_next') ||
