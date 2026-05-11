@@ -665,6 +665,22 @@ export default function DailyPlan({
           onToggleAssignee={toggleAssignment}
           onToggleDone={toggleDone}
           onChangeProjectColor={(color) => updateDocLocal(openProjectId, { project_color: color })}
+          onRemoveFromPlan={async () => {
+            const id = openProjectId
+            try {
+              const res = await fetch(`/api/documents/${id}/archive-production`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ archived: true }),
+              })
+              if (!res.ok) throw new Error('request failed')
+              setDocs(ds => ds.filter(d => d.id !== id))
+              setOpenProjectId(null)
+              showToast('Removed from Daily Plan')
+            } catch {
+              showToast('Failed to remove from Daily Plan', 'error')
+            }
+          }}
           showToast={showToast}
         />
       )}

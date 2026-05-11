@@ -371,6 +371,8 @@ export default function CommandCenter({ initialData }: { initialData: DashboardD
       pre_archive_bucket: doc?.bucket || null
     }
     if (statusValue) update.status = statusValue
+    // Archiving as won also drops the order off the Daily Plan / Production board
+    if (reason === 'won') update.in_production = false
     await supabase.from('documents').update(update).eq('id', docId)
     setData(d => ({
       ...d,

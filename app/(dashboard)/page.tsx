@@ -52,12 +52,15 @@ export default async function DailyPlanPage() {
   // 4. Active quotes & invoices — match the production tracker filter exactly:
   //    (paid OR in_production) AND not production-archived. Apparel-only docs
   //    are filtered out below once we know each doc's line item categories.
-  const { data: rawDocs } = await supabase
+  const { data: rawDocsAll } = await supabase
     .from('documents')
     .select('id, doc_number, doc_type, customer_name, customer_email, customer_phone, company_name, vehicle_description, project_description, total, amount_paid, balance_due, due_date, fulfillment_type, production_stage, production_target_date, production_status_id, production_status_note, production_leader_id, status, in_production, attachments, notes, customer_id, bucket, project_color')
     .or('status.eq.paid,in_production.eq.true')
     .eq('production_archived', false)
     .order('created_at', { ascending: false })
+  // Hard-exclude anything sitting in an archive bucket — an archived order should
+  // never show on the Daily Plan even if a stale in_production/status flag lingers.
+  const rawDocs = (rawDocsAll || []).filter(d => !(typeof d.bucket === 'string' && d.bucket.startsWith('ARCHIVE_')))
 
   // 5. Line items per project (qty, unit_price, line_total, attachments)
   const rawDocIds = (rawDocs || []).map(d => d.id)

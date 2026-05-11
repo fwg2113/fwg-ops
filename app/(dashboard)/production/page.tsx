@@ -26,7 +26,7 @@ export default async function ProductionPage() {
     const nonApparelCatKeys = categoriesData.filter(c => c.parent_category !== 'APPAREL').map(c => c.category_key)
 
     // Fetch documents that are paid or in production (exclude production-archived)
-    const { data: docs, error: docsError } = await supabase
+    const { data: rawDocs, error: docsError } = await supabase
       .from('documents')
       .select('*')
       .or('status.eq.paid,in_production.eq.true')
@@ -36,6 +36,10 @@ export default async function ProductionPage() {
     if (docsError) {
       console.error('Failed to fetch documents:', docsError)
     }
+
+    // Hard-exclude anything in an archive bucket — an archived order should never
+    // show on the Production board even if a stale in_production/status flag lingers.
+    const docs = (rawDocs || []).filter(d => !(typeof d.bucket === 'string' && d.bucket.startsWith('ARCHIVE_')))
 
     const docIds = (docs || []).map(d => d.id)
 
