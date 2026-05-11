@@ -137,7 +137,9 @@ async function handleBulkArchive(ids: string[], params: { archiveType: 'won' | '
           status: 'archived',
           bucket,
           pre_archive_status: doc.status,
-          pre_archive_bucket: doc.bucket
+          pre_archive_bucket: doc.bucket,
+          // Archiving the order also drops it off the Daily Plan / Production board
+          in_production: false
         })
         .eq('id', doc.id)
     )

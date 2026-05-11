@@ -49,7 +49,7 @@ function formatDateChip(iso: string): string {
 
 export default function DailyPlanProjectSidebar({
   doc, allTasks, assigneesByTask, teamMembers, lineItems, payments, categories, pipelineConfigs, productionStatuses,
-  onClose, onCreateTask, onUpdateTask, onDeleteTask, onToggleAssignee, onToggleDone, onChangeProjectColor, showToast,
+  onClose, onCreateTask, onUpdateTask, onDeleteTask, onToggleAssignee, onToggleDone, onChangeProjectColor, onRemoveFromPlan, showToast,
 }: {
   doc: DocSummary
   allTasks: DailyTask[]
@@ -67,8 +67,10 @@ export default function DailyPlanProjectSidebar({
   onToggleAssignee: (taskId: string, memberId: string) => void
   onToggleDone: (taskId: string) => void
   onChangeProjectColor: (color: string | null) => void
+  onRemoveFromPlan: () => void | Promise<void>
   showToast: (msg: string, type?: 'success' | 'error') => void
 }) {
+  const [removing, setRemoving] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [customDraft, setCustomDraft] = useState('')
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
@@ -214,6 +216,18 @@ export default function DailyPlanProjectSidebar({
               <a href={`/documents/${doc.id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', borderRadius: 7, background: '#22d3ee', color: '#000', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
                 Open invoice ↗
               </a>
+              <button
+                disabled={removing}
+                onClick={async () => {
+                  if (!confirm('Remove this project from the Daily Plan and Production board?\n\nThe invoice itself is not changed — you can restore the project card later from the Production page.')) return
+                  setRemoving(true)
+                  try { await onRemoveFromPlan() } finally { setRemoving(false) }
+                }}
+                title="Hide this project from the Daily Plan and Production board"
+                style={{ padding: '6px 12px', borderRadius: 7, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.28)', color: '#f87171', fontSize: 12, fontWeight: 600, cursor: removing ? 'default' : 'pointer', opacity: removing ? 0.6 : 1, whiteSpace: 'nowrap' }}
+              >
+                {removing ? 'Removing…' : 'Remove from plan'}
+              </button>
             </div>
           </div>
         </div>
