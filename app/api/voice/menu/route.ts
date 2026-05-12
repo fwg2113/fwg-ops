@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../../lib/supabase'
 
 const CATEGORY_MAP: Record<string, { key: string; label: string; message: string }> = {
   '1': {
@@ -84,9 +84,35 @@ export async function POST(request: Request) {
     // Fetch team phones
     const { data: teamPhones } = await supabase
       .from('call_settings')
-      .select('phone, name, sip_uri')
+      .select('id, phone, name, sip_uri')
       .eq('enabled', true)
       .order('ring_order', { ascending: true })
+
+    // Telemetry: record an enabled member who can't be dialed at all (no SIP
+    // address and no phone) as a "skipped" leg, so the panel surfaces the gap.
+    if (callSid && teamPhones) {
+      try {
+        const skipped = teamPhones.filter(p => !p.sip_uri && !p.phone)
+        if (skipped.length > 0) {
+          await supabaseAdmin.from('call_legs').upsert(
+            skipped.map(p => ({
+              parent_call_sid: callSid,
+              child_call_sid: `skip:${p.id}`,
+              team_member_id: p.id,
+              member_name: p.name,
+              target: null,
+              target_type: 'sip',
+              status: 'skipped',
+              reason: 'no SIP address configured',
+              updated_at: new Date().toISOString(),
+            })),
+            { onConflict: 'parent_call_sid,child_call_sid' }
+          )
+        }
+      } catch (err) {
+        console.error('call_legs skipped-leg telemetry error (non-fatal):', err)
+      }
+    }
 
     if (!teamPhones || teamPhones.length === 0) {
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
