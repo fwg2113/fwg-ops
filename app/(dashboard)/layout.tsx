@@ -8,6 +8,7 @@ import NotificationManager from '../components/NotificationManager'
 
 const PhoneWidget = dynamic(() => import('./components/PhoneWidget'), { ssr: false })
 const IncomingCallToast = dynamic(() => import('../components/IncomingCallToast'), { ssr: false })
+const VoiceHeartbeat = dynamic(() => import('./components/VoiceHeartbeat'), { ssr: false })
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -310,6 +311,7 @@ function DashboardLayoutInner({
         <NotificationManager />
         <IncomingCallToast />
         <PhoneWidget />
+        <VoiceHeartbeat />
       </div>
     </>
   )
