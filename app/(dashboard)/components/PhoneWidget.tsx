@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 
 type WidgetState = 'initializing' | 'ready' | 'incoming' | 'calling' | 'active' | 'error'
@@ -42,6 +42,28 @@ interface TeamMember {
   enabled: boolean
 }
 
+type ReachState = 'reachable' | 'stale' | 'unknown' | 'no-address'
+interface ReachableMember {
+  id: string
+  name: string
+  hasTarget: boolean
+  lastSeenAt: string | null
+  minsAgo: number | null
+  state: ReachState
+}
+
+interface CallLeg {
+  member_name: string | null
+  target_type: string
+  status: string
+  reason: string | null
+  duration: number | null
+  sip_response_code: number | null
+  updated_at: string
+}
+
+type DeviceState = 'registered' | 'unregistered' | 'offline'
+
 const CALL_CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   'vehicle-wraps-ppf': { label: 'Wraps & PPF', color: '#3b82f6' },
   'stickers-signage': { label: 'Stickers & Signage', color: '#8b5cf6' },
@@ -68,6 +90,12 @@ export default function PhoneWidget() {
   // Recent call history
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([])
   const [recentLoaded, setRecentLoaded] = useState(false)
+
+  // Voice telemetry: who's reachable + per-leg ring breakdown
+  const [deviceState, setDeviceState] = useState<DeviceState>('unregistered')
+  const [reachable, setReachable] = useState<ReachableMember[]>([])
+  const [expandedCallSid, setExpandedCallSid] = useState<string | null>(null)
+  const [callLegs, setCallLegs] = useState<Record<string, CallLeg[]>>({})
 
   const deviceRef = useRef<any>(null)
   const activeCallRef = useRef<any>(null)
@@ -200,6 +228,24 @@ export default function PhoneWidget() {
     }
   }, [])
 
+  // Who's reachable right now (roster + derived state)
+  const loadReachable = useCallback(async () => {
+    try {
+      const res = await fetch('/api/voice/legs?mode=reachable')
+      const { roster } = await res.json()
+      setReachable(roster || [])
+    } catch { /* silent */ }
+  }, [])
+
+  // Per-leg ring breakdown for one inbound call
+  const loadCallLegs = useCallback(async (callSid: string) => {
+    try {
+      const res = await fetch('/api/voice/legs?callSid=' + encodeURIComponent(callSid))
+      const { legs } = await res.json()
+      setCallLegs(prev => ({ ...prev, [callSid]: legs || [] }))
+    } catch { /* silent */ }
+  }, [])
+
   // Poll for active calls from DB (for calls answered on other devices)
   const pollActiveCalls = useCallback(async () => {
     try {
@@ -248,6 +294,11 @@ export default function PhoneWidget() {
           codecPreferences: ['opus', 'pcmu'],
           logLevel: 1
         })
+
+        // Registration lifecycle — drives the "this dashboard" reachability row
+        device.on('registered', () => { if (mounted) setDeviceState('registered') })
+        device.on('unregistered', () => { if (mounted) setDeviceState('unregistered') })
+        device.on('offline', () => { if (mounted) setDeviceState('offline') })
 
         device.on('incoming', async (call: any) => {
           const from = call.parameters.From || ''
@@ -304,11 +355,12 @@ export default function PhoneWidget() {
 
         device.on('error', (err: any) => {
           console.error('Twilio Device error:', err)
+          if (mounted) setDeviceState('offline')
         })
 
         await device.register()
         deviceRef.current = device
-        if (mounted) setState('ready')
+        if (mounted) { setState('ready'); setDeviceState('registered') }
 
         if ('Notification' in window && Notification.permission === 'default') {
           Notification.requestPermission()
@@ -341,6 +393,26 @@ export default function PhoneWidget() {
       loadRecentCalls()
     }
   }, [expanded, state, activeDbCalls.length, loadRecentCalls])
+
+  // Refresh the "who's reachable" roster while the widget is open
+  useEffect(() => {
+    if (!expanded) return
+    loadReachable()
+    const id = setInterval(loadReachable, 30_000)
+    return () => clearInterval(id)
+  }, [expanded, loadReachable])
+
+  // When a recent call row is expanded, fetch its per-leg breakdown. Keep
+  // re-fetching every ~3s while that call is still live; stop once it ends.
+  useEffect(() => {
+    if (!expandedCallSid) return
+    loadCallLegs(expandedCallSid)
+    const call = recentCalls.find(c => c.call_sid === expandedCallSid)
+    const live = !!call && (call.status === 'in-progress' || call.status === 'ringing')
+    if (!live) return
+    const id = setInterval(() => loadCallLegs(expandedCallSid), 3000)
+    return () => clearInterval(id)
+  }, [expandedCallSid, recentCalls, loadCallLegs])
 
   const answerCall = () => {
     if (activeCallRef.current) {
@@ -667,6 +739,71 @@ export default function PhoneWidget() {
     return null
   }
 
+  // --- Voice telemetry render helpers ---
+  const reachDotColor = (s: ReachState) =>
+    s === 'reachable' ? '#22c55e' : s === 'stale' ? '#f59e0b' : s === 'no-address' ? '#ef4444' : '#64748b'
+  const reachLabel = (m: ReachableMember) =>
+    m.state === 'reachable' ? 'reachable'
+      : m.state === 'stale' ? `last rang ${m.minsAgo}m ago`
+      : m.state === 'no-address' ? "no SIP address — won't ring"
+      : 'no recent activity'
+
+  const renderLeg = (leg: CallLeg, i: number) => {
+    const name = leg.member_name || (leg.target_type === 'client' ? 'dashboard' : 'team member')
+    const isAnswered = leg.status === 'answered'
+    const isSkipped = leg.status === 'skipped'
+    const isPending = leg.status === 'ringing' || leg.status === 'in-progress' || leg.status === 'initiated'
+    const color = isAnswered ? '#22c55e' : isSkipped ? '#64748b' : isPending ? '#f59e0b' : '#fca5a5'
+    return (
+      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color }}>
+        <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{name}</span>
+        {isAnswered ? (
+          <>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+            answered
+          </>
+        ) : isSkipped ? (
+          <>— not dialed (no SIP address)</>
+        ) : isPending ? (
+          <>ringing…</>
+        ) : (
+          <>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            {leg.status}{leg.reason ? ` (${leg.reason})` : ''}
+          </>
+        )}
+      </span>
+    )
+  }
+
+  const renderReachablePanel = () => (
+    <div style={{ marginBottom: '14px' }}>
+      <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 600, margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        Who's reachable right now
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {/* This dashboard browser — driven live by the Twilio Device registration */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '8px', background: '#161618' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: deviceState === 'registered' ? '#22c55e' : '#ef4444' }} />
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', flex: 1 }}>This dashboard</span>
+          <span style={{ fontSize: '11px', color: deviceState === 'registered' ? '#22c55e' : '#ef4444' }}>
+            {deviceState === 'registered' ? 'online' : 'offline'}
+          </span>
+        </div>
+        {reachable.map(m => (
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '8px', background: '#161618' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: reachDotColor(m.state) }} />
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{m.name}</span>
+            <span style={{ fontSize: '11px', color: reachDotColor(m.state) }}>{reachLabel(m)}</span>
+          </div>
+        ))}
+        {reachable.length === 0 && (
+          <p style={{ color: '#4b5563', fontSize: '12px', margin: '4px 0', padding: '0 2px' }}>No team phones configured</p>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div style={{
       position: 'fixed',
@@ -983,6 +1120,9 @@ export default function PhoneWidget() {
                 </svg>
               </a>
 
+              {/* Who's reachable right now */}
+              {renderReachablePanel()}
+
               {/* Recent Calls */}
               <p style={{ color: '#64748b', fontSize: '11px', fontWeight: 600, margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 Recent Calls
@@ -1013,88 +1153,128 @@ export default function PhoneWidget() {
                       return `${days}d ago`
                     })()
 
+                    const isExpanded = expandedCallSid === call.call_sid
+                    const legs = callLegs[call.call_sid]
+
                     return (
                       <div
                         key={call.id}
                         style={{
-                          padding: '10px',
                           borderRadius: '8px',
                           background: '#161618',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
+                          overflow: 'hidden',
                         }}
                       >
-                        {/* Direction icon */}
-                        <div style={{
-                          width: '28px', height: '28px', borderRadius: '50%',
-                          background: isInbound ? 'rgba(59, 130, 246, 0.12)' : 'rgba(139, 92, 246, 0.12)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        }}>
-                          {isInbound ? (
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5">
-                              <polyline points="16 17 21 12 16 7" />
-                              <line x1="21" y1="12" x2="9" y2="12" />
-                              <path d="M3 19V5" />
-                            </svg>
-                          ) : (
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2.5">
-                              <polyline points="8 17 3 12 8 7" />
-                              <line x1="3" y1="12" x2="15" y2="12" />
-                              <path d="M21 19V5" />
-                            </svg>
-                          )}
-                        </div>
-                        {/* Info */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{
-                            fontSize: '13px', fontWeight: 600, color: '#e2e8f0',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
-                          }}>
-                            {displayName}
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                            <span style={{ color: statusColor }}>{statusLabel}</span>
-                            <span>·</span>
-                            <span>{timeAgo}</span>
-                            {call.answered_by && (
-                              <>
+                        <div style={{ padding: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {/* Clickable area — expands the per-leg ring breakdown (inbound only) */}
+                          <div
+                            onClick={isInbound ? () => setExpandedCallSid(isExpanded ? null : call.call_sid) : undefined}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0,
+                              cursor: isInbound ? 'pointer' : 'default',
+                            }}
+                          >
+                            {/* Direction icon */}
+                            <div style={{
+                              width: '28px', height: '28px', borderRadius: '50%',
+                              background: isInbound ? 'rgba(59, 130, 246, 0.12)' : 'rgba(139, 92, 246, 0.12)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            }}>
+                              {isInbound ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5">
+                                  <polyline points="16 17 21 12 16 7" />
+                                  <line x1="21" y1="12" x2="9" y2="12" />
+                                  <path d="M3 19V5" />
+                                </svg>
+                              ) : (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2.5">
+                                  <polyline points="8 17 3 12 8 7" />
+                                  <line x1="3" y1="12" x2="15" y2="12" />
+                                  <path d="M21 19V5" />
+                                </svg>
+                              )}
+                            </div>
+                            {/* Info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontSize: '13px', fontWeight: 600, color: '#e2e8f0',
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+                              }}>
+                                {displayName}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <span style={{ color: statusColor }}>{statusLabel}</span>
                                 <span>·</span>
-                                <span>{call.answered_by}</span>
+                                <span>{timeAgo}</span>
+                                {call.answered_by && (
+                                  <>
+                                    <span>·</span>
+                                    <span>{call.answered_by}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {isInbound && (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2"
+                                style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            )}
+                          </div>
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                            <button
+                              onClick={() => makeCall(call.phone)}
+                              title="Call"
+                              style={{
+                                width: '30px', height: '30px', borderRadius: '6px',
+                                background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                              </svg>
+                            </button>
+                            <a
+                              href={`/messages?phone=${encodeURIComponent(call.phone)}`}
+                              title="Message"
+                              style={{
+                                width: '30px', height: '30px', borderRadius: '6px',
+                                background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                textDecoration: 'none',
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                              </svg>
+                            </a>
+                          </div>
+                        </div>
+                        {/* Per-leg ring breakdown */}
+                        {isInbound && isExpanded && (
+                          <div style={{
+                            padding: '0 10px 10px', fontSize: '11px', lineHeight: 1.8,
+                            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px',
+                          }}>
+                            {legs === undefined ? (
+                              <span style={{ color: '#4b5563' }}>Loading ring details…</span>
+                            ) : legs.length === 0 ? (
+                              <span style={{ color: '#4b5563' }}>No ring details for this call</span>
+                            ) : (
+                              <>
+                                <span style={{ color: '#64748b', fontWeight: 600, marginRight: 2 }}>rang:</span>
+                                {legs.map((l, i) => (
+                                  <Fragment key={i}>
+                                    {i > 0 && <span style={{ color: '#475569', margin: '0 2px' }}>·</span>}
+                                    {renderLeg(l, i)}
+                                  </Fragment>
+                                ))}
                               </>
                             )}
                           </div>
-                        </div>
-                        {/* Action buttons */}
-                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                          <button
-                            onClick={() => makeCall(call.phone)}
-                            title="Call"
-                            style={{
-                              width: '30px', height: '30px', borderRadius: '6px',
-                              background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)',
-                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
-                              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                            </svg>
-                          </button>
-                          <a
-                            href={`/messages?phone=${encodeURIComponent(call.phone)}`}
-                            title="Message"
-                            style={{
-                              width: '30px', height: '30px', borderRadius: '6px',
-                              background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
-                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              textDecoration: 'none',
-                            }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                            </svg>
-                          </a>
-                        </div>
+                        )}
                       </div>
                     )
                   })}

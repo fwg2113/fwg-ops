@@ -3864,15 +3864,22 @@ export default function SettingsView({
                       {setting.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <p style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: '500', margin: '0 0 2px 0' }}>
+                      <p style={{ color: setting.sip_uri ? '#f1f5f9' : '#ef4444', fontSize: '15px', fontWeight: '500', margin: '0 0 2px 0' }}>
                         {setting.name}
                       </p>
                       <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
                         {formatPhone(setting.phone)}
                       </p>
-                      {setting.sip_uri && (
+                      {setting.sip_uri ? (
                         <p style={{ color: '#8b5cf6', fontSize: '12px', margin: '2px 0 0 0', fontFamily: 'monospace' }}>
                           SIP: {setting.sip_uri}
+                        </p>
+                      ) : (
+                        <p style={{ color: '#ef4444', fontSize: '12px', margin: '2px 0 0 0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                          </svg>
+                          no SIP address — won&apos;t ring
                         </p>
                       )}
                     </div>
