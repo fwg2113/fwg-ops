@@ -127,16 +127,6 @@ export default function LeadForm({
     setSubmitting(true)
 
     try {
-      // Build additional_info: prepend coverage area if selected
-      const parts: string[] = []
-      if (isPPF && form.coverage_area) {
-        const label = coverageOptions?.find(o => o.value === form.coverage_area)?.label || form.coverage_area
-        parts.push(`Coverage: ${label}`)
-      }
-      if (form.project_details.trim()) {
-        parts.push(form.project_details.trim())
-      }
-
       const payload = {
         form_type: submissionFormType,
         contact_name: form.contact_name.trim(),
@@ -144,10 +134,9 @@ export default function LeadForm({
         phone: form.phone.trim(),
         contact_method: 'phone',
         business_name: isPPF ? undefined : (form.business_name.trim() || undefined),
-        vehicle_description: isPPF
-          ? (form.vehicle_description.trim() || undefined)
-          : (form.vehicle_description.trim() || undefined),
-        additional_info: parts.join('\n\n') || undefined,
+        vehicle_description: form.vehicle_description.trim() || undefined,
+        coverage_area: isPPF ? (form.coverage_area || undefined) : undefined,
+        additional_info: form.project_details.trim() || undefined,
         source_page: `/${pageSlug}`,
         user_agent: navigator.userAgent,
         ...attrRef.current,
