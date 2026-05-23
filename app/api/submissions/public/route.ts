@@ -251,7 +251,8 @@ export async function POST(request: NextRequest) {
 
         // ── New form-specific columns ──
         vehicles: vehicles,
-        coverage_type: body.coverage_type || null,
+        // PPF landing forms send coverage_area; commercial form sends coverage_type — store both in coverage_type column
+        coverage_type: body.coverage_type || body.coverage_area || null,
         artwork_status: body.artwork_status || null,
         ai_acknowledged: body.ai_acknowledged || false,
         logo_urls: body.logo_urls || [],
@@ -393,6 +394,18 @@ export async function POST(request: NextRequest) {
 const COVERAGE_LABELS: Record<string, string> = {
   full_wrap: 'Full Coverage Wrap', partial_wrap: 'Partial Wrap',
   graphics_lettering: 'Graphics & Lettering', not_sure: 'Not Sure Yet',
+}
+// Labels for PPF landing-page coverage area dropdown (PPF_COVERAGE_OPTIONS in app/(landing)/lib/page-data.ts)
+const PPF_LANDING_COVERAGE_LABELS: Record<string, string> = {
+  essentials: 'Essentials',
+  partial_front: 'Partial Front',
+  full_front: 'Full Front',
+  full_front_plus: 'Full Front+',
+  full_vehicle: 'Full Vehicle Coverage',
+  not_sure: 'Not Sure Yet',
+}
+function isPPFLanding(formType: string) {
+  return formType === 'ppf_landing' || formType === 'ppf_pricing' || formType === 'ppf_tesla' || formType === 'ppf_luxury'
 }
 const ARTWORK_LABELS: Record<string, string> = {
   fleet_match: 'Fleet Match', print_ready: 'Print-Ready Artwork',
@@ -935,6 +948,24 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${body.utm_term ? emailRow('Keyword', body.utm_term) : ''}
       ${body.gclid ? emailRow('GCLID', '✓ Captured') : ''}
     </table>`
+  } else if (isPPFLanding(formType)) {
+    const coverageRaw = body.coverage_area || body.coverage_type || ''
+    const coverageLabel = PPF_LANDING_COVERAGE_LABELS[coverageRaw] || coverageRaw
+    projectSectionHTML += `
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Project Details')}
+      ${body.vehicle_description ? emailRow('Vehicle', body.vehicle_description) : emailRow('Vehicle', '—')}
+      ${emailRow('Coverage Area', coverageLabel || '—')}
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+      ${sectionHeader('Ad Attribution')}
+      ${emailRow('Landing Page', body.source_page || '—')}
+      ${body.utm_source ? emailRow('Source', body.utm_source) : ''}
+      ${body.utm_medium ? emailRow('Medium', body.utm_medium) : ''}
+      ${body.utm_campaign ? emailRow('Campaign', body.utm_campaign) : ''}
+      ${body.utm_term ? emailRow('Keyword', body.utm_term) : ''}
+      ${body.gclid ? emailRow('GCLID', '✓ Captured') : ''}
+    </table>`
   } else {
     // Commercial wrap sections
     projectSectionHTML += `
@@ -1010,6 +1041,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
     emailTitle = 'New Landing Page Inquiry'
     const lp = body.source_page || 'landing page'
     emailSubject = `🎯 Ad Lead — ${body.contact_name}${body.business_name ? ` (${body.business_name})` : ''} — ${lp}`
+  } else if (isPPFLanding(formType)) {
+    emailTitle = 'New PPF Inquiry'
+    const coverageRaw = body.coverage_area || body.coverage_type || ''
+    const coverageLabel = PPF_LANDING_COVERAGE_LABELS[coverageRaw] || coverageRaw
+    const tag = coverageLabel ? ` — ${coverageLabel}` : ''
+    emailSubject = `🎯 PPF Lead — ${body.contact_name}${tag}`
   } else {
     emailTitle = 'New Quote Request'
     emailSubject = `New Quote Request — ${body.business_name} (${COVERAGE_LABELS[body.coverage_type] || body.coverage_type})`
@@ -1045,12 +1082,12 @@ async function sendNotificationEmail(body: Record<string, any>, formType: string
       ${emailRow('Phone', `<a href="tel:${body.phone}" style="color:#2B5EA7;">${body.phone}</a>`)}
       ${emailRow('Preferred', body.contact_method)}
     </table>
-    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'ad_landing' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'cafe_wrap' && formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'ad_landing' && !isPPFLanding(formType) ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Vehicle Details')}
       ${vehicleHTML}
     </table>` : ''}
     ${projectSectionHTML}
-    ${formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'ad_landing' ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
+    ${formType !== 'sticker_label' && formType !== 'signage_promo' && formType !== 'embroidery' && formType !== 'ad_landing' && !isPPFLanding(formType) ? `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">
       ${sectionHeader('Timeline & Budget')}
       ${emailRow('Timeline', TIMELINE_LABELS[body.timeline] || body.timeline)}
       ${body.budget ? emailRow('Budget', BUDGET_LABELS[body.budget] || body.budget) : ''}
