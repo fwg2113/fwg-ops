@@ -8,6 +8,18 @@ import { supabase } from '../../../lib/supabase'
  */
 export async function GET() {
   try {
+    // Self-heal: close out any call still flagged 'in-progress' more than
+    // 2 hours after it started. A real call never lasts that long here — if a
+    // status callback was missed (e.g. a transfer that died mid-setup before a
+    // conference formed), the row would otherwise sit here forever and show as a
+    // stuck active call. 2h is safely beyond any genuine call.
+    const staleCutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    await supabase
+      .from('calls')
+      .update({ status: 'completed', transfer_status: null })
+      .eq('status', 'in-progress')
+      .lt('created_at', staleCutoff)
+
     const { data, error } = await supabase
       .from('calls')
       .select('call_sid, caller_phone, receiver_phone, answered_by, agent_call_sid, category, transfer_status, transfer_target_phone, transfer_target_name, conference_sid, conference_name, created_at')

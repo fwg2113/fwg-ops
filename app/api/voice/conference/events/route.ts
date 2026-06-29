@@ -180,10 +180,13 @@ export async function POST(request: Request) {
     }
 
     if (event === 'conference-end') {
-      // Conference ended — clean up transfer state if any
+      // Conference ended — everyone has left, so the call is over.
+      // Mark it completed (otherwise transferred calls stay 'in-progress'
+      // forever and haunt the active-calls dashboard) and clear transfer state.
       await supabase
         .from('calls')
         .update({
+          status: 'completed',
           transfer_status: null,
           conference_sid: null,
           conference_name: null,
