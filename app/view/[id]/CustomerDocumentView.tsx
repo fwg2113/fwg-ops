@@ -906,6 +906,7 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
   })()
   const showLineAttachments = sendOptions.includeLineAttachments !== false // default true
   const showProjectAttachments = sendOptions.includeProjectAttachments === true // default false
+  const projectFilesLabel = (typeof sendOptions.projectFilesLabel === 'string' && sendOptions.projectFilesLabel.trim()) ? sendOptions.projectFilesLabel.trim() : 'Project Files'
   const showRateToCustomer = sendOptions.showRateToCustomer === true // default false
 
   // Get all line item images for gallery (non-options mode)
@@ -1640,6 +1641,101 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
             </div>
           </div>
         </div>
+
+        {/* ================================================================ */}
+        {/* PROJECT ATTACHMENTS (when included via send options) */}
+        {/* ================================================================ */}
+        {showProjectAttachments && (() => {
+          const projAtts = doc.attachments || []
+          if (projAtts.length === 0) return null
+          const projImages = projAtts.filter(att => {
+            const url = att.url || att.file_url || ''
+            const name = att.name || att.filename || att.file_name || ''
+            return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
+          })
+          const projFiles = projAtts.filter(att => {
+            const url = att.url || att.file_url || ''
+            const name = att.name || att.filename || att.file_name || ''
+            return !/\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
+          })
+          return (
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '24px 32px',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+              marginBottom: '24px'
+            }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#be1e2d" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                {projectFilesLabel}
+              </h2>
+              {/* Project images */}
+              {projImages.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: projFiles.length > 0 ? '20px' : '0' }}>
+                  {projImages.map((att, idx) => {
+                    const url = att.url || att.file_url || ''
+                    const name = att.name || att.filename || att.file_name || 'Project File'
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setLightboxIndex(idx)}
+                        style={{
+                          position: 'relative',
+                          paddingBottom: '75%',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          background: '#f1f5f9'
+                        }}
+                      >
+                        <img
+                          src={url}
+                          alt={name}
+                          style={{
+                            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                            objectFit: 'cover', transition: 'transform 0.3s ease'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {/* Project non-image files */}
+              {projFiles.map((att, idx) => {
+                const fileUrl = att.url || att.file_url || ''
+                return (
+                  <a
+                    key={idx}
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '12px 16px', borderRadius: '10px', border: '1px solid #e5e7eb',
+                      textDecoration: 'none', color: '#1a1a1a',
+                      marginBottom: idx < projFiles.length - 1 ? '8px' : '0',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#be1e2d" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Download file {projFiles.length > 1 ? idx + 1 : ''}</span>
+                  </a>
+                )
+              })}
+            </div>
+          )
+        })()}
 
         {/* ================================================================ */}
         {/* OPTIONS MODE VIEW */}
@@ -2678,109 +2774,6 @@ export default function CustomerDocumentView({ document: doc, lineItems, payment
         {/* ================================================================ */}
         {/* STANDARD (NON-OPTIONS) SECTIONS BELOW */}
         {/* ================================================================ */}
-
-        {/* ================================================================ */}
-        {/* PROJECT ATTACHMENTS (when included via send options) */}
-        {/* ================================================================ */}
-        {showProjectAttachments && !isOptionsMode && (() => {
-          const projAtts = doc.attachments || []
-          if (projAtts.length === 0) return null
-          const projImages = projAtts.filter(att => {
-            const url = att.url || att.file_url || ''
-            const name = att.name || att.filename || att.file_name || ''
-            return /\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
-          })
-          const projFiles = projAtts.filter(att => {
-            const url = att.url || att.file_url || ''
-            const name = att.name || att.filename || att.file_name || ''
-            return !/\.(jpg|jpeg|png|gif|webp|svg)/i.test(name + ' ' + url)
-          })
-          return (
-            <div style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              padding: '24px 32px',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-              marginBottom: '24px'
-            }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#be1e2d" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                </svg>
-                Project Files
-              </h2>
-              {/* Project images */}
-              {projImages.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: projFiles.length > 0 ? '20px' : '0' }}>
-                  {projImages.map((att, idx) => {
-                    const url = att.url || att.file_url || ''
-                    const name = att.name || att.filename || att.file_name || 'Project File'
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => setLightboxIndex(idx)}
-                        style={{
-                          position: 'relative',
-                          paddingBottom: '75%',
-                          borderRadius: '12px',
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                          background: '#f1f5f9'
-                        }}
-                      >
-                        <img
-                          src={url}
-                          alt={name}
-                          style={{
-                            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                            objectFit: 'cover', transition: 'transform 0.3s ease'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        />
-                        <div style={{
-                          position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 12px',
-                          background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
-                          color: 'white', fontSize: '12px', fontWeight: 500
-                        }}>
-                          {name}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-              {/* Project non-image files */}
-              {projFiles.map((att, idx) => {
-                const fileName = att.name || att.filename || att.file_name || 'File'
-                const fileUrl = att.url || att.file_url || ''
-                return (
-                  <a
-                    key={idx}
-                    href={fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      padding: '12px 16px', borderRadius: '10px', border: '1px solid #e5e7eb',
-                      textDecoration: 'none', color: '#1a1a1a',
-                      marginBottom: idx < projFiles.length - 1 ? '8px' : '0',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#be1e2d" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    <span style={{ fontSize: '14px', fontWeight: 500 }}>{fileName}</span>
-                  </a>
-                )
-              })}
-            </div>
-          )
-        })()}
 
         {/* ================================================================ */}
         {/* GROUPED LINE ITEMS WITH INLINE ATTACHMENTS (non-options mode) */}
