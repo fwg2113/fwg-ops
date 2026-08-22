@@ -168,9 +168,10 @@ export async function getCommandCenterMetrics() {
     'Other Revenue': 'Other'
   }
 
-  // Filter: Business='FWG', Direction='IN', Current Year
+  // Filter: wrap-side business rows, Direction='IN', Current Year.
+  // FWG merged into FWT June 2026; accept both so the rollup spans the merge.
   const fwgRevenueTransactions = transactions.filter(t =>
-    t.business === 'FWG' &&
+    (t.business === 'FWG' || t.business === 'FWT') &&
     t.direction === 'IN' &&
     t.date &&
     t.date.getFullYear() === currentYear
@@ -361,7 +362,7 @@ function formatDate(date: Date): string {
 export interface PaymentRowData {
   txnNumber: string          // Column A: TXN-XXXXX
   date: string               // Column B: MM/DD/YYYY
-  business: string           // Column C: Always "FWG"
+  business: string           // Column C: FWT, or FA for apparel-family rows
   direction: string          // Column D: Always "IN"
   eventType: string          // Column E: Always "Sale"
   amount: number             // Column F: Line item amount
