@@ -518,6 +518,7 @@ export default function DocumentDetail({
   const [customApprovalText, setCustomApprovalText] = useState('')
   const [includeLineAttachments, setIncludeLineAttachments] = useState(true)
   const [includeProjectAttachments, setIncludeProjectAttachments] = useState(false)
+  const [projectFilesLabel, setProjectFilesLabel] = useState('Project Files')
   const [showRateToCustomer, setShowRateToCustomer] = useState(false)
   const [paymentTerms, setPaymentTerms] = useState('deposit_50')
   const [customPaymentAmount, setCustomPaymentAmount] = useState<number | string>('')
@@ -991,6 +992,7 @@ export default function DocumentDetail({
       setCustomApprovalText(prev.customApprovalText || '')
       setIncludeLineAttachments(prev.includeLineAttachments !== undefined ? prev.includeLineAttachments : lineItemAttachmentCount > 0)
       setIncludeProjectAttachments(prev.includeProjectAttachments || false)
+      setProjectFilesLabel(prev.projectFilesLabel || 'Project Files')
       setShowRateToCustomer(prev.showRateToCustomer === true)
       setPaymentTerms(prev.paymentTerms || 'deposit_50')
       setCustomPaymentAmount(prev.paymentTerms === 'custom' ? (prev.depositAmount || 0) : 0)
@@ -1096,6 +1098,7 @@ export default function DocumentDetail({
         customApprovalText: approvalType === 'custom' ? customApprovalText : null,
         includeLineAttachments,
         includeProjectAttachments,
+        projectFilesLabel: (projectFilesLabel || '').trim() || 'Project Files',
         showRateToCustomer,
         paymentTerms,
         depositAmount,
@@ -5970,6 +5973,18 @@ export default function DocumentDetail({
                   <span style={{ flex: 1, color: '#f1f5f9', fontSize: '14px' }}>Project Level Attachments</span>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>({attachments.length} files)</span>
                 </label>
+                {includeProjectAttachments && (
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>Section heading shown to customer</label>
+                    <input
+                      type="text"
+                      value={projectFilesLabel}
+                      onChange={(e) => setProjectFilesLabel(e.target.value)}
+                      placeholder="Project Files"
+                      style={{ ...inputStyle }}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Pricing Display */}
@@ -6039,6 +6054,7 @@ export default function DocumentDetail({
                     customApprovalText: approvalType === 'custom' ? customApprovalText : null,
                     includeLineAttachments,
                     includeProjectAttachments,
+                    projectFilesLabel: (projectFilesLabel || '').trim() || 'Project Files',
                     showRateToCustomer,
                     paymentTerms,
                     depositAmount,

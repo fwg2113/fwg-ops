@@ -261,6 +261,21 @@ const ADDON_LABELS: Record<string, string> = {
   'dash_cam': 'Dash Cam Install',
 }
 
+// Labels for the PPF landing-page Coverage Area dropdown
+// (matches PPF_COVERAGE_OPTIONS in app/(landing)/lib/page-data.ts)
+const PPF_LANDING_COVERAGE_LABELS: Record<string, string> = {
+  'essentials': 'Essentials',
+  'partial_front': 'Partial Front',
+  'full_front': 'Full Front',
+  'full_front_plus': 'Full Front+',
+  'full_vehicle': 'Full Vehicle Coverage',
+  'not_sure': 'Not Sure Yet',
+}
+
+function isPPFLandingForm(formType?: string): boolean {
+  return formType === 'ppf_landing' || formType === 'ppf_pricing' || formType === 'ppf_tesla' || formType === 'ppf_luxury'
+}
+
 const FORM_TYPE_LABELS: Record<string, string> = {
   'commercial_wrap': 'Commercial Wrap',
   'automotive_styling': 'Automotive Styling',
@@ -866,11 +881,11 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
         {/* Vehicle & Project (or Equipment & Details for café) */}
         <div style={sectionStyle}>
           <div style={{ ...sectionTitleStyle, color: '#22d3ee' }}>
-            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : submission.form_type === 'sticker_label' ? 'Sticker Details' : submission.form_type === 'embroidery' ? 'Embroidery Details' : submission.form_type === 'ad_landing' ? 'Project Info' : 'Vehicle & Project'}
+            <TruckIcon /> {submission.form_type === 'cafe_wrap' ? 'Equipment & Details' : submission.form_type === 'sticker_label' ? 'Sticker Details' : submission.form_type === 'embroidery' ? 'Embroidery Details' : (submission.form_type === 'ad_landing' || isPPFLandingForm(submission.form_type)) ? 'Project Info' : 'Vehicle & Project'}
           </div>
 
-          {/* Café wraps, sticker/label, and embroidery skip vehicle display entirely */}
-          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' || submission.form_type === 'embroidery' || submission.form_type === 'ad_landing' ? null : submission.vehicles && submission.vehicles.length > 0 ? (
+          {/* Café wraps, sticker/label, embroidery, ad_landing, and PPF landing pages skip the vehicle-list block — they have their own project info layout below */}
+          {submission.form_type === 'cafe_wrap' || submission.form_type === 'sticker_label' || submission.form_type === 'embroidery' || submission.form_type === 'ad_landing' || isPPFLandingForm(submission.form_type) ? null : submission.vehicles && submission.vehicles.length > 0 ? (
             <>
               <div style={rowStyle}>
                 <span style={labelStyle}>Vehicles</span>
@@ -1519,6 +1534,43 @@ export default function SubmissionDetail({ submission }: { submission: Submissio
                     <span style={{...valueStyle, maxWidth: '60%'}}>{submission.additional_info}</span>
                   </div>
                 )}
+                {submission.source_page && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Landing Page</span>
+                    <span style={valueStyle}>{submission.source_page}</span>
+                  </div>
+                )}
+                {submission.utm_campaign && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Campaign</span>
+                    <span style={valueStyle}>{submission.utm_campaign}</span>
+                  </div>
+                )}
+                {submission.utm_term && (
+                  <div style={rowStyle}>
+                    <span style={labelStyle}>Keyword</span>
+                    <span style={valueStyle}>{submission.utm_term}</span>
+                  </div>
+                )}
+                {submission.gclid && (
+                  <div style={lastRowStyle}>
+                    <span style={labelStyle}>GCLID</span>
+                    <span style={valueStyle}>✓ Captured</span>
+                  </div>
+                )}
+              </>
+            ) : isPPFLandingForm(submission.form_type) ? (
+              <>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Vehicle</span>
+                  <span style={{...valueStyle, maxWidth: '60%'}}>{submission.vehicle_description || '-'}</span>
+                </div>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Coverage Area</span>
+                  <span style={valueStyle}>
+                    {PPF_LANDING_COVERAGE_LABELS[submission.coverage_type || ''] || submission.coverage_type || '-'}
+                  </span>
+                </div>
                 {submission.source_page && (
                   <div style={rowStyle}>
                     <span style={labelStyle}>Landing Page</span>
