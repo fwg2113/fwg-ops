@@ -219,12 +219,26 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       return txn
     }
 
+    // Business attribution: apparel-family revenue belongs to Frederick Apparel
+    // (FA), everything else to FWT. FWG merged into FWT for the books as of
+    // June 2026, so no new row may carry FWG. Each revenue row is tagged by its
+    // own category so a mixed invoice splits correctly. Shared rows (sales tax,
+    // processing fee) follow whichever business holds the most revenue.
+    const APPAREL_CATEGORIES = new Set(['Apparel Revenue', 'DTF Transfer Revenue', 'Embroidery Revenue'])
+    const businessFor = (cat: string) => (APPAREL_CATEGORIES.has(cat) ? 'FA' : 'FWT')
+    const businessTotals: Record<string, number> = {}
+    for (const rev of revenueRows) {
+      const b = businessFor(rev.category)
+      businessTotals[b] = (businessTotals[b] || 0) + rev.amount
+    }
+    const dominantBusiness = (businessTotals['FA'] || 0) > (businessTotals['FWT'] || 0) ? 'FA' : 'FWT'
+
     // --- Revenue rows: 1 IN/Sale row per category ---
     for (const rev of revenueRows) {
       allRows.push({
         txnNumber: nextTxn(),
         date: dateStr,
-        business: 'FWG',
+        business: businessFor(rev.category),
         direction: 'IN',
         eventType: 'Sale',
         amount: rev.amount,
@@ -248,7 +262,7 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       allRows.push({
         txnNumber: nextTxn(),
         date: dateStr,
-        business: 'FWG',
+        business: dominantBusiness,
         direction: 'OUT',
         eventType: 'Expense',
         amount: taxAmount,
@@ -272,7 +286,7 @@ export async function syncPaymentToSheet(paymentId: string, force = false): Prom
       allRows.push({
         txnNumber: nextTxn(),
         date: dateStr,
-        business: 'FWG',
+        business: dominantBusiness,
         direction: 'OUT',
         eventType: 'Expense',
         amount: Math.round(actualProcessingFee * 100) / 100,
