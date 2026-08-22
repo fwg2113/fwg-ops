@@ -39,22 +39,22 @@ export const CATEGORY_MAPPINGS: CategoryMapping[] = [
   },
   {
     systemCategory: 'VINYL_WRAP',
-    sheetCategory: 'Full Wrap Revenue',
-    description: 'Full and partial vinyl wraps (user configured to use Full Wrap Revenue)'
+    sheetCategory: 'Wrap Revenue',
+    description: 'Full and partial vinyl wraps (merged into Wrap Revenue, Aug 2026)'
   },
   {
     systemCategory: 'FULL_WRAP',
-    sheetCategory: 'Full Wrap Revenue',
+    sheetCategory: 'Wrap Revenue',
     description: 'Complete vehicle wraps'
   },
   {
     systemCategory: 'COMMERCIAL_WRAP',
-    sheetCategory: 'Full Wrap Revenue',
+    sheetCategory: 'Wrap Revenue',
     description: 'Commercial vehicle wraps'
   },
   {
     systemCategory: 'PARTIAL_WRAP',
-    sheetCategory: 'Partial Wrap Revenue',
+    sheetCategory: 'Wrap Revenue',
     description: 'Partial vehicle wraps'
   },
   {
@@ -69,7 +69,7 @@ export const CATEGORY_MAPPINGS: CategoryMapping[] = [
   },
   {
     systemCategory: 'CHROME_DELETE',
-    sheetCategory: 'Partial Wrap Revenue',
+    sheetCategory: 'Wrap Revenue',
     description: 'Chrome delete services'
   },
 
